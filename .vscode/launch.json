@@ -1,0 +1,14 @@
+{
+  //Note this all requires the monodebug extension in VSCode to work
+  "configurations": [
+    {
+      "preLaunchTask": "MSBuild_And_Launch_MonoDebug",
+      "postDebugTask": "PostDebug_Kill_App",
+      "name": "Attach to Mono",
+      "request": "attach",
+      "type": "mono",
+      "address": "localhost",
+      "port": 55555,
+    }
+  ]
+}

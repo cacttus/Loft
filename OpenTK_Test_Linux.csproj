@@ -5,11 +5,12 @@
     <Platform Condition=" '$(Platform)' == '' ">x86</Platform>
     <ProjectGuid>{CA278D04-0680-450F-B875-C6EAF623D74F}</ProjectGuid>
     <OutputType>Exe</OutputType>
-    <RootNamespace>OpenTK_Test_Linux</RootNamespace>
+    <RootNamespace>PirateCraft</RootNamespace>
     <AssemblyName>OpenTK_Test_Linux</AssemblyName>
     <TargetFrameworkVersion>v4.7</TargetFrameworkVersion>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x86' ">
+  <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
@@ -20,6 +21,7 @@
     <ExternalConsole>true</ExternalConsole>
     <PlatformTarget>x86</PlatformTarget>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>7.2</LangVersion>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x86' ">
     <Optimize>true</Optimize>
@@ -29,50 +31,57 @@
     <ExternalConsole>true</ExternalConsole>
     <PlatformTarget>x86</PlatformTarget>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>7.2</LangVersion>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Drawing" />
     <Reference Include="System.Windows.Forms" />
-    <Reference Include="OpenTK.GLControl">
-      <HintPath>packages\OpenTK.GLControl.3.1.0\lib\net20\OpenTK.GLControl.dll</HintPath>
-    </Reference>
     <Reference Include="OpenTK">
       <HintPath>packages\OpenTK.3.1.0\lib\net20\OpenTK.dll</HintPath>
     </Reference>
+    <Reference Include="SharpFont">
+      <HintPath>packages\SharpFont.1.0.2\lib\SharpFont.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="GameLib\RenderManager.cs" />
-    <Compile Include="GameLib\Gu.cs" />
-    <Compile Include="GameLib\Camera3d.cs" />
-    <Compile Include="GameLib\PickRay.cs" />
-    <Compile Include="GameLib\InputManager.cs" />
-    <Compile Include="GameLib\Physics.cs" />
-    <Compile Include="GameLib\InputAvatar.cs" />
-    <Compile Include="GameLib\NodeManager.cs" />
-    <Compile Include="GameLib\IglResource.cs" />
-    <Compile Include="GameLib\Texture.cs" />
-    <Compile Include="GameLib\PodObject.cs" />
-    <Compile Include="GameLib\BaseCamera.cs" />
-    <Compile Include="GameLib\BaseShader.cs" />
-    <Compile Include="GameLib\BaseNode.cs" />
-    <Compile Include="GameLib\EngineManager.cs" />
-    <Compile Include="GameLib\Math.cs" />
-    <Compile Include="GameLib\Enums.cs" />
-    <Compile Include="GameLib\RenderUtils.cs" />
-    <Compile Include="GameLib\Viewport.cs" />
-    <Compile Include="GameLib\CameraManager.cs" />
-    <Compile Include="GameLib\Box3f.cs" />
-    <Compile Include="GameLib\Gpu.cs" />
-    <Compile Include="GameLib\BaseImage.cs" />
-    <Compile Include="GameLib\CameraOrtho2d.cs" />
-    <Compile Include="GameLib\v3c4n3x2.cs" />
+
+    <Compile Include="src\Program.cs" />
+    <Compile Include="src\Engine.cs" />
+    <Compile Include="src\Gu.cs" />
+    <Compile Include="src\Renderer.cs" />
+    <Compile Include="src\Camera3D.cs" />
+    <Compile Include="src\Viewport.cs" />
+    <Compile Include="src\Frustum3D.cs" />
+    <Compile Include="src\BaseNode.cs" />
+    <Compile Include="src\Enums.cs" />
+    <Compile Include="src\PickRay.cs" />
+    <Compile Include="src\VisibleSet.cs" />
+    <Compile Include="src\Box3f.cs" />
+    <Compile Include="src\MathUtils.cs" />
+    <Compile Include="src\Shader.cs" />
+    <Compile Include="src\Math.cs" />
+    <Compile Include="src\EngineConfig.cs" />
+    <Compile Include="src\Font.cs" />
+    <Compile Include="src\Log.cs" />
+    <Compile Include="src\Mesh.cs" />
+    <Compile Include="src\VertexTypes.cs" />
+    <Compile Include="src\BaseImage.cs" />
+    <Compile Include="src\Texture.cs" />
+    <Compile Include="src\OpenGLResource.cs" />
+    <Compile Include="src\GpuInfo.cs" />
+    <Compile Include="src\Context.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="OpenTK.dll.config" />
     <None Include="packages.config" />
+    <None Include="notes.md" />
+    <None Include="SharpFont.dll.config" />
+    <None Include="freetype.dll" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="src\" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
 </Project>
