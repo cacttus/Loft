@@ -208,41 +208,16 @@ namespace PirateCraft
             {
                 float mx = (float)mouseState.X - last.x;
                 float my = (float)mouseState.Y - last.y;
-                //   mat4 r = ;
-                //mat4 r2 = mat4.getRotation((float)Math.PI * my  * -0.001f, _camera.v3x);
-
-                //mat4 cm = new mat4(_camera.v3x.x, _camera.v3x.y, _camera.v3x.z,0,
-                //0,1, 0, 0,
-                //_camera.v3z.x, _camera.v3z.y, _camera.v3z.z, 0,
-                //0,0,0, 1);
-                //cm = r * r2 * cm;
-                //_camera.v3x = new vec3(cm._m11, cm._m12, cm._m13);
-                //_camera.v3y = new vec3(cm._m21, cm._m22, cm._m23);
-                //_camera.v3z = new vec3(cm._m31, cm._m32, cm._m33);
-
+  
                 mat4 ry = mat4.getRotation((float)Math.PI * mx * -0.001f, new vec3(0, 1, 0));
                 mat4 rx = mat4.getRotation((float)Math.PI * my * 0.001f, _camera.v3x);
 
                 _camera.v3z = (rx * ry * new vec4(_camera.v3z, 1)).xyz().normalize();
                 _camera.v3x = new vec3(0, 1, 0).cross(_camera.v3z).normalize();
                 _camera.v3y = _camera.v3z.cross(_camera.v3x);
-
-                Console.WriteLine(_camera.v3z.ToString());
-                Console.WriteLine(_camera.v3x.ToString());
-                Console.WriteLine(_camera.v3y.ToString());
-                Console.WriteLine("--");
-
-                //vec4 test = new vec4(0,1,0,0);
-                //vec4 vtest = cm * test;
-                //this.Title = " " +vtest.x + " " + vtest.y + " " + vtest.z + " ";
-
-                //_camera.v3x.normalize();
-                //_camera.v3y.normalize();
-                //_camera.v3z.normalize();
             }
             last.x = (float)mouseState.X;
             last.y = (float)mouseState.Y;
-
         }
 
         long _frameStamp = 0;
