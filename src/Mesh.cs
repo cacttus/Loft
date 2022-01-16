@@ -13,18 +13,19 @@ namespace PirateCraft
         //Shader
         int _intVboId;
         int _intIboId;
-        int _intVaoId;
+        public int _intVaoId { get; private set; }
         //List<MeshVert> _verts;
         //List<uint> _indexes = null;
+        public int IndexCount { get; private set;}
 
         //Do we need vertex formats if we don't have interleaved arrays?
         public Mesh(in MeshVert[] verts, in uint[] indexes)
         {
-            if(verts==null || indexes == null)
+            if (verts == null || indexes == null)
             {
                 Gu.Log.Error("Error: vertexes and indexes required.");
             }
-            CreateBuffers(verts,indexes);
+            CreateBuffers(verts, indexes);
         }
         private void CreateBuffers(in MeshVert[] verts, in uint[] indexes)
         {
@@ -35,7 +36,6 @@ namespace PirateCraft
             _intVaoId = GL.GenVertexArray();
 
             int attr_v = 0;//These are the layout=x locations in glsl
-           // int attr_c = 1;
             int attr_n = 1;
             int attr_x = 2;
 
@@ -53,15 +53,13 @@ namespace PirateCraft
                 );
 
             //Note: we use vec4 size offsets here because of the 16 byte padding required by GPUs.
-            int v4s = System.Runtime.InteropServices.Marshal.SizeOf(default(Vector4));
+            int v4s = Marshal.SizeOf(default(Vector4));
             GL.EnableVertexAttribArray(attr_v);
-          //  GL.EnableVertexAttribArray(attr_c);
             GL.EnableVertexAttribArray(attr_n);
             GL.EnableVertexAttribArray(attr_x);
             GL.VertexAttribPointer(attr_v, 3, VertexAttribPointerType.Float, false, MeshVert.SizeBytes, (IntPtr)(0));
-          //  GL.VertexAttribPointer(attr_c, 4, VertexAttribPointerType.Float, false, MeshVert.SizeBytes, (IntPtr)(0 + v4s));
-            GL.VertexAttribPointer(attr_n, 3, VertexAttribPointerType.Float, false, MeshVert.SizeBytes, (IntPtr)(0 + v4s + v4s));
-            GL.VertexAttribPointer(attr_x, 2, VertexAttribPointerType.Float, false, MeshVert.SizeBytes, (IntPtr)(0 + v4s + v4s + v4s));
+            GL.VertexAttribPointer(attr_n, 3, VertexAttribPointerType.Float, false, MeshVert.SizeBytes, (IntPtr)(0 + v4s));
+            GL.VertexAttribPointer(attr_x, 2, VertexAttribPointerType.Float, false, MeshVert.SizeBytes, (IntPtr)(0 + v4s + v4s));
 
             Gu.CheckGpuErrorsDbg();
 
@@ -75,9 +73,11 @@ namespace PirateCraft
                 );
             Gu.CheckGpuErrorsDbg();
 
+            IndexCount = indexes.Length;
+
+            GL.BindVertexArray(0);
             GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
-            GL.BindVertexArray(0);
 
             Gu.CheckGpuErrorsDbg();
         }
@@ -101,36 +101,7 @@ namespace PirateCraft
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
             GL.BindVertexArray(0);
         }
-        //public void Render(Renderer rm)
-        //{
-        //    if (_objTexture != null)
-        //    {
-        //        _objTexture.Bind();
-        //    }
 
-        //    Gu.CheckGpuErrorsDbg();
-        //    //bool b = GL.IsVertexArray(_intVaoId);
-        //    GL.BindVertexArray(_intVaoId);
-        //    Gu.CheckGpuErrorsDbg();
-
-        //    GL.BindBuffer(BufferTarget.ArrayBuffer, _intVboId);
-        //    GL.BindBuffer(BufferTarget.ElementArrayBuffer, _intIboId);
-
-        //    GL.DrawElements(PrimitiveType.Triangles,
-        //                    NumIndexes,
-        //                    DrawElementsType.UnsignedInt,
-        //                    IntPtr.Zero
-        //                    );
-
-        //    GL.BindVertexArray(0);
-        //    GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
-        //    GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
-
-        //    Gu.CheckGpuErrorsDbg();
-
-        //    if (_objTexture != null)
-        //        _objTexture.Unbind();
-        //}
         //private void CopyVertexData(in List<MeshVert> verts, in List<uint> indexes)
         //{
         //    /* Layout:

@@ -25,10 +25,12 @@ namespace PirateCraft
             _fileLoc = loc;
             if (String.IsNullOrEmpty(System.IO.Path.GetFileName(_fileLoc)))
             {
-                System.IO.Path.Combine(_fileLoc, "Log" + DateTime.Now.Day + "." +
-                    DateTime.Now.Hour + "." +
-                    DateTime.Now.Minute + "." +
-                    DateTime.Now.Second + "." +
+                _fileLoc = System.IO.Path.Combine(_fileLoc, "Log" +
+                DateTime.Now.Year + "." +
+                DateTime.Now.Day + "." +
+                    DateTime.Now.Hour + ":" +
+                    DateTime.Now.Minute + ":" +
+                    DateTime.Now.Second + ":" +
                     DateTime.Now.Millisecond);
             }
 
@@ -79,7 +81,11 @@ namespace PirateCraft
                     {
                         if (!System.IO.File.Exists(_fileLoc))
                         {
-                            System.IO.File.Create(_fileLoc);
+                            var dir = System.IO.Path.GetDirectoryName(_fileLoc);
+                            System.IO.Directory.CreateDirectory(dir);
+                            using (var fs = System.IO.File.Create(_fileLoc))
+                            {
+                            }
                         }
                         using (FileStream file = new FileStream(_fileLoc, FileMode.Append, FileAccess.Write, FileShare.ReadWrite))
                         using (StreamWriter writer = new StreamWriter(file, Encoding.ASCII))

@@ -19,8 +19,11 @@ namespace PirateCraft
         public Frustum3D Frustum { get; set; } = null;
         float FOV { get; set; } = ((float)Math.PI / (float)6);
 
-        Mat4f ProjectionMatrix;
-        Mat4f ViewMatrix;
+        //public mat4 ProjectionMatrix { get; private set;}
+        //public mat4 ViewMatrix { get; private set;}
+
+        public mat4 ProjectionMatrix { get; private set;}
+        public mat4 ViewMatrix { get; private set;}
 
         public Camera3D(int w, int h, float near=1, float far=1000)
         {
@@ -29,7 +32,11 @@ namespace PirateCraft
             Viewport = new Viewport(w,h);
             Frustum = new Frustum3D(Viewport,near,far);
         }
-        public void Setup()
+        public vec3 v3pos = new vec3(0, 0, -10);
+        public vec3 v3x = new vec3(1, 0, 0);
+        public vec3 v3y = new vec3(0, 1, 0);
+        public vec3 v3z = new vec3(0,0,1);
+        public void Update()
         {
             //GL.MatrixMode(MatrixMode.Projection);
             //GL.LoadIdentity();
@@ -50,8 +57,13 @@ namespace PirateCraft
             //GL.LoadMatrix(ref m);
             //Gu.CheckGpuErrorsDbg();
 
-            ViewMatrix = Mat4f.LookAt(new Vec3f(10,10,10), new Vec3f(0,0,0), new Vec3f(0, 1, 0));
-            ProjectionMatrix = Mat4f.CreatePerspectiveFieldOfView(MathUtils.ToRadians(70.0f),1080.0f/1920.0f, 1.0f, 1000.0f);
+            ProjectionMatrix = mat4.projection(MathUtils.ToRadians(80.0f), 1920,1080,1,1000);
+            ViewMatrix = mat4.getLookAt(this.v3pos, this.v3pos+this.v3z, v3y);
+           // ViewMatrix = mat4.getRotation((float)Math.PI / 4.0f, new vec3(0, 1, 0))*
+           // mat4.getTranslation(new vec3(10,0,-10));//* mat4.getRotation((float)Math.PI/2.0f,new vec3(0,1,0));
+
+            //ViewMatrix = Mat4f.LookAt(new Vec3f(0,10,-10), new Vec3f(0,0,0), new Vec3f(0, 1, 0));
+            //ProjectionMatrix = Mat4f.CreatePerspectiveFieldOfView(MathUtils.ToRadians(70.0f),1920.0f/ 1080.0f, 1.0f, 1000.0f);
 
         }
         public override void Resize(Viewport vp) { }

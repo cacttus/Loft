@@ -16,9 +16,9 @@ namespace PirateCraft
     {
         private static bool _initialized = false;
         //This will be gotten via current context if we have > 1
-        public static CoordinateSystem CoordinateSystem { get; set; } = CoordinateSystem.Rhs;
+        public static CoordinateSystem CoordinateSystem { get; set; } = CoordinateSystem.Lhs;
         public static EngineConfig EngineConfig { get; set; } = new EngineConfig();
-        public static Log Log { get;set;} = new Log("./logs/");
+        public static Log Log { get; set; } = new Log("./logs/");
 
         //This will end up being a map to GameWindow->Context
         public static Context Context { get; private set; }
@@ -27,6 +27,11 @@ namespace PirateCraft
         {
             Gu.Log.Info("Initializing Globals");
             Context = new Context(g);
+            _initialized = true;
+        }
+        public static long Nanoseconds()
+        {
+            return DateTime.UtcNow.Ticks * 100;
         }
         public static void CheckGpuErrorsRt()
         {
@@ -35,7 +40,7 @@ namespace PirateCraft
             {
                 if (Gu.EngineConfig.LogErrors)
                 {
-                   Log.Error("OpenGL Error " + c.ToString());
+                    Log.Error("OpenGL Error " + c.ToString());
                 }
                 if (Gu.EngineConfig.BreakOnOpenGLError)
                 {
@@ -49,12 +54,11 @@ namespace PirateCraft
             CheckGpuErrorsRt();
 #endif
         }
-        public static void Assert(bool x, [CallerLineNumber] int lineNumber = 0,[CallerMemberName] string caller = null)
+        public static void Assert(bool x, [CallerLineNumber] int lineNumber = 0, [CallerMemberName] string caller = null)
         {
             if (!x)
             {
-                Log.Error("Assertion failed: " + caller+":"+lineNumber.ToString());
-                Gu.DebugBreak();
+                throw new Exception("Assertion failed: " + caller + ":" + lineNumber.ToString());
             }
         }
         public static void DebugBreak()

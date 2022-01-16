@@ -42,20 +42,17 @@ namespace PirateCraft
                     uniform mat4 projection_matrix;
 
                     layout(location = 0)in vec3 _v;
-                    layout(location = 1)in vec4 _c;
-                    layout(location = 2)in vec3 _n;
-                    layout(location = 3)in vec2 _x;
+                    layout(location = 1)in vec3 _n;
+                    layout(location = 2)in vec2 _x;
 
                     out vec3 _vsNormal;
                     out vec2 _vsTcoords;
                     out vec3 _vsVertex;
-                    out vec4 _vsColor;
                     void main(void)
                     {
                         //not a proper transformation if modelview_matrix involves non-uniform scaling
                         _vsNormal = normalize(( modelview_matrix * vec4( _n, 0 ) ).xyz);
                         _vsTcoords = _x;
-                        _vsColor = _c;
                         gl_Position = projection_matrix * modelview_matrix * vec4( _v, 1.0f );
                         _vsVertex = gl_Position.xyz;
                     }
@@ -71,17 +68,16 @@ namespace PirateCraft
                     in vec3 _vsNormal;
                     in vec2 _vsTcoords;
                     in vec3 _vsVertex;
-                    in vec4 _vsColor;
 
                     out vec4 _psColorOut;
  
                     void main(void)
                     {
-                        vec3 light = vec3(0, 0, 10);
-                        vec3 surface = light - _vsVertex;
+                        vec3 light = vec3(0, 10, -10);
+                        vec3 surface = normalize(light - _vsVertex);
                         vec4 albedo = texture(_ufTextureId_i0, vec2(_vsTcoords));
 
-                        vec3 lightedTexel = albedo.xyz  * clamp(dot(_vsNormal, surface),0,1) * _vsColor.rgb;
+                        vec3 lightedTexel = albedo.xyz  * dot(_vsNormal, surface);
 
                         _psColorOut.xyz = lightedTexel;
                         _psColorOut.w = 1.0f;
@@ -125,29 +121,32 @@ namespace PirateCraft
             }
             Gu.CheckGpuErrorsDbg();
         }
-        public void UpdateAndBind()
+
+        double rot=0;
+        public void UpdateAndBind(double dt, Camera3D cam)
         {
             //**Pre - render - update uniforms.
             Gu.CheckGpuErrorsDbg();
             {
-                float[] mv = new float[16];
-                float[] vp = new float[16];
-                GL.GetFloat(GetPName.ModelviewMatrix, mv);
-                Gu.CheckGpuErrorsDbg();
-                GL.GetFloat(GetPName.ProjectionMatrix, vp);
-                Gu.CheckGpuErrorsDbg();
-
                 Bind();
-                Mat4f mv_mat = MathUtils.m4f16(mv);
-                Mat4f vp_mat = MathUtils.m4f16(vp);
+                mat4 p_mat = cam.ProjectionMatrix;
+                mat4 v_mat = cam.ViewMatrix;
 
                 //GL.UniformMatrix4(_modelviewMatrixLocation, 1, false, mv);
                 //Gu.CheckGpuErrorsDbg();
                 //GL.UniformMatrix4(_projectionMatrixLocation, 1, false, vp);
                 //Gu.CheckGpuErrorsDbg();
-                GL.UniformMatrix4(_modelviewMatrixLocation, false,ref mv_mat);
+
+                mat4 model = mat4.getRotation((float)rot, new vec3(0,1,0));
+                rot += Math.PI * 2.0f * dt * 0.125f;
+                var v_mat2 =  model * v_mat;
+
+                var v_mat_tk = v_mat2.ToOpenTK();
+                var p_mat_tk = p_mat.ToOpenTK();
+               // p_mat_tk.Transpose();
+                GL.UniformMatrix4(_modelviewMatrixLocation, false,ref v_mat_tk);
                 Gu.CheckGpuErrorsDbg();
-                GL.UniformMatrix4(_projectionMatrixLocation, false,ref vp_mat);
+                GL.UniformMatrix4(_projectionMatrixLocation, false,ref p_mat_tk);
                 Gu.CheckGpuErrorsDbg();
 
                 int texLocation = GL.GetUniformLocation(_shaderProgramHandle, "_ufTextureId_i0");

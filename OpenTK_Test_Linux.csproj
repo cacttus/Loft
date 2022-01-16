@@ -20,7 +20,6 @@
     <WarningLevel>4</WarningLevel>
     <ExternalConsole>true</ExternalConsole>
     <PlatformTarget>x86</PlatformTarget>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <LangVersion>7.2</LangVersion>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x86' ">
@@ -30,7 +29,6 @@
     <WarningLevel>4</WarningLevel>
     <ExternalConsole>true</ExternalConsole>
     <PlatformTarget>x86</PlatformTarget>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <LangVersion>7.2</LangVersion>
   </PropertyGroup>
   <ItemGroup>
@@ -48,7 +46,6 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
 
     <Compile Include="src\Program.cs" />
-    <Compile Include="src\Engine.cs" />
     <Compile Include="src\Gu.cs" />
     <Compile Include="src\Renderer.cs" />
     <Compile Include="src\Camera3D.cs" />
@@ -61,7 +58,6 @@
     <Compile Include="src\Box3f.cs" />
     <Compile Include="src\MathUtils.cs" />
     <Compile Include="src\Shader.cs" />
-    <Compile Include="src\Math.cs" />
     <Compile Include="src\EngineConfig.cs" />
     <Compile Include="src\Font.cs" />
     <Compile Include="src\Log.cs" />
@@ -72,6 +68,8 @@
     <Compile Include="src\OpenGLResource.cs" />
     <Compile Include="src\GpuInfo.cs" />
     <Compile Include="src\Context.cs" />
+    <Compile Include="src\Assets.cs" />
+    <Compile Include="src\v3c4n3x2.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="OpenTK.dll.config" />

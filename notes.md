@@ -40,3 +40,22 @@ Next question is how they actually compile all these shaders together. They actu
  
  1/13/22 adding vec3 and all that
  
+ 
+ Render -> Camera VisibleSet
+ 
+ VisibleInstanceSet
+    [Shader, Texture, Distance, Geom]
+    
+ InstanceSet
+    [matrices]
+    [geoms]
+    
+ Geom
+    Shader (reference)
+ 
+ 
+ Materials 
+ Blender you must use the nodes now. Images are just inputs into the Principled BSDF
+ If there is no input into the Principled BSDF then a color is used
+ So for pixel shader we have a limited set of inputs, the principled, then colors, or, images in them.
+ Principled BSDF defines all these no need to make our own.

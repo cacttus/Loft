@@ -10,8 +10,10 @@ namespace PirateCraft
 {
     public class MainWindow : OpenTK.GameWindow
     {
-        Camera3D _camera = new Camera3D(860, 540, 1,1000);
+        Camera3D _camera = new Camera3D(860, 540, 1, 1000);
         Shader _shader = new Shader();
+        Texture _texture = new Texture();
+        Mesh _mesh;
 
         public MainWindow() : base(860, // initial width
         540, // initial height
@@ -43,29 +45,33 @@ namespace PirateCraft
         }
         protected override void OnLoad(EventArgs e)
         {
-            Gu.Init(this);
-
-            CursorVisible = true;
-           // TestFonts();
-            _shader.Load();
+            try
+            {
+                Gu.Log.Info("Base Dir=" +System.IO.Directory.GetCurrentDirectory());
+                Gu.Init(this);
+                GenMesh();
+                this._camera.v3pos = new vec3(0,0,-10);
+                _shader.Load();
+                _texture.Load("../../main char.png");
+                CursorVisible = true;
+            }
+            catch(Exception ex)
+            {
+                Gu.Log.Error("Failed to initialize engine. Errors occured: " + ex.ToString());
+                System.Environment.Exit(0);
+            }
         }
         private void TestFonts()
         {
             //TODO: we might need to use STB here. This is just .. ugh
             try
             {
-                System.Console.WriteLine("Testing fonts.");
-                string ttf_loc = "../../testdata/fonts/Lato-Regular.ttf";
-                if (!System.IO.File.Exists(ttf_loc))
-                {
-                    System.Console.WriteLine("We aren't in the app directory for some reason");
-                    ttf_loc = "./testdata/fonts/Lato-Regular.ttf";
-                }
-                Font f = new Font(ttf_loc); 
-                System.Drawing.Bitmap b = f.RenderString("Hello World");
-                b.Save("./test.bmp");
-                var fff = b.RawFormat;
-                var ffff = b.PixelFormat;
+ 
+                //Font f = new Font(ttf_loc);
+                //System.Drawing.Bitmap b = f.RenderString("Hello World");
+                //b.Save("./test.bmp");
+                //var fff = b.RawFormat;
+                //var ffff = b.PixelFormat;
 
 
                 //System.Console.WriteLine("whate");
@@ -75,7 +81,7 @@ namespace PirateCraft
 
                 //using (var fs = File.Open(ttf_loc, FileMode.Open, FileAccess.Read, FileShare.None))
                 //{
-                //    face = r.Read(fs);
+                //    face = r.Read(fsgit stat);
                 //}
             }
             catch (Exception ex)
@@ -83,26 +89,168 @@ namespace PirateCraft
                 Console.WriteLine(ex.ToString());
             }
         }
+        private void GenMesh()
+        {
+            //Left Righ, Botom top, back front
+            Vector3[] box = new Vector3[8];
+            box[0] = new Vector3(-1, -1, -1);
+            box[1] = new Vector3( 1, -1, -1);
+            box[2] = new Vector3(-1,  1, -1);
+            box[3] = new Vector3( 1,  1, -1);
+            box[4] = new Vector3(-1, -1,  1);
+            box[5] = new Vector3( 1, -1,  1);
+            box[6] = new Vector3(-1,  1,  1);
+            box[7] = new Vector3( 1,  1,  1);
+
+            Vector3[] norms = new Vector3[6];//lrbtaf
+            norms[0] = new Vector3(-1, 0, 0);
+            norms[1] = new Vector3(1, 0, 0);
+            norms[2] = new Vector3(0, -1, 0);
+            norms[3] = new Vector3(0, 1, 0);
+            norms[4] = new Vector3(0, 0, -1);
+            norms[5] = new Vector3(0, 0, 1);
+
+            Vector2[] texs = new Vector2[4];
+            texs[0] = new Vector2(0, 1);
+            texs[1] = new Vector2(1, 1);
+            texs[2] = new Vector2(0, 0);
+            texs[3] = new Vector2(1, 0);
+
+            //     6       7
+            // 2      3
+            //     4       5
+            // 0      1
+            MeshVert[] verts = new MeshVert[6 * 4];//lrbtaf
+            verts[0*4+0] = new MeshVert() { _v = box[0], _n = norms[0], _x = texs[0] };
+            verts[0*4+1] = new MeshVert() { _v = box[0], _n = norms[0], _x = texs[1] };
+            verts[0*4+2] = new MeshVert() { _v = box[0], _n = norms[0], _x = texs[2] };
+            verts[0*4+3] = new MeshVert() { _v = box[0], _n = norms[0], _x = texs[3] };
+                
+            verts[1*4+0] = new MeshVert() { _v = box[1], _n = norms[1], _x = texs[0] };
+            verts[1*4+1] = new MeshVert() { _v = box[5], _n = norms[1], _x = texs[1] };
+            verts[1*4+2] = new MeshVert() { _v = box[3], _n = norms[1], _x = texs[2] };
+            verts[1*4+3] = new MeshVert() { _v = box[7], _n = norms[1], _x = texs[3] };
+
+            verts[2*4+0] = new MeshVert() { _v = box[4], _n = norms[2], _x = texs[0] };
+            verts[2*4+1] = new MeshVert() { _v = box[5], _n = norms[2], _x = texs[1] };
+            verts[2*4+2] = new MeshVert() { _v = box[0], _n = norms[2], _x = texs[2] };
+            verts[2*4+3] = new MeshVert() { _v = box[1], _n = norms[2], _x = texs[3] };
+
+            verts[3*4+0] = new MeshVert() { _v = box[2], _n = norms[3], _x = texs[0] };
+            verts[3*4+1] = new MeshVert() { _v = box[3], _n = norms[3], _x = texs[1] };
+            verts[3*4+2] = new MeshVert() { _v = box[6], _n = norms[3], _x = texs[2] };
+            verts[3*4+3] = new MeshVert() { _v = box[7], _n = norms[3], _x = texs[3] };
+
+            verts[4*4+0] = new MeshVert() { _v = box[1], _n = norms[4], _x = texs[0] };
+            verts[4*4+1] = new MeshVert() { _v = box[2], _n = norms[4], _x = texs[1] };
+            verts[4*4+2] = new MeshVert() { _v = box[3], _n = norms[4], _x = texs[2] };
+            verts[4*4+3] = new MeshVert() { _v = box[4], _n = norms[4], _x = texs[3] };
+
+            verts[5*4+0] = new MeshVert() { _v = box[5], _n = norms[5], _x = texs[0] };
+            verts[5*4+1] = new MeshVert() { _v = box[4], _n = norms[5], _x = texs[1] };
+            verts[5*4+2] = new MeshVert() { _v = box[7], _n = norms[5], _x = texs[2] };
+            verts[5*4+3] = new MeshVert() { _v = box[6], _n = norms[5], _x = texs[3] };
+
+            uint idx = 0;
+            uint[] inds = new uint[6 * 6];
+            for (int face = 0; face < 6; ++face)
+            {
+                inds[face * 6 + 0] = idx + 0;
+                inds[face * 6 + 1] = idx + 1;
+                inds[face * 6 + 2] = idx + 3;
+                inds[face * 6 + 3] = idx + 0;
+                inds[face * 6 + 4] = idx + 3;
+                inds[face * 6 + 5] = idx + 2;
+                idx += 4;
+            } 
+
+            _mesh = new Mesh(verts, inds);
+        }
         protected override void OnUpdateFrame(FrameEventArgs e)
         {
             HandleKeyboard();
         }
+        vec2 last = new vec2(0,0);
+        bool lastSet=false;
         private void HandleKeyboard()
         {
+
             var keyState = Keyboard.GetState();
 
             if (keyState.IsKeyDown(Key.Escape))
             {
                 Exit();
             }
+            if (keyState.IsKeyDown(Key.Up) || keyState.IsKeyDown(Key.W))
+            {
+                _camera.v3pos += _camera.v3y * 0.01f;
+            }
+            if (keyState.IsKeyDown(Key.Down) || keyState.IsKeyDown(Key.S))
+            {
+                _camera.v3pos -= _camera.v3y * 0.01f;
+            }
+            if (keyState.IsKeyDown(Key.Right) || keyState.IsKeyDown(Key.D))
+            {
+                _camera.v3pos += _camera.v3x * 0.01f;
+            }
+            if (keyState.IsKeyDown(Key.Left) || keyState.IsKeyDown(Key.A))
+            {
+                _camera.v3pos -= _camera.v3x * 0.01f;
+            }
+            var mouseState = Mouse.GetState();
+            if (lastSet == false)
+            {
+                last.x = (float)mouseState.X;
+                last.y = (float)mouseState.Y;
+                lastSet = true;
+            }
+            if (mouseState.IsButtonDown(MouseButton.Left))
+            {
+                float mx = (float)mouseState.X - last.x;
+                float my = (float)mouseState.Y - last.y;
+                mat4 r = mat4.getRotation((float)Math.PI * mx * 0.001f, _camera.v3y);
+                mat4 r2 = mat4.getRotation((float)Math.PI * my  *0.001f, _camera.v3x);
+
+                mat4 cm = new mat4(_camera.v3x.x, _camera.v3x.y, _camera.v3x.z,0,
+                                        _camera.v3y.x, _camera.v3y.y, _camera.v3y.z, 0,
+                                        _camera.v3z.x, _camera.v3z.y, _camera.v3z.z, 0,
+                                        0,0,0, 1);
+                cm = r * r2 * cm;
+                _camera.v3x = new vec3(cm._m11, cm._m12, cm._m13);
+                _camera.v3y = new vec3(cm._m21, cm._m22, cm._m23);
+                _camera.v3z = new vec3(cm._m31, cm._m32, cm._m33);
+
+                vec4 test = new vec4(0,1,0,0);
+                vec4 vtest = cm * test;
+                this.Title = " " +vtest.x + " " + vtest.y + " " + vtest.z + " ";
+
+                _camera.v3x.normalize();
+                _camera.v3y.normalize();
+                _camera.v3z.normalize();
+
+            }
+            last.x = (float)mouseState.X;
+            last.y = (float)mouseState.Y;
+
         }
+
+        long _frameStamp = 0;
+        long _lastTime = Gu.Nanoseconds();
         protected override void OnRenderFrame(FrameEventArgs e)
         {
-            Title = $"(Vsync: {VSync}) FPS: {1f / e.Time:0}";
+           // Title = $"(Vsync: {VSync}) FPS: {1f / e.Time:0}";
 
-            _camera.Setup();
+            //For first frame run at a smooth time.
+            double dt = 1/60;
+            long curTime = Gu.Nanoseconds();
+            if (_frameStamp > 0)
+            {
+                dt=(double)((decimal)(curTime - _lastTime) / (decimal)(1000000000));
+            }
+            _lastTime = curTime;
 
-            _shader.UpdateAndBind();
+            _camera.Update();
+            _shader.UpdateAndBind(dt,_camera);
 
             Color4 backColor;
             backColor.A = 1.0f;
@@ -111,8 +259,14 @@ namespace PirateCraft
             backColor.B = 0.3f;
             GL.ClearColor(backColor);
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+            Gu.CheckGpuErrorsRt();
 
+            Renderer.Render(_camera, _mesh, _shader, _texture);
+
+            Gu.CheckGpuErrorsRt();
             SwapBuffers();
+
+            _frameStamp++;
         }
     }
     class MainClass
@@ -120,7 +274,7 @@ namespace PirateCraft
         public static void Main(string[] args)
         {
             var m = new MainWindow();
-            m.VSync = OpenTK.VSyncMode.Off;
+            m.VSync = OpenTK.VSyncMode.On;
             m.Run();
         }
     }

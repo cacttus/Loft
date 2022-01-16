@@ -1546,7 +1546,7 @@ namespace PirateCraft
 
         }
         public mat4(float t0, float t1, float t2, float t3,
-        float t4, float t5, float t6, float t7,
+            float t4, float t5, float t6, float t7,
         float t8, float t9, float t10, float t11,
         float t12, float t13, float t14, float t15)
         {
@@ -1566,6 +1566,28 @@ namespace PirateCraft
             _m42 = t13;
             _m43 = t14;
             _m44 = t15;
+        }
+        public OpenTK.Matrix4 ToOpenTK()
+        {
+            OpenTK.Matrix4 ret = new Mat4f(
+            _m11,
+            _m12,
+            _m13,
+            _m14,
+            _m21,
+            _m22,
+            _m23,
+            _m24,
+            _m31,
+            _m32,
+            _m33,
+            _m34,
+            _m41,
+            _m42,
+            _m43,
+            _m44
+                );
+            return ret;
         }
         public void set(float val, int index)
         {
@@ -1595,7 +1617,7 @@ namespace PirateCraft
                 0, 0, 1, 0,
                 0, 0, 0, 1);
         }
-        public void copyTo(mat4 to)
+        public void copyTo(out mat4 to)
         {
             to._m11 = _m11;
             to._m12 = _m12;
@@ -1681,11 +1703,11 @@ namespace PirateCraft
             Quaternion ret = new Quaternion(q[k0], q[k1], q[k2], q[k3]);
             return ret;
         }
-        public mat4 translation(in vec3 vTrans)
+        public static mat4 getTranslation(in vec3 vTrans)
         {
-            return translation(vTrans.x, vTrans.y, vTrans.z);
+            return getTranslation(vTrans.x, vTrans.y, vTrans.z);
         }
-        public mat4 translation(float x, float y, float z)
+        public static mat4 getTranslation(float x, float y, float z)
         {
             mat4 m = identity();
 
@@ -1695,11 +1717,11 @@ namespace PirateCraft
 
             return m;
         }
-        public mat4 rotation(float radians, in vec3 vAxis)
+        public static mat4 getRotation(float radians, in vec3 vAxis)
         {
-            return rotation(radians, vAxis.x, vAxis.y, vAxis.z);
+            return getRotation(radians, vAxis.x, vAxis.y, vAxis.z);
         }
-        public mat4 rotation(float radians, float x, float y, float z)
+        public static mat4 getRotation(float radians, float x, float y, float z)
         {
             // - Reference: The openGL reference.http://pyopengl.sourceforge.net/documentation/manual/reference-GL.html
             mat4 Temp = identity();
@@ -1765,13 +1787,13 @@ namespace PirateCraft
 
             //TODO: possible error may rotate opposite. (would need to do opposite cross of up.cross(v) scuz cross v
 
-            return rotation(ang, perp.x, perp.y, perp.z);
+            return getRotation(ang, perp.x, perp.y, perp.z);
         }
-        public mat4 scaling(in vec3 vScale)
+        public static mat4 getScale(in vec3 vScale)
         {
-            return scaling(vScale.x, vScale.y, vScale.z);
+            return getScale(vScale.x, vScale.y, vScale.z);
         }
-        public mat4 scaling(float x, float y, float z)
+        public static mat4 getScale(float x, float y, float z)
         {
             mat4 m = identity();
             m._m11 = x;
@@ -1792,54 +1814,56 @@ namespace PirateCraft
             {
                 viewport_w = 1;
             }
-            if (fov_radians > (float)Math.PI / 2 - e)
+            if (fov_radians > (float)Math.PI / 2.0f - e)
             {
-                fov_radians = (float)Math.PI / 2 - e;
+                fov_radians = (float)Math.PI / 2.0f - e;
             }
-            if (fov_radians < 1 + e)
+            if (fov_radians < 1.0f + e)
             {
-                fov_radians = 1 + e;
+                fov_radians = 1.0f + e;
             }
-            float vpWidth_2 = (float)Math.Tan(fov_radians * (float)0.5) * z_near;
+            float vpWidth_2 = (float)Math.Tan(fov_radians * (float)0.5f) * z_near;
             float arat_1 = viewport_h / viewport_w;  // 1 / (w/h)
             float vw = vpWidth_2;
             float vh = vpWidth_2 * arat_1;
 
             return mat4.projection(
                 z_near, z_far,
-                vw, -vw,
-                vh, -vh);
+                -vw, vw,
+                -vh, vh);
         }
         public static mat4 projection(float n, float f, float l, float r, float t, float b)
         {
-            //Alternative projection matrix speicfying the viewport bounds.
-            //TODO: [-1,1] OpenGL, [0,1] Vulkan
-            mat4 m = new mat4();
-
-            m._m11 = (float)(2 * n) / (r - l);
-            m._m21 = (float)0;
-            m._m31 = (float)0;
-            m._m41 = (float)0;
-
-            m._m12 = (float)0;
-            m._m22 = (float)(2 * n) / (t - b);  // *-1.0f; // we added a neagtive here because IDK WHY this is not right
-            m._m32 = (float)0;
-            m._m42 = (float)0;
-
-            m._m13 = (float)(r + l) / (r - l);
-            m._m23 = (float)(t + b) / (t - b);
-            m._m33 = (float)-(f + n) / (f - n);
-            m._m43 = (float)-1;
-
-            m._m14 = (float)0;
-            m._m24 = (float)0;
-            m._m34 = (float)-(2 * f * n) / (f - n);
-            m._m44 = (float)0;
 
             if (Gu.CoordinateSystem == CoordinateSystem.Rhs)
             {
-                m.transpose();
+                r = -r;
+                l = -l;
             }
+
+            mat4 m = new mat4();
+            m._m11 = (float)(2 * n) / (r - l);
+            m._m12 = (float)0;
+            m._m13 = (float)0;
+            m._m14 = (float)0;
+
+            m._m21 = (float)0;
+            m._m22 = (float)(2 * n) / (t - b);  // *-1.0f; // we added a neagtive here because IDK WHY this is not right
+            m._m23 = (float)0;
+            m._m24 = (float)0;
+
+            m._m31 = (float)(r + l) / (r - l);
+            m._m32 = (float)(t + b) / (t - b);
+            m._m33 = (float) - (f + n) / (f - n);
+            m._m34 = (float) - 1;
+
+            m._m41 = (float)0;
+            m._m42 = (float)0;
+            m._m43 = (float) - (2 * f * n) / (f - n);
+            m._m44 = (float)0;
+
+
+            m.transpose();
 
             return m;
         }
@@ -1872,83 +1896,40 @@ namespace PirateCraft
 
             return m;
         }
-        public mat4 getLookAt(in vec3 eye, in vec3 center, in vec3 up)
+        public static mat4 getLookAt(in vec3 eye, in vec3 center, in vec3 up)
         {
-            mat4 m = new mat4();
-            m.lookAt(eye, center, up);
-            return m;
-        }
-        public void lookAt(in vec3 eye, in vec3 center, in vec3 up)
-        {
-            //http://www.opengl.org/sdk/docs/man/xhtml/gluLookAt.xml
-            // also see
-            //http://www-01.ibm.com/support/knowledgecenter/ssw_aix_53/com.ibm.aix.opengl/doc/openglrf/gluLookAt.htm%23b5c874e426rree
-            /*
-              Let E be the 3d column vector(eyeX, eyeY, eyeZ).
-              Let C be the 3d column vector(centerX, centerY, centerZ).
-              Let U be the 3d column vector(upX, upY, upZ).
-              Compute L = C - E.
-              Normalize L.
-              Compute S = L x U.
-              Normalize S.
-              Compute U' = S x L.
-              (S, 0), (U', 0), (-L, 0), (-E, 1)  (all column vectors)
-            */
-            vec3 L = center - eye;
-            L.normalize();
-            vec3 S = L.cross(up);
-            S.normalize();
-            vec3 D = S.cross(L);
-            vec3 E = eye;
-
-            L = L * -1;
-            //E = E;
+            vec3 zaxis = (center - eye).normalize();
+            vec3 xaxis = zaxis.cross(up).normalize();//This produces -y,+z -> -x
+            vec3 yaxis = xaxis.cross(zaxis);
+            zaxis*=-1;
 
             mat4 mm = new mat4();
-            // It seems to be an exact transpose.
-            mm._m11 = S.x; mm._m12 = S.y; mm._m13 = S.z; mm._m14 = 0;
-            mm._m21 = D.x; mm._m22 = D.y; mm._m23 = D.z; mm._m24 = 0;
-            mm._m31 = L.x; mm._m32 = L.y; mm._m33 = L.z; mm._m34 = 0;
-            mm._m41 = 0; mm._m42 = 0; mm._m43 = 0; mm._m44 = 1;
+              mm._m11 = xaxis.x; mm._m12 = yaxis.x; mm._m13 = zaxis.x; mm._m14 = 0;
+              mm._m21 = xaxis.y; mm._m22 = yaxis.y; mm._m23 = zaxis.y; mm._m24 = 0;
+              mm._m31 = xaxis.z; mm._m32 = yaxis.z; mm._m33 = zaxis.z; mm._m34 = 0;
+              mm._m41 = -xaxis.dot(eye); mm._m42 = -yaxis.dot(eye); mm._m43 = -zaxis.dot(eye); mm._m44 = 1;
 
-            // Not sure if this is right. seems to mimic the opengl matrix correctly
-            //mm._m11 = S.x, mm._m12 = D.x, mm._m13 = L.x, mm._m14 =   0,
-            //mm._m21 = S.y, mm._m22 = D.y, mm._m23 = L.y, mm._m24 =   0,
-            //
-            mm._m31 = S.z; mm._m32 = D.z; mm._m33 = L.z; mm._m34 = 0;
-            //mm._m41 =   0, mm._m42 =   0, mm._m43 =   0, mm._m44 =   1;
-
-            mat4 mmTrans = new mat4();
-            mmTrans.setIdentity();
-            mmTrans._m14 = -E.x;
-            mmTrans._m24 = -E.y;
-            mmTrans._m34 = -E.z;
-
-            mat4 ret = mm * mmTrans;
-            if (Gu.CoordinateSystem == CoordinateSystem.Rhs)
-            {
-                ret = ret.transposed();
-            }
-            ret.copyTo(this);
+            return mm;
         }
         public mat4 translate(float x, float y, float z)
         {
-            this *= translation(x, y, z);
+            this *= getTranslation(x, y, z);
             return this;
         }
         public mat4 translate(in vec3 v)
         {
-            this *= translation(v.x, v.y, v.z);
+            this *= getTranslation(v.x, v.y, v.z);
             return this;
         }
         public mat4 transpose()
         {
-            _m12 = _m21;
-            _m13 = _m31;
-            _m23 = _m32;
-            _m14 = _m41;
-            _m24 = _m42;
-            _m34 = _m43;
+            mat4 ret = new mat4(
+                  _m11, _m21, _m31, _m41,
+                  _m12, _m22, _m32, _m42,
+                  _m13, _m23, _m33, _m43,
+                  _m14, _m24, _m34, _m44
+                );
+            ret.copyTo(out this);
             return this;
         }
         public mat4 transposed()
@@ -2045,7 +2026,7 @@ namespace PirateCraft
                 m[i] /= d;
             }
 
-            m.copyTo(this);
+            m.copyTo(out this);
 
             return this;
         }
@@ -2150,7 +2131,10 @@ namespace PirateCraft
             }
 
             mat4 tMat = new mat4();
-
+            //|11 21 31 41|   |11 21 31 41|
+            //|12 22 32 42|   |12 22 32 42|
+            //|13 23 33 43| * |13 23 33 43|
+            //|14 24 34 44|   |14 24 34 44|
             //64 mul
             //48 add
             tMat._m11 = (a._m11 * b._m11) + (a._m12 * b._m21) + (a._m13 * b._m31) + (a._m14 * b._m41);

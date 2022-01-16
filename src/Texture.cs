@@ -3,6 +3,8 @@ using OpenTK;
 using OpenTK.Graphics;
 using OpenTK.Graphics.OpenGL;
 using System.Drawing.Imaging;
+using System;
+
 namespace PirateCraft
 {
     public enum TextureLoadResult
@@ -54,6 +56,10 @@ namespace PirateCraft
         }
         public TextureLoadResult Load(string path)
         {
+            if (!System.IO.File.Exists(path))
+            {
+                throw new Exception("File " + path + " does not exist.");
+            }
             Bitmap bmp = new Bitmap(path);
 
             Width = bmp.Width;
