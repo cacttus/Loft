@@ -360,9 +360,11 @@ namespace PirateCraft
     {
         public float x, y, z, w;
 
+        public vec4(vec3 d, float dw) { x = d.x; y = d.y; z = d.z; w = dw; }
         public vec4(vec4 dxy) { x = dxy.x; y = dxy.y; z = dxy.z; w = dxy.w; }
         public vec4(float dx, float dy, float dz, float dw) { x = dx; y = dy; z = dz; w = dw; }
         public vec4(OpenTK.Vector4 v) { x = v.X; y = v.Y; z = v.Z; w = v.W; }//From XNA's Vector2
+
 
         public static vec4 Clamp(vec4 v, float a, float b)
         {
@@ -444,6 +446,10 @@ namespace PirateCraft
             ret.z = (float)Math.Max(a.z, b.z);
             ret.w = (float)Math.Max(a.w, b.w);
             return ret;
+        }
+        public vec3 xyz()
+        {
+            return new vec3(x, y, z);
         }
 
     }
@@ -919,6 +925,10 @@ namespace PirateCraft
             x = rhs;
             y = rhs;
             z = rhs;
+        }
+        public override string ToString()
+        {
+            return "" + x + "," + y+"," + z;
         }
         // template <class Tx>
         // vec3(const Vec2x<float>& rhs) {
@@ -1854,12 +1864,12 @@ namespace PirateCraft
 
             m._m31 = (float)(r + l) / (r - l);
             m._m32 = (float)(t + b) / (t - b);
-            m._m33 = (float) - (f + n) / (f - n);
-            m._m34 = (float) - 1;
+            m._m33 = (float)-(f + n) / (f - n);
+            m._m34 = (float)-1;
 
             m._m41 = (float)0;
             m._m42 = (float)0;
-            m._m43 = (float) - (2 * f * n) / (f - n);
+            m._m43 = (float)-(2 * f * n) / (f - n);
             m._m44 = (float)0;
 
             return m;
@@ -1898,13 +1908,13 @@ namespace PirateCraft
             vec3 zaxis = (center - eye).normalize();
             vec3 xaxis = zaxis.cross(up).normalize();//This produces -y,+z -> -x
             vec3 yaxis = xaxis.cross(zaxis);
-            zaxis*=-1;
+            zaxis *= -1;
 
             mat4 mm = new mat4();
-              mm._m11 = xaxis.x; mm._m12 = yaxis.x; mm._m13 = zaxis.x; mm._m14 = 0;
-              mm._m21 = xaxis.y; mm._m22 = yaxis.y; mm._m23 = zaxis.y; mm._m24 = 0;
-              mm._m31 = xaxis.z; mm._m32 = yaxis.z; mm._m33 = zaxis.z; mm._m34 = 0;
-              mm._m41 = -xaxis.dot(eye); mm._m42 = -yaxis.dot(eye); mm._m43 = -zaxis.dot(eye); mm._m44 = 1;
+            mm._m11 = xaxis.x; mm._m12 = yaxis.x; mm._m13 = zaxis.x; mm._m14 = 0;
+            mm._m21 = xaxis.y; mm._m22 = yaxis.y; mm._m23 = zaxis.y; mm._m24 = 0;
+            mm._m31 = xaxis.z; mm._m32 = yaxis.z; mm._m33 = zaxis.z; mm._m34 = 0;
+            mm._m41 = -xaxis.dot(eye); mm._m42 = -yaxis.dot(eye); mm._m43 = -zaxis.dot(eye); mm._m44 = 1;
 
             return mm;
         }
@@ -2158,35 +2168,11 @@ namespace PirateCraft
         }
         public static vec4 operator *(in mat4 m, in vec4 v)
         {
-            // #if using row vectors, alert user, quit.
-            vec4 vret = new vec4();
-            mat4 mNew = new mat4();
-
-            mNew._m11 = m._m11 * v.x;
-            mNew._m12 = m._m12 * v.x;
-            mNew._m13 = m._m13 * v.x;
-            mNew._m14 = m._m14 * v.x;
-
-            mNew._m21 = m._m21 * v.y;
-            mNew._m22 = m._m22 * v.y;
-            mNew._m23 = m._m23 * v.y;
-            mNew._m24 = m._m24 * v.y;
-
-            mNew._m31 = m._m31 * v.z;
-            mNew._m32 = m._m32 * v.z;
-            mNew._m33 = m._m33 * v.z;
-            mNew._m34 = m._m34 * v.z;
-
-            mNew._m41 = m._m41 * v.w;
-            mNew._m42 = m._m42 * v.w;
-            mNew._m43 = m._m43 * v.w;
-            mNew._m44 = m._m44 * v.w;
-
-            vret.x = m._m11 + m._m21 + m._m31 + m._m41;
-            vret.y = m._m12 + m._m22 + m._m32 + m._m42;
-            vret.z = m._m13 + m._m23 + m._m33 + m._m43;
-            vret.w = m._m14 + m._m24 + m._m34 + m._m44;
-
+            vec4 vret = new vec4(
+                    m._m11 * v.x + m._m21 * v.y + m._m31 * v.z + m._m41 * v.w,
+                    m._m12 * v.x + m._m22 * v.y + m._m32 * v.z + m._m42 * v.w,
+                    m._m13 * v.x + m._m23 * v.y + m._m33 * v.z + m._m43 * v.w,
+                    m._m14 * v.x + m._m24 * v.y + m._m34 * v.z + m._m44 * v.w);
             return vret;
         }
         public static bool operator ==(in mat4 lhs, in mat4 rhs)
