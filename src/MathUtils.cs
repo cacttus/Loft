@@ -1835,7 +1835,7 @@ namespace PirateCraft
         public static mat4 projection(float n, float f, float l, float r, float t, float b)
         {
 
-            if (Gu.CoordinateSystem == CoordinateSystem.Rhs)
+            if (Gu.CoordinateSystem == CoordinateSystem.Lhs)
             {
                 r = -r;
                 l = -l;
@@ -1861,9 +1861,6 @@ namespace PirateCraft
             m._m42 = (float)0;
             m._m43 = (float) - (2 * f * n) / (f - n);
             m._m44 = (float)0;
-
-
-            m.transpose();
 
             return m;
         }

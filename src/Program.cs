@@ -212,9 +212,9 @@ namespace PirateCraft
                 mat4 r2 = mat4.getRotation((float)Math.PI * my  *0.001f, _camera.v3x);
 
                 mat4 cm = new mat4(_camera.v3x.x, _camera.v3x.y, _camera.v3x.z,0,
-                                        _camera.v3y.x, _camera.v3y.y, _camera.v3y.z, 0,
-                                        _camera.v3z.x, _camera.v3z.y, _camera.v3z.z, 0,
-                                        0,0,0, 1);
+                                    _camera.v3y.x, _camera.v3y.y, _camera.v3y.z, 0,
+                                    _camera.v3z.x, _camera.v3z.y, _camera.v3z.z, 0,
+                                    0,0,0, 1);
                 cm = r * r2 * cm;
                 _camera.v3x = new vec3(cm._m11, cm._m12, cm._m13);
                 _camera.v3y = new vec3(cm._m21, cm._m22, cm._m23);
@@ -227,7 +227,6 @@ namespace PirateCraft
                 _camera.v3x.normalize();
                 _camera.v3y.normalize();
                 _camera.v3z.normalize();
-
             }
             last.x = (float)mouseState.X;
             last.y = (float)mouseState.Y;
