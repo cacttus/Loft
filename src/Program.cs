@@ -121,10 +121,10 @@ namespace PirateCraft
             //     4       5
             // 0      1
             MeshVert[] verts = new MeshVert[6 * 4];//lrbtaf
-            verts[0*4+0] = new MeshVert() { _v = box[0], _n = norms[0], _x = texs[0] };
+            verts[0*4+0] = new MeshVert() { _v = box[4], _n = norms[0], _x = texs[0] };
             verts[0*4+1] = new MeshVert() { _v = box[0], _n = norms[0], _x = texs[1] };
-            verts[0*4+2] = new MeshVert() { _v = box[0], _n = norms[0], _x = texs[2] };
-            verts[0*4+3] = new MeshVert() { _v = box[0], _n = norms[0], _x = texs[3] };
+            verts[0*4+2] = new MeshVert() { _v = box[6], _n = norms[0], _x = texs[2] };
+            verts[0*4+3] = new MeshVert() { _v = box[2], _n = norms[0], _x = texs[3] };
                 
             verts[1*4+0] = new MeshVert() { _v = box[1], _n = norms[1], _x = texs[0] };
             verts[1*4+1] = new MeshVert() { _v = box[5], _n = norms[1], _x = texs[1] };
@@ -141,10 +141,10 @@ namespace PirateCraft
             verts[3*4+2] = new MeshVert() { _v = box[6], _n = norms[3], _x = texs[2] };
             verts[3*4+3] = new MeshVert() { _v = box[7], _n = norms[3], _x = texs[3] };
 
-            verts[4*4+0] = new MeshVert() { _v = box[1], _n = norms[4], _x = texs[0] };
-            verts[4*4+1] = new MeshVert() { _v = box[2], _n = norms[4], _x = texs[1] };
-            verts[4*4+2] = new MeshVert() { _v = box[3], _n = norms[4], _x = texs[2] };
-            verts[4*4+3] = new MeshVert() { _v = box[4], _n = norms[4], _x = texs[3] };
+            verts[4*4+0] = new MeshVert() { _v = box[0], _n = norms[4], _x = texs[0] };
+            verts[4*4+1] = new MeshVert() { _v = box[1], _n = norms[4], _x = texs[1] };
+            verts[4*4+2] = new MeshVert() { _v = box[2], _n = norms[4], _x = texs[2] };
+            verts[4*4+3] = new MeshVert() { _v = box[3], _n = norms[4], _x = texs[3] };
 
             verts[5*4+0] = new MeshVert() { _v = box[5], _n = norms[5], _x = texs[0] };
             verts[5*4+1] = new MeshVert() { _v = box[4], _n = norms[5], _x = texs[1] };
