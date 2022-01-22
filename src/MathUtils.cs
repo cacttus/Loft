@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Runtime.InteropServices;
 using Mat4f = OpenTK.Matrix4;
 //using Microsoft.Xna.Framework;
 
@@ -168,6 +169,7 @@ namespace PirateCraft
             return x.x.GetHashCode() + x.y.GetHashCode();
         }
     }
+    [StructLayout(LayoutKind.Sequential)]
     class mat2
     {
         //0 1
@@ -212,6 +214,7 @@ namespace PirateCraft
             return x.x.GetHashCode() + x.y.GetHashCode();
         }
     }
+        [StructLayout(LayoutKind.Sequential)]
     public struct vec2
     {
         public vec2(Point p)
@@ -318,11 +321,12 @@ namespace PirateCraft
         }
 
     }
+    [StructLayout(LayoutKind.Sequential)]
     public struct ivec2
     {
         public ivec2(int dx, int dy) { x = dx; y = dy; }
-        public int x { get; set; }
-        public int y { get; set; }
+        public Int32 x { get; set; }
+        public Int32 y { get; set; }
         static public implicit operator ivec2(int f)
         {
             return new ivec2(f, f);
@@ -356,6 +360,46 @@ namespace PirateCraft
             return new ivec2(a.x - f, a.y - f);
         }
     }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct uvec2
+    {
+        public uvec2(int dx, int dy) { x = dx; y = dy; }
+        public Int32 x { get; set; }
+        public Int32 y { get; set; }
+        static public implicit operator uvec2(int f)
+        {
+            return new uvec2(f, f);
+        }
+        public static uvec2 operator -(uvec2 d)
+        {
+            return new uvec2(-d.x, -d.y);
+        }
+        public static uvec2 operator +(uvec2 a, uvec2 b)
+        {
+            return new uvec2(a.x + b.x, a.y + b.y);
+        }
+        public static uvec2 operator -(uvec2 a, uvec2 b)
+        {
+            return new uvec2(a.x - b.x, a.y - b.y);
+        }
+        public static uvec2 operator *(uvec2 a, int b)
+        {
+            return new uvec2(a.x * b, a.y * b);
+        }
+        public static uvec2 operator *(uvec2 a, uvec2 b)
+        {
+            return new uvec2(a.x * b.x, a.y * b.y);
+        }
+        public static uvec2 operator /(uvec2 a, int b)
+        {
+            return new uvec2(a.x / b, a.y / b);
+        }
+        public static uvec2 operator -(uvec2 a, int f)
+        {
+            return new uvec2(a.x - f, a.y - f);
+        }
+    }
+    [StructLayout(LayoutKind.Sequential)]
     public struct vec4
     {
         public float x, y, z, w;
@@ -550,6 +594,7 @@ namespace PirateCraft
             return ret;
         }
     }
+    [StructLayout(LayoutKind.Sequential)]
     public struct Box2f
     {
         public vec2 Min;
@@ -780,14 +825,12 @@ namespace PirateCraft
             _isOpt = true;
         }
     }
-    public class Box3f
+    [StructLayout(LayoutKind.Sequential)]
+    public struct Box3f
     {
         public vec3 _vmin;
         public vec3 _vmax;
 
-        public Box3f()
-        {
-        }
         public Box3f(vec3 min, vec3 max)
         {
             _vmin = min;
@@ -896,6 +939,7 @@ namespace PirateCraft
         }
 
     }
+    [StructLayout(LayoutKind.Sequential)]
     public struct vec3
     {
         public float x;
@@ -1411,6 +1455,7 @@ namespace PirateCraft
         //    vec3 _x, _y, _z;
         //};
     }
+    [StructLayout(LayoutKind.Sequential)]
     public struct mat3
     {
         public float _m11, _m12, _m13;
@@ -1525,6 +1570,7 @@ namespace PirateCraft
 
 
     }//mat3
+    [StructLayout(LayoutKind.Sequential)]
     public struct mat4
     {
         public float _m11, _m12, _m13, _m14;   // indexes: 0,1,2,3
@@ -1619,7 +1665,7 @@ namespace PirateCraft
             else if (index == 15) { _m44 = val; }
             else throw new Exception("Mat4 index out of range");
         }
-        public static mat4 identity()
+        public static mat4 Identity()
         {
             return new mat4(
                 1, 0, 0, 0,
@@ -1627,7 +1673,7 @@ namespace PirateCraft
                 0, 0, 1, 0,
                 0, 0, 0, 1);
         }
-        public void copyTo(out mat4 to)
+        public void CopyTo(out mat4 to)
         {
             to._m11 = _m11;
             to._m12 = _m12;
@@ -1646,7 +1692,7 @@ namespace PirateCraft
             to._m43 = _m43;
             to._m44 = _m44;
         }
-        public mat4 setTranslation(float x, float y, float z)
+        public mat4 SetTranslation(float x, float y, float z)
         {
             _m41 = x;
             _m42 = y;
@@ -1654,7 +1700,7 @@ namespace PirateCraft
 
             return this;
         }
-        public Quaternion getQuaternion()
+        public Quaternion GetQuaternion()
         {
             float s0, s1, s2;
             int k0, k1, k2, k3;
@@ -1713,13 +1759,13 @@ namespace PirateCraft
             Quaternion ret = new Quaternion(q[k0], q[k1], q[k2], q[k3]);
             return ret;
         }
-        public static mat4 getTranslation(in vec3 vTrans)
+        public static mat4 GetTranslation(in vec3 vTrans)
         {
-            return getTranslation(vTrans.x, vTrans.y, vTrans.z);
+            return GetTranslation(vTrans.x, vTrans.y, vTrans.z);
         }
-        public static mat4 getTranslation(float x, float y, float z)
+        public static mat4 GetTranslation(float x, float y, float z)
         {
-            mat4 m = identity();
+            mat4 m = Identity();
 
             m._m41 = x;
             m._m42 = y;
@@ -1727,14 +1773,14 @@ namespace PirateCraft
 
             return m;
         }
-        public static mat4 getRotation(float radians, in vec3 vAxis)
+        public static mat4 GetRotation(float radians, in vec3 vAxis)
         {
-            return getRotation(radians, vAxis.x, vAxis.y, vAxis.z);
+            return GetRotation(radians, vAxis.x, vAxis.y, vAxis.z);
         }
-        public static mat4 getRotation(float radians, float x, float y, float z)
+        public static mat4 GetRotation(float radians, float x, float y, float z)
         {
             // - Reference: The openGL reference.http://pyopengl.sourceforge.net/documentation/manual/reference-GL.html
-            mat4 Temp = identity();
+            mat4 Temp = Identity();
 
             float c = (float)Math.Cos(radians);
             float s = (float)Math.Sin(radians);
@@ -1783,7 +1829,7 @@ namespace PirateCraft
             if (ang == 0.0f)
             {
                 // no need for rotation
-                return identity();
+                return Identity();
             }
 
             vec3 perp = up.cross(v);
@@ -1797,7 +1843,7 @@ namespace PirateCraft
 
             //TODO: possible error may rotate opposite. (would need to do opposite cross of up.cross(v) scuz cross v
 
-            return getRotation(ang, perp.x, perp.y, perp.z);
+            return GetRotation(ang, perp.x, perp.y, perp.z);
         }
         public static mat4 getScale(in vec3 vScale)
         {
@@ -1805,7 +1851,7 @@ namespace PirateCraft
         }
         public static mat4 getScale(float x, float y, float z)
         {
-            mat4 m = identity();
+            mat4 m = Identity();
             m._m11 = x;
             m._m22 = y;
             m._m33 = z;
@@ -1876,7 +1922,7 @@ namespace PirateCraft
         }
         public mat4 getOrientToVector(in vec3 iv, in vec3 iup)
         {
-            mat4 m = identity();
+            mat4 m = Identity();
 
             vec3 v = new vec3(iv);
             vec3 up = new vec3(iup);
@@ -1920,12 +1966,12 @@ namespace PirateCraft
         }
         public mat4 translate(float x, float y, float z)
         {
-            this *= getTranslation(x, y, z);
+            this *= GetTranslation(x, y, z);
             return this;
         }
         public mat4 translate(in vec3 v)
         {
-            this *= getTranslation(v.x, v.y, v.z);
+            this *= GetTranslation(v.x, v.y, v.z);
             return this;
         }
         public mat4 transpose()
@@ -1936,7 +1982,7 @@ namespace PirateCraft
                   _m13, _m23, _m33, _m43,
                   _m14, _m24, _m34, _m44
                 );
-            ret.copyTo(out this);
+            ret.CopyTo(out this);
             return this;
         }
         public mat4 transposed()
@@ -2033,7 +2079,7 @@ namespace PirateCraft
                 m[i] /= d;
             }
 
-            m.copyTo(out this);
+            m.CopyTo(out this);
 
             return this;
         }
@@ -2300,7 +2346,7 @@ namespace PirateCraft
             mat4 mOut = new mat4();
             decompose(out pos, out mOut, out scale);
 
-            Quaternion q = mOut.getQuaternion();
+            Quaternion q = mOut.GetQuaternion();
 
             q.getAxisAngle(out rot);
             if (bDegreeRotation)
@@ -2336,7 +2382,7 @@ namespace PirateCraft
 
 
     }//mat4
-
+    [StructLayout(LayoutKind.Sequential)]
     public struct Quaternion
     {
         public float x, y, z, w;

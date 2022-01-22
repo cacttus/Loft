@@ -50,7 +50,10 @@ namespace PirateCraft
         }
         public void Error(string s)
         {
-            LogString("[" + LogLineStr() + "][" + TimeStr() + "][E]: " + s, ConsoleColor.Red);
+            string stackTrace = Environment.StackTrace;
+
+            LogString("[" + LogLineStr() + "][" + TimeStr() + "][E]: " + s + "\n" + stackTrace, ConsoleColor.Red);
+
         }
         private string TimeStr()
         {

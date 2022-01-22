@@ -26,7 +26,8 @@ namespace PirateCraft
         int _vertexShaderHandle;
         int _fragmentShaderHandle;
         int _shaderProgramHandle;
-        int _modelviewMatrixLocation;
+        int _viewMatrixLocation;
+        int _modelMatrixLocation;
         int _projectionMatrixLocation;
 
         List<string> _shaderErrors = new List<string>();
@@ -38,7 +39,8 @@ namespace PirateCraft
         string vertexShaderSource = @"
                     #version 400
  
-                    uniform mat4 modelview_matrix;            
+                    uniform mat4 model_matrix;            
+                    uniform mat4 view_matrix;            
                     uniform mat4 projection_matrix;
 
                     layout(location = 0)in vec3 _v;
@@ -51,9 +53,11 @@ namespace PirateCraft
                     void main(void)
                     {
                         //not a proper transformation if modelview_matrix involves non-uniform scaling
-                        _vsNormal = normalize(( modelview_matrix * vec4( _n, 0 ) ).xyz);
+                        mat4 mv = view_matrix * model_matrix;
+
+                        _vsNormal = normalize((inverse(mv) * vec4( _n, 0 )).xyz);
                         _vsTcoords = _x;
-                        gl_Position = projection_matrix * modelview_matrix * vec4( _v, 1.0f );
+                        gl_Position = projection_matrix * mv * vec4(_v, 1);
                         _vsVertex = gl_Position.xyz;
                     }
                     ";
@@ -100,7 +104,7 @@ namespace PirateCraft
                 }
                 else
                 {
-                    System.Windows.Forms.MessageBox.Show("Failed to load shader.\r\n" + String.Join("\r\n", _shaderErrors.ToArray()));
+                    Gu.Log.Error("Failed to load shader.\r\n" + String.Join("\r\n", _shaderErrors.ToArray()));
                 }
             }
             Gu.CheckGpuErrorsDbg();
@@ -122,31 +126,22 @@ namespace PirateCraft
             Gu.CheckGpuErrorsDbg();
         }
 
-        double rot=0;
-        public void UpdateAndBind(double dt, Camera3D cam)
+        public void UpdateAndBind(double dt, Camera3D cam, mat4 model)
         {
             //**Pre - render - update uniforms.
             Gu.CheckGpuErrorsDbg();
             {
                 Bind();
-                mat4 p_mat = cam.ProjectionMatrix;
-                mat4 v_mat = cam.ViewMatrix;
 
-                //GL.UniformMatrix4(_modelviewMatrixLocation, 1, false, mv);
-                //Gu.CheckGpuErrorsDbg();
-                //GL.UniformMatrix4(_projectionMatrixLocation, 1, false, vp);
-                //Gu.CheckGpuErrorsDbg();
+                var v_mat_tk = cam.ViewMatrix.ToOpenTK();
+                var p_mat_tk = cam.ProjectionMatrix.ToOpenTK();
+                var m_mat_tk = model.ToOpenTK();
 
-                mat4 model = mat4.getRotation((float)rot, new vec3(0,1,0));
-                rot += Math.PI * 2.0f * dt * 0.125f;
-                var v_mat2 =  model * v_mat;
-
-                var v_mat_tk = v_mat2.ToOpenTK();
-                var p_mat_tk = p_mat.ToOpenTK();
-               // p_mat_tk.Transpose();
-                GL.UniformMatrix4(_modelviewMatrixLocation, false,ref v_mat_tk);
+                GL.UniformMatrix4(_viewMatrixLocation, false,ref v_mat_tk);
                 Gu.CheckGpuErrorsDbg();
                 GL.UniformMatrix4(_projectionMatrixLocation, false,ref p_mat_tk);
+                Gu.CheckGpuErrorsDbg();
+                GL.UniformMatrix4(_modelMatrixLocation, false, ref m_mat_tk);
                 Gu.CheckGpuErrorsDbg();
 
                 int texLocation = GL.GetUniformLocation(_shaderProgramHandle, "_ufTextureId_i0");
@@ -213,7 +208,8 @@ namespace PirateCraft
             Gu.CheckGpuErrorsDbg();
             {
                 _projectionMatrixLocation = GL.GetUniformLocation(_shaderProgramHandle, "projection_matrix");
-                _modelviewMatrixLocation = GL.GetUniformLocation(_shaderProgramHandle, "modelview_matrix");
+                _viewMatrixLocation = GL.GetUniformLocation(_shaderProgramHandle, "view_matrix");
+                _modelMatrixLocation = GL.GetUniformLocation(_shaderProgramHandle, "model_matrix");
             }
             Gu.CheckGpuErrorsDbg();
         }

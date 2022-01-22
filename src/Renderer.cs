@@ -33,14 +33,36 @@ namespace PirateCraft
         //        }
 
         //We're using instanced rendering so vs sohuld be instanced as well.
-        public static void Render(Camera3D bc, Mesh ms, Shader shader, Texture tex)// InstancedVisibleSet vs) << TODO
+        public static void Render(Camera3D bc, MeshData ms, Shader shader, Texture tex)// InstancedVisibleSet vs) << TODO
         {
+            /*
+             collect visible nodes
+                        
+             ob - world - one object
+                ob - meshdatas  < loaded cells.
+
+jnot sure
+
+so we need to get a way to make more general meshes first - 
+debug / util
+
+
+          
+            */
+
             Gu.CheckGpuErrorsDbg();
-            GL.Disable(EnableCap.CullFace);
+            GL.Enable(EnableCap.CullFace);
             GL.CullFace(CullFaceMode.Back);
-            GL.FrontFace(FrontFaceDirection.Ccw);
-            GL.Disable(EnableCap.DepthTest);
-            GL.Disable(EnableCap.ScissorTest);
+            if(Gu.CoordinateSystem == CoordinateSystem.Lhs)
+            {
+                GL.FrontFace(FrontFaceDirection.Cw);
+            }
+            else
+            {
+                GL.FrontFace(FrontFaceDirection.Ccw);
+            }
+            GL.Enable(EnableCap.DepthTest);
+            GL.Enable(EnableCap.ScissorTest);
 
             if (tex != null)
             {

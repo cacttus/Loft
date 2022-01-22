@@ -61,7 +61,7 @@
     <Compile Include="src\EngineConfig.cs" />
     <Compile Include="src\Font.cs" />
     <Compile Include="src\Log.cs" />
-    <Compile Include="src\Mesh.cs" />
+    <Compile Include="src\MeshData.cs" />
     <Compile Include="src\VertexTypes.cs" />
     <Compile Include="src\BaseImage.cs" />
     <Compile Include="src\Texture.cs" />
@@ -70,6 +70,9 @@
     <Compile Include="src\Context.cs" />
     <Compile Include="src\Assets.cs" />
     <Compile Include="src\v3c4n3x2.cs" />
+    <Compile Include="src\UtilMesh.cs" />
+    <Compile Include="src\Object3D.cs" />
+    <Compile Include="src\Component.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="OpenTK.dll.config" />

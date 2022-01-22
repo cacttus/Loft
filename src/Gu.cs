@@ -23,15 +23,24 @@ namespace PirateCraft
         //This will end up being a map to GameWindow->Context
         public static Context Context { get; private set; }
 
+        public static void BRThrowNotImplementedException()
+        {
+            throw new NotImplementedException();
+        }
+
         public static void Init(GameWindow g)
         {
             Gu.Log.Info("Initializing Globals");
             Context = new Context(g);
             _initialized = true;
         }
-        public static long Nanoseconds()
+        public static Int64 Nanoseconds()
         {
             return DateTime.UtcNow.Ticks * 100;
+        }
+        public static Int64 Microseconds()
+        {
+            return Nanoseconds()/1000;
         }
         public static void CheckGpuErrorsRt()
         {

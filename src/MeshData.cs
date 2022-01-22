@@ -7,27 +7,27 @@ using System.Runtime.InteropServices;
 namespace PirateCraft
 {
     //Triangle mesh .. 
-    public class Mesh
+    public class MeshData
     {
-        //VAO
-        //Shader
         int _intVboId;
         int _intIboId;
         public int _intVaoId { get; private set; }
-        //List<MeshVert> _verts;
-        //List<uint> _indexes = null;
         public int IndexCount { get; private set;}
+        public VertexFormat VertexFormat { get; private set; }
+
+        //Mesh data is just a byte buffer with float3 float2 float16 accessor
 
         //Do we need vertex formats if we don't have interleaved arrays?
-        public Mesh(in MeshVert[] verts, in uint[] indexes)
+        public MeshData(in MeshVert[] verts, in uint[] indexes)
         {
             if (verts == null || indexes == null)
             {
-                Gu.Log.Error("Error: vertexes and indexes required.");
+                Gu.Log.Error("Mesh(): Error: vertexes and indexes null.");
             }
             CreateBuffers(verts, indexes);
         }
-        private void CreateBuffers(in MeshVert[] verts, in uint[] indexes)
+        public MeshData() {}
+        protected void CreateBuffers(in MeshVert[] verts, in uint[] indexes)
         {
             Gu.CheckGpuErrorsDbg();
 
@@ -47,7 +47,7 @@ namespace PirateCraft
             GL.BindBuffer(BufferTarget.ArrayBuffer, _intVboId);
             GL.BufferData(
                 BufferTarget.ArrayBuffer,
-                (IntPtr)(verts.Length * MeshVert.SizeBytes),
+                (IntPtr)(verts.Length * MeshVert.SizeBytes/* VertexFormat.VertexSizeBytes*/),
                 verts,
                 BufferUsageHint.StaticDraw
                 );
