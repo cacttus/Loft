@@ -44,6 +44,10 @@ namespace PirateCraft
         public Texture()
         {
         }
+        public Texture(Bitmap b)
+        {
+            Load(b);
+        }
         private int GetNumMipmaps(int w, int h)
         {
             int numMipMaps = 0;
@@ -61,6 +65,10 @@ namespace PirateCraft
                 throw new Exception("File " + path + " does not exist.");
             }
             Bitmap bmp = new Bitmap(path);
+            return Load(bmp);
+        }
+        public TextureLoadResult Load(Bitmap bmp) { 
+            Free();
 
             Width = bmp.Width;
             Height = bmp.Height;
@@ -86,6 +94,7 @@ namespace PirateCraft
                 new Rectangle(0, 0, bmp.Width, bmp.Height),
                 ImageLockMode.ReadOnly,
                 WindowsPixelFormat);//Note:if you change this make sure to change save image.
+
 
             int numMipmaps = GetNumMipmaps((int)Width, (int)Height);
 

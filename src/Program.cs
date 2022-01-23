@@ -53,7 +53,11 @@ namespace PirateCraft
                 GenMesh();
                 this._camera.v3pos = new vec3(0, 0, -10);
                 _shader.Load();
-                _texture.Load("../../main char.png");
+
+
+                //_texture.Load("../../main char.png");
+                _texture = Noise3D.TestNoise();
+
                 CursorVisible = true;
                var siz= Marshal.SizeOf(default(MeshVert));
                 var fmt = VertexFormat.DeclareVertexFormat("MeshFmt", "v_v3n3x2");

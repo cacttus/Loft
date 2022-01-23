@@ -11,5 +11,9 @@ namespace PirateCraft
         protected int _glId;
         public int GetGlId() { return _glId; }
         public abstract void Free();
+        ~OpenGLResource()
+        {
+            Free();
+        }
     }
 }

@@ -15,6 +15,10 @@ namespace PirateCraft
 
     public class MathUtils
     {
+        public static float Clamp(float f, float a, float b)
+        {
+            return Math.Max(Math.Min(f,b),a);
+        }
         public static Mat4f m4f16(float[] mv)
         {
             if (mv.Length != 16)
@@ -938,6 +942,49 @@ namespace PirateCraft
                 );
         }
 
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ivec3
+    {
+        public Int32 x;
+        public Int32 y;
+        public Int32 z;
+        public ivec3(Int32 dx, Int32 dy, Int32 dz)
+        {
+            x=dx;y=dy;z=dz;
+        }
+        public static ivec3 operator -(in ivec3 d)
+        {
+            return new ivec3(-d.x, -d.y, -d.z);
+        }
+        public static ivec3 operator +(in ivec3 a, in ivec3 b)
+        {
+            return new ivec3(a.x + b.x, a.y + b.y, a.z + b.z);
+        }
+        public static ivec3 operator -(in ivec3 a, in ivec3 b)
+        {
+            return new ivec3(a.x - b.x, a.y - b.y, a.z - b.z);
+        }
+        public static ivec3 operator *(in ivec3 a, in ivec3 b)
+        {
+            return new ivec3(a.x * b.x, a.y * b.y, a.z * b.z);
+        }
+        public static ivec3 operator /(in ivec3 a, in ivec3 b)
+        {
+            return new ivec3(a.x / b.x, a.y / b.y, a.z / b.z);
+        }
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ivec4
+    {
+        public Int32 x;
+        public Int32 y;
+        public Int32 z;
+        public Int32 w;
+        public ivec4(Int32 dx, Int32 dy, Int32 dz, Int32 dw)
+        {
+            x = dx; y = dy; z = dz; w=dw;
+        }
     }
     [StructLayout(LayoutKind.Sequential)]
     public struct vec3
