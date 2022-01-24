@@ -94,13 +94,13 @@ namespace PirateCraft
 #define NUM_LIGHTS 2
                         GpuLight lights[NUM_LIGHTS];
                         lights[0]._pos = vec3(10,10,-10);
-                        lights[0]._radius = 20.0f;
-                        lights[0]._color = vec3(.3,1,.3);
-                        lights[0]._power = 0; // power within radius of light. 1 = is constant, 0.5 linear, 0 would be no light. <0.5 power falloff >0.5 is slow faloff. y=x^(1/p), p=[0,1], p!=0
+                        lights[0]._radius = 100.0f;
+                        lights[0]._color = vec3(.95,.9691,.9488);
+                        lights[0]._power = 0.67; // power within radius of light. 1 = is constant, 0.5 linear, 0 would be no light. <0.5 power falloff >0.5 is slow faloff. y=x^(1/p), p=[0,1], p!=0
                         lights[1]._pos = _cam_pos;
-                        lights[1]._radius = 20.0f;
-                        lights[1]._color = vec3(1,.3,.3);
-                        lights[1]._power = 0.79;// power within radius of light. 1 = is constant, 0.5 linear, 0 would be no light. <0.5 power falloff >0.5 is slow faloff. y=x^(1/p), p=[0,1] ,p!=0
+                        lights[1]._radius = 100.0f;
+                        lights[1]._color = vec3(.9613,.9,.98);
+                        lights[1]._power = 0.63;// power within radius of light. 1 = is constant, 0.5 linear, 0 would be no light. <0.5 power falloff >0.5 is slow faloff. y=x^(1/p), p=[0,1] ,p!=0
 
                         vec4 tex = texture(_ufTextureId_i0, vec2(_vsTcoords));
 
@@ -109,7 +109,10 @@ namespace PirateCraft
                         float rho = 0.17f; //Albedo [0,1], 1 = 100% white, 0 = black body.
                         //[Param]
                         float E0 = 1f; // Strength [0,1]
-
+                        //[Param]
+                        float fSpecIntensity =.7; //[0,1] // I guess tecnhically speaking these two should be controlled by 'roughness'
+                        //[Param]
+                        float fSpecHardness =10; //[1,inf] 0=n
 
 #ifdef OREN_NAYAR_DIFFUSE
                         //[Param]
@@ -125,7 +128,8 @@ namespace PirateCraft
                         float B = 0.45*((sig2)/(sig2+0.09));
 #endif
 
-                        vec3 finalLightColor = vec3(0,0,0);
+                        vec3 finalDiffuseColor = vec3(0,0,0);
+                        vec3 finalSpecColor = vec3(0,0,0);
 
                         for(int i=0; i<NUM_LIGHTS; i++) {
                             vec3 lightpos_normal = normalize(lights[i]._pos - _vsVertex);
@@ -146,16 +150,19 @@ namespace PirateCraft
                             float beta = min(theta_incident, theta_radiant);
 
                             float Lr = rho * cos_theta_incident * ( A + (B * max(0, cos(phi_incident - phi_radiant)) * sin(alpha) * tan(beta) )) * E0;
-                            finalLightColor += lights[i]._color * Lr * fQuadraticAttenuation;
+                            finalDiffuseColor += lights[i]._color * Lr * fQuadraticAttenuation;
 #else
                             // Lambert
                             float Lr = rho * cos_theta_incident *  E0;
-                            finalLightColor += lights[i]._color * Lr * fQuadraticAttenuation; 
+                            finalDiffuseColor += lights[i]._color * Lr * fQuadraticAttenuation; 
 #endif
 
+                            vec3 vReflect = reflect(-lightpos_normal, _vsNormal);//note the reflet angle is not in vertex space, its from vertex TO light
+                            float eDotR = clamp( pow(clamp(dot(vReflect, eye), 0,1), fSpecHardness), 0,1 );
+                            finalSpecColor += lights[i]._color * fSpecIntensity * fQuadraticAttenuation * eDotR;// * shadowMul;  
                         }
 
-                        _psColorOut.xyz = finalLightColor *  tex.rgb;
+                        _psColorOut.xyz = finalDiffuseColor *  tex.rgb + finalSpecColor;
                         _psColorOut.w = 1.0f; //tex.a - but alpha compositing needs to be implemented.
                     }
                     ";

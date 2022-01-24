@@ -51,7 +51,7 @@ debug / util
             */
 
             Gu.CheckGpuErrorsDbg();
-            GL.Disable(EnableCap.CullFace);
+            GL.Enable(EnableCap.CullFace);
             GL.CullFace(CullFaceMode.Back);
             if(Gu.CoordinateSystem == CoordinateSystem.Lhs)
             {
