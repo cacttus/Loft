@@ -16,7 +16,7 @@ namespace PirateCraft
     {
         private static bool _initialized = false;
         //This will be gotten via current context if we have > 1
-        public static CoordinateSystem CoordinateSystem { get; set; } = CoordinateSystem.Lhs;
+        public static CoordinateSystem CoordinateSystem { get; set; } = CoordinateSystem.Rhs;
         public static EngineConfig EngineConfig { get; set; } = new EngineConfig();
         public static Log Log { get; set; } = new Log("./logs/");
 

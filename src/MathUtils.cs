@@ -1564,9 +1564,53 @@ namespace PirateCraft
                 {
                     return this._m33;
                 }
-                else throw new Exception("Mat3 index out of range.");
+                else
+                {
+                    throw new Exception("mat3 array index out of bounds.");
+                }
             }
-            set { this[i] = value; }
+            set {
+                if (i == 0)
+                {
+                     this._m11 = value;
+                }
+                else if (i == 1)
+                {
+                     this._m12 = value;
+                }
+                else if (i == 2)
+                {
+                     this._m13 = value;
+                }
+                else if (i == 3)
+                {
+                     this._m21 = value;
+                }
+                else if (i == 4)
+                {
+                     this._m22 = value;
+                }
+                else if (i == 5)
+                {
+                     this._m23 = value;
+                }
+                else if (i == 6)
+                {
+                     this._m31 = value;
+                }
+                else if (i == 7)
+                {
+                     this._m32 = value;
+                }
+                else if (i == 8)
+                {
+                     this._m33 = value;
+                }
+                else
+                {
+                    throw new Exception("mat3 array index out of bounds.");
+                }
+            }
         }
         public void set(float val, int index)
         {
@@ -2221,7 +2265,77 @@ namespace PirateCraft
                 }
 
             }
-            set { this[i] = value; }
+            set {
+                if (i == 0)
+                {
+                     this._m11 = value;
+                }
+                else if (i == 1)
+                {
+                     this._m12 = value;
+                }
+                else if (i == 2)
+                {
+                     this._m13 = value;
+                }
+                else if (i == 3)
+                {
+                     this._m14 = value;
+                }
+                else if (i == 4)
+                {
+                     this._m21 = value;
+                }
+                else if (i == 5)
+                {
+                     this._m22 = value;
+                }
+                else if (i == 6)
+                {
+                     this._m23 = value;
+                }
+                else if (i == 7)
+                {
+                     this._m24 = value;
+                }
+                else if (i == 8)
+                {
+                     this._m31 = value;
+                }
+                else if (i == 9)
+                {
+                     this._m32 = value;
+                }
+                else if (i == 10)
+                {
+                     this._m33 = value;
+                }
+                else if (i == 11)
+                {
+                     this._m34 = value;
+                }
+                else if (i == 12)
+                {
+                     this._m41 = value;
+                }
+                else if (i == 13)
+                {
+                     this._m42 = value;
+                }
+                else if (i == 14)
+                {
+                     this._m43 = value;
+                }
+                else if (i == 15)
+                {
+                     _m44=value;
+                }
+                else
+                {
+                    throw new Exception("mat4 array index out of bounds.");
+                }
+
+            }
         }
         public static mat4 operator *(in mat4 a, in mat4 b)
         {

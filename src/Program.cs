@@ -248,7 +248,7 @@ namespace PirateCraft
             _lastTime = curTime;
 
             mat4 model = mat4.GetRotation((float)rot, new vec3(0, 1, 0));
-            rot += Math.PI * 2.0f * dt * 0.125f;
+            rot += Math.PI * 2.0f * dt * 0.0125f;
 
             _camera.Update();
             _shader.UpdateAndBind(dt, _camera, model);
