@@ -275,7 +275,34 @@ Light probe - a way to sample the environment for indirect lighting in a raster 
     
  
  
+ ShaderBuilder - One Shader to Rule Them All
  
+Input vertex normal color etc
  
+output - the shaded pixel
  
+ More research
+
+ surface_frag.glsl
+  
+a few output fragment shaders
+surface / volume / 
+ alpha; radiance. transmittance.
  
+   ssrNOrmals, ssrData
+
+ Closure cl = nodetree_exec(); This seems to be the big one
+ transmittance = alpha
+ 
+ porter duff blending is a kind of clip blending used by setting index int he layout specifier
+ 
+ we don't need most of this crap for a simple minecraft clone. Just need a generic structure to support multiple vertex formats
+ and render diffuse BSDF, etc to the screen.
+ 
+ blinn ggx cook-torrence phong
+ GGX is a new model that more closely resembles metal, other than the standard Phong or Blinn-Phong model.
+ Difference in these is the way the reflected ray is calculated.
+ halfway vector = (eye normal + light normal) / 2 
+ smith shadowing model (used with GGX)
+ anisotropic distribution when diffuse shading in x!=y
+ Normal distribution function - NDF - measures dnesity of a normal orientation on surface

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -50,7 +51,8 @@ namespace PirateCraft
             {
                 Gu.Log.Info("Base Dir=" + System.IO.Directory.GetCurrentDirectory());
                 Gu.Init(this);
-                GenMesh();
+                //GenBox();
+                GenSphere();
                 this._camera.v3pos = new vec3(0, 0, -10);
                 _shader.Load();
 
@@ -59,9 +61,9 @@ namespace PirateCraft
                 _texture = Noise3D.TestNoise();
 
                 CursorVisible = true;
-               var siz= Marshal.SizeOf(default(MeshVert));
+                var siz = Marshal.SizeOf(default(MeshVert));
                 var fmt = VertexFormat.DeclareVertexFormat("MeshFmt", "v_v3n3x2");
-                int n=0;
+                int n = 0;
                 n++;
             }
             catch (Exception ex)
@@ -98,7 +100,7 @@ namespace PirateCraft
                 Console.WriteLine(ex.ToString());
             }
         }
-        private void GenMesh()
+        private void GenBox()
         {
             //Left Righ, Botom top, back front
             vec3[] box = new vec3[8];
@@ -175,12 +177,94 @@ namespace PirateCraft
 
             _mesh = new MeshData(verts, inds);
         }
+        private void GenSphere(int slices = 32, int stacks = 32, float radius = 1, bool smooth = false)
+        {
+            int vcount = slices * stacks * 4;
+            MeshVert[] verts = new MeshVert[vcount];
+
+            //Use a 2D grid as a sphere. This is less optimal but doesn't mess up the tex coords.
+            for (int stack = 0; stack < stacks; stack++)
+            {
+                for (int slice = 0; slice < slices; slice++)
+                {
+                    float[] phi = new float[2];
+                    float[] theta = new float[2];
+                    phi[0] = MathUtils.M_PI * ((float)stack / (float)stacks);
+                    phi[1] = MathUtils.M_PI * ((float)(stack + 1) / (float)stacks); //0<phi<pi
+                    theta[0] = MathUtils.M_2PI * ((float)slice / (float)slices);
+                    theta[1] = MathUtils.M_2PI * ((float)(slice + 1) / (float)slices);//0<theta<2pi
+
+                    int vind = (stack * slices + slice) * 4;
+                    for (int p = 0; p < 2; ++p)
+                    {
+                        for (int t = 0; t < 2; ++t)
+                        {
+                            // 2 3
+                            // 0 1  
+                            // >x ^y
+                            verts[vind + p * 2 + t]._v.construct(
+                                radius * MathUtils.Sinf(phi[p]) * MathUtils.Cosf(theta[t]),
+                                radius * MathUtils.Cosf(phi[p]),
+                                radius * MathUtils.Sinf(phi[p]) * MathUtils.Sinf(theta[t])
+                            );
+                        }
+                    }
+
+                    if (smooth)
+                    {
+                        verts[vind + 0]._n = verts[vind + 0]._v.normalized();
+                        verts[vind + 1]._n = verts[vind + 1]._v.normalized();
+                        verts[vind + 2]._n = verts[vind + 2]._v.normalized();
+                        verts[vind + 3]._n = verts[vind + 3]._v.normalized();
+                    }
+                    else
+                    {
+                        vec3 n = (verts[vind + 1]._v - verts[vind + 0]._v).cross(verts[vind + 2]._v - verts[vind + 0]._v).normalized();
+                        verts[vind + 0]._n = n;
+                        verts[vind + 1]._n = n;
+                        verts[vind + 2]._n = n;
+                        verts[vind + 3]._n = n;
+                    }
+
+                    float tx0 = (float)slice / (float)slices;
+                    float ty0 = (float)stack / (float)stacks;
+                    float tx1 = (float)(slice+1) / (float)slices;
+                    float ty1 = (float)(stack+1) / (float)stacks;
+                    verts[vind + 0]._x.construct(tx0,ty0);
+                    verts[vind + 1]._x.construct(tx1,ty0);
+                    verts[vind + 2]._x.construct(tx0,ty1);
+                    verts[vind + 3]._x.construct(tx1,ty1);
+
+                }
+            }
+
+            uint idx = 0;
+            int icount = verts.Length / 4 * 6;
+            uint[] inds = new uint[icount];
+            for (int face = 0; face < icount / 6; ++face)
+            {
+                inds[face * 6 + 0] = idx + 0;
+                inds[face * 6 + 1] = idx + 2;
+                inds[face * 6 + 2] = idx + 3;
+                inds[face * 6 + 3] = idx + 0;
+                inds[face * 6 + 4] = idx + 3;
+                inds[face * 6 + 5] = idx + 1;
+                idx += 4;
+            }
+
+            _mesh = new MeshData(verts, inds);
+        }
         protected override void OnUpdateFrame(FrameEventArgs e)
         {
             HandleKeyboard();
         }
         vec2 last = new vec2(0, 0);
         bool lastSet = false;
+        bool oneDown = false;
+        bool twoDown = false;
+        bool threeDown = false;
+        bool fourDown = false;
+        int meshIdx = 0;
         private void HandleKeyboard()
         {
             float coordMul = (Gu.CoordinateSystem == CoordinateSystem.Lhs ? -1 : 1);
@@ -206,6 +290,69 @@ namespace PirateCraft
             if (keyState.IsKeyDown(Key.Left) || keyState.IsKeyDown(Key.A))
             {
                 _camera.v3pos += _camera.v3x * 0.1f * coordMul;
+            }
+            if (keyState.IsKeyDown(Key.Number1))
+            {
+                if (oneDown == false)
+                {
+                    _shader.lightingModel = ((_shader.lightingModel + 1) % 4);
+                }
+                oneDown = true;
+            }
+            else
+            {
+                oneDown = false;
+            }
+
+            if (keyState.IsKeyDown(Key.Number2))
+            {
+                //if (twoDown == false)
+                {
+                    _shader.GGX_X = (_shader.GGX_X + 0.01f) % 3.0f;
+                }
+                twoDown = true;
+            }
+            else
+            {
+                twoDown = false;
+            }
+
+            if (keyState.IsKeyDown(Key.Number3))
+            {
+                //  if (threeDown == false)
+                {
+                    _shader.GGX_Y = (_shader.GGX_Y + 0.01f) % 3.0f;
+
+                }
+                threeDown = true;
+            }
+            else
+            {
+                threeDown = false;
+            }
+            if (keyState.IsKeyDown(Key.Number4))
+            {
+                if (fourDown == false)
+                {
+                    meshIdx = (meshIdx + 1) % 3;
+                    if (meshIdx == 0)
+                    {
+                        GenBox();
+                    }
+                    if (meshIdx == 1)
+                    {
+                        GenSphere(32, 32, 1, true);
+                    }
+                    if (meshIdx == 2)
+                    {
+                        GenSphere(32, 32, 1, false);
+                    }
+                }
+                fourDown = true;
+            }
+            else
+            {
+                fourDown = false;
             }
             var mouseState = Mouse.GetState();
             if (lastSet == false)

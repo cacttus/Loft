@@ -31,7 +31,12 @@ namespace PirateCraft
         int _projectionMatrixLocation;
         int _texLocation;
         int _camPosLocation;
-
+        int _lightingModelLocation;
+        int _GGX_XLocation;
+        int _GGX_YLocation;
+        public float GGX_X=1;
+        public float GGX_Y=1;
+        public int lightingModel =0;
         List<string> _shaderErrors = new List<string>();
 
         ShaderLoadState _loadState = ShaderLoadState.None;
@@ -45,7 +50,6 @@ namespace PirateCraft
                     uniform mat4 model_matrix;            
                     uniform mat4 view_matrix;            
                     uniform mat4 projection_matrix;
-                    uniform vec3 cam_pos;
 
                     layout(location = 0)in vec3 _v;
                     layout(location = 1)in vec3 _n;
@@ -54,7 +58,6 @@ namespace PirateCraft
                     out vec3 _vsNormal;
                     out vec2 _vsTcoords;
                     out vec3 _vsVertex; //should be frag pos.
-                    flat out vec3 _cam_pos;
 
                     void main(void)
                     {
@@ -62,7 +65,6 @@ namespace PirateCraft
                         _vsVertex = (model_matrix * vec4(_v,1)).xyz;
                         _vsNormal = normalize((model_matrix * vec4(_v + _n, 1)).xyz - _vsVertex);
                         _vsTcoords = _x;
-                        _cam_pos = cam_pos;
                     }
                     ";
 
@@ -70,8 +72,11 @@ namespace PirateCraft
 
         string fragmentShaderSource = @"
                     #version 400
+#define M_PI 3.1415926535897932384626433832795
 #define OREN_NAYAR_DIFFUSE 1
-
+#define PHONG 1
+//#define BLINN_PHONG 1
+//#define GGX 1
                     struct GpuLight {
                         vec3 _pos;
                         float _radius;
@@ -84,7 +89,11 @@ namespace PirateCraft
                     in vec3 _vsNormal;
                     in vec2 _vsTcoords;
                     in vec3 _vsVertex;
-                    flat in vec3 _cam_pos; 
+                    uniform vec3 cam_pos;
+                    uniform int lightingModel;
+                    uniform float GGX_X;
+                    uniform float GGX_Y;
+
 
                     out vec4 _psColorOut;
  
@@ -97,14 +106,14 @@ namespace PirateCraft
                         lights[0]._radius = 100.0f;
                         lights[0]._color = vec3(.95,.9691,.9488);
                         lights[0]._power = 0.67; // power within radius of light. 1 = is constant, 0.5 linear, 0 would be no light. <0.5 power falloff >0.5 is slow faloff. y=x^(1/p), p=[0,1], p!=0
-                        lights[1]._pos = _cam_pos;
+                        lights[1]._pos = cam_pos;
                         lights[1]._radius = 100.0f;
                         lights[1]._color = vec3(.9613,.9,.98);
                         lights[1]._power = 0.63;// power within radius of light. 1 = is constant, 0.5 linear, 0 would be no light. <0.5 power falloff >0.5 is slow faloff. y=x^(1/p), p=[0,1] ,p!=0
 
                         vec4 tex = texture(_ufTextureId_i0, vec2(_vsTcoords));
 
-                        vec3 eye = normalize(_cam_pos - _vsVertex); // vec3(0, 10, -10);
+                        vec3 eye = normalize(cam_pos - _vsVertex); // vec3(0, 10, -10);
                         //[Param]
                         float rho = 0.17f; //Albedo [0,1], 1 = 100% white, 0 = black body.
                         //[Param]
@@ -156,10 +165,32 @@ namespace PirateCraft
                             float Lr = rho * cos_theta_incident *  E0;
                             finalDiffuseColor += lights[i]._color * Lr * fQuadraticAttenuation; 
 #endif
+                            //Phong
+float distribution =0 ;
+if(lightingModel == 0){
+                          vec3 vReflect= reflect(-lightpos_normal, _vsNormal);
+                            distribution = clamp( pow(clamp(dot(vReflect, eye), 0,1), fSpecHardness), 0,1 );
 
-                            vec3 vReflect = reflect(-lightpos_normal, _vsNormal);//note the reflet angle is not in vertex space, its from vertex TO light
-                            float eDotR = clamp( pow(clamp(dot(vReflect, eye), 0,1), fSpecHardness), 0,1 );
-                            finalSpecColor += lights[i]._color * fSpecIntensity * fQuadraticAttenuation * eDotR;// * shadowMul;  
+}
+if(lightingModel == 1){
+                            vec3 vReflect = (lightpos_normal+ _vsNormal)*0.5f;
+                            distribution = clamp( pow(clamp(dot(vReflect, eye), 0,1), fSpecHardness), 0,1 );
+}
+if(lightingModel == 2){
+//GGX only
+//https://jcgt.org/published/0007/04/01/paper.pdf
+float bias = (_vsNormal.x*_vsNormal.x)/(GGX_X*GGX_X) +(_vsNormal.z*_vsNormal.z)/(GGX_Y*GGX_Y)+_vsNormal.y*_vsNormal.y;
+ distribution = 1.0 / (M_PI*GGX_X*GGX_Y*bias*bias);
+}
+if(lightingModel == 3){
+//Smith shadowing model with GGX for microfacet distributions
+//https://jcgt.org/published/0007/04/01/paper.pdf
+float gamma = (-1 + ((_vsNormal.x*_vsNormal.x)*(GGX_X*GGX_X) +(_vsNormal.z*_vsNormal.z)*(GGX_Y*GGX_Y))/(_vsNormal.y*_vsNormal.y)) * 0.5f;
+ distribution = 1.0 / (1+gamma);
+}
+                            finalSpecColor += lights[i]._color * fSpecIntensity * fQuadraticAttenuation * distribution;// * shadowMul; 
+                            //Blinn-Phong
+                            
                         }
 
                         _psColorOut.xyz = finalDiffuseColor *  tex.rgb + finalSpecColor;
@@ -230,6 +261,11 @@ namespace PirateCraft
                 //Gu.CheckGpuErrorsDbg();
 
                 GL.Uniform1(_texLocation, TextureUnit.Texture0 - TextureUnit.Texture0);
+                Gu.CheckGpuErrorsRt();
+                GL.Uniform1(_lightingModelLocation, lightingModel);
+                Gu.CheckGpuErrorsRt();
+                GL.Uniform1(_GGX_XLocation, GGX_X);
+                GL.Uniform1(_GGX_YLocation, GGX_Y);
                 Gu.CheckGpuErrorsRt();
 
                 _camvpos = cam.v3pos;
@@ -318,7 +354,12 @@ namespace PirateCraft
                 FindUniformOrDieTryin(ref _viewMatrixLocation ,  "view_matrix");
                 FindUniformOrDieTryin(ref _modelMatrixLocation ,  "model_matrix");
                 FindUniformOrDieTryin(ref _texLocation , "_ufTextureId_i0");
-                FindUniformOrDieTryin(ref _camPosLocation ,  "cam_pos");
+                FindUniformOrDieTryin(ref _camPosLocation, "cam_pos");
+                FindUniformOrDieTryin(ref _lightingModelLocation, "lightingModel");
+                FindUniformOrDieTryin(ref _GGX_XLocation, "GGX_X");
+                FindUniformOrDieTryin(ref _GGX_YLocation, "GGX_Y");
+
+
                 Gu.CheckGpuErrorsRt();
                 // _normalMatrixLocation = GL.GetUniformLocation(_shaderProgramHandle, "normal_matrix");
             }

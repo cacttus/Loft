@@ -15,9 +15,25 @@ namespace PirateCraft
 
     public class MathUtils
     {
+        public const float M_PI = (float)(Math.PI);
+        public const float M_2PI = (float)(Math.PI * 2.0f);
+        public const float M_PI_2 = (float)(Math.PI * 2.0f);
+
+        public static float Sinf(float f)
+        {
+            return (float)Math.Sin(f);
+        }
+        public static float Cosf(float f)
+        {
+            return (float)Math.Cos(f);
+        }
+        public static float Tanf(float f)
+        {
+            return (float)Math.Tan(f);
+        }
         public static float Clamp(float f, float a, float b)
         {
-            return Math.Max(Math.Min(f,b),a);
+            return Math.Max(Math.Min(f, b), a);
         }
         public static Mat4f m4f16(float[] mv)
         {
@@ -218,7 +234,7 @@ namespace PirateCraft
             return x.x.GetHashCode() + x.y.GetHashCode();
         }
     }
-        [StructLayout(LayoutKind.Sequential)]
+    [StructLayout(LayoutKind.Sequential)]
     public struct vec2
     {
         public vec2(Point p)
@@ -227,7 +243,7 @@ namespace PirateCraft
             y = (float)p.Y;
         }
         public float x, y;
-        public void Construct(float a, float b) { x = a; y = b; }
+        public vec2 construct(float a, float b) { x = a; y = b; return this; }
         //public vec2() { }
         public vec2(vec2 dxy) { x = dxy.x; y = dxy.y; }
         public vec2(float dx, float dy) { x = dx; y = dy; }
@@ -413,6 +429,11 @@ namespace PirateCraft
         public vec4(float dx, float dy, float dz, float dw) { x = dx; y = dy; z = dz; w = dw; }
         public vec4(OpenTK.Vector4 v) { x = v.X; y = v.Y; z = v.Z; w = v.W; }//From XNA's Vector2
 
+        public vec4 construct(float dx, float dy, float dz, float dw)
+        {
+            x = dx; y = dy; z = dz; w = dw;
+            return this;
+        }
 
         public static vec4 Clamp(vec4 v, float a, float b)
         {
@@ -951,7 +972,7 @@ namespace PirateCraft
         public Int32 z;
         public ivec3(Int32 dx, Int32 dy, Int32 dz)
         {
-            x=dx;y=dy;z=dz;
+            x = dx; y = dy; z = dz;
         }
         public static ivec3 operator -(in ivec3 d)
         {
@@ -983,7 +1004,7 @@ namespace PirateCraft
         public Int32 w;
         public ivec4(Int32 dx, Int32 dy, Int32 dz, Int32 dw)
         {
-            x = dx; y = dy; z = dz; w=dw;
+            x = dx; y = dy; z = dz; w = dw;
         }
     }
     [StructLayout(LayoutKind.Sequential)]
@@ -1017,9 +1038,14 @@ namespace PirateCraft
             y = rhs;
             z = rhs;
         }
+        public vec3 construct(float dx, float dy, float dz)
+        {
+            x = dx; y = dy; z = dz;
+            return this;
+        }
         public override string ToString()
         {
-            return "" + x + "," + y+"," + z;
+            return "" + x + "," + y + "," + z;
         }
         // template <class Tx>
         // vec3(const Vec2x<float>& rhs) {
@@ -1569,42 +1595,43 @@ namespace PirateCraft
                     throw new Exception("mat3 array index out of bounds.");
                 }
             }
-            set {
+            set
+            {
                 if (i == 0)
                 {
-                     this._m11 = value;
+                    this._m11 = value;
                 }
                 else if (i == 1)
                 {
-                     this._m12 = value;
+                    this._m12 = value;
                 }
                 else if (i == 2)
                 {
-                     this._m13 = value;
+                    this._m13 = value;
                 }
                 else if (i == 3)
                 {
-                     this._m21 = value;
+                    this._m21 = value;
                 }
                 else if (i == 4)
                 {
-                     this._m22 = value;
+                    this._m22 = value;
                 }
                 else if (i == 5)
                 {
-                     this._m23 = value;
+                    this._m23 = value;
                 }
                 else if (i == 6)
                 {
-                     this._m31 = value;
+                    this._m31 = value;
                 }
                 else if (i == 7)
                 {
-                     this._m32 = value;
+                    this._m32 = value;
                 }
                 else if (i == 8)
                 {
-                     this._m33 = value;
+                    this._m33 = value;
                 }
                 else
                 {
@@ -2265,70 +2292,71 @@ namespace PirateCraft
                 }
 
             }
-            set {
+            set
+            {
                 if (i == 0)
                 {
-                     this._m11 = value;
+                    this._m11 = value;
                 }
                 else if (i == 1)
                 {
-                     this._m12 = value;
+                    this._m12 = value;
                 }
                 else if (i == 2)
                 {
-                     this._m13 = value;
+                    this._m13 = value;
                 }
                 else if (i == 3)
                 {
-                     this._m14 = value;
+                    this._m14 = value;
                 }
                 else if (i == 4)
                 {
-                     this._m21 = value;
+                    this._m21 = value;
                 }
                 else if (i == 5)
                 {
-                     this._m22 = value;
+                    this._m22 = value;
                 }
                 else if (i == 6)
                 {
-                     this._m23 = value;
+                    this._m23 = value;
                 }
                 else if (i == 7)
                 {
-                     this._m24 = value;
+                    this._m24 = value;
                 }
                 else if (i == 8)
                 {
-                     this._m31 = value;
+                    this._m31 = value;
                 }
                 else if (i == 9)
                 {
-                     this._m32 = value;
+                    this._m32 = value;
                 }
                 else if (i == 10)
                 {
-                     this._m33 = value;
+                    this._m33 = value;
                 }
                 else if (i == 11)
                 {
-                     this._m34 = value;
+                    this._m34 = value;
                 }
                 else if (i == 12)
                 {
-                     this._m41 = value;
+                    this._m41 = value;
                 }
                 else if (i == 13)
                 {
-                     this._m42 = value;
+                    this._m42 = value;
                 }
                 else if (i == 14)
                 {
-                     this._m43 = value;
+                    this._m43 = value;
                 }
                 else if (i == 15)
                 {
-                     _m44=value;
+                    _m44 = value;
                 }
                 else
                 {

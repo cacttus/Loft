@@ -13,7 +13,7 @@ namespace PirateCraft
         int _intIboId;
         public int _intVaoId { get; private set; }
         public int IndexCount { get; private set;}
-      // public VertexFormat VertexFormat { get; private set; }
+        // public VertexFormat VertexFormat { get; private set; }
 
         //Mesh data is just a byte buffer with float3 float2 float16 accessor
 
