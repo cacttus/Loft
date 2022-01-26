@@ -8,6 +8,16 @@ namespace PirateCraft
         public Shader Shader {get; private set;} = null;
         public GpuRenderState GpuRenderState { get; set; } = new GpuRenderState();
 
+        private static Material _default = null;
+        public static Material Default(vec4 color)
+        {
+            //TODO: - the input shader should also be default.
+            if (_default == null)
+            {
+                _default = new Material(Texture.Default(), Shader.DefaultDiffuse());
+            }
+            return _default;
+        }
         public Material(Texture t, Shader s)
         {
             Texture=t;

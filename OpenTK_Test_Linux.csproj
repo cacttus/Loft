@@ -71,12 +71,13 @@
     <Compile Include="src\Assets.cs" />
     <Compile Include="src\v3c4n3x2.cs" />
     <Compile Include="src\UtilMesh.cs" />
-    <Compile Include="src\Object3D.cs" />
+    <Compile Include="src\WorldObject.cs" />
     <Compile Include="src\Component.cs" />
     <Compile Include="src\Noise.cs" />
     <Compile Include="src\Material.cs" />
     <Compile Include="src\MeshData.cs" />
     <Compile Include="src\Gu.cs" />
+    <Compile Include="src\World.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="OpenTK.dll.config" />

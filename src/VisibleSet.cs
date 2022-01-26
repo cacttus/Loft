@@ -8,7 +8,7 @@ namespace PirateCraft
      * */    
     public class VisibleSet
     {
-        public Dictionary<double, BaseNode> Visible { get; private set; } = new Dictionary<double, BaseNode>();
+        public Dictionary<double, WorldObject> Visible { get; private set; } = new Dictionary<double, WorldObject>();
         public VisibleSet()
         {
         }

@@ -12,9 +12,8 @@ using Mat4f = OpenTK.Matrix4;
 namespace PirateCraft
 {
 
-    public class Camera3D : BaseNode
+    public class Camera3D : WorldObject
     {
-
         float _fov = MathUtils.ToRadians(80.0f);
         float _near = 1;
         float _far = 1000;
@@ -26,15 +25,24 @@ namespace PirateCraft
 
         //TODO: turn these into the object data.
 
-        vec3 _v3pos = new vec3(0, 0, -10);
-        vec3 _v3x = new vec3(1, 0, 0); //These are the basis vectors, please turn into object data later
-        vec3 _v3y = new vec3(0, 1, 0);
-        vec3 _v3z = new vec3(0, 0, 1);
+        //  vec3 _v3pos = new vec3(0, 0, -10);
+        //  vec3 _v3x = new vec3(1, 0, 0); //These are the basis vectors, please turn into object data later
+        // vec3 _v3y = new vec3(0, 1, 0);
+        //  vec3 _v3z = new vec3(0, 0, 1);
 
-        public vec3 v3pos { get { return _v3pos; } set { _v3pos = value; SetDirty(); } }
-        public vec3 v3x { get { return _v3x; } private set { _v3x = value; SetDirty(); } }  //These are the basis vectors, please turn into object data later
-        public vec3 v3y { get { return _v3y; } private set { _v3y = value; SetDirty(); } }
-        public vec3 v3z { get { return _v3z; } private set { _v3z = value; SetDirty(); } }
+        // public vec3 v3pos { get { return _v3pos; } set { _v3pos = value; SetDirty(); } }
+        // public vec3 v3x { get { return _v3x; } private set { _v3x = value; SetDirty(); } }  //These are the basis vectors, please turn into object data later
+        // public vec3 v3y { get { return _v3y; } private set { _v3y = value; SetDirty(); } }
+        // public vec3 v3z { get { return _v3z; } private set { _v3z = value; SetDirty(); } }
+        bool _dirty = true;
+        public void SetDirty()
+        {
+            _dirty = true;
+        }
+        public bool Dirty()
+        {
+            return _dirty;
+        }
 
         Viewport _viewport = null;
         vec3 _nearCenter = new vec3(0, 0, 0);
@@ -56,31 +64,22 @@ namespace PirateCraft
         public mat4 ProjectionMatrix { get { return _projectionMatrix; } private set { _projectionMatrix = value; SetDirty(); } }
         public mat4 ViewMatrix { get { return _viewMatrix; } private set { _viewMatrix = value; SetDirty(); } }
 
-        public void lookAt(vec3 center)
-        {
-            //Construct basis vectors for sensible rotation
-            //This is esentially what we do in a lookat matrix anyway, could just set it manually here.
-            //Note that we're using 0 1 0 here not the y axis. this is for sensible navigation
-            v3z = (center - v3pos).normalize();
-            v3x = new vec3(0, 1, 0).cross(v3z).normalize();
-            v3y = v3z.cross(v3x);
-
-            Update();
-        }
         public Camera3D(int w, int h, float near = 1, float far = 1000)
         {
             //Do not select camera (at least not active camera) since we wont be able to hit anything else.
             //SelectEnabled = false;
             Viewport = new Viewport(w, h, this);
         }
-        public void Update()
+        public override void Update(Box3f parentBoundBox = null)
         {
+            base.Update(parentBoundBox);
             //if (_dirty && !_updating)
             //{
             //_updating = true;
             //{
+
             ProjectionMatrix = mat4.projection(FOV, Viewport.Width, Viewport.Height, Near, Far);
-            ViewMatrix = mat4.getLookAt(v3pos, v3pos + v3z, v3y);
+            ViewMatrix = World; //mat4.getLookAt(Position, LookAt, up);
 
             //Frustum
             float tanfov2 = MathUtils.tanf(FOV / 2.0f);
@@ -96,30 +95,30 @@ namespace PirateCraft
             _widthFar = tanfov2 * Far * 2;
             _heightFar = _widthFar / ar;
 
-            NearCenter = v3pos + v3z * Near;
-            FarCenter = v3pos + v3z * Far;
-            NearTopLeft = NearCenter - v3x * _widthNear + v3y * _heightNear;
-            FarTopLeft = FarCenter - v3x * _widthFar + v3y * _heightFar;
+            NearCenter = Position + BasisZ * Near;
+            FarCenter = Position + BasisZ * Far;
+            NearTopLeft = NearCenter - BasisX * _widthNear + BasisY * _heightNear;
+            FarTopLeft = FarCenter - BasisX * _widthFar + BasisY * _heightFar;
 
             //    }
             //    _updating = false;
             //}
             //_dirty = false;
         }
-        public override void Resize(Viewport vp) { }
-        public override void Update(double dt) { base.Update(dt); }
-        public override void Render(Renderer rm) { }
-        public override void Free() { }
-        public override void UpdateBoundBox()
-        {
-            //BoundBoxComputed._vmax = BoundBoxComputed._vmin = Pos;
-            //BoundBoxComputed._vmax.X += _mainVolume._radius;
-            //BoundBoxComputed._vmax.Y += _mainVolume._radius;
-            //BoundBoxComputed._vmax.Z += _mainVolume._radius;
-            //BoundBoxComputed._vmin.X += -_mainVolume._radius;
-            //BoundBoxComputed._vmin.Y += -_mainVolume._radius;
-            //BoundBoxComputed._vmin.Z += -_mainVolume._radius;
-        }
+        //public override void Resize(Viewport vp) { }
+        //public override void Update(double dt) { base.Update(dt); }
+        //public override void Render(Renderer rm) { }
+        //public override void Free() { }
+        //public override void UpdateBoundBox()
+        //{
+        //    //BoundBoxComputed._vmax = BoundBoxComputed._vmin = Pos;
+        //    //BoundBoxComputed._vmax.X += _mainVolume._radius;
+        //    //BoundBoxComputed._vmax.Y += _mainVolume._radius;
+        //    //BoundBoxComputed._vmax.Z += _mainVolume._radius;
+        //    //BoundBoxComputed._vmin.X += -_mainVolume._radius;
+        //    //BoundBoxComputed._vmin.Y += -_mainVolume._radius;
+        //    //BoundBoxComputed._vmin.Z += -_mainVolume._radius;
+        //}
 
         public Line3f ProjectPoint(vec2 point_on_screen, TransformSpace space = TransformSpace.World, float additionalZDepthNear = 0)
         {
@@ -145,9 +144,9 @@ namespace PirateCraft
             }
             else
             {
-                pt.p0 = NearTopLeft + v3x * _widthNear * left_pct + v3y * _heightNear * top_pct;
-                pt.p1 = FarTopLeft + v3x * _widthFar * left_pct + v3y * _heightFar * top_pct;
-                pt.p0 += v3z * additionalZDepthNear;
+                pt.p0 = NearTopLeft + BasisX * _widthNear * left_pct + BasisY * _heightNear * top_pct;
+                pt.p1 = FarTopLeft + BasisX * _widthFar * left_pct + BasisY * _heightFar * top_pct;
+                pt.p0 += BasisZ * additionalZDepthNear;
             }
 
             return pt;

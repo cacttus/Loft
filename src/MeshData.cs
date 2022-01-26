@@ -13,10 +13,22 @@ namespace PirateCraft
         int _intIboId;
         public int _intVaoId { get; private set; }
         public int IndexCount { get; private set; }
-        // public VertexFormat VertexFormat { get; private set; }
+
+        public Box3f BoundBox { get; set; } =new Box3f();
+       // public Box3f BoundBox { get { return _boundBox; } private set { _boundBox = value; } } 
 
         //Mesh data is just a byte buffer with float3 float2 float16 accessor
 
+        private void ComputeBoundBox(in MeshVert[] verts, in uint[] indexes)
+        {
+            BoundBox.genResetLimits();
+            foreach(uint ind in indexes)
+            {
+                BoundBox.genExpandByPoint(verts[indexes[ind]]._v);
+            }
+            float boxSize = BoundBox.Width() * BoundBox.Height() * BoundBox.Depth() ;
+            int n=0;
+        }
         //Do we need vertex formats if we don't have interleaved arrays?
         public MeshData(in MeshVert[] verts, in uint[] indexes)
         {
@@ -25,6 +37,8 @@ namespace PirateCraft
                 Gu.Log.Error("Mesh(): Error: vertexes and indexes null.");
             }
             CreateBuffers(verts, indexes);
+
+            ComputeBoundBox(verts,indexes);
         }
         public MeshData() { }
         protected void CreateBuffers(in MeshVert[] verts, in uint[] indexes)
@@ -101,16 +115,32 @@ namespace PirateCraft
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
             GL.BindVertexArray(0);
         }
-
-
+        public static uint[] GenerateQuadIndices(int numQuads)
+        {
+            uint idx = 0;
+            uint[] inds = new uint[numQuads * 6];
+            for (int face = 0; face < numQuads; ++face)
+            {
+                inds[face * 6 + 0] = idx + 0;
+                inds[face * 6 + 1] = idx + 3;
+                inds[face * 6 + 2] = idx + 2;
+                inds[face * 6 + 3] = idx + 0;
+                inds[face * 6 + 4] = idx + 1;
+                inds[face * 6 + 5] = idx + 3;
+                idx += 4;
+            }
+            return inds;
+        }
         public static MeshData GenPlane(float w, float h)
         {
             //Left Righ, Botom top, back front
             vec3[] box = new vec3[8];
-            box[0] = new vec3(-w * 0.5f, 0, -h * 0.5f);
-            box[1] = new vec3(w * 0.5f, 0, -h * 0.5f);
-            box[2] = new vec3(-w * 0.5f, 0, h * 0.5f);
-            box[3] = new vec3(w * 0.5f, 0, h * 0.5f);
+            float w2 = w * 0.5f;
+            float h2 = h * 0.5f;
+            box[0] = new vec3(-w2, 0, h2);
+            box[1] = new vec3(w2, 0, h2);
+            box[2] = new vec3(-w2, 0, -h2);
+            box[3] = new vec3(w2, 0, -h2);
 
             vec3[] norms = new vec3[1];//lrbtaf
             norms[0] = new vec3(0, 1, 0);
@@ -127,21 +157,22 @@ namespace PirateCraft
             verts[0 * 4 + 2] = new MeshVert() { _v = box[2], _n = norms[0], _x = texs[2] };
             verts[0 * 4 + 3] = new MeshVert() { _v = box[3], _n = norms[0], _x = texs[3] };
 
-            var inds = GenerateQuadIndices(6);
+            var inds = GenerateQuadIndices(verts.Length / 4);
             return new MeshData(verts, inds);
         }
-        public static MeshData GenBox()
+        public static MeshData GenBox(float w, float h, float d)
         {
             //Left Righ, Botom top, back front
             vec3[] box = new vec3[8];
-            box[0] = new vec3(-1, -1, -1);
-            box[1] = new vec3(1, -1, -1);
-            box[2] = new vec3(-1, 1, -1);
-            box[3] = new vec3(1, 1, -1);
-            box[4] = new vec3(-1, -1, 1);
-            box[5] = new vec3(1, -1, 1);
-            box[6] = new vec3(-1, 1, 1);
-            box[7] = new vec3(1, 1, 1);
+            float w2=w*0.5f,h2=h*0.5f,d2=d*0.5f;
+            box[0] = new vec3(-w2, -h2, -d2);
+            box[1] = new vec3(w2, -h2, -d2);
+            box[2] = new vec3(-w2, h2, -d2);
+            box[3] = new vec3(w2, h2, -d2);
+            box[4] = new vec3(-w2, -h2, d2);
+            box[5] = new vec3(w2, -h2, d2);
+            box[6] = new vec3(-w2, h2, d2);
+            box[7] = new vec3(w2, h2, d2);
 
             vec3[] norms = new vec3[6];//lrbtaf
             norms[0] = new vec3(-1, 0, 0);
@@ -192,24 +223,8 @@ namespace PirateCraft
             verts[5 * 4 + 2] = new MeshVert() { _v = box[7], _n = norms[5], _x = texs[2] };
             verts[5 * 4 + 3] = new MeshVert() { _v = box[6], _n = norms[5], _x = texs[3] };
 
-            var inds = GenerateQuadIndices(6);
+            var inds = GenerateQuadIndices(verts.Length/4);
             return new MeshData(verts, inds);
-        }
-        public static uint[] GenerateQuadIndices(int numQuads)
-        {
-            uint idx = 0;
-            uint[] inds = new uint[numQuads * 6];
-            for (int face = 0; face < numQuads; ++face)
-            {
-                inds[face * 6 + 0] = idx + 0;
-                inds[face * 6 + 1] = idx + 3;
-                inds[face * 6 + 2] = idx + 2;
-                inds[face * 6 + 3] = idx + 0;
-                inds[face * 6 + 4] = idx + 1;
-                inds[face * 6 + 5] = idx + 3;
-                idx += 4;
-            }
-            return inds;
         }
         public static MeshData GenTextureFront(Camera3D c, float x, float y, float w, float h)
         {
@@ -295,81 +310,11 @@ namespace PirateCraft
                 }
             }
 
-            //uint idx = 0;
-            //int icount = verts.Length / 4 * 6;
-            //uint[] inds = new uint[icount];
-            //for (int face = 0; face < icount / 6; ++face)
-            //{
-            //    inds[face * 6 + 0] = idx + 0;
-            //    inds[face * 6 + 1] = idx + 2;
-            //    inds[face * 6 + 2] = idx + 3;
-            //    inds[face * 6 + 3] = idx + 0;
-            //    inds[face * 6 + 4] = idx + 3;
-            //    inds[face * 6 + 5] = idx + 1;
-            //    idx += 4;
-            //}
             var inds = GenerateQuadIndices(verts.Length / 4);
 
             return new MeshData(verts, inds);
         }
 
-        //private void CopyVertexData(in List<MeshVert> verts, in List<uint> indexes)
-        //{
-        //    /* Layout:
-        //     v0     v1
-        //     x-----x
-        //     |    /|
-        //     |  /  |
-        //     x/----x
-        //    v3     v2
-        //     indexes: 321, 310 , CCW
-        //     */
-        //    // Creates vertexes and stuff
-
-        //    unsafe
-        //    {
-        //        uint* pIndexes = (uint*)pIbo.ToPointer();
-
-        //        pIndexes[0] = 3;//T1
-        //        pIndexes[1] = 2;
-        //        pIndexes[2] = 1;
-        //        pIndexes[3] = 3;//T2
-        //        pIndexes[4] = 1;
-        //        pIndexes[5] = 0;
-
-        //        MeshVert* pVertexes = (MeshVert*)pVbo.ToPointer();
-
-        //        //for (int i = 0; i < 4; ++i)
-        //        //{
-        //        //    pVertexes[i]._v.Z = 0; // default z
-        //        //    //white color
-        //        //    //pVertexes[i]._c.X = pVertexes[i]._c.Y = pVertexes[i]._c.Z = pVertexes[i]._c.W = 1.0f;
-        //        //    //normal up
-        //        //    pVertexes[i]._n = new Vec3f(0, 0, 1);
-        //        //}
-
-        //        pVertexes[0]._v.X = _imageBox._vmin.X;
-        //        pVertexes[0]._v.Y = _imageBox._vmax.Y;
-        //        pVertexes[0]._x.X = 0.0020f;
-        //        pVertexes[0]._x.Y = 0.0020f;// shrink texture a bit so we don't show any wrapping seams
-
-        //        pVertexes[1]._v.X = _imageBox._vmax.X;
-        //        pVertexes[1]._v.Y = _imageBox._vmax.Y;
-        //        pVertexes[1]._x.X = 0.9979f;
-        //        pVertexes[1]._x.Y = 0.0020f;
-
-        //        pVertexes[2]._v.X = _imageBox._vmax.X;
-        //        pVertexes[2]._v.Y = _imageBox._vmin.Y;
-        //        pVertexes[2]._x.X = 0.9979f;
-        //        pVertexes[2]._x.Y = 0.9979f;
-
-        //        pVertexes[3]._v.X = _imageBox._vmin.X;
-        //        pVertexes[3]._v.Y = _imageBox._vmin.Y;
-        //        pVertexes[3]._x.X = 0.0020f;
-        //        pVertexes[3]._x.Y = 0.9979f;
-        //    }
-
-        //}
 
     }
 }

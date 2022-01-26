@@ -4,6 +4,7 @@ using OpenTK.Graphics;
 using OpenTK.Graphics.OpenGL;
 using System.Drawing.Imaging;
 using System;
+using System.Runtime.InteropServices;
 
 namespace PirateCraft
 {
@@ -21,6 +22,18 @@ namespace PirateCraft
         public float Width;
         public float Height;
 
+        private static Texture _default = null;
+
+        public static Texture Default()
+        {
+            //Returns a 1-pixel white texture.
+            if (_default == null)
+            {
+                Bitmap b = Gu.CreateBitmapARGB(1, 1, new byte[] { 255, 255, 255, 255 });
+                _default = new Texture(b);
+            }
+            return _default;
+        }
         public System.Drawing.Imaging.PixelFormat WindowsPixelFormat
         {
             get
@@ -61,7 +74,7 @@ namespace PirateCraft
         }
         public TextureLoadResult Load(string path, bool embedded)
         {
-            Bitmap bmp = Gu.LoadBitmap(path,embedded);
+            Bitmap bmp = Gu.LoadBitmap(path, embedded);
 
             return LoadToGpu(bmp);
         }

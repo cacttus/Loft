@@ -1,4 +1,11 @@
-﻿
+﻿The current issue is the position of camera at -10, 0 -10 is incorrect on the x axis. Need tofigure out why
+TODO:
+empty object should be axis mesh.
+
+
+
+
+
  A Blender Closure is a surface or a volume data from the oject
 
 struct Closure {

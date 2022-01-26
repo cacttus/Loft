@@ -14,8 +14,8 @@ namespace PirateCraft
     {
         Camera3D _camera = null;
         Shader _shader;
-        List<WorldObject> _objects = new List<WorldObject>();
         WorldObject boxMeshThing = null;
+        WorldObject cameraLookAtEmpty = null;
 
         double Delta = 0;
         long _frameStamp = 0;
@@ -62,26 +62,30 @@ namespace PirateCraft
         {
             try
             {
-
                 Gu.Log.Info("Base Dir=" + System.IO.Directory.GetCurrentDirectory());
                 Gu.Init(this);
 
                 _camera = new Camera3D(Width, Height);
-                _camera.v3pos = new vec3(0, 0, -10);
+                _camera.Position = new vec3(0, 0, -10);
+                cameraLookAtEmpty = CreateObject(MeshData.GenBox(.2f, .2f, .2f), Material.Default(new vec4(1,0,0,1)), new vec3(0, 0, 1));
+                Gu.World.Objects.Add(cameraLookAtEmpty);
+                _camera.Constraints.Add(new TrackToConstraint(cameraLookAtEmpty, false));
                 _camera.Update();
-                _camera.lookAt(new vec3(0, 0, 0));
-                _camera.Update();
+                Gu.World.Objects.Add(_camera);
 
-                string frag = Gu.ReadTextFile(Gu.EmbeddedDataPath + "BasicShader_frag.glsl",true);
-                string vert = Gu.ReadTextFile(Gu.EmbeddedDataPath + "BasicShader_vert.glsl",true);
-                _shader = new Shader(vert, frag);
+                //string frag = Gu.ReadTextFile(Gu.EmbeddedDataPath + "BasicShader_frag.glsl",true);
+                //string vert = Gu.ReadTextFile(Gu.EmbeddedDataPath + "BasicShader_vert.glsl",true);
+                //S_shader = new Shader(vert, frag);
+
                 Texture noise = Noise3D.TestNoise();
                 Texture peron = new Texture(Gu.EmbeddedDataPath + "main char.png", true);
                 Texture grass = new Texture(Gu.EmbeddedDataPath + "grass_base.png", true);
 
-                boxMeshThing = CreateObject(mat4.Identity(), MeshData.GenBox(), new Material(noise, _shader));
-                CreateObject(mat4.Identity(), MeshData.GenTextureFront(_camera, 0, 0, Width, Height), new Material(peron, _shader));
-                CreateObject(mat4.Identity(), MeshData.GenPlane(10, 10), new Material(grass, _shader));
+                boxMeshThing = CreateObject(MeshData.GenBox(1,1,1), new Material(noise, Shader.DefaultDiffuse()));
+                CreateObject(MeshData.GenTextureFront(_camera, 0, 0, Width, Height), new Material(peron, Shader.DefaultDiffuse()));
+                CreateObject(MeshData.GenPlane(10, 10), new Material(grass, Shader.DefaultDiffuse()));
+
+                boxMeshThing.Position = new vec3(0,boxMeshThing.BoundBox.Height()*0.5f,0);
 
                 CursorVisible = true;
                 //var siz = Marshal.SizeOf(default(MeshVert));
@@ -95,12 +99,12 @@ namespace PirateCraft
                 System.Environment.Exit(0);
             }
         }
-        private WorldObject CreateObject(mat4 transform, MeshData mesh, Material material)
+        private WorldObject CreateObject(MeshData mesh, Material material, vec3 pos = default(vec3))
         {
-            WorldObject ob = new WorldObject();
+            WorldObject ob = new WorldObject(pos);
             ob.Mesh = mesh;
             ob.Material = material;
-            _objects.Add(ob);
+            Gu.World.Objects.Add(ob);
             return ob;
         }
         private void TestFonts()
@@ -151,11 +155,7 @@ namespace PirateCraft
             rot += Math.PI * 2.0f * Delta * 0.0125f;
 
             _camera.Update();
-
-            foreach (var ob in _objects)
-            {
-                ob.Update();
-            }
+            Gu.World.Update();
         }
         private void UpdateInput()
         {
@@ -169,19 +169,19 @@ namespace PirateCraft
             }
             if (keyState.IsKeyDown(Key.Up) || keyState.IsKeyDown(Key.W))
             {
-                _camera.v3pos += _camera.v3z * 0.1f;
+                _camera.Position += _camera.BasisZ * 0.1f;
             }
             if (keyState.IsKeyDown(Key.Down) || keyState.IsKeyDown(Key.S))
             {
-                _camera.v3pos -= _camera.v3z * 0.1f;
+                _camera.Position -= _camera.BasisZ * 0.1f;
             }
             if (keyState.IsKeyDown(Key.Right) || keyState.IsKeyDown(Key.D))
             {
-                _camera.v3pos -= _camera.v3x * 0.1f * coordMul;
+                _camera.Position -= _camera.BasisX * 0.1f * coordMul;
             }
             if (keyState.IsKeyDown(Key.Left) || keyState.IsKeyDown(Key.A))
             {
-                _camera.v3pos += _camera.v3x * 0.1f * coordMul;
+                _camera.Position += _camera.BasisX * 0.1f * coordMul;
             }
             if (keyState.IsKeyDown(Key.Number1))
             {
@@ -229,15 +229,15 @@ namespace PirateCraft
                     meshIdx = (meshIdx + 1) % 3;
                     if (meshIdx == 0)
                     {
-                        boxMeshThing.Mesh = MeshData.GenBox();
+                        boxMeshThing.Mesh = MeshData.GenBox(1,1,1);
                     }
                     if (meshIdx == 1)
                     {
-                        boxMeshThing.Mesh = MeshData.GenSphere(128, 128, 1, true);
+                        boxMeshThing.Mesh = MeshData.GenSphere(32, 32, 1, true);
                     }
                     if (meshIdx == 2)
                     {
-                        boxMeshThing.Mesh = MeshData.GenSphere(128, 128, 1, false);
+                        boxMeshThing.Mesh = MeshData.GenSphere(32, 32, 1, false);
                     }
                 }
                 fourDown = true;
@@ -261,11 +261,15 @@ namespace PirateCraft
 
                 float rot_speed = 0.001f;
 
-                _camera.Update();
+                //_camera.Update();
+
+                //Modify the rotation of the relative tracking object
                 mat4 ry = mat4.GetRotation((float)Math.PI * mx * -rot_speed * coordMul, new vec3(0, 1, 0));
-                mat4 rx = mat4.GetRotation((float)Math.PI * my * -rot_speed, _camera.v3x);
-                vec3 vz = (ry * rx * new vec4(_camera.v3z, 1)).xyz().normalize();
-                _camera.lookAt(_camera.v3pos + vz);
+                mat4 rx = mat4.GetRotation((float)Math.PI * my * -rot_speed, new vec3(1,0,0));//camera.BasisX
+                vec3 vz = (ry * rx * new vec4(0,0,1, 0)).xyz().normalize();
+                cameraLookAtEmpty.Position = (ry * rx * new vec4(cameraLookAtEmpty.Position,1)).xyz().normalize();// = (Quaternion.axisAngleToQuaternion(cameraLookAtEmpty.Rotation).toMat4() * ry * rx).GetQuaternion().toAxisAngle();
+                //Console.WriteLine("empty rot = xyz = " + cameraLookAtEmpty.Rotation.ToString());
+                //_camera.lookAt(_camera.Position + vz);
             }
             last.x = (float)mouseState.X;
             last.y = (float)mouseState.Y;
@@ -274,23 +278,8 @@ namespace PirateCraft
         {
 
             Renderer.BeginRender(this, new vec4(1, 1, 1, 1));
-            foreach (var ob in _objects)
-            {
-                ob.Material.PreRender(Delta, _camera, ob.World);
-                Renderer.Render(_camera, ob);
-                ob.Material.PostRender();
-            }
+            Gu.World.Render(Delta, _camera);
             Renderer.EndRender();
-
-            //  _shader.UpdateAndBind(dt, _camera, model);
-            // Renderer.Render(_camera, _mesh, _shader, _texture);
-
-            //  GL.Disable(EnableCap.CullFace);
-            //   GL.Disable(EnableCap.DepthTest);
-
-
-            // _shader.UpdateAndBind(dt,_camera,  _camera.ViewMatrix.inverseOf());
-            //   Renderer.Render(_camera, _textureFront, _shader, _texture);
 
             _frameStamp++;
         }

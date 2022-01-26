@@ -18,7 +18,10 @@ namespace PirateCraft
         public const float M_PI = (float)(Math.PI);
         public const float M_2PI = (float)(Math.PI * 2.0f);
         public const float M_PI_2 = (float)(Math.PI * 2.0f);
-
+        public static float sqrtf(float f)
+        {
+            return (float)Math.Sqrt(f);
+        }
         public static float sinf(float f)
         {
             return (float)Math.Sin(f);
@@ -453,6 +456,7 @@ namespace PirateCraft
         public vec4(float dx, float dy, float dz, float dw) { x = dx; y = dy; z = dz; w = dw; }
         public vec4(OpenTK.Vector4 v) { x = v.X; y = v.Y; z = v.Z; w = v.W; }//From XNA's Vector2
 
+        public override string ToString() { return "(" + x + "," + y + "," + z + "," + w + ")"; }
         public vec4 construct(float dx, float dy, float dz, float dw)
         {
             x = dx; y = dy; z = dz; w = dw;
@@ -876,29 +880,40 @@ namespace PirateCraft
             _isOpt = true;
         }
     }
-    [StructLayout(LayoutKind.Sequential)]
-    public struct Box3f
+    //[StructLayout(LayoutKind.Sequential)]
+    public class Box3f
     {
-        public vec3 _vmin;
-        public vec3 _vmax;
-
-        public Box3f(vec3 min, vec3 max)
+        public vec3 _min;
+        public vec3 _max;
+        public Box3f() { }
+        public Box3f(in vec3 min, in vec3 max)
         {
-            _vmin = min;
-            _vmax = max;
+            _min = min;
+            _max = max;
         }
-
+        public float Height()
+        {
+            return _max.y - _min.y;
+        }
+        public float Width()
+        {
+            return _max.x - _min.x;
+        }
+        public float Depth()
+        {
+            return _max.z - _min.z;
+        }
         public void Validate()
         {
-            if (_vmax.x < _vmin.x)
+            if (_max.x < _min.x)
             {
                 throw new Exception("Bound box X was invalid.");
             }
-            if (_vmax.y < _vmin.y)
+            if (_max.y < _min.y)
             {
                 throw new Exception("Bound box Y was invalid.");
             }
-            if (_vmax.z < _vmin.z)
+            if (_max.z < _min.z)
             {
                 throw new Exception("Bound box Z was invalid.");
             }
@@ -935,8 +950,13 @@ namespace PirateCraft
         private vec3 bounds(int in__)
         {
             if (in__ == 0)
-                return _vmin;
-            return _vmax;
+            {
+                return _min;
+            }
+            else
+            {
+                return _max;
+            }
         }
         private bool RayIntersect(PickRay ray, ref BoxAAHit bh)
         {
@@ -983,12 +1003,48 @@ namespace PirateCraft
         private bool containsInclusive(vec3 v)
         {
             return (
-                (v.x >= _vmin.x) && (v.x <= _vmax.x) &&
-                (v.y >= _vmin.y) && (v.y <= _vmax.y) &&
-                (v.z >= _vmin.z) && (v.z <= _vmax.z)
+                (v.x >= _min.x) && (v.x <= _max.x) &&
+                (v.y >= _min.y) && (v.y <= _max.y) &&
+                (v.z >= _min.z) && (v.z <= _max.z)
                 );
         }
-
+        public void genResetLimits()
+        {
+            _min = vec3.VEC3_MAX();
+            _max = vec3.VEC3_MIN();
+        }
+        public void genExpandByPoint(in vec3 pt)
+        {
+            _min = vec3.minv(_min, pt);
+            _max = vec3.maxv(_max, pt);
+        }
+        public void genExpandByBox(in Box3f pc)
+        {
+            genExpandByPoint(pc._min);
+            genExpandByPoint(pc._max);
+        }
+        public bool getHasVolume(float epsilon)
+        {
+            if (getVolumePositiveOnly() == 0.0)
+            {
+                return false;
+            }
+            return true;
+        }
+        private float getVolumePositiveOnly()
+        {
+            float ax = (_max.x - _min.x);
+            float ay = (_max.y - _min.y);
+            float az = (_max.z - _min.z);
+            if (ax < 0.0f) ax = 0.0f;
+            if (ay < 0.0f) ay = 0.0f;
+            if (az < 0.0f) az = 0.0f;
+            return ax * ay * az;
+        }
+        private float getVolumeArbitrary()
+        {
+            return (_max.x - _min.x) * (_max.y - _min.y) * (_max.z - _min.z);
+        }
     }
     [StructLayout(LayoutKind.Sequential)]
     public struct ivec3
@@ -1040,6 +1096,15 @@ namespace PirateCraft
         public float y;
         public float z;
 
+        public static vec3 VEC3_MIN()
+        {
+            return new vec3(float.MinValue, float.MinValue, float.MinValue);
+        }
+        public static vec3 VEC3_MAX()
+        {
+            return new vec3(float.MaxValue, float.MaxValue, float.MaxValue);
+        }
+
         public vec3(vec3 rhs)
         {
             this.x = rhs.x;
@@ -1073,6 +1138,25 @@ namespace PirateCraft
         {
             return "" + x + "," + y + "," + z;
         }
+        //    public static vec3 minv(in vec3 v_a, in vec3 v_b) {
+        //      vec3 outt = new vec3();
+
+        //      outt.x = Math.Min(v_a.x, v_b.x);
+        //      outt.y = Math.Min(v_a.y, v_b.y);
+        //      outt.z = Math.Min(v_a.z, v_b.z);
+
+        //      return outt;
+        //    }
+        //public static vec3 maxv(in vec3 v_a, in vec3 v_b)
+        //{
+        //      vec3 outt = new vec3();
+
+        //      outt.x = Math.Max(v_a.x, v_b.x);
+        //      outt.y = Math.Max(v_a.y, v_b.y);
+        //      outt.z = Math.Max(v_a.z, v_b.z);
+
+        //      return outt;
+        //}
         // template <class Tx>
         // vec3(const Vec2x<float>& rhs) {
         //   x = (float)rhs.x;
@@ -1096,7 +1180,7 @@ namespace PirateCraft
         //////////////////////////////////////////////////////////////////////////
         //////////////////////////////////////////////////////////////////////////
 
-        public vec3 minv(in vec3 v_a, in vec3 v_b)
+        public static vec3 minv(in vec3 v_a, in vec3 v_b)
         {
             vec3 outv = new vec3();
 
@@ -1106,7 +1190,7 @@ namespace PirateCraft
 
             return outv;
         }
-        public vec3 maxv(in vec3 v_a, in vec3 v_b)
+        public static vec3 maxv(in vec3 v_a, in vec3 v_b)
         {
             vec3 outv = new vec3();
 
@@ -1116,7 +1200,7 @@ namespace PirateCraft
 
             return outv;
         }
-        public vec3 maxv_a(in vec3 v_a, in vec3 v_b)
+        public static vec3 maxv_a(in vec3 v_a, in vec3 v_b)
         {
             vec3 outv = new vec3();
 
@@ -1125,7 +1209,7 @@ namespace PirateCraft
             outv.z = Math.Max(Math.Abs(v_a.z), Math.Abs(v_b.z));
             return outv;
         }
-        public float maxf_a(in vec3 v_a, in vec3 v_b)
+        public static float maxf_a(in vec3 v_a, in vec3 v_b)
         {
             vec3 tmp = maxv_a(v_a, v_b);
             return Math.Max(Math.Abs(tmp.x), Math.Max(Math.Abs(tmp.y), Math.Abs(tmp.z)));
@@ -1846,9 +1930,46 @@ namespace PirateCraft
         }
         public Quaternion GetQuaternion()
         {
+            Quaternion q = new Quaternion();
+            float tr = this._m11 + this._m22 + this._m33;
+
+            if (tr > 0)
+            {
+                float S = MathUtils.sqrtf(tr + 1.0f) * 2; // S=4*qw 
+                q.w = 0.25f * S;
+                q.x = (this._m32 - this._m23) / S;
+                q.y = (this._m13 - this._m31) / S;
+                q.z = (this._m21 - this._m12) / S;
+            }
+            else if ((this._m11 > this._m22) & (this._m11 > this._m33))
+            {
+                float S = MathUtils.sqrtf(1.0f + this._m11 - this._m22 - this._m33) * 2; // S=4*qx 
+                q.w = (this._m32 - this._m23) / S;
+                q.x = 0.25f * S;
+                q.y = (this._m12 + this._m21) / S;
+                q.z = (this._m13 + this._m31) / S;
+            }
+            else if (this._m22 > this._m33)
+            {
+                float S = MathUtils.sqrtf(1.0f + this._m22 - this._m11 - this._m33) * 2; // S=4*qy
+                q.w = (this._m13 - this._m31) / S;
+                q.x = (this._m12 + this._m21) / S;
+                q.y = 0.25f * S;
+                q.z = (this._m23 + this._m32) / S;
+            }
+            else
+            {
+                float S = MathUtils.sqrtf(1.0f + this._m33 - this._m11 - this._m22) * 2; // S=4*qz
+                q.w = (this._m21 - this._m12) / S;
+                q.x = (this._m13 + this._m31) / S;
+                q.y = (this._m23 + this._m32) / S;
+                q.z = 0.25f * S;
+            }
+
+
             float s0, s1, s2;
             int k0, k1, k2, k3;
-            float[] q = new float[4];
+            float[] q1 = new float[4];
             if ((_m11 + _m22 + _m33) > 0.0f)
             {
                 k0 = 3;
@@ -1894,14 +2015,14 @@ namespace PirateCraft
             //if( t==0.0 ) t=1e-10f;
             float s = (float)((1.0 / Math.Sqrt(t)) * 0.5f);
 
-            q[k0] = s * t;
+            q1[k0] = s * t;
 
-            q[k1] = (float)((_m12 - s2 * _m21) * s);
-            q[k2] = (float)((_m31 - s1 * _m13) * s);
-            q[k3] = (float)((_m23 - s0 * _m32) * s);
+            q1[k1] = (float)((_m12 - s2 * _m21) * s);
+            q1[k2] = (float)((_m31 - s1 * _m13) * s);
+            q1[k3] = (float)((_m23 - s0 * _m32) * s);
 
-            Quaternion ret = new Quaternion(q[k0], q[k1], q[k2], q[k3]);
-            return ret;
+            Quaternion ret = new Quaternion(q1[k0], q1[k1], q1[k2], q1[k3]);
+            return q;
         }
         public static mat4 GetTranslation(in vec3 vTrans)
         {
@@ -2099,6 +2220,10 @@ namespace PirateCraft
             vec3 xaxis = zaxis.cross(up).normalize();//This produces -y,+z -> -x
             vec3 yaxis = xaxis.cross(zaxis);
             zaxis *= -1;
+
+            //vec3 zaxis = (center - eye).normalize();
+            //vec3 xaxis = up.cross(zaxis).normalize();//This produces -y,+z -> -x
+            //vec3 yaxis = zaxis.cross(xaxis);
 
             mat4 mm = new mat4();
             mm._m11 = xaxis.x; mm._m12 = yaxis.x; mm._m13 = zaxis.x; mm._m14 = 0;
@@ -2563,7 +2688,7 @@ namespace PirateCraft
 
             Quaternion q = mOut.GetQuaternion();
 
-            q.getAxisAngle(out rot);
+            rot = q.toAxisAngle();
             if (bDegreeRotation)
             {
                 rot.w = MathUtils.ToDegrees(rot.w);
@@ -2714,17 +2839,26 @@ namespace PirateCraft
         {
             return ((inverse() * vin) * this).vectorPart();
         }
-        public void getAxisAngle(out vec4 v)
+        public static Quaternion axisAngleToQuaternion(in vec4 axisAngle)
+        {
+            Quaternion q = new Quaternion();
+            q.x = axisAngle.x * MathUtils.sinf(axisAngle.w * 0.5f);
+            q.y = axisAngle.y * MathUtils.sinf(axisAngle.w * 0.5f);
+            q.z = axisAngle.z * MathUtils.sinf(axisAngle.w * 0.5f);
+            q.w = MathUtils.cosf(axisAngle.w * 0.5f);
+            return q;
+        }
+        public vec4 toAxisAngle()
         {
             //http://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToAngle/
-            v = new vec4();
+            vec4 v = new vec4();
 
-            if (w == (float)1.0)
+            if (w == 1.0f)
             {
                 //Avoid divide by 0,( 1 - (cos(0) = 1)) =0
                 v.x = v.z = v.w = 0;
                 v.y = 1;
-                return;
+                return v;
             }
 
             v.w = 2.0f * (float)Math.Acos(w);
@@ -2734,6 +2868,7 @@ namespace PirateCraft
             v.x = x * srw2_1;
             v.y = y * srw2_1;
             v.z = z * srw2_1;
+            return v;
         }
         public mat4 toMat4()
         {

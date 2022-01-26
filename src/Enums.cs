@@ -31,4 +31,8 @@ namespace PirateCraft
         Begin,
         End
     }
+    public enum ConstraintType
+    {
+        LookAt
+    }
 }

@@ -2,10 +2,12 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using OpenTK;
@@ -27,6 +29,28 @@ namespace PirateCraft
         public static Context Context { get; private set; }
         public static readonly string EmbeddedDataPath = "PirateCraft.data.";
 
+        public static World World = new World();
+        public static Bitmap CreateBitmapARGB(int width, int height, byte[] pixels)
+        {
+            Bitmap b = new Bitmap(width, width, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            BitmapData bmpData = b.LockBits(new Rectangle(0, 0, width, width),
+                                            ImageLockMode.WriteOnly,
+                                            b.PixelFormat);
+
+            IntPtr ptr = bmpData.Scan0;
+
+            int bytes = bmpData.Stride * b.Height;
+            var rgbValues = new byte[bytes];
+
+            rgbValues[0] = 255;
+            rgbValues[1] = 255;
+            rgbValues[2] = 255;
+            rgbValues[3] = 255;
+
+            Marshal.Copy(rgbValues, 0, ptr, bytes);
+            b.UnlockBits(bmpData);
+            return b;
+        }
         private static void RegisterContext(GameWindow g)
         {
             Contexts.Add(g, new Context(g));

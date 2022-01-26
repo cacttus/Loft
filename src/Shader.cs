@@ -41,6 +41,18 @@ namespace PirateCraft
 
         ShaderLoadState State = ShaderLoadState.None;
 
+        private static Shader _defaultDiffuseShader = null;
+        public static Shader DefaultDiffuse()
+        {
+            //Returns a basic v3 n3 x2 lambert+blinn-phong shader.
+            if (_defaultDiffuseShader == null)
+            {
+                string frag = Gu.ReadTextFile(Gu.EmbeddedDataPath + "BasicShader_frag.glsl", true);
+                string vert = Gu.ReadTextFile(Gu.EmbeddedDataPath + "BasicShader_vert.glsl", true);
+                _defaultDiffuseShader = new Shader(vert, frag);
+            }
+            return _defaultDiffuseShader;
+        }
         public Shader(string vsSrc = "", string psSrc = "")
         {
             Gu.CheckGpuErrorsDbg();
@@ -111,7 +123,7 @@ namespace PirateCraft
                 GL.Uniform1(_GGX_YLocation, GGX_Y);
                 Gu.CheckGpuErrorsRt();
 
-                _camvpos = cam.v3pos;
+                _camvpos = cam.Position;
 
                 GL.ProgramUniform3(_shaderProgramHandle, _camPosLocation, _camvpos.x, _camvpos.y, _camvpos.z);
                 Gu.CheckGpuErrorsDbg();

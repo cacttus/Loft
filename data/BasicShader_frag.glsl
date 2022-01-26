@@ -1,6 +1,6 @@
 ﻿#version 400
 #define M_PI 3.1415926535897932384626433832795
-#define OREN_NAYAR_DIFFUSE 1
+//#define OREN_NAYAR_DIFFUSE 1
 #define PHONG 1
 //#define BLINN_PHONG 1
 //#define GGX 1
