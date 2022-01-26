@@ -14,57 +14,97 @@ namespace PirateCraft
 
     public class Camera3D : BaseNode
     {
-        private ProjectionMode ProjectionMode = ProjectionMode.Perspective;
-        public Viewport Viewport { get; private set; } = null;
-        public Frustum3D Frustum { get; set; } = null;
-        float FOV { get; set; } = ((float)Math.PI / (float)6);
 
-        //public mat4 ProjectionMatrix { get; private set;}
-        //public mat4 ViewMatrix { get; private set;}
+        float _fov = MathUtils.ToRadians(80.0f);
+        float _near = 1;
+        float _far = 1000;
+        bool _updating = false;
+        private float _widthNear = 1;
+        private float _heightNear = 1;
+        private float _widthFar = 1;
+        private float _heightFar = 1;
 
-        public mat4 ProjectionMatrix { get; private set;}
-        public mat4 ViewMatrix { get; private set;}
+        //TODO: turn these into the object data.
 
-        public Camera3D(int w, int h, float near=1, float far=1000)
+        vec3 _v3pos = new vec3(0, 0, -10);
+        vec3 _v3x = new vec3(1, 0, 0); //These are the basis vectors, please turn into object data later
+        vec3 _v3y = new vec3(0, 1, 0);
+        vec3 _v3z = new vec3(0, 0, 1);
+
+        public vec3 v3pos { get { return _v3pos; } set { _v3pos = value; SetDirty(); } }
+        public vec3 v3x { get { return _v3x; } private set { _v3x = value; SetDirty(); } }  //These are the basis vectors, please turn into object data later
+        public vec3 v3y { get { return _v3y; } private set { _v3y = value; SetDirty(); } }
+        public vec3 v3z { get { return _v3z; } private set { _v3z = value; SetDirty(); } }
+
+        Viewport _viewport = null;
+        vec3 _nearCenter = new vec3(0, 0, 0);
+        vec3 _farCenter = new vec3(0, 0, 0);
+        vec3 _nearTopLeft = new vec3(0, 0, 0);
+        vec3 _farTopLeft = new vec3(0, 0, 0);
+        mat4 _projectionMatrix = mat4.Identity();
+        mat4 _viewMatrix = mat4.Identity();
+        ProjectionMode ProjectionMode = ProjectionMode.Perspective;
+
+        public float FOV { get { return _fov; } set { _fov = value; SetDirty(); } }
+        public float Near { get { return _near; } private set { _near = value; SetDirty(); } }
+        public float Far { get { return _far; } private set { _far = value; SetDirty(); } }
+        public Viewport Viewport { get { return _viewport; } private set { _viewport = value; SetDirty(); } }
+        public vec3 NearCenter { get { return _nearCenter; } private set { _nearCenter = value; SetDirty(); } }
+        public vec3 FarCenter { get { return _farCenter; } private set { _farCenter = value; SetDirty(); } }
+        public vec3 NearTopLeft { get { return _nearTopLeft; } private set { _nearTopLeft = value; SetDirty(); } }
+        public vec3 FarTopLeft { get { return _farTopLeft; } private set { _farTopLeft = value; SetDirty(); } }
+        public mat4 ProjectionMatrix { get { return _projectionMatrix; } private set { _projectionMatrix = value; SetDirty(); } }
+        public mat4 ViewMatrix { get { return _viewMatrix; } private set { _viewMatrix = value; SetDirty(); } }
+
+        public void lookAt(vec3 center)
         {
-            //DO not select camera (at least not active camera) since we wont be able to hit anything else.
-            //SelectEnabled = false;
-            Viewport = new Viewport(w,h);
-            Frustum = new Frustum3D(Viewport,near,far);
+            //Construct basis vectors for sensible rotation
+            //This is esentially what we do in a lookat matrix anyway, could just set it manually here.
+            //Note that we're using 0 1 0 here not the y axis. this is for sensible navigation
+            v3z = (center - v3pos).normalize();
+            v3x = new vec3(0, 1, 0).cross(v3z).normalize();
+            v3y = v3z.cross(v3x);
+
+            Update();
         }
-        public vec3 v3pos = new vec3(0, 0, -10);
-        public vec3 v3x = new vec3(1, 0, 0);
-        public vec3 v3y = new vec3(0, 1, 0);
-        public vec3 v3z = new vec3(0,0,1);
+        public Camera3D(int w, int h, float near = 1, float far = 1000)
+        {
+            //Do not select camera (at least not active camera) since we wont be able to hit anything else.
+            //SelectEnabled = false;
+            Viewport = new Viewport(w, h, this);
+        }
         public void Update()
         {
-            //GL.MatrixMode(MatrixMode.Projection);
-            //GL.LoadIdentity();
-            //Gu.CheckGpuErrorsDbg();
-            //GL.Scissor(Viewport.X, Viewport.Y, Viewport.Width, Viewport.Height);
-            //Gu.CheckGpuErrorsDbg();
-            //GL.Viewport(Viewport.X, Viewport.Y, Viewport.Width, Viewport.Height); // Use all of the glControl painting area
-            //Gu.CheckGpuErrorsDbg();
+            //if (_dirty && !_updating)
+            //{
+            //_updating = true;
+            //{
+            ProjectionMatrix = mat4.projection(FOV, Viewport.Width, Viewport.Height, Near, Far);
+            ViewMatrix = mat4.getLookAt(v3pos, v3pos + v3z, v3y);
 
-            //SetupProjectionMatrix();
+            //Frustum
+            float tanfov2 = MathUtils.tanf(FOV / 2.0f);
+            float ar = ((float)Viewport.Width / (float)Viewport.Height);
 
-            //GL.MatrixMode(MatrixMode.Modelview);
-            //GL.LoadIdentity();
-            //Vec3f lookAtPos = Pos + View;
-            //Gu.CheckGpuErrorsDbg();
-            ////TODO: track to constraint
-            //Mat4 m = Mat4.LookAt(Pos, lookAtPos, new Vec3f(0,1,0));
-            //GL.LoadMatrix(ref m);
-            //Gu.CheckGpuErrorsDbg();
+            //tan(fov2) = w2/near
+            //tan(fov2) * near = w2
+            //w/h = w2/h2
+            //(w/h)*h2 = w2
+            //w2/(w/h) = h2
+            _widthNear = tanfov2 * Near * 2;
+            _heightNear = _widthNear / ar;
+            _widthFar = tanfov2 * Far * 2;
+            _heightFar = _widthFar / ar;
 
-            ProjectionMatrix = mat4.projection(MathUtils.ToRadians(80.0f), 1920,1080,1,1000);
-            ViewMatrix = mat4.getLookAt(this.v3pos, this.v3pos+this.v3z, v3y);
-           // ViewMatrix = mat4.getRotation((float)Math.PI / 4.0f, new vec3(0, 1, 0))*
-           // mat4.getTranslation(new vec3(10,0,-10));//* mat4.getRotation((float)Math.PI/2.0f,new vec3(0,1,0));
+            NearCenter = v3pos + v3z * Near;
+            FarCenter = v3pos + v3z * Far;
+            NearTopLeft = NearCenter - v3x * _widthNear + v3y * _heightNear;
+            FarTopLeft = FarCenter - v3x * _widthFar + v3y * _heightFar;
 
-            //ViewMatrix = Mat4f.LookAt(new Vec3f(0,10,-10), new Vec3f(0,0,0), new Vec3f(0, 1, 0));
-            //ProjectionMatrix = Mat4f.CreatePerspectiveFieldOfView(MathUtils.ToRadians(70.0f),1920.0f/ 1080.0f, 1.0f, 1000.0f);
-
+            //    }
+            //    _updating = false;
+            //}
+            //_dirty = false;
         }
         public override void Resize(Viewport vp) { }
         public override void Update(double dt) { base.Update(dt); }
@@ -80,56 +120,37 @@ namespace PirateCraft
             //BoundBoxComputed._vmin.Y += -_mainVolume._radius;
             //BoundBoxComputed._vmin.Z += -_mainVolume._radius;
         }
-        public  PickRay ProjectPoint(Vec2f mouse)
+
+        public Line3f ProjectPoint(vec2 point_on_screen, TransformSpace space = TransformSpace.World, float additionalZDepthNear = 0)
         {
-            PickRay pt = new PickRay();
-            //Vec2f screen = screenPoint;
+            //Note: we were using PickRay before because that's used to pick OOBs. We don't need that right now but we will in the future.
+            Line3f pt = new Line3f();
 
-            ////translate to center
-            //screen.X -= (float)GetViewport().Width / 2.0f;
-            //screen.Y = (float)GetViewport().Height / 2.0f - screen.Y;
+            float left_pct = point_on_screen.x / (float)Viewport.Width;
+            float top_pct = (point_on_screen.y) / (float)Viewport.Height;
 
-            ////Get up /rioght
-            //Vec3f right = Vec3f.Cross(GetViewVec(), GetUpVec());
-            //Vec3f up = GetUpVec();
-
-            //// Get screen world center position
-            //Vec3f ncPos = GetPos() + GetViewVec() * GetNear();
-
-            //pt.Origin = ncPos + right * screen.X + up * screen.Y;
-            //pt._length = GetFar();
-
-            //pt.Dir = GetViewVec();
-            //pt.Opt();
-
-            //return pt;
-            ///*
-            //    //update();
-            //_p_pMainFrustum->update(getView(),getPos(),getUp());
-            //ProjectedRay pr;
-            //float wratio = (float)((float)mouse.X/(float)GetViewport().Width());
-            //float hratio = (float)((float)mouse.Y/(float)GetViewport().Height());
-
-            //Vec3f dp1 = _pMainFrustum->PointAt(fpt_ntr) - _pMainFrustum->PointAt(fpt_ntl);
-            //Vec3f dp2 = _pMainFrustum->PointAt(fpt_nbl) - _pMainFrustum->PointAt(fpt_ntl);
-
-            //dp1*=wratio;
-            //dp2*=hratio;
-
-            //pr.Origin = _pMainFrustum->PointAt(fpt_ntl)+dp1+dp2;
-
-            //dp1 = _pMainFrustum->PointAt(fpt_ftr) - _pMainFrustum->PointAt(fpt_ftl);
-            //dp2 = _pMainFrustum->PointAt(fpt_fbl) - _pMainFrustum->PointAt(fpt_ftl);
-
-            //dp1*=wratio;
-            //dp2*=hratio;
-
-            //pr.Dir = _pMainFrustum->PointAt(fpt_ftl) + dp1 + dp2 - pr.Origin;
-
-            //pr.opt();
+            if (space == TransformSpace.Local)
+            {
+                //Transform in local coordinates.
+                vec3 localX = new vec3(1, 0, 0);
+                vec3 localY = new vec3(0, 1, 0);
+                vec3 localZ = new vec3(0, 0, 1);
+                vec3 near_center_local = localZ * Near;
+                vec3 far_center_local = localZ * Far;
+                vec3 ntl = near_center_local - localX * _widthNear + localY * _heightNear;
+                vec3 ftl = far_center_local - localX * _widthFar + localY * _heightFar;
+                pt.p0 = ntl + localX * _widthNear * left_pct + localY * _heightNear * top_pct;
+                pt.p1 = ftl + localX * _widthFar * left_pct + localY * _heightFar * top_pct;
+                pt.p0 += localZ * additionalZDepthNear;
+            }
+            else
+            {
+                pt.p0 = NearTopLeft + v3x * _widthNear * left_pct + v3y * _heightNear * top_pct;
+                pt.p1 = FarTopLeft + v3x * _widthFar * left_pct + v3y * _heightFar * top_pct;
+                pt.p0 += v3z * additionalZDepthNear;
+            }
 
             return pt;
-
         }
 
     }

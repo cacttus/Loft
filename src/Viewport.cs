@@ -16,14 +16,18 @@ namespace PirateCraft
     public class Viewport
     {
         private bool _changed = false;
-        public int X { get; set; } = 0;
-        public int Y { get; set; } = 0;
-        public int Width { get; set; } = 800;
-        public int Height { get; set; } = 600;
+        public int _x = 0, _y = 0, _w = 800, _h = 600;
+        WeakReference<Camera3D> _cam = null;
 
-        public Viewport(int w, int h)
+        public int X { get { return _x; } set { _x = value; Gu.GetRef(_cam)?.Dirty(); } }
+        public int Y { get { return _y; } set { _y = value; Gu.GetRef(_cam)?.Dirty(); } }
+        public int Width { get { return _w; } set { _w = value; Gu.GetRef(_cam)?.Dirty(); } }
+        public int Height { get { return _h; } set { _h = value; Gu.GetRef(_cam)?.Dirty(); } }
+
+        public Viewport(int w, int h, Camera3D cam)
         {
             Width = w; Height = h;
+            _cam = new WeakReference<Camera3D>(cam);
         }
 
         public static implicit operator WeakReference<object>(Viewport v)

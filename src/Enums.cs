@@ -15,10 +15,20 @@ namespace PirateCraft
         Rhs,
         Lhs
     }
-    enum ProjectionMode
+    public enum ProjectionMode
     {
         Orthographic,
         Perspective
     }
-
+    public enum TransformSpace
+    {
+        World,
+        Local
+    }
+    public enum RenderPipelineState
+    {
+        None,
+        Begin,
+        End
+    }
 }

@@ -21,6 +21,7 @@ namespace PirateCraft
         Vec3f _scale = new Vec3f(0, 0, 0);
 
         Vec3f _cachedView = new Vec3f(0,0,-1);
+        bool _dirty = true;
 
         public int Id { get; private set; } = ++_idGenerator;    // node id
         public Vec3f Pos { get { return _pos; } set { _pos = value; UpdateTransform(); } }
@@ -36,7 +37,14 @@ namespace PirateCraft
                // if(_transformUpdateStamp!=)
         return (MatWorld * new Vec4f(0,0,-1,0)).Xyz.Normalized(); 
         } }
-
+        public void SetDirty()
+        {
+            _dirty = true;
+        }
+        public bool Dirty()
+        {
+            return _dirty;
+        }
         public BaseNode()
         {
         }

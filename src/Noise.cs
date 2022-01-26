@@ -232,7 +232,7 @@ namespace PirateCraft
             {
                 uniqueNormals.Add(grad, new System.Collections.Generic.HashSet<ivec3>());
             }
-            System.Collections.Generic.HashSet<ivec3> set2 = null;
+            HashSet<ivec3> set2 = null;
             if (uniqueNormals.TryGetValue(grad, out set2))
             {
                 set2.Add(new ivec3(x, y, z));
@@ -249,7 +249,7 @@ namespace PirateCraft
 
             return grad;
         }
-       static int _bsiz = 128;
+        static int _bsiz = 128;
         static int _scale = 8;
         static int _ngridpoints = (int)Math.Pow(_bsiz / _scale,3);
         static int _seed = 940275;

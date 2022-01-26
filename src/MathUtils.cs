@@ -19,17 +19,29 @@ namespace PirateCraft
         public const float M_2PI = (float)(Math.PI * 2.0f);
         public const float M_PI_2 = (float)(Math.PI * 2.0f);
 
-        public static float Sinf(float f)
+        public static float sinf(float f)
         {
             return (float)Math.Sin(f);
         }
-        public static float Cosf(float f)
+        public static float cosf(float f)
         {
             return (float)Math.Cos(f);
         }
-        public static float Tanf(float f)
+        public static float tanf(float f)
         {
             return (float)Math.Tan(f);
+        }
+        public static float asinf(float f)
+        {
+            return (float)Math.Asin(f);
+        }
+        public static float acosf(float f)
+        {
+            return (float)Math.Acos(f);
+        }
+        public static float atanf(float f)
+        {
+            return (float)Math.Atan(f);
         }
         public static float Clamp(float f, float a, float b)
         {
@@ -233,6 +245,18 @@ namespace PirateCraft
         {
             return x.x.GetHashCode() + x.y.GetHashCode();
         }
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct Line2f
+    {
+        public vec2 p0;
+        public vec2 p1;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct Line3f
+    {
+        public vec3 p0;
+        public vec3 p1;
     }
     [StructLayout(LayoutKind.Sequential)]
     public struct vec2
@@ -466,8 +490,10 @@ namespace PirateCraft
             }
 
         }
-
-        public OpenTK.Vector4 toOpenTK() { return new OpenTK.Vector4(x, y, z, w); }
+        public OpenTK.Vector4 toOpenTK()
+        {
+            return new OpenTK.Vector4(x, y, z, w);
+        }
         public OpenTK.Graphics.Color4 toOpenTKColor()
         {
             var x = toOpenTK();

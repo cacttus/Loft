@@ -12,7 +12,7 @@ namespace PirateCraft
         int _intVboId;
         int _intIboId;
         public int _intVaoId { get; private set; }
-        public int IndexCount { get; private set;}
+        public int IndexCount { get; private set; }
         // public VertexFormat VertexFormat { get; private set; }
 
         //Mesh data is just a byte buffer with float3 float2 float16 accessor
@@ -26,7 +26,7 @@ namespace PirateCraft
             }
             CreateBuffers(verts, indexes);
         }
-        public MeshData() {}
+        public MeshData() { }
         protected void CreateBuffers(in MeshVert[] verts, in uint[] indexes)
         {
             Gu.CheckGpuErrorsDbg();
@@ -100,6 +100,217 @@ namespace PirateCraft
             GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
             GL.BindVertexArray(0);
+        }
+
+
+        public static MeshData GenPlane(float w, float h)
+        {
+            //Left Righ, Botom top, back front
+            vec3[] box = new vec3[8];
+            box[0] = new vec3(-w * 0.5f, 0, -h * 0.5f);
+            box[1] = new vec3(w * 0.5f, 0, -h * 0.5f);
+            box[2] = new vec3(-w * 0.5f, 0, h * 0.5f);
+            box[3] = new vec3(w * 0.5f, 0, h * 0.5f);
+
+            vec3[] norms = new vec3[1];//lrbtaf
+            norms[0] = new vec3(0, 1, 0);
+
+            vec2[] texs = new vec2[4];
+            texs[0] = new vec2(0, 0);
+            texs[1] = new vec2(1, 0);
+            texs[2] = new vec2(0, 1);
+            texs[3] = new vec2(1, 1);
+
+            MeshVert[] verts = new MeshVert[4];
+            verts[0 * 4 + 0] = new MeshVert() { _v = box[0], _n = norms[0], _x = texs[0] };
+            verts[0 * 4 + 1] = new MeshVert() { _v = box[1], _n = norms[0], _x = texs[1] };
+            verts[0 * 4 + 2] = new MeshVert() { _v = box[2], _n = norms[0], _x = texs[2] };
+            verts[0 * 4 + 3] = new MeshVert() { _v = box[3], _n = norms[0], _x = texs[3] };
+
+            var inds = GenerateQuadIndices(6);
+            return new MeshData(verts, inds);
+        }
+        public static MeshData GenBox()
+        {
+            //Left Righ, Botom top, back front
+            vec3[] box = new vec3[8];
+            box[0] = new vec3(-1, -1, -1);
+            box[1] = new vec3(1, -1, -1);
+            box[2] = new vec3(-1, 1, -1);
+            box[3] = new vec3(1, 1, -1);
+            box[4] = new vec3(-1, -1, 1);
+            box[5] = new vec3(1, -1, 1);
+            box[6] = new vec3(-1, 1, 1);
+            box[7] = new vec3(1, 1, 1);
+
+            vec3[] norms = new vec3[6];//lrbtaf
+            norms[0] = new vec3(-1, 0, 0);
+            norms[1] = new vec3(1, 0, 0);
+            norms[2] = new vec3(0, -1, 0);
+            norms[3] = new vec3(0, 1, 0);
+            norms[4] = new vec3(0, 0, -1);
+            norms[5] = new vec3(0, 0, 1);
+
+            vec2[] texs = new vec2[4];
+            texs[0] = new vec2(0, 1);
+            texs[1] = new vec2(1, 1);
+            texs[2] = new vec2(0, 0);
+            texs[3] = new vec2(1, 0);
+
+            //     6       7
+            // 2      3
+            //     4       5
+            // 0      1
+            MeshVert[] verts = new MeshVert[6 * 4];//lrbtaf
+            verts[0 * 4 + 0] = new MeshVert() { _v = box[4], _n = norms[0], _x = texs[0] };
+            verts[0 * 4 + 1] = new MeshVert() { _v = box[0], _n = norms[0], _x = texs[1] };
+            verts[0 * 4 + 2] = new MeshVert() { _v = box[6], _n = norms[0], _x = texs[2] };
+            verts[0 * 4 + 3] = new MeshVert() { _v = box[2], _n = norms[0], _x = texs[3] };
+
+            verts[1 * 4 + 0] = new MeshVert() { _v = box[1], _n = norms[1], _x = texs[0] };
+            verts[1 * 4 + 1] = new MeshVert() { _v = box[5], _n = norms[1], _x = texs[1] };
+            verts[1 * 4 + 2] = new MeshVert() { _v = box[3], _n = norms[1], _x = texs[2] };
+            verts[1 * 4 + 3] = new MeshVert() { _v = box[7], _n = norms[1], _x = texs[3] };
+
+            verts[2 * 4 + 0] = new MeshVert() { _v = box[4], _n = norms[2], _x = texs[0] };
+            verts[2 * 4 + 1] = new MeshVert() { _v = box[5], _n = norms[2], _x = texs[1] };
+            verts[2 * 4 + 2] = new MeshVert() { _v = box[0], _n = norms[2], _x = texs[2] };
+            verts[2 * 4 + 3] = new MeshVert() { _v = box[1], _n = norms[2], _x = texs[3] };
+
+            verts[3 * 4 + 0] = new MeshVert() { _v = box[2], _n = norms[3], _x = texs[0] };
+            verts[3 * 4 + 1] = new MeshVert() { _v = box[3], _n = norms[3], _x = texs[1] };
+            verts[3 * 4 + 2] = new MeshVert() { _v = box[6], _n = norms[3], _x = texs[2] };
+            verts[3 * 4 + 3] = new MeshVert() { _v = box[7], _n = norms[3], _x = texs[3] };
+
+            verts[4 * 4 + 0] = new MeshVert() { _v = box[0], _n = norms[4], _x = texs[0] };
+            verts[4 * 4 + 1] = new MeshVert() { _v = box[1], _n = norms[4], _x = texs[1] };
+            verts[4 * 4 + 2] = new MeshVert() { _v = box[2], _n = norms[4], _x = texs[2] };
+            verts[4 * 4 + 3] = new MeshVert() { _v = box[3], _n = norms[4], _x = texs[3] };
+
+            verts[5 * 4 + 0] = new MeshVert() { _v = box[5], _n = norms[5], _x = texs[0] };
+            verts[5 * 4 + 1] = new MeshVert() { _v = box[4], _n = norms[5], _x = texs[1] };
+            verts[5 * 4 + 2] = new MeshVert() { _v = box[7], _n = norms[5], _x = texs[2] };
+            verts[5 * 4 + 3] = new MeshVert() { _v = box[6], _n = norms[5], _x = texs[3] };
+
+            var inds = GenerateQuadIndices(6);
+            return new MeshData(verts, inds);
+        }
+        public static uint[] GenerateQuadIndices(int numQuads)
+        {
+            uint idx = 0;
+            uint[] inds = new uint[numQuads * 6];
+            for (int face = 0; face < numQuads; ++face)
+            {
+                inds[face * 6 + 0] = idx + 0;
+                inds[face * 6 + 1] = idx + 3;
+                inds[face * 6 + 2] = idx + 2;
+                inds[face * 6 + 3] = idx + 0;
+                inds[face * 6 + 4] = idx + 1;
+                inds[face * 6 + 5] = idx + 3;
+                idx += 4;
+            }
+            return inds;
+        }
+        public static MeshData GenTextureFront(Camera3D c, float x, float y, float w, float h)
+        {
+            //Let's do the UI from bottom left like OpenGL
+            MeshVert[] verts = new MeshVert[4];
+            verts[0]._v = c.ProjectPoint(new vec2(x, y), TransformSpace.Local, 0.01f).p0;
+            verts[1]._v = c.ProjectPoint(new vec2(x + w, y), TransformSpace.Local, 0.01f).p0;
+            verts[2]._v = c.ProjectPoint(new vec2(x, y + h), TransformSpace.Local, 0.01f).p0;
+            verts[3]._v = c.ProjectPoint(new vec2(x + w, y + h), TransformSpace.Local, 0.01f).p0;
+
+            verts[0]._x.construct(1, 0);
+            verts[1]._x.construct(1, 1);
+            verts[2]._x.construct(1, 0);
+            verts[3]._x.construct(0, 0);
+
+            verts[0]._n.construct(0, 0, -1);
+            verts[1]._n.construct(0, 0, -1);
+            verts[2]._n.construct(0, 0, -1);
+            verts[3]._n.construct(0, 0, -1);
+
+            var inds = GenerateQuadIndices(verts.Length / 4);
+
+            return new MeshData(verts, inds);
+        }
+        public static MeshData GenSphere(int slices = 128, int stacks = 128, float radius = 1, bool smooth = false)
+        {
+            int vcount = slices * stacks * 4;
+            MeshVert[] verts = new MeshVert[vcount];
+
+            //Use a 2D grid as a sphere. This is less optimal but doesn't mess up the tex coords.
+            for (int stack = 0; stack < stacks; stack++)
+            {
+                for (int slice = 0; slice < slices; slice++)
+                {
+                    float[] phi = new float[2];
+                    float[] theta = new float[2];
+                    phi[0] = MathUtils.M_PI * ((float)stack / (float)stacks);
+                    phi[1] = MathUtils.M_PI * ((float)(stack + 1) / (float)stacks); //0<phi<pi
+                    theta[0] = MathUtils.M_2PI * ((float)slice / (float)slices);
+                    theta[1] = MathUtils.M_2PI * ((float)(slice + 1) / (float)slices);//0<theta<2pi
+
+                    int vind = (stack * slices + slice) * 4;
+                    for (int p = 0; p < 2; ++p)
+                    {
+                        for (int t = 0; t < 2; ++t)
+                        {
+                            // 2 3
+                            // 0 1  
+                            // >x ^y
+                            verts[vind + p * 2 + t]._v.construct(
+                                radius * MathUtils.sinf(phi[p]) * MathUtils.cosf(theta[t]),
+                                radius * MathUtils.cosf(phi[p]),
+                                radius * MathUtils.sinf(phi[p]) * MathUtils.sinf(theta[t])
+                            );
+                        }
+                    }
+
+                    if (smooth)
+                    {
+                        verts[vind + 0]._n = verts[vind + 0]._v.normalized();
+                        verts[vind + 1]._n = verts[vind + 1]._v.normalized();
+                        verts[vind + 2]._n = verts[vind + 2]._v.normalized();
+                        verts[vind + 3]._n = verts[vind + 3]._v.normalized();
+                    }
+                    else
+                    {
+                        vec3 n = (verts[vind + 1]._v - verts[vind + 0]._v).cross(verts[vind + 2]._v - verts[vind + 0]._v).normalized();
+                        verts[vind + 0]._n = n;
+                        verts[vind + 1]._n = n;
+                        verts[vind + 2]._n = n;
+                        verts[vind + 3]._n = n;
+                    }
+
+                    float tx0 = (float)slice / (float)slices;
+                    float ty0 = (float)stack / (float)stacks;
+                    float tx1 = (float)(slice + 1) / (float)slices;
+                    float ty1 = (float)(stack + 1) / (float)stacks;
+                    verts[vind + 0]._x.construct(tx0, ty0);
+                    verts[vind + 1]._x.construct(tx1, ty0);
+                    verts[vind + 2]._x.construct(tx0, ty1);
+                    verts[vind + 3]._x.construct(tx1, ty1);
+
+                }
+            }
+
+            //uint idx = 0;
+            //int icount = verts.Length / 4 * 6;
+            //uint[] inds = new uint[icount];
+            //for (int face = 0; face < icount / 6; ++face)
+            //{
+            //    inds[face * 6 + 0] = idx + 0;
+            //    inds[face * 6 + 1] = idx + 2;
+            //    inds[face * 6 + 2] = idx + 3;
+            //    inds[face * 6 + 3] = idx + 0;
+            //    inds[face * 6 + 4] = idx + 3;
+            //    inds[face * 6 + 5] = idx + 1;
+            //    idx += 4;
+            //}
+            var inds = GenerateQuadIndices(verts.Length / 4);
+
+            return new MeshData(verts, inds);
         }
 
         //private void CopyVertexData(in List<MeshVert> verts, in List<uint> indexes)

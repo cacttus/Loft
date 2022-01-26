@@ -271,19 +271,16 @@ Light probe - a way to sample the environment for indirect lighting in a raster 
     sigma - rougness
     rho - albedo (typical lambertian diffuse albedo)
     
-    
-    
- 
- 
- ShaderBuilder - One Shader to Rule Them All
+
+ShaderBuilder - One Shader to Rule Them All
  
 Input vertex normal color etc
  
 output - the shaded pixel
  
- More research
+More research
 
- surface_frag.glsl
+surface_frag.glsl
   
 a few output fragment shaders
 surface / volume / 
@@ -294,7 +291,11 @@ surface / volume /
  Closure cl = nodetree_exec(); This seems to be the big one
  transmittance = alpha
  
- porter duff blending is a kind of clip blending used by setting index int he layout specifier
+ transmittance rendered to a buffer
+ radiance rendered to a buffer.
+  
+ 
+ Porter Duff blending is a kind of clip blending used by setting index int he layout specifier
  
  we don't need most of this crap for a simple minecraft clone. Just need a generic structure to support multiple vertex formats
  and render diffuse BSDF, etc to the screen.
@@ -306,3 +307,10 @@ surface / volume /
  smith shadowing model (used with GGX)
  anisotropic distribution when diffuse shading in x!=y
  Normal distribution function - NDF - measures dnesity of a normal orientation on surface
+ 
+ we would have 2 render stages
+ first is the material/geom stage for all geoms 
+ second is the compositor / post procesor, probably deferred.
+ 
+ 
+ 

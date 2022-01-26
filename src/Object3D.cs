@@ -25,6 +25,9 @@ namespace PirateCraft
         public Int64 LastUpdate { get; private set; } = 0;
         public List<Component> Components { get; private set; } = new List<Component>();
 
+        public MeshData Mesh;
+        public Material Material;
+
         //TODO: Clone
 
         public WorldObject()
@@ -37,7 +40,7 @@ namespace PirateCraft
         }
         public void Update(Box3f? parentBoundBox=null)
         {
-            if (!Hidden)
+            if (Hidden)
             {
                 return;
             }

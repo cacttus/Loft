@@ -31,29 +31,28 @@ namespace PirateCraft
         //        {
         //            GL.ClearColor(color.X, color.Y, color.Z, color.W);
         //        }
+        static RenderPipelineState RenderState = RenderPipelineState.None;
+        public static void BeginRender(GameWindow g, vec4 color) {
+            RenderState = RenderPipelineState.Begin;
+            Gu.SetContext(g);
+            GL.ClearColor(color.toOpenTKColor());
+            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+            Gu.CheckGpuErrorsRt();
 
-        //We're using instanced rendering so vs sohuld be instanced as well.
-        public static void Render(Camera3D bc, MeshData ms, Shader shader, Texture tex)// InstancedVisibleSet vs) << TODO
+            Renderer.SetInitialGpuRenderState();
+        }
+        public static void EndRender()
         {
-            /*
-             collect visible nodes
-                        
-             ob - world - one object
-                ob - meshdatas  < loaded cells.
-
-jnot sure
-
-so we need to get a way to make more general meshes first - 
-debug / util
-
-
-          
-            */
-
+            RenderState = RenderPipelineState.End;
+            Gu.CheckGpuErrorsRt();
+            Gu.Context.GameWindow.SwapBuffers();
+        }
+        private static void SetInitialGpuRenderState()
+        {
             Gu.CheckGpuErrorsDbg();
             GL.Enable(EnableCap.CullFace);
             GL.CullFace(CullFaceMode.Back);
-            if(Gu.CoordinateSystem == CoordinateSystem.Lhs)
+            if (Gu.CoordinateSystem == CoordinateSystem.Lhs)
             {
                 GL.FrontFace(FrontFaceDirection.Cw);
             }
@@ -63,6 +62,16 @@ debug / util
             }
             GL.Enable(EnableCap.DepthTest);
             GL.Enable(EnableCap.ScissorTest);
+        }
+        public static void Render(Camera3D cam, WorldObject ob)
+        {
+            ob.Material.GpuRenderState.SetState();
+            Render(cam,ob.Mesh, ob.Material.Shader, ob.Material.Texture);
+        }
+        //We're using instanced rendering so vs sohuld be instanced as well.
+        private static void Render(Camera3D bc, MeshData ms, Shader shader, Texture tex)// InstancedVisibleSet vs) << TODO
+        {
+            Gu.Assert(RenderState == RenderPipelineState.Begin);
 
             if (tex != null)
             {
@@ -71,12 +80,14 @@ debug / util
                 GL.ActiveTexture(TextureUnit.Texture0);
             }
             Gu.CheckGpuErrorsDbg();
-            //bool b = GL.IsVertexArray(_intVaoId);
+            if (!GL.IsVertexArray(ms._intVaoId))
+            {
+                Gu.Log.Error("Mesh was not a VAO.");
+                return;
+            }
             GL.BindVertexArray(ms._intVaoId);
             Gu.CheckGpuErrorsDbg();
             shader.Bind();
-            //GL.BindBuffer(BufferTarget.ArrayBuffer, _intVboId);
-            //GL.BindBuffer(BufferTarget.ElementArrayBuffer, _intIboId);
 
             GL.DrawElements(PrimitiveType.Triangles,
                             ms.IndexCount,

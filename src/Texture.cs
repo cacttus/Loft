@@ -41,12 +41,13 @@ namespace PirateCraft
             {
             }
         }
-        public Texture()
+        public Texture(string location, bool embedded)
         {
+            Load(location, embedded);
         }
         public Texture(Bitmap b)
         {
-            Load(b);
+            LoadToGpu(b);
         }
         private int GetNumMipmaps(int w, int h)
         {
@@ -58,22 +59,20 @@ namespace PirateCraft
             }
             return numMipMaps;
         }
-        public TextureLoadResult Load(string path)
+        public TextureLoadResult Load(string path, bool embedded)
         {
-            if (!System.IO.File.Exists(path))
-            {
-                throw new Exception("File " + path + " does not exist.");
-            }
-            Bitmap bmp = new Bitmap(path);
-            return Load(bmp);
+            Bitmap bmp = Gu.LoadBitmap(path,embedded);
+
+            return LoadToGpu(bmp);
         }
-        public TextureLoadResult Load(Bitmap bmp) { 
+        public TextureLoadResult LoadToGpu(Bitmap bmp)
+        {
             Free();
 
             Width = bmp.Width;
             Height = bmp.Height;
 
-            int ts = Gu.Context.GpuInfo.GetMaxTextureSize();
+            int ts = Gu.Context.Gpu.GetMaxTextureSize();
             if (Width >= ts)
             {
                 return TextureLoadResult.TooLarge;
