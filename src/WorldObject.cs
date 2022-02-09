@@ -1,21 +1,32 @@
 ﻿using System;
 using System.Collections.Generic;
 
+using Quat = OpenTK.Quaternion;
+using Vec2f = OpenTK.Vector2;
+using Vec3f = OpenTK.Vector3;
+using Vec4f = OpenTK.Vector4;
+using Mat3f = OpenTK.Matrix3;
+using Mat4f = OpenTK.Matrix4;
+
 namespace PirateCraft
 {
     public abstract class Constraint
     {
         public abstract void Apply(WorldObject ob);
     }
+    public class InputConstraint
+    {
+        //Stuff drive input.
+    }
     public class TrackToConstraint : Constraint
     {
-        public bool Relative = false;    
+        public bool Relative = false;
         public WorldObject LookAt = null;
-        public vec3 Up = new vec3(0, 1, 0);
+        public Vec3f Up = new Vec3f(0, 1, 0);
         public TrackToConstraint(WorldObject ob, bool relative)
         {
             LookAt = ob;
-            Relative=relative;
+            Relative = relative;
         }
         public override void Apply(WorldObject self)
         {
@@ -27,7 +38,7 @@ namespace PirateCraft
             //apply xforms to children
             //apply constraints to parents
             //apply constraitns to children
-            vec3 eye;   
+            Vec3f eye;
             if (!Relative)
             {
                 eye = LookAt.Position - self.Position;
@@ -37,59 +48,61 @@ namespace PirateCraft
                 eye = LookAt.Position;
             }
 
-            vec3 zaxis = (eye).normalize();
-            vec3 xaxis = Up.cross(zaxis).normalize();
-            vec3 yaxis = zaxis.cross(xaxis);
-            //vec3 zaxis = (LookAt - eye).normalize();
-            //vec3 xaxis = zaxis.cross(Up).normalize();
-            //vec3 yaxis = xaxis.cross(zaxis);
+            Vec3f zaxis = (eye).Normalized();
+            Vec3f xaxis = Vec3f.Cross(Up, zaxis).Normalized();
+            Vec3f yaxis = Vec3f.Cross(zaxis, xaxis);
+            //Vec3f zaxis = (LookAt - eye).normalize();
+            //Vec3f xaxis = zaxis.cross(Up).normalize();
+            //Vec3f yaxis = xaxis.cross(zaxis);
             //zaxis*=-1;
 
-            mat4 mm = mat4.Identity();
-            mm._m11 = xaxis.x; mm._m12 = yaxis.x; mm._m13 = zaxis.x;
-            mm._m21 = xaxis.y; mm._m22 = yaxis.y; mm._m23 = zaxis.y;
-            mm._m31 = xaxis.z; mm._m32 = yaxis.z; mm._m33 = zaxis.z;
+            Mat4f mm = Mat4f.Identity;
+            mm.M11 = xaxis.X; mm.M12 = yaxis.X; mm.M13 = zaxis.X;
+            mm.M21 = xaxis.Y; mm.M22 = yaxis.Y; mm.M23 = zaxis.Y;
+            mm.M31 = xaxis.Z; mm.M32 = yaxis.Z; mm.M33 = zaxis.Z;
+            // mm = mm.Inverted();
 
-            self.Rotation = mm.GetQuaternion().toAxisAngle();
+            // self.Rotation = mm.ExtractRotation().ToAxisAngle();
         }
     }
-
     public class WorldObject
     {
-        private vec4 _rotation = new vec4(0, 1, 0, 0); //Axis-Angle xyz,ang
-        private vec3 _scale = new vec3(1, 1, 1);
-        private vec3 _position = new vec3(0, 0, 0);
+        // public RotationType RotationType = RotationType.AxisAngle;
+
+        private Quat _rotation = new Quat(0, 0, 0, 1); //Axis-Angle xyz,ang
+        private Vec3f _scale = new Vec3f(1, 1, 1);
+        private Vec3f _position = new Vec3f(0, 0, 0);
         private WorldObject _parent = null;
-        private mat4 _world = mat4.Identity();
+        private Mat4f _world = Mat4f.Identity;
 
         public bool TransformChanged { get; private set; } = false;
         public bool Hidden { get; set; } = false;
-        public Box3f BoundBox { get; set; } = new Box3f(new vec3(0, 0, 0), new vec3(1, 1, 1));
+        public Box3f BoundBox { get; set; } = new Box3f(new Vec3f(0, 0, 0), new Vec3f(1, 1, 1));
         public WorldObject Parent { get { return _parent; } set { _parent = value; SetTransformChanged(); } }
         public List<WorldObject> Children { get; set; } = new List<WorldObject>();
-        public vec4 Rotation { get { return _rotation; } set { _rotation = value; SetTransformChanged(); } }//xyz,angle
-        public vec3 Scale { get { return _scale; } set { _scale = value; SetTransformChanged(); } }
-        public vec3 Position { get { return _position; } set { _position = value; SetTransformChanged(); } }
-        public mat4 Bind { get; private set; } = mat4.Identity(); // Skinned Bind matrix
-        public mat4 InverseBind { get; private set; } = mat4.Identity(); // Skinned Inverse Bind
-        public mat4 Local { get; private set; } = mat4.Identity();
-        public mat4 World { get { return _world; } set { _world = value; } }
+        public Quat Rotation { get { return _rotation; } set { _rotation = value; SetTransformChanged(); } }//xyz,angle
+        public Vec3f Scale { get { return _scale; } set { _scale = value; SetTransformChanged(); } }
+        public Vec3f Position { get { return _position; } set { _position = value; SetTransformChanged(); } }
+        public Mat4f Bind { get; private set; } = Mat4f.Identity; // Skinned Bind matrix
+        public Mat4f InverseBind { get; private set; } = Mat4f.Identity; // Skinned Inverse Bind
+        public Mat4f Local { get; private set; } = Mat4f.Identity;
+        public Mat4f World { get { return _world; } set { _world = value; } }
         public Int64 LastUpdate { get; private set; } = 0;
         public List<Component> Components { get; private set; } = new List<Component>();
         public List<Constraint> Constraints { get; private set; } = new List<Constraint>();// *This is an ordered list they come in order
 
-        public vec3 BasisX { get; private set; } = new vec3(1, 0, 0);
-        public vec3 BasisY { get; private set; } = new vec3(0, 1, 0);
-        public vec3 BasisZ { get; private set; } = new vec3(0, 0, 1);
+        public Vec3f BasisX { get { return World.Column0.Xyz; } private set { } }
+        public Vec3f BasisY { get { return World.Column1.Xyz; } private set { } }
+        public Vec3f BasisZ { get { return World.Column2.Xyz; } private set { } }
 
         public MeshData Mesh = null;
         public Material Material = null;
 
         //TODO: Clone
 
-        public WorldObject(vec3 pos)
+        public WorldObject(Vec3f pos)
         {
-            Position=pos;
+            Position = pos;
         }
         public WorldObject()
         {
@@ -106,12 +119,6 @@ namespace PirateCraft
                 c.Apply(this);
             }
         }
-        public void ConstructBasis()
-        {
-            BasisX = (World * new vec4(1, 0, 0, 0)).xyz().normalize();
-            BasisY = (World * new vec4(0, 1, 0, 0)).xyz().normalize();
-            BasisZ = (World * new vec4(0, 0, 1, 0)).xyz().normalize();
-        }
         public virtual void Update(Box3f parentBoundBox = null)
         {
             if (Hidden)
@@ -121,7 +128,6 @@ namespace PirateCraft
             ApplyConstraints();
             CompileLocalMatrix();
             ApplyParentMatrix();
-            ConstructBasis();
             UpdateComponents();
             foreach (var child in this.Children)
             {
@@ -139,10 +145,10 @@ namespace PirateCraft
                 return;
             }
 
-            mat4 mScl = mat4.getScale(Scale);
-            mat4 mRot = mat4.GetRotation(Rotation.w, Rotation.xyz());
-            mat4 mPos = mat4.GetTranslation(Position);
-            Local = mScl * mRot * mPos;
+            Mat4f mScl = Mat4f.CreateScale(Scale);
+            Mat4f mRot = Mat4f.CreateFromQuaternion(Rotation);
+            Mat4f mPos = Mat4f.CreateTranslation(Position);
+            Local = (mScl) * (mRot) * mPos;
         }
         public void ApplyParentMatrix()
         {

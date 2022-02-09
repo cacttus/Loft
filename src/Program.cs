@@ -7,31 +7,30 @@ using OpenTK;
 using OpenTK.Graphics;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Input;
+using Vec2f = OpenTK.Vector2;
+using Vec3f = OpenTK.Vector3;
+using Vec4f = OpenTK.Vector4;
+using Mat3f = OpenTK.Matrix3;
+using Mat4f = OpenTK.Matrix4;
+using Quat = OpenTK.Quaternion;
+using System.Security.Cryptography;
 
 namespace PirateCraft
 {
     public class MainWindow : OpenTK.GameWindow
     {
         Camera3D _camera = null;
-        Shader _shader;
-        WorldObject boxMeshThing = null;
-        WorldObject cameraLookAtEmpty = null;
+        WorldObject _boxMeshThing = null;
 
-        double Delta = 0;
-        long _frameStamp = 0;
-        long _lastTime = Gu.Nanoseconds();
         double rot = 0;
 
-        vec2 last = new vec2(0, 0);
+        Vec2f last = new Vec2f(0, 0);
         bool lastSet = false;
-        bool oneDown = false; // TODO: use a state class for PressOrDown
-        bool twoDown = false;
-        bool threeDown = false;
-        bool fourDown = false;
         int meshIdx = 0;
+        const float scale = 0.5f;
 
-        public MainWindow() : base(1920 / 2, // initial width
-        1080 / 2, // initial height
+        public MainWindow() : base((int)(1920 * scale), // initial width
+        (int)(1080 * scale), // initial height
         GraphicsMode.Default,
         "dreamstatecoding",  // initial title
         GameWindowFlags.Default,
@@ -42,18 +41,6 @@ namespace PirateCraft
         {
             Title += ": OpenGL Version: " + GL.GetString(StringName.Version);
         }
-        // private void StartMonoDebugger(){
-        //   Process proc = new Process {
-        //     StartInfo = new ProcessStartInfo {
-        //         FileName = "../../mono_debugger_daemon.sh",
-        //         Arguments = "",
-        //         UseShellExecute = true,
-        //         RedirectStandardOutput = false,
-        //         CreateNoWindow = false
-        //       }
-        //   };
-        // }
-
         protected override void OnResize(EventArgs e)
         {
             GL.Viewport(0, 0, Width, Height);
@@ -66,10 +53,7 @@ namespace PirateCraft
                 Gu.Init(this);
 
                 _camera = new Camera3D(Width, Height);
-                _camera.Position = new vec3(0, 0, -10);
-                cameraLookAtEmpty = CreateObject(MeshData.GenBox(.2f, .2f, .2f), Material.Default(new vec4(1,0,0,1)), new vec3(0, 0, 1));
-                Gu.World.Objects.Add(cameraLookAtEmpty);
-                _camera.Constraints.Add(new TrackToConstraint(cameraLookAtEmpty, false));
+                _camera.Position = new Vec3f(0, 0, -10);
                 _camera.Update();
                 Gu.World.Objects.Add(_camera);
 
@@ -81,14 +65,14 @@ namespace PirateCraft
                 Texture peron = new Texture(Gu.EmbeddedDataPath + "main char.png", true);
                 Texture grass = new Texture(Gu.EmbeddedDataPath + "grass_base.png", true);
 
-                boxMeshThing = CreateObject(MeshData.GenBox(1,1,1), new Material(noise, Shader.DefaultDiffuse()));
+                _boxMeshThing = CreateObject(MeshData.GenBox(1, 1, 1), new Material(noise, Shader.DefaultDiffuse()));
                 CreateObject(MeshData.GenTextureFront(_camera, 0, 0, Width, Height), new Material(peron, Shader.DefaultDiffuse()));
                 CreateObject(MeshData.GenPlane(10, 10), new Material(grass, Shader.DefaultDiffuse()));
 
-                boxMeshThing.Position = new vec3(0,boxMeshThing.BoundBox.Height()*0.5f,0);
+                _boxMeshThing.Position = new Vec3f(0, _boxMeshThing.BoundBox.Height() * 0.5f, 0);
 
                 CursorVisible = true;
-                //var siz = Marshal.SizeOf(default(MeshVert));
+                //var siz = Mvec3rshal.SizeOf(default(MeshVert));
                 //var fmt = VertexFormat.DeclareVertexFormat("MeshFmt", "v_v3n3x2");
                 //int n = 0;
                 //n++;
@@ -99,7 +83,7 @@ namespace PirateCraft
                 System.Environment.Exit(0);
             }
         }
-        private WorldObject CreateObject(MeshData mesh, Material material, vec3 pos = default(vec3))
+        private WorldObject CreateObject(MeshData mesh, Material material, Vec3f pos = default(Vec3f))
         {
             WorldObject ob = new WorldObject(pos);
             ob.Mesh = mesh;
@@ -137,151 +121,95 @@ namespace PirateCraft
         }
         protected override void OnUpdateFrame(FrameEventArgs e)
         {
-            UpdateInput();
-
             Title = $"(Vsync: {VSync}) FPS: {1f / e.Time:0} Size: {Width}x{Height}";
-
-            //For first frame run at a smooth time.
-            Delta = 1 / 60;
-            long curTime = Gu.Nanoseconds();
-            if (_frameStamp > 0)
-            {
-                Delta = (double)((decimal)(curTime - _lastTime) / (decimal)(1000000000));
-            }
-            _lastTime = curTime;
-
-            //mat4 model = mat4.GetRotation((float)rot, new vec3(0, 1, 0));
-            boxMeshThing.Rotation = new vec4(0, 1, 0, (float)rot);
-            rot += Math.PI * 2.0f * Delta * 0.0125f;
-
-            _camera.Update();
             Gu.World.Update();
+            Gu.Window.Update();
+
+            //Mat4f model = Mat4f.GetRotation((float)rot, new Vec3f(0, 1, 0));
+            _boxMeshThing.Rotation = Quaternion.FromAxisAngle(new Vec3f(0, 1, 0), (float)rot);
+            rot += Math.PI * 2.0f * Gu.Window.Delta * 0.0125f;
+
+            UpdateInput();
         }
         private void UpdateInput()
         {
             float coordMul = (Gu.CoordinateSystem == CoordinateSystem.Lhs ? -1 : 1);
-
             var keyState = Keyboard.GetState();
 
             if (keyState.IsKeyDown(Key.Escape))
             {
                 Exit();
             }
-            if (keyState.IsKeyDown(Key.Up) || keyState.IsKeyDown(Key.W))
+            if (Gu.Window.PCKeyboard.AnyKeysPressedOrHeld(new List<Key>() { Key.Up, Key.W }))
             {
                 _camera.Position += _camera.BasisZ * 0.1f;
             }
-            if (keyState.IsKeyDown(Key.Down) || keyState.IsKeyDown(Key.S))
+            if (Gu.Window.PCKeyboard.AnyKeysPressedOrHeld(new List<Key>() { Key.Down, Key.S }))
             {
                 _camera.Position -= _camera.BasisZ * 0.1f;
             }
-            if (keyState.IsKeyDown(Key.Right) || keyState.IsKeyDown(Key.D))
+            if (Gu.Window.PCKeyboard.AnyKeysPressedOrHeld(new List<Key>() { Key.Right, Key.D }))
             {
                 _camera.Position -= _camera.BasisX * 0.1f * coordMul;
             }
-            if (keyState.IsKeyDown(Key.Left) || keyState.IsKeyDown(Key.A))
+            if (Gu.Window.PCKeyboard.AnyKeysPressedOrHeld(new List<Key>() { Key.Left, Key.A }))
             {
                 _camera.Position += _camera.BasisX * 0.1f * coordMul;
             }
-            if (keyState.IsKeyDown(Key.Number1))
+            if (Gu.Window.PCKeyboard.KeyPress(Key.Number1))
             {
-                if (oneDown == false)
+                _boxMeshThing.Material.Shader.lightingModel = ((_boxMeshThing.Material.Shader.lightingModel + 1) % 4);
+            }
+            if (Gu.Window.PCKeyboard.KeyPressOrDown(Key.Number2))
+            {
+                _boxMeshThing.Material.Shader.GGX_X = (_boxMeshThing.Material.Shader.GGX_X + 0.01f) % 3.0f;
+            }
+            if (Gu.Window.PCKeyboard.KeyPressOrDown(Key.Number3))
+            {
+                _boxMeshThing.Material.Shader.GGX_Y = (_boxMeshThing.Material.Shader.GGX_Y + 0.01f) % 3.0f;
+            }
+            if (Gu.Window.PCKeyboard.KeyPress(Key.Number4))
+            {
+                meshIdx = (meshIdx + 1) % 3;
+                if (meshIdx == 0)
                 {
-                    _shader.lightingModel = ((_shader.lightingModel + 1) % 4);
+                    _boxMeshThing.Mesh = MeshData.GenBox(1, 1, 1);
                 }
-                oneDown = true;
-            }
-            else
-            {
-                oneDown = false;
-            }
-
-            if (keyState.IsKeyDown(Key.Number2))
-            {
-                //if (twoDown == false)
+                if (meshIdx == 1)
                 {
-                    _shader.GGX_X = (_shader.GGX_X + 0.01f) % 3.0f;
+                    _boxMeshThing.Mesh = MeshData.GenSphere(32, 32, 1, true);
                 }
-                twoDown = true;
-            }
-            else
-            {
-                twoDown = false;
-            }
-
-            if (keyState.IsKeyDown(Key.Number3))
-            {
-                //  if (threeDown == false)
+                if (meshIdx == 2)
                 {
-                    _shader.GGX_Y = (_shader.GGX_Y + 0.01f) % 3.0f;
-
+                    _boxMeshThing.Mesh = MeshData.GenSphere(32, 32, 1, false);
                 }
-                threeDown = true;
-            }
-            else
-            {
-                threeDown = false;
-            }
-            if (keyState.IsKeyDown(Key.Number4))
-            {
-                if (fourDown == false)
-                {
-                    meshIdx = (meshIdx + 1) % 3;
-                    if (meshIdx == 0)
-                    {
-                        boxMeshThing.Mesh = MeshData.GenBox(1,1,1);
-                    }
-                    if (meshIdx == 1)
-                    {
-                        boxMeshThing.Mesh = MeshData.GenSphere(32, 32, 1, true);
-                    }
-                    if (meshIdx == 2)
-                    {
-                        boxMeshThing.Mesh = MeshData.GenSphere(32, 32, 1, false);
-                    }
-                }
-                fourDown = true;
-            }
-            else
-            {
-                fourDown = false;
             }
 
             var mouseState = Mouse.GetState();
             if (lastSet == false)
             {
-                last.x = (float)mouseState.X;
-                last.y = (float)mouseState.Y;
+                last.X = (float)mouseState.X;
+                last.Y = (float)mouseState.Y;
                 lastSet = true;
             }
             if (mouseState.IsButtonDown(MouseButton.Left))
             {
-                float mx = (float)mouseState.X - last.x;
-                float my = (float)mouseState.Y - last.y;
+                float mx = (float)mouseState.X - last.X;
+                float my = (float)mouseState.Y - last.Y;
 
                 float rot_speed = 0.001f;
 
-                //_camera.Update();
-
-                //Modify the rotation of the relative tracking object
-                mat4 ry = mat4.GetRotation((float)Math.PI * mx * -rot_speed * coordMul, new vec3(0, 1, 0));
-                mat4 rx = mat4.GetRotation((float)Math.PI * my * -rot_speed, new vec3(1,0,0));//camera.BasisX
-                vec3 vz = (ry * rx * new vec4(0,0,1, 0)).xyz().normalize();
-                cameraLookAtEmpty.Position = (ry * rx * new vec4(cameraLookAtEmpty.Position,1)).xyz().normalize();// = (Quaternion.axisAngleToQuaternion(cameraLookAtEmpty.Rotation).toMat4() * ry * rx).GetQuaternion().toAxisAngle();
-                //Console.WriteLine("empty rot = xyz = " + cameraLookAtEmpty.Rotation.ToString());
-                //_camera.lookAt(_camera.Position + vz);
+                _camera.Rotation *= Quat.FromAxisAngle(new Vec3f(0, 1, 0), (float)Math.PI * mx * rot_speed * coordMul) *
+                Quat.FromAxisAngle(_camera.BasisX, (float)Math.PI * my * -rot_speed * coordMul);
             }
-            last.x = (float)mouseState.X;
-            last.y = (float)mouseState.Y;
+            last.X = (float)mouseState.X;
+            last.Y = (float)mouseState.Y;
         }
         protected override void OnRenderFrame(FrameEventArgs e)
         {
-
-            Renderer.BeginRender(this, new vec4(1, 1, 1, 1));
-            Gu.World.Render(Delta, _camera);
+            Renderer.BeginRender(this, new Vec4f(1, 1, 1, 1));
+            Gu.World.Render(Gu.Window.Delta, _camera);
             Renderer.EndRender();
-
-            _frameStamp++;
         }
     }
     class MainClass

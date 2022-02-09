@@ -2,6 +2,11 @@
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL4;
+using Vec2f = OpenTK.Vector2;
+using Vec3f = OpenTK.Vector3;
+using Vec4f = OpenTK.Vector4;
+using Mat3f = OpenTK.Matrix3;
+using Mat4f = OpenTK.Matrix4;
 
 namespace PirateCraft
 {
@@ -150,18 +155,18 @@ namespace PirateCraft
                 case VertexUserType.v2_03:
                     eType = VertexAttribPointerType.Float;
                     compCount = 2;
-                    size = Marshal.SizeOf(default(vec2));
+                    size = Marshal.SizeOf(default(Vec2f));
                     break;
                 case VertexUserType.v3_01:
                 case VertexUserType.v3_02:
                 case VertexUserType.v3_03:
                     //*******************************************
-                    //**Look at the size: vec4 - note this from the opengl wiki
-                    //"Implementations sometimes get the std140 layout wrong for vec3 components.
-                    //You are advised to manually pad your structures/arrays out and avoid using vec3 at all."
+                    //**Look at the size: Vec4f - note this from the opengl wiki
+                    //"Implementations sometimes get the std140 layout wrong for Vec3f components.
+                    //You are advised to manually pad your structures/arrays out and avoid using Vec3f at all."
                     eType = VertexAttribPointerType.Float;
                     compCount = 3;
-                    size = Marshal.SizeOf(default(vec4));
+                    size = Marshal.SizeOf(default(Vec4f));
                     //*******************************************
                     break;
                 case VertexUserType.v4_01:
@@ -169,65 +174,65 @@ namespace PirateCraft
                 case VertexUserType.v4_03:
                     eType = VertexAttribPointerType.Float;
                     compCount = 4;
-                    size = Marshal.SizeOf(default(vec4));
+                    size = Marshal.SizeOf(default(Vec4f));
                     break;
                 case VertexUserType.c4_01:
                 case VertexUserType.c4_02:
                 case VertexUserType.c4_03:
                     eType = VertexAttribPointerType.Float;
                     compCount = 4;
-                    size = Marshal.SizeOf(default(vec4));
+                    size = Marshal.SizeOf(default(Vec4f));
                     break;
                 case VertexUserType.c3_01:
                 case VertexUserType.c3_02:
                 case VertexUserType.c3_03:
                     eType = VertexAttribPointerType.Float;
                     compCount = 3;
-                    size = Marshal.SizeOf(default(vec4));  //**Look at the size: vec4 - OpenGL requires components to be 64 byte aligned.
+                    size = Marshal.SizeOf(default(Vec4f));  //**Look at the size: Vec4f - OpenGL requires components to be 64 byte aligned.
                     break;
                 case VertexUserType.n3_01:
                 case VertexUserType.n3_02:
                 case VertexUserType.n3_03:
                     eType = VertexAttribPointerType.Float;
                     compCount = 3;
-                    size = Marshal.SizeOf(default(vec4));  //**Look at the size: vec4  - OpenGL requires components to be 64 byte aligned.
+                    size = Marshal.SizeOf(default(Vec4f));  //**Look at the size: Vec4f  - OpenGL requires components to be 64 byte aligned.
                     break;
                 case VertexUserType.x2_01:
                 case VertexUserType.x2_02:
                 case VertexUserType.x2_03:
                     eType = VertexAttribPointerType.Float;
                     compCount = 2;
-                    size = Marshal.SizeOf(default(vec4));  //**Look at the size: vec4  - OpenGL requires components to be 64 byte aligned.
+                    size = Marshal.SizeOf(default(Vec4f));  //**Look at the size: Vec4f  - OpenGL requires components to be 64 byte aligned.
                     break;
                 case VertexUserType.i2_01:
                 case VertexUserType.i2_02:
                 case VertexUserType.i2_03:
                     eType = VertexAttribPointerType.Int;
                     compCount = 2;
-                    size = Marshal.SizeOf(default(vec2));
+                    size = Marshal.SizeOf(default(Vec2f));
                     break;
                 case VertexUserType.u2_01:
                 case VertexUserType.u2_02:
                 case VertexUserType.u2_03:
                     eType = VertexAttribPointerType.UnsignedInt;
                     compCount = 2;
-                    size = Marshal.SizeOf(default(uvec2));
+                    size = Marshal.SizeOf(default(uVec2f));
                     break;
                 //**std430 padded types.
                 //case VertexUserType::v3_01_STD430:
                 //    eType = GL_FLOAT;
                 //    compCount = 3;
-                //    size = sizeof(vec4);
+                //    size = sizeof(Vec4f);
                 //    break;
                 //case VertexUserType::n3_01_STD430:
                 //    eType = GL_FLOAT;
                 //    compCount = 3;
-                //    size = sizeof(vec4);
+                //    size = sizeof(Vec4f);
                 //    break;
                 //case VertexUserType::x2_01_STD430:
                 //    eType = GL_FLOAT;
                 //    compCount = 2;
-                //    size = sizeof(vec4);
+                //    size = sizeof(Vec4f);
                 //    break;
                 default:
                     throw new Exception("Vertex user type not impelmented.");
@@ -384,9 +389,9 @@ namespace PirateCraft
     [StructLayout(LayoutKind.Sequential)]
     public struct UtilMeshVert
     {
-        public vec3 _v;
+        public Vec3f _v;
         public float pad1;
-        public vec4 _c;
+        public Vec4f _c;
         public static int SizeBytes
         {
             get { return 12 * 2; }
@@ -395,11 +400,11 @@ namespace PirateCraft
     [StructLayout(LayoutKind.Sequential)]
     public struct MeshVert
     {
-        public vec3 _v;
+        public Vec3f _v;
         public float pad1;
-        public vec3 _n;
+        public Vec3f _n;
         public float pad2;
-        public vec2 _x;
+        public Vec2f _x;
         public float pad3;
         public float pad4;
         public static int SizeBytes

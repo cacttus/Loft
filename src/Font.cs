@@ -272,7 +272,7 @@ namespace PirateCraft
                         ///////////////
                         ///////////////
                         //**TEST
-                        //Bitmap bmpTest = new System.Drawing.Bitmap(ftbmp.Width,ftbmp.Rows,System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                        //Bitmap bmpTest = new System.Drawing.Bitmap(ftbmp.Width,ftbmp.Rows,System.Drawing.Imaging.PixelFormat.ForMat3f2bppArgb);
                          
                         //var mode = ftbmp.PixelMode;//gray or monocrhome. monocrome is 1 bit gray is 1 byte
                         ////sign of pitch determines if rows are ascending or descending

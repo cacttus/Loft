@@ -35,4 +35,9 @@ namespace PirateCraft
     {
         LookAt
     }
+    public enum RotationType
+    {
+        AxisAngle,
+        Quaternion
+    }
 }

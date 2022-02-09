@@ -67,7 +67,7 @@
     <Compile Include="src\Texture.cs" />
     <Compile Include="src\OpenGLResource.cs" />
     <Compile Include="src\Gpu.cs" />
-    <Compile Include="src\Context.cs" />
+    <Compile Include="src\WindowContext.cs" />
     <Compile Include="src\Assets.cs" />
     <Compile Include="src\v3c4n3x2.cs" />
     <Compile Include="src\UtilMesh.cs" />
@@ -78,6 +78,7 @@
     <Compile Include="src\MeshData.cs" />
     <Compile Include="src\Gu.cs" />
     <Compile Include="src\World.cs" />
+    <Compile Include="src\PCKeyboard.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="OpenTK.dll.config" />

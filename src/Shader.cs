@@ -9,6 +9,8 @@ using OpenTK.Graphics.OpenGL;
 using System.Drawing.Imaging;
 using Vec2f = OpenTK.Vector2;
 using Vec3f = OpenTK.Vector3;
+using Vec4f = OpenTK.Vector3;
+using Mat3f = OpenTK.Matrix3;
 using Mat4f = OpenTK.Matrix4;
 using System.Diagnostics;
 
@@ -90,21 +92,21 @@ namespace PirateCraft
             }
             Gu.CheckGpuErrorsDbg();
         }
-        vec3 _camvpos;
+        Vec3f _camvpos;
         //int _normalMatrixLocation=0;
-        public void UpdateAndBind(double dt, Camera3D cam, mat4 model)
+        public void UpdateAndBind(double dt, Camera3D cam, Mat4f model)
         {
             //**Pre - render - update uniforms.
             Gu.CheckGpuErrorsDbg();
             {
                 Bind();
 
-                var v_mat_tk = cam.ViewMatrix.ToOpenTK();
-                var p_mat_tk = cam.ProjectionMatrix.ToOpenTK();
-                var m_mat_tk = model.ToOpenTK();
-                var n_mat_tk = model.inverseOf().ToOpenTK();
+                var v_mat_tk = cam.ViewMatrix;
+                var p_mat_tk = cam.ProjectionMatrix;
+                var m_mat_tk = model;
+                var n_mat_tk = model.Inverted();
 
-                var a = model.inverseOf() * model;
+                //var a = model.inverseOf() * model;
 
                 GL.UniformMatrix4(_viewMatrixLocation, false, ref v_mat_tk);
                 Gu.CheckGpuErrorsDbg();
@@ -125,7 +127,7 @@ namespace PirateCraft
 
                 _camvpos = cam.Position;
 
-                GL.ProgramUniform3(_shaderProgramHandle, _camPosLocation, _camvpos.x, _camvpos.y, _camvpos.z);
+                GL.ProgramUniform3(_shaderProgramHandle, _camPosLocation, _camvpos.X, _camvpos.Y, _camvpos.Z);
                 Gu.CheckGpuErrorsDbg();
             }
             Gu.CheckGpuErrorsDbg();
@@ -139,7 +141,6 @@ namespace PirateCraft
                 Gu.CheckGpuErrorsDbg();
                 _fragmentShaderHandle = GL.CreateShader(ShaderType.FragmentShader);
                 Gu.CheckGpuErrorsDbg();
-
 
                 GL.ShaderSource(_vertexShaderHandle, vsSrc);
                 Gu.CheckGpuErrorsDbg();

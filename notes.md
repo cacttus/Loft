@@ -10,21 +10,21 @@ empty object should be axis mesh.
 
 struct Closure {
 #ifdef VOLUMETRICS
-  vec3 absorption;
-  vec3 scatter;
-  vec3 emission;
+  Vec3f absorption;
+  Vec3f scatter;
+  Vec3f emission;
   float anisotropy;
 
 #else /* SURFACE */
-  vec3 radiance;
-  vec3 transmittance;
+  Vec3f radiance;
+  Vec3f transmittance;
   float holdout;
-  vec4 ssr_data;
-  vec2 ssr_normal;
+  Vec4f ssr_data;
+  Vec2f ssr_normal;
   int flag;
 #  ifdef USE_SSS
-  vec3 sss_irradiance;
-  vec3 sss_albedo;
+  Vec3f sss_irradiance;
+  Vec3f sss_albedo;
   float sss_radius;
 #  endif
 
@@ -45,7 +45,7 @@ Next question is how they actually compile all these shaders together. They actu
  
     Compile ->  GPU_material_from_nodetree
  
- 1/13/22 adding vec3 and all that
+ 1/13/22 adding Vec3f and all that
  
  
  Render -> Camera VisibleSet
@@ -95,7 +95,7 @@ using Block = System.UInt32;
     public Mesh _transparent = null;
     public Mesh _opaque = null;
     public Block[] _blocks = null;
-    public ivec3 _size = new ivec3(0,0,0);
+    public iVec3f _size = new iVec3f(0,0,0);
     
     Glob() {
     }
@@ -116,13 +116,13 @@ using Block = System.UInt32;
     public const int GlobBlocksY = 16;
     public const int GlobBlocksZ = 16;
       
-    Dictionary<ivec3, Glob> _globs = new D<ivec3,Glob>();
+    Dictionary<iVec3f, Glob> _globs = new D<iVec3f,Glob>();
     
-    public vec3 GetGlobOriginFromGlobIndex(ivec3 idx)
+    public Vec3f GetGlobOriginFromGlobIndex(iVec3f idx)
     {
         //Global space 
     }
-    public uint GetGlobRelativeBlockIndex(ivec3 relative_block_idx)
+    public uint GetGlobRelativeBlockIndex(iVec3f relative_block_idx)
     {
         //Glob space
     }
@@ -134,16 +134,16 @@ using Block = System.UInt32;
         ret = code << 8 | density;
         return ret;
     }
-    Glob GenerateGlob(ivec3 xyz) 
+    Glob GenerateGlob(iVec3f xyz) 
     {
         //Freedomcraft
     
-        vec3 globOrigin = GetGlobOriginFromGlobIndex(xyz);
+        Vec3f globOrigin = GetGlobOriginFromGlobIndex(xyz);
         
-        vec3 halfBlock = new vec3(BlockSizeX*0.5f,BlockSizeY*0.5f,BlockSizeZ*0.5f);
+        Vec3f halfBlock = new Vec3f(BlockSizeX*0.5f,BlockSizeY*0.5f,BlockSizeZ*0.5f);
         
         Glob g = new Glob();
-        g._blocks = new Block[GlobWorld.GlobBlocksZ * GlobWorld.GlobBlocksZ * size.z + GlobWorld.GlobBlocksY * size.y + size.x];
+        g._blocks = new Block[GlobWorld.GlobBlocksZ * GlobWorld.GlobBlocksZ * size.Z + GlobWorld.GlobBlocksY * size.Y + size.x];
             
         for(int z = 0; z< GlobBlocksZ; z++)
         {
@@ -154,7 +154,7 @@ using Block = System.UInt32;
                     uint bidx = GetGlobRelativeBlockIndex(x,y,z);
                 
                     //noise in the block center.
-                    vec3 noise_pt = globOrigin +  new vec3(x * BlockSizeX, y*BlockSizeY, z*BlockSizeZ) + halfBlock;
+                    Vec3f noise_pt = globOrigin +  new Vec3f(x * BlockSizeX, y*BlockSizeY, z*BlockSizeZ) + halfBlock;
 
                     if(Noise.Noise(noise_pt) > 0)
                     {
@@ -170,14 +170,14 @@ using Block = System.UInt32;
     }
     Update() 
     {
-        Box3i = (player pos - vec3(render radius) ,player pos + vec3(render radius))
+        Box3i = (player pos - Vec3f(render radius) ,player pos + Vec3f(render radius))
     
         //Make globs
-        for(int z= ibox.min.z; z< ibox.max.z; z++)
+        for(int z= ibox.min.Z; z< ibox.max.Z; z++)
         {
-            for(int y= ibox.min.y; y< ibox.max.y; y++)
+            for(int y= ibox.min.Y; y< ibox.max.Y; y++)
             {
-                for(int x= ibox.min.x; x< ibox.max.x; x++)
+                for(int x= ibox.min.X; x< ibox.max.X; x++)
                 {
                     GenerateGlob(x,y,z)
                 }

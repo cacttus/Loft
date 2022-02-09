@@ -32,10 +32,10 @@ namespace PirateCraft
         //            GL.ClearColor(color.X, color.Y, color.Z, color.W);
         //        }
         static RenderPipelineState RenderState = RenderPipelineState.None;
-        public static void BeginRender(GameWindow g, vec4 color) {
+        public static void BeginRender(GameWindow g, Vec4f color) {
             RenderState = RenderPipelineState.Begin;
             Gu.SetContext(g);
-            GL.ClearColor(color.toOpenTKColor());
+            GL.ClearColor(new OpenTK.Graphics.Color4(color.X,color.Y,color.Z,color.W));
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
             Gu.CheckGpuErrorsRt();
 
@@ -45,14 +45,14 @@ namespace PirateCraft
         {
             RenderState = RenderPipelineState.End;
             Gu.CheckGpuErrorsRt();
-            Gu.Context.GameWindow.SwapBuffers();
+            Gu.Window.GameWindow.SwapBuffers();
         }
         private static void SetInitialGpuRenderState()
         {
             Gu.CheckGpuErrorsDbg();
             GL.Enable(EnableCap.CullFace);
             GL.CullFace(CullFaceMode.Back);
-            if (Gu.CoordinateSystem == CoordinateSystem.Lhs)
+            if (Gu.CoordinateSystem == CoordinateSystem.Rhs)
             {
                 GL.FrontFace(FrontFaceDirection.Cw);
             }

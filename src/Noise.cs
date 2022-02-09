@@ -1,6 +1,11 @@
 ﻿using System;
 using System.Drawing;
 using System.Collections.Generic;
+using Vec2f = OpenTK.Vector2;
+using Vec3f = OpenTK.Vector3;
+using Vec4f = OpenTK.Vector4;
+using Mat3f = OpenTK.Matrix3;
+using Mat4f = OpenTK.Matrix4;
 namespace PirateCraft
 {
     public class Noise3D
@@ -61,9 +66,9 @@ namespace PirateCraft
             //            float f = BitConverter.ToSingle(BitConverter.GetBytes(x), 0);
             //          return f;
         }
-        public static Int32 xxHash4D(int seed, ivec4 p)
+        public static Int32 xxHash4D(int seed, iVec4f p)
         {
-            return xxHash4D(seed, p.x, p.y, p.z, p.w);
+            return xxHash4D(seed, p.X, p.Y, p.Z, p.W);
         }
         public static Int32 xxHash4D(int seed, int x, int y, int z, int w)
         {
@@ -124,7 +129,7 @@ namespace PirateCraft
             // Evaluate polynomial
             return x * x * (3 - 2 * x);
         }
-        static float Perlin3D(vec3 p, int seed, int scale = 1)
+        static float Perlin3D(Vec3f p, int seed, int scale = 1)
         {
             if (scale <= 0)
             {
@@ -134,8 +139,8 @@ namespace PirateCraft
             //Generate a 3d grid 
             //for each corner of the overlayed grid, generate a random vector that points inside the "cell" from a hash function.
             //Take the dot product of this vector with the input to the grid point. Note that the random vector must point within this "cell."
-            ivec3 grid0 = new ivec3((int)(p.x - (p.x % scale)), (int)(p.y - (p.y % scale)), (int)(p.z - (p.z % scale)));
-            ivec3 grid1 = grid0 + new ivec3((int)scale, (int)scale, (int)scale);// new vec3((int)(p.x / scale)+ scale, (int)(p.y/ scale) + scale, (int)(p.z / scale) + scale);
+            iVec3f grid0 = new iVec3f((int)(p.X - (p.X % scale)), (int)(p.Y - (p.Y % scale)), (int)(p.Z - (p.Z % scale)));
+            iVec3f grid1 = grid0 + new iVec3f((int)scale, (int)scale, (int)scale);// new Vec3f((int)(p.X / scale)+ scale, (int)(p.y/ scale) + scale, (int)(p.Z / scale) + scale);
             /*
                         
                        6       7
@@ -146,20 +151,20 @@ namespace PirateCraft
                     
             */
             float[] vals = new float[8];
-            vals[0] = DotGrad3D(seed, p, grid0.x, grid0.y, grid0.z);
-            vals[1] = DotGrad3D(seed, p, grid1.x, grid0.y, grid0.z);
-            vals[2] = DotGrad3D(seed, p, grid0.x, grid1.y, grid0.z);
-            vals[3] = DotGrad3D(seed, p, grid1.x, grid1.y, grid0.z);
-            vals[4] = DotGrad3D(seed, p, grid0.x, grid0.y, grid1.z);
-            vals[5] = DotGrad3D(seed, p, grid1.x, grid0.y, grid1.z);
-            vals[6] = DotGrad3D(seed, p, grid0.x, grid1.y, grid1.z);
-            vals[7] = DotGrad3D(seed, p, grid1.x, grid1.y, grid1.z);//This is a reused computation, we coudl compute gradients all at once.
+            vals[0] = DotGrad3D(seed, p, grid0.X, grid0.Y, grid0.Z);
+            vals[1] = DotGrad3D(seed, p, grid1.X, grid0.Y, grid0.Z);
+            vals[2] = DotGrad3D(seed, p, grid0.X, grid1.Y, grid0.Z);
+            vals[3] = DotGrad3D(seed, p, grid1.X, grid1.Y, grid0.Z);
+            vals[4] = DotGrad3D(seed, p, grid0.X, grid0.Y, grid1.Z);
+            vals[5] = DotGrad3D(seed, p, grid1.X, grid0.Y, grid1.Z);
+            vals[6] = DotGrad3D(seed, p, grid0.X, grid1.Y, grid1.Z);
+            vals[7] = DotGrad3D(seed, p, grid1.X, grid1.Y, grid1.Z);//This is a reused computation, we coudl compute gradients all at once.
 
             //trilinear interpolate all values.
             //(01-23)-(45-67)
-            float sx = (p.x % (float)scale) / (float)scale;
-            float sy = (p.y % (float)scale) / (float)scale;
-            float sz = (p.z % (float)scale) / (float)scale;
+            float sx = (p.X % (float)scale) / (float)scale;
+            float sy = (p.Y % (float)scale) / (float)scale;
+            float sz = (p.Z % (float)scale) / (float)scale;
             float ex0 = linearstep(vals[0], vals[1], sx);
             float ex1 = linearstep(vals[2], vals[3], sx);
             float ex2 = linearstep(vals[4], vals[5], sx);
@@ -170,20 +175,20 @@ namespace PirateCraft
 
             return ez0;
         }
-        public static float DotGrad3D(int seed, vec3 p, int gx, int gy, int gz)
+        public static float DotGrad3D(int seed, Vec3f p, int gx, int gy, int gz)
         {
-            vec3 v = GradPoint3D(seed, gx, gy, gz, 0);
-            float f = (p - new vec3(gx, gy, gz)).normalized().dot(v);
+            Vec3f v = GradPoint3D(seed, gx, gy, gz, 0);
+            float f = Vec3f.Dot((p - new Vec3f(gx, gy, gz)).Normalized(), v);
             return f;
         }
         static Dictionary<int,Dictionary<int,HashSet<int>>> uniquePoints  =new Dictionary<int, Dictionary<int, HashSet<int>>>();
-        static System.Collections.Generic.Dictionary<vec3, System.Collections.Generic.HashSet<ivec3>> uniqueNormals = new System.Collections.Generic.Dictionary<vec3, System.Collections.Generic.HashSet<ivec3>>();
-        static System.Collections.Generic.Dictionary<int, System.Collections.Generic.HashSet<ivec3>> uniqueHashes = new System.Collections.Generic.Dictionary<int, System.Collections.Generic.HashSet<ivec3>>();
+        static System.Collections.Generic.Dictionary<Vec3f, System.Collections.Generic.HashSet<iVec3f>> uniqueNormals = new System.Collections.Generic.Dictionary<Vec3f, System.Collections.Generic.HashSet<iVec3f>>();
+        static System.Collections.Generic.Dictionary<int, System.Collections.Generic.HashSet<iVec3f>> uniqueHashes = new System.Collections.Generic.Dictionary<int, System.Collections.Generic.HashSet<iVec3f>>();
         static int totalHashes = 0;
-        public static vec3 GradPoint3D(int seed, int x, int y, int z, int w = 0)
+        public static Vec3f GradPoint3D(int seed, int x, int y, int z, int w = 0)
         {
             //Random number that interpolates along a cube side into a vector component
-            //vec3 (rand(), rand(), rand()) - normalized.
+            //Vec3f (rand(), rand(), rand()) - normalized.
             //the vector is a random value that points in arbitrary 3D space from the gradient grid point
 
             //Add an axis index.
@@ -211,12 +216,12 @@ namespace PirateCraft
             ////  float r = to_float((uint)n);
             //if (!uniqueHashes.ContainsKey(n))
             //{
-            //    uniqueHashes.Add(n, new System.Collections.Generic.HashSet<ivec3>());
+            //    uniqueHashes.Add(n, new System.Collections.Generic.HashSet<iVec3f>());
             //}
-            //System.Collections.Generic.HashSet<ivec3> set=null;
+            //System.Collections.Generic.HashSet<iVec3f> set=null;
             //if(uniqueHashes.TryGetValue(n,out set))
             //{
-            //    set.Add(new ivec3(x,y,z));
+            //    set.Add(new iVec3f(x,y,z));
 
             //}
             //totalHashes++;
@@ -226,16 +231,16 @@ namespace PirateCraft
             float yy = (float)(((n >> 10) & 0x3FF) - 512) / 1024.0f;
             float zz = (float)(((n >> 20) & 0x3FF) - 512) / 1024.0f;
 
-            vec3 grad = (new vec3(xx,yy,zz)).normalize();
+            Vec3f grad = (new Vec3f(xx,yy,zz)).Normalized();
 
             if (!uniqueNormals.ContainsKey(grad))
             {
-                uniqueNormals.Add(grad, new System.Collections.Generic.HashSet<ivec3>());
+                uniqueNormals.Add(grad, new System.Collections.Generic.HashSet<iVec3f>());
             }
-            HashSet<ivec3> set2 = null;
+            HashSet<iVec3f> set2 = null;
             if (uniqueNormals.TryGetValue(grad, out set2))
             {
-                set2.Add(new ivec3(x, y, z));
+                set2.Add(new iVec3f(x, y, z));
             }
             //float theta = r * (float)Math.PI * 2.0f;
             //float phi = (1 - r) * (float)Math.PI * 2.0f;
@@ -244,8 +249,8 @@ namespace PirateCraft
             //float sp = (float)Math.Sin(theta);
             //float ct = (float)Math.Cos(theta);
             //float st = (float)Math.Sin(theta);
-            //vec3 grad = (new vec3(cp * st, sp * st, ct)).normalize(); //may not be necessary.
-            ////vec3 grad = (new vec3(cp, sp, 0)).normalize();
+            //Vec3f grad = (new Vec3f(cp * st, sp * st, ct)).normalize(); //may not be necessary.
+            ////Vec3f grad = (new Vec3f(cp, sp, 0)).normalize();
 
             return grad;
         }
@@ -265,11 +270,11 @@ namespace PirateCraft
                     {
                         float frnd = 0;
                         //Noise Test
-                        //Int32 rnd = Noise3D.Static4D(0, new ivec4(x, y, z, 0));
+                        //Int32 rnd = Noise3D.Static4D(0, new iVec4f(x, y, z, 0));
                         //frnd = (float)((double)rnd / (double)Int32.MaxValue);
 
                         //Perlin Test
-                        frnd = Perlin3D(new vec3(x, y, z), _seed, _scale);
+                        frnd = Perlin3D(new Vec3f(x, y, z), _seed, _scale);
                         frnd = (frnd + 1.0f) / 2.0f;
 
                         byte brnd = (byte)((frnd + 1) / 2 * 255);

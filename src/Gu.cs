@@ -20,16 +20,19 @@ namespace PirateCraft
     public static class Gu
     {
         private static bool _initialized = false;
-        private static Dictionary<GameWindow, Context> Contexts = new Dictionary<GameWindow, Context>();
+        private static Dictionary<GameWindow, WindowContext> Contexts = new Dictionary<GameWindow, WindowContext>();
 
         //This will be gotten via current context if we have > 1
         public static CoordinateSystem CoordinateSystem { get; set; } = CoordinateSystem.Rhs;
         public static EngineConfig EngineConfig { get; set; } = new EngineConfig();
         public static Log Log { get; set; } = new Log("./logs/");
-        public static Context Context { get; private set; }
+        public static WindowContext Window { get; private set; }
         public static readonly string EmbeddedDataPath = "PirateCraft.data.";
-
         public static World World = new World();
+
+       // public static PCKeyboard Keyboard { get { return Context.PCKeyboard; } }//If we have more than one context this will change.
+        //public static double Delta { get { return Context.Delta; } }//If we have more than one context this will change.
+
         public static Bitmap CreateBitmapARGB(int width, int height, byte[] pixels)
         {
             Bitmap b = new Bitmap(width, width, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
@@ -53,14 +56,14 @@ namespace PirateCraft
         }
         private static void RegisterContext(GameWindow g)
         {
-            Contexts.Add(g, new Context(g));
+            Contexts.Add(g, new WindowContext(g));
         }
         public static void SetContext(GameWindow g)
         {
-            Context c = null;
+            WindowContext c = null;
             if (Contexts.TryGetValue(g, out c))
             {
-                Context = c;
+                Window = c;
             }
             else
             {

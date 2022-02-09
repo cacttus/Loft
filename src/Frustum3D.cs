@@ -9,9 +9,9 @@
 //        public float Near { get; private set; } = 1.0f;
 //        public float Far { get; private set; } = 1000.0f;
 
-//        public vec3 NearCenter { get; private set; }
-//        public vec3 FarCenter { get; private set; }
-//        public vec3 NearTopLeft { get; private set; }
+//        public Vec3f NearCenter { get; private set; }
+//        public Vec3f FarCenter { get; private set; }
+//        public Vec3f NearTopLeft { get; private set; }
 
 //        public Frustum3D(Camera3D cam, Viewport v, float near, float far)
 //        {
@@ -39,8 +39,8 @@
 //            float vpw_f = MathUtils.tanf(myCam.FOV / 2.0f) * Far;
 //            float vph_f = vpw_f / ((float)vp.Width / (float)vp.Height);
 
-//            vec3 ncPos = cam.v3pos + cam.v3z * Near;
-//            vec3 left_top = ncPos - cam.v3x - cam.v3y;
+//            Vec3f ncPos = cam.v3pos + cam.v3z * Near;
+//            Vec3f left_top = ncPos - cam.v3x - cam.v3y;
 
 //            pt.p0 = left_top + cam.v3x * cam.vpw * 2 * left + cam.v3y * cam.vph * 2 * top;
 

@@ -49,7 +49,7 @@
 //                BufferUsageHint.StaticDraw
 //                );
 
-//            //Note: we use vec4 size offsets here because of the 16 byte padding required by GPUs.
+//            //Note: we use Vec4f size offsets here because of the 16 byte padding required by GPUs.
 //            int v4s = System.Runtime.InteropServices.Marshal.SizeOf(default(Vec4f));
 //            GL.EnableVertexAttribArray(attr_v);
 //            GL.EnableVertexAttribArray(attr_c);
@@ -298,7 +298,7 @@
 //            var stride = width * 4; // 4 bytes
 //            //var newbytes = PadLines(textureData, height, width); // This is if we weren't 32 bit.
 //            var im = new Bitmap(width, height, stride,
-//                                System.Drawing.Imaging.PixelFormat.Format32bppArgb,
+//                                System.Drawing.Imaging.PixelFormat.ForMat3f2bppArgb,
 //                                System.Runtime.InteropServices.Marshal.UnsafeAddrOfPinnedArrayElement(textureData, 0));
 
 //            im.Save(path);

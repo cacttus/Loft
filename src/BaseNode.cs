@@ -70,12 +70,12 @@
 
 //        private void UpdateTransform()
 //        {
-//            var xx = new vec4(Pos.X, Pos.Y, Pos.Z, 1);
+//            var xx = new Vec4f(Pos.X, Pos.Y, Pos.Z, 1);
 //            Transform = OpenTK.Matrix4.Identity;
 
-//            //mat4 m = mat4.identity();
-//            //mat4
-//            //mat4 m2 = xx*m;
+//            //Mat4f m = Mat4f.identity();
+//            //Mat4f
+//            //Mat4f m2 = xx*m;
 //            //Transform = xx*Transform;
 //           // _transformUpdateStamp = Context;
 //        }
