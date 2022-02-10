@@ -15,7 +15,7 @@ out vec3 _vsVertex; //should be frag pos.
 
 void main(void)
 {
-    gl_Position =  (projection_matrix* view_matrix ) * vec4(_v, 1) ;
+    gl_Position =  (projection_matrix* view_matrix * model_matrix ) * vec4(_v, 1) ;
     _vsVertex = (model_matrix * vec4(_v,1)).xyz;
     _vsNormal = normalize((model_matrix * vec4(_v + _n, 1)).xyz - _vsVertex);
     _vsTcoords = _x;

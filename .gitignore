@@ -4,3 +4,5 @@
 /packages/
 SharpFont.dll.config
 freetype.dll
+*.log
+mono_crash*

@@ -66,7 +66,7 @@ namespace PirateCraft
         public static void Render(Camera3D cam, WorldObject ob)
         {
             ob.Material.GpuRenderState.SetState();
-            Render(cam,ob.Mesh, ob.Material.Shader, ob.Material.Texture);
+            Render(cam, ob.Mesh, ob.Material.Shader, ob.Material.Texture);
         }
         //We're using instanced rendering so vs sohuld be instanced as well.
         private static void Render(Camera3D bc, MeshData ms, Shader shader, Texture tex)// InstancedVisibleSet vs) << TODO
@@ -88,7 +88,6 @@ namespace PirateCraft
             GL.BindVertexArray(ms._intVaoId);
             Gu.CheckGpuErrorsDbg();
             shader.Bind();
-
             GL.DrawElements(PrimitiveType.Triangles,
                             ms.IndexCount,
                             DrawElementsType.UnsignedInt,

@@ -31,7 +31,7 @@ namespace PirateCraft
                     DateTime.Now.Hour + ":" +
                     DateTime.Now.Minute + ":" +
                     DateTime.Now.Second + ":" +
-                    DateTime.Now.Millisecond);
+                    DateTime.Now.Millisecond + ".log");
             }
 
             Console.BackgroundColor = ConsoleColor.Black;

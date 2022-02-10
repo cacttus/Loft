@@ -68,6 +68,7 @@ namespace PirateCraft
     public class WorldObject
     {
         // public RotationType RotationType = RotationType.AxisAngle;
+        public string Name { get; set; } = "<Unnamed>";
 
         private Quat _rotation = new Quat(0, 0, 0, 1); //Axis-Angle xyz,ang
         private Vec3f _scale = new Vec3f(1, 1, 1);
@@ -91,9 +92,9 @@ namespace PirateCraft
         public List<Component> Components { get; private set; } = new List<Component>();
         public List<Constraint> Constraints { get; private set; } = new List<Constraint>();// *This is an ordered list they come in order
 
-        public Vec3f BasisX { get { return World.Column0.Xyz; } private set { } }
-        public Vec3f BasisY { get { return World.Column1.Xyz; } private set { } }
-        public Vec3f BasisZ { get { return World.Column2.Xyz; } private set { } }
+        public Vec3f BasisX { get { return (World*new Vec4f(1,0,0,0)).Xyz.Normalized(); } private set { } }
+        public Vec3f BasisY { get { return (World*new Vec4f(0,1,0,0)).Xyz.Normalized(); } private set { } }
+        public Vec3f BasisZ { get { return (World*new Vec4f(0,0,1,0)).Xyz.Normalized(); } private set { } }
 
         public MeshData Mesh = null;
         public Material Material = null;

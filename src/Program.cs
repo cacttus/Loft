@@ -29,15 +29,8 @@ namespace PirateCraft
         int meshIdx = 0;
         const float scale = 0.5f;
 
-        public MainWindow() : base((int)(1920 * scale), // initial width
-        (int)(1080 * scale), // initial height
-        GraphicsMode.Default,
-        "dreamstatecoding",  // initial title
-        GameWindowFlags.Default,
-        DisplayDevice.Default,
-        4, // OpenGL major version
-        0, // OpenGL minor version
-        GraphicsContextFlags.ForwardCompatible)
+        public MainWindow() : base((int)(1920 * scale), (int)(1080 * scale), 
+        GraphicsMode.Default, "Test", GameWindowFlags.Default, DisplayDevice.Default, 4, 0, GraphicsContextFlags.ForwardCompatible)
         {
             Title += ": OpenGL Version: " + GL.GetString(StringName.Version);
         }
@@ -65,9 +58,9 @@ namespace PirateCraft
                 Texture peron = new Texture(Gu.EmbeddedDataPath + "main char.png", true);
                 Texture grass = new Texture(Gu.EmbeddedDataPath + "grass_base.png", true);
 
-                _boxMeshThing = CreateObject(MeshData.GenBox(1, 1, 1), new Material(noise, Shader.DefaultDiffuse()));
-                CreateObject(MeshData.GenTextureFront(_camera, 0, 0, Width, Height), new Material(peron, Shader.DefaultDiffuse()));
-                CreateObject(MeshData.GenPlane(10, 10), new Material(grass, Shader.DefaultDiffuse()));
+                _boxMeshThing = CreateObject("BoxMesh",MeshData.GenBox(1, 1, 1), new Material(noise, Shader.DefaultDiffuse()));
+                CreateObject("TextureFront",MeshData.GenTextureFront(_camera, 0, 0, Width, Height), new Material(peron, Shader.DefaultDiffuse()));
+                CreateObject("Plane.",MeshData.GenPlane(10, 10), new Material(grass, Shader.DefaultDiffuse()));
 
                 _boxMeshThing.Position = new Vec3f(0, _boxMeshThing.BoundBox.Height() * 0.5f, 0);
 
@@ -83,9 +76,10 @@ namespace PirateCraft
                 System.Environment.Exit(0);
             }
         }
-        private WorldObject CreateObject(MeshData mesh, Material material, Vec3f pos = default(Vec3f))
+        private WorldObject CreateObject(string name, MeshData mesh, Material material, Vec3f pos = default(Vec3f))
         {
             WorldObject ob = new WorldObject(pos);
+            ob.Name=name;
             ob.Mesh = mesh;
             ob.Material = material;
             Gu.World.Objects.Add(ob);
@@ -122,12 +116,12 @@ namespace PirateCraft
         protected override void OnUpdateFrame(FrameEventArgs e)
         {
             Title = $"(Vsync: {VSync}) FPS: {1f / e.Time:0} Size: {Width}x{Height}";
-            Gu.World.Update();
             Gu.Window.Update();
 
-            //Mat4f model = Mat4f.GetRotation((float)rot, new Vec3f(0, 1, 0));
             _boxMeshThing.Rotation = Quaternion.FromAxisAngle(new Vec3f(0, 1, 0), (float)rot);
             rot += Math.PI * 2.0f * Gu.Window.Delta * 0.0125f;
+
+            Gu.World.Update();
 
             UpdateInput();
         }
@@ -199,12 +193,38 @@ namespace PirateCraft
 
                 float rot_speed = 0.001f;
 
-                _camera.Rotation *= Quat.FromAxisAngle(new Vec3f(0, 1, 0), (float)Math.PI * mx * rot_speed * coordMul) *
-                Quat.FromAxisAngle(_camera.BasisX, (float)Math.PI * my * -rot_speed * coordMul);
+                rotX += Math.PI * mx * rot_speed * coordMul;
+                if (rotX > Math.PI * 2.0f)
+                {
+                    rotX = (float)(rotX % (Math.PI * 2.0f));
+                }
+                if (rotX < Math.PI * 2.0f)
+                {
+                    rotX = (float)(rotX % (Math.PI * 2.0f));
+                }
+                rotY += Math.PI * my * -rot_speed * coordMul;
+                if (rotY > Math.PI * 2.0f)
+                {
+                    rotY = (float)(rotY % (Math.PI * 2.0f));
+                }
+                if (rotY < Math.PI * 2.0f)
+                {
+                    rotY = (float)(rotY % (Math.PI * 2.0f));
+                }
+                //_camera.Rotation *= Quat.FromAxisAngle(new Vec3f(0, 1, 0), rotX) *
+                //Quat.FromAxisAngle(_camera.BasisX, rotY);
+                _camera.Rotation = Quat.FromAxisAngle(new Vec3f(0, 1, 0), (float)rotX) *
+                Quat.FromAxisAngle(_camera.BasisX, (float)rotY);
+                Console.WriteLine("x=" + _camera.BasisX.X + " " + _camera.BasisX.Y + " " + _camera.BasisX.Z);
+                Console.WriteLine("y=" + _camera.BasisY.X + " " + _camera.BasisY.Y + " " + _camera.BasisY.Z);
+                Console.WriteLine("ry=" + rotY);
+                Console.WriteLine("rx=" + rotX);
             }
             last.X = (float)mouseState.X;
             last.Y = (float)mouseState.Y;
         }
+        private double rotX = 0;
+        private double rotY = 0;
         protected override void OnRenderFrame(FrameEventArgs e)
         {
             Renderer.BeginRender(this, new Vec4f(1, 1, 1, 1));

@@ -25,7 +25,6 @@ namespace PirateCraft
                 {
                     if (ob.Material != null)
                     {
-
                         ob.Material.PreRender(Delta, camera, ob.World);
                         Renderer.Render(camera, ob);
                         ob.Material.PostRender();
