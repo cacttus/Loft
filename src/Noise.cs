@@ -184,7 +184,6 @@ namespace PirateCraft
         static Dictionary<int,Dictionary<int,HashSet<int>>> uniquePoints  =new Dictionary<int, Dictionary<int, HashSet<int>>>();
         static System.Collections.Generic.Dictionary<Vec3f, System.Collections.Generic.HashSet<iVec3f>> uniqueNormals = new System.Collections.Generic.Dictionary<Vec3f, System.Collections.Generic.HashSet<iVec3f>>();
         static System.Collections.Generic.Dictionary<int, System.Collections.Generic.HashSet<iVec3f>> uniqueHashes = new System.Collections.Generic.Dictionary<int, System.Collections.Generic.HashSet<iVec3f>>();
-        static int totalHashes = 0;
         public static Vec3f GradPoint3D(int seed, int x, int y, int z, int w = 0)
         {
             //Random number that interpolates along a cube side into a vector component

@@ -33,7 +33,6 @@ namespace PirateCraft
                 BoundBox.genExpandByPoint(verts[indexes[ind]]._v);
             }
             float boxSize = BoundBox.Width() * BoundBox.Height() * BoundBox.Depth() ;
-            int n=0;
         }
         //Do we need vertex formats if we don't have interleaved arrays?
         public MeshData(in MeshVert[] verts, in uint[] indexes)

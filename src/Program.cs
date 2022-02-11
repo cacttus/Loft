@@ -36,7 +36,8 @@ namespace PirateCraft
         }
         protected override void OnResize(EventArgs e)
         {
-            GL.Viewport(0, 0, Width, Height);
+            _camera.Viewport_Width = Width;
+            _camera.Viewport_Height = Height;
         }
         protected override void OnLoad(EventArgs e)
         {
