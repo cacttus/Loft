@@ -208,6 +208,33 @@ namespace PirateCraft
       v.TryGetTarget(out wr);
       return wr;
     }
+    //This does not work for me. Error that MeshVert can't be converted as it's unmanaged.
+    // public static byte[] StructureToByteArray(object obj)
+    // {
+    //   //https://stackoverflow.com/questions/4107359/c-convert-list-of-simple-structs-to-byte
+    //   int length = Marshal.SizeOf(obj);
+    //   byte[] data = new byte[length];
+    //   IntPtr ptr = Marshal.AllocHGlobal(length);
+    //   Marshal.StructureToPtr(obj, ptr, true);
+    //   Marshal.Copy(ptr, data, 0, length);
+    //   Marshal.FreeHGlobal(ptr);
+    //   return data;
+    // }
+    //[DllImport("kernel32.dll", EntryPoint = "CopyMemory", SetLastError = false)]
+    //private static unsafe extern void CopyMemory(void* dest, void* src, int count);
 
+    //public static unsafe byte[] Serialize<T>(T[] objs)
+    //{
+    //    var buffer = new byte[Marshal.SizeOf(typeof(T)) * objs.Length];
+    //    fixed (void* d = &buffer[0])
+    //    {
+    //        fixed (void* s = &objs[0])
+    //        {
+    //            CopyMemory(d, s, buffer.Length);
+    //        }
+    //    }
+
+    //    return buffer;
+    //}
   }
 }

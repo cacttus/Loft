@@ -8,117 +8,226 @@ using Vec3f = OpenTK.Vector3;
 using Vec4f = OpenTK.Vector4;
 using Mat3f = OpenTK.Matrix3;
 using Mat4f = OpenTK.Matrix4;
-
+using System.IO;
+using System.Runtime.Serialization.Formatters.Binary;
 
 namespace PirateCraft
 {
-    //Triangle mesh .. 
-    public class MeshData
+    public class DataBlock
     {
-        int _intVboId;
-        int _intIboId;
-        public int _intVaoId { get; private set; }
-        public int IndexCount { get; private set; }
-
-        public Box3f BoundBox { get; set; } =new Box3f();
-       // public Box3f BoundBox { get { return _boundBox; } private set { _boundBox = value; } } 
-
-        //Mesh data is just a byte buffer with float3 float2 float16 accessor
-
-        private void ComputeBoundBox(in MeshVert[] verts, in uint[] indexes)
+        private static int IdGen = 1;
+        public string Name { get; private set; }
+        public int Id { get; private set; }
+        public DataBlock(string name)
         {
-            BoundBox.genResetLimits();
-            foreach(uint ind in indexes)
-            {
-                BoundBox.genExpandByPoint(verts[indexes[ind]]._v);
-            }
-            float boxSize = BoundBox.Width() * BoundBox.Height() * BoundBox.Depth() ;
+            Id = IdGen++;
+            Name = name;
         }
-        //Do we need vertex formats if we don't have interleaved arrays?
-        public MeshData(in MeshVert[] verts, in uint[] indexes)
+    }
+    // public class MeshDataInlineEdit : MeshData
+    // {
+    //   private PrimitiveType _primType = PrimitiveType.Lines;
+    //   private List<v_v3c4> _inlineVerts = null;
+    //   MeshDataInlineEdit() : base(v_v3c4.VertexFormat)
+    //   {
+    //   }
+    //   public void Begin(PrimitiveType p = PrimitiveType.Lines)
+    //   {
+    //     _primType = p;
+    //   }
+    //   public void v3c4(Vec3f v, Vec4f c)
+    //   {
+    //     _inlineVerts.Add(new v_v3c4() { _v = v, _c = c });
+    //   }
+    //   public void End()
+    //   {
+    //     foreach (var vert in _inlineVerts)
+    //     {
+
+    //     }
+    //     //CreateBuffers(verts,inds);
+    //     _inlineVerts = null;
+    //   }
+    // }
+
+    public class MeshData : DataBlock //<Tx,Ty> where Tx : struct where Ty : struct
+    {
+        private GPUBuffer _indexBuffer = null;
+        private GPUBuffer _vertexBuffer = null;
+        private int _intVaoId = 0;
+        public Box3f BoundBox { get; set; } = new Box3f();
+        public VertexFormat VertexFormat { get; private set; } = null;
+        public IndexFormat IndexFormat { get; private set; } = null; //If null, then there is no indexes associated with this mesh.
+        public PrimitiveType PrimitiveType { get; private set; } = PrimitiveType.Triangles;
+        public bool HasIndexes
+        {
+            get
+            {
+                return IndexFormat != null;
+            }
+        }
+        public MeshData(string name, PrimitiveType pt, VertexFormat fmt, IndexFormatType ifmt = IndexFormatType.None) : base(name)
+        {
+            Gu.Assert(fmt != null);
+            VertexFormat = fmt;
+            if (ifmt == IndexFormatType.None)
+            {
+                IndexFormat = null;
+            }
+            else if (ifmt == IndexFormatType.Uint32)
+            {
+                IndexFormat = IndexFormat.IFMT_U32;
+            }
+            else if (ifmt == IndexFormatType.Uint16)
+            {
+                IndexFormat = IndexFormat.IFMT_U16;
+            }
+            else
+            {
+                Gu.BRThrowNotImplementedException();
+            }
+        }
+        public MeshData(string name, PrimitiveType pt, VertexFormat fmt, GpuDataArray verts, IndexFormatType ifmt = IndexFormatType.None, GpuDataArray indexes = null) : this(name, pt, fmt, ifmt)
         {
             if (verts == null || indexes == null)
             {
                 Gu.Log.Error("Mesh(): Error: vertexes and indexes null.");
             }
             CreateBuffers(verts, indexes);
-
-            ComputeBoundBox(verts,indexes);
         }
-        public MeshData() { }
-        protected void CreateBuffers(in MeshVert[] verts, in uint[] indexes)
+        public void Draw()
         {
             Gu.CheckGpuErrorsDbg();
-
-            _intVboId = GL.GenBuffer();
-            _intIboId = GL.GenBuffer();
-            _intVaoId = GL.GenVertexArray();
-
-            int attr_v = 0;//These are the layout=x locations in glsl
-            int attr_n = 1;
-            int attr_x = 2;
-
+            if (!GL.IsVertexArray(_intVaoId))
+            {
+                Gu.Log.Error("Mesh was not a VAO.");
+                return;
+            }
             GL.BindVertexArray(_intVaoId);
 
+            //This is assuming the VAO and all other bindings are already called.
+            if (HasIndexes)
+            {
+                if (_indexBuffer != null)
+                {
+                    GL.DrawElements(PrimitiveType,
+                        _indexBuffer.ItemCount,
+                        _indexBuffer.ItemSize == 2 ? DrawElementsType.UnsignedShort : DrawElementsType.UnsignedInt,
+                        IntPtr.Zero
+                        );
+                }
+                else
+                {
+                    Gu.Log.Error("Indexes specified for mesh but index buffer was null");
+                }
+            }
+            else
+            {
+                GL.DrawArrays(PrimitiveType, 0, _vertexBuffer.ItemCount);
+            }
+            GL.BindVertexArray(0);
+        }
+        public void CreateBuffers(GpuDataArray verts, GpuDataArray indexes = null)
+        {
             Gu.CheckGpuErrorsDbg();
 
-            //Bind Vertexes
-            GL.BindBuffer(BufferTarget.ArrayBuffer, _intVboId);
-            GL.BufferData(
-                BufferTarget.ArrayBuffer,
-                (IntPtr)(verts.Length * MeshVert.SizeBytes/* VertexFormat.VertexSizeBytes*/),
-                verts,
-                BufferUsageHint.StaticDraw
-                );
+            _intVaoId = GL.GenVertexArray();
+            GL.BindVertexArray(_intVaoId);
+
+            if (verts != null)
+            {
+                _vertexBuffer = new GPUBuffer(BufferTarget.ArrayBuffer, verts);
+                _vertexBuffer.Bind();
+            }
+            if (HasIndexes && indexes != null)
+            {
+                _indexBuffer = new GPUBuffer(BufferTarget.ElementArrayBuffer, indexes);
+                _indexBuffer.Bind();
+            }
 
             //Note: we use Vec4f size offsets here because of the 16 byte padding required by GPUs.
-            int v4s = Marshal.SizeOf(default(Vector4));
-            GL.EnableVertexAttribArray(attr_v);
-            GL.EnableVertexAttribArray(attr_n);
-            GL.EnableVertexAttribArray(attr_x);
-            GL.VertexAttribPointer(attr_v, 3, VertexAttribPointerType.Float, false, MeshVert.SizeBytes, (IntPtr)(0));
-            GL.VertexAttribPointer(attr_n, 3, VertexAttribPointerType.Float, false, MeshVert.SizeBytes, (IntPtr)(0 + v4s));
-            GL.VertexAttribPointer(attr_x, 2, VertexAttribPointerType.Float, false, MeshVert.SizeBytes, (IntPtr)(0 + v4s + v4s));
+            foreach (var comp in VertexFormat.Components)
+            {
+                GL.EnableVertexAttribArray(comp.Value.AttribLocation);
+                GL.VertexAttribPointer(comp.Value.AttribLocation, comp.Value.ComponentCount,
+                comp.Value.DataType, false, VertexFormat.VertexSizeBytes, (IntPtr)(0 + comp.Value.ByteOffset));
+                int n=0;
+                n++;
+            }
 
             Gu.CheckGpuErrorsDbg();
-
-            //Bind indexes
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, _intIboId);
-            GL.BufferData(
-                BufferTarget.ElementArrayBuffer,
-                (IntPtr)(indexes.Length * sizeof(uint)),
-                indexes,
-                BufferUsageHint.StaticDraw
-                );
-            Gu.CheckGpuErrorsDbg();
-
-            IndexCount = indexes.Length;
-
             GL.BindVertexArray(0);
             GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
-
             Gu.CheckGpuErrorsDbg();
+
+            ComputeBoundBox();
         }
-        private void BeginEdit(out IntPtr verts, out IntPtr inds)
-        {
-            GL.BindBuffer(BufferTarget.ArrayBuffer, _intVboId);
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, _intIboId);
-            Gu.CheckGpuErrorsDbg();
 
-            inds = GL.MapBuffer(BufferTarget.ElementArrayBuffer, BufferAccess.WriteOnly);
-            verts = GL.MapBuffer(BufferTarget.ArrayBuffer, BufferAccess.WriteOnly);
-            Gu.CheckGpuErrorsDbg();
+        private void ComputeBoundBox()
+        {
+            BoundBox.genResetLimits();
+
+            int voff = VertexFormat.GetComponentOffset(VertexComponentType.v3_01);
+            if (voff >= 0)
+            {
+                var vertexes = _vertexBuffer.CopyDataFromGPU();
+
+                unsafe
+                {
+                    //Yeah, this is fun. Loop verts / indexes by casting bytes.
+                    fixed (byte* vbarr = vertexes.Bytes)
+                    {
+                        if (HasIndexes)
+                        {
+                            var indexes = _indexBuffer.CopyDataFromGPU();
+                            fixed (byte* ibarr = indexes.Bytes)
+                            {
+                                for (int ii = 0; ii < indexes.Count; ++ii)
+                                {
+                                    int index = 0;
+                                    if (indexes.ItemSizeBytes == 2)
+                                    {
+                                        index = *((Int16*)(ibarr + ii * indexes.ItemSizeBytes));
+                                    }
+                                    else if (indexes.ItemSizeBytes == 4)
+                                    {
+                                        index = *((Int32*)(ibarr + ii * indexes.ItemSizeBytes));
+                                    }
+                                    else
+                                    {
+                                        Gu.BRThrowException("Invalid index type.");
+                                    }
+                                    if (index >= vertexes.Count)
+                                    {
+                                        Gu.BRThrowException("Index outside range.");
+                                    }
+                                    Vec3f vv = *((Vec3f*)(vbarr + index * vertexes.ItemSizeBytes + voff));
+                                    BoundBox.genExpandByPoint(vv);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            for (int vi = 0; vi < vertexes.Count; ++vi)
+                            {
+                                Vec3f vv = *((Vec3f*)(vbarr + vi * vertexes.ItemSizeBytes + voff));
+                                BoundBox.genExpandByPoint(vv);
+                            }
+                        }//if hasindexes
+                    }//fixed
+                }//unsafe
+            }
+            else
+            {
+                Gu.Log.Warn("Could not compute bound box for mesh " + this.Name + " No default position data supplied.");
+            }
         }
-        private void EndEdit()
+        public static GpuDataArray GenerateQuadIndicesArray(int numQuads, bool flip = false)
         {
-            GL.UnmapBuffer(BufferTarget.ElementArrayBuffer);
-            GL.UnmapBuffer(BufferTarget.ArrayBuffer);
-            Gu.CheckGpuErrorsDbg();
-
-            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
-            GL.BindVertexArray(0);
+            uint[] uu = GenerateQuadIndices(numQuads, flip);
+            var ret = Gpu.SerializeGPUData(uu);
+            return ret;
         }
         public static uint[] GenerateQuadIndices(int numQuads, bool flip = false)
         {
@@ -158,20 +267,22 @@ namespace PirateCraft
             texs[2] = new Vec2f(0, 1);
             texs[3] = new Vec2f(1, 1);
 
-            MeshVert[] verts = new MeshVert[4];
-            verts[0 * 4 + 0] = new MeshVert() { _v = box[0], _n = norms[0], _x = texs[0] };
-            verts[0 * 4 + 1] = new MeshVert() { _v = box[1], _n = norms[0], _x = texs[1] };
-            verts[0 * 4 + 2] = new MeshVert() { _v = box[2], _n = norms[0], _x = texs[2] };
-            verts[0 * 4 + 3] = new MeshVert() { _v = box[3], _n = norms[0], _x = texs[3] };
+            v_v3n3x2[] verts = new v_v3n3x2[4];
+            verts[0 * 4 + 0] = new v_v3n3x2() { _v = box[0], _n = norms[0], _x = texs[0] };
+            verts[0 * 4 + 1] = new v_v3n3x2() { _v = box[1], _n = norms[0], _x = texs[1] };
+            verts[0 * 4 + 2] = new v_v3n3x2() { _v = box[2], _n = norms[0], _x = texs[2] };
+            verts[0 * 4 + 3] = new v_v3n3x2() { _v = box[3], _n = norms[0], _x = texs[3] };
 
-            var inds = GenerateQuadIndices(verts.Length / 4);
-            return new MeshData(verts, inds);
+            var indsBoxed = GenerateQuadIndicesArray(verts.Length / 4);
+            var vertsBoxed = Gpu.SerializeGPUData( verts);
+            return new MeshData("Plane", PrimitiveType.Triangles, v_v3n3x2.VertexFormat, vertsBoxed, IndexFormatType.Uint32, indsBoxed);
         }
+
         public static MeshData GenBox(float w, float h, float d)
         {
             //Left Righ, Botom top, back front
             Vec3f[] box = new Vec3f[8];
-            float w2=w*0.5f,h2=h*0.5f,d2=d*0.5f;
+            float w2 = w * 0.5f, h2 = h * 0.5f, d2 = d * 0.5f;
             box[0] = new Vec3f(-w2, -h2, -d2);
             box[1] = new Vec3f(w2, -h2, -d2);
             box[2] = new Vec3f(-w2, h2, -d2);
@@ -199,44 +310,45 @@ namespace PirateCraft
             // 2      3
             //     4       5
             // 0      1
-            MeshVert[] verts = new MeshVert[6 * 4];//lrbtaf
-            verts[0 * 4 + 0] = new MeshVert() { _v = box[4], _n = norms[0], _x = texs[0] };
-            verts[0 * 4 + 1] = new MeshVert() { _v = box[0], _n = norms[0], _x = texs[1] };
-            verts[0 * 4 + 2] = new MeshVert() { _v = box[6], _n = norms[0], _x = texs[2] };
-            verts[0 * 4 + 3] = new MeshVert() { _v = box[2], _n = norms[0], _x = texs[3] };
+            v_v3n3x2[] verts = new v_v3n3x2[6 * 4];//lrbtaf
+            verts[0 * 4 + 0] = new v_v3n3x2() { _v = box[4], _n = norms[0], _x = texs[0] };
+            verts[0 * 4 + 1] = new v_v3n3x2() { _v = box[0], _n = norms[0], _x = texs[1] };
+            verts[0 * 4 + 2] = new v_v3n3x2() { _v = box[6], _n = norms[0], _x = texs[2] };
+            verts[0 * 4 + 3] = new v_v3n3x2() { _v = box[2], _n = norms[0], _x = texs[3] };
 
-            verts[1 * 4 + 0] = new MeshVert() { _v = box[1], _n = norms[1], _x = texs[0] };
-            verts[1 * 4 + 1] = new MeshVert() { _v = box[5], _n = norms[1], _x = texs[1] };
-            verts[1 * 4 + 2] = new MeshVert() { _v = box[3], _n = norms[1], _x = texs[2] };
-            verts[1 * 4 + 3] = new MeshVert() { _v = box[7], _n = norms[1], _x = texs[3] };
+            verts[1 * 4 + 0] = new v_v3n3x2() { _v = box[1], _n = norms[1], _x = texs[0] };
+            verts[1 * 4 + 1] = new v_v3n3x2() { _v = box[5], _n = norms[1], _x = texs[1] };
+            verts[1 * 4 + 2] = new v_v3n3x2() { _v = box[3], _n = norms[1], _x = texs[2] };
+            verts[1 * 4 + 3] = new v_v3n3x2() { _v = box[7], _n = norms[1], _x = texs[3] };
 
-            verts[2 * 4 + 0] = new MeshVert() { _v = box[4], _n = norms[2], _x = texs[0] };
-            verts[2 * 4 + 1] = new MeshVert() { _v = box[5], _n = norms[2], _x = texs[1] };
-            verts[2 * 4 + 2] = new MeshVert() { _v = box[0], _n = norms[2], _x = texs[2] };
-            verts[2 * 4 + 3] = new MeshVert() { _v = box[1], _n = norms[2], _x = texs[3] };
+            verts[2 * 4 + 0] = new v_v3n3x2() { _v = box[4], _n = norms[2], _x = texs[0] };
+            verts[2 * 4 + 1] = new v_v3n3x2() { _v = box[5], _n = norms[2], _x = texs[1] };
+            verts[2 * 4 + 2] = new v_v3n3x2() { _v = box[0], _n = norms[2], _x = texs[2] };
+            verts[2 * 4 + 3] = new v_v3n3x2() { _v = box[1], _n = norms[2], _x = texs[3] };
 
-            verts[3 * 4 + 0] = new MeshVert() { _v = box[2], _n = norms[3], _x = texs[0] };
-            verts[3 * 4 + 1] = new MeshVert() { _v = box[3], _n = norms[3], _x = texs[1] };
-            verts[3 * 4 + 2] = new MeshVert() { _v = box[6], _n = norms[3], _x = texs[2] };
-            verts[3 * 4 + 3] = new MeshVert() { _v = box[7], _n = norms[3], _x = texs[3] };
+            verts[3 * 4 + 0] = new v_v3n3x2() { _v = box[2], _n = norms[3], _x = texs[0] };
+            verts[3 * 4 + 1] = new v_v3n3x2() { _v = box[3], _n = norms[3], _x = texs[1] };
+            verts[3 * 4 + 2] = new v_v3n3x2() { _v = box[6], _n = norms[3], _x = texs[2] };
+            verts[3 * 4 + 3] = new v_v3n3x2() { _v = box[7], _n = norms[3], _x = texs[3] };
 
-            verts[4 * 4 + 0] = new MeshVert() { _v = box[0], _n = norms[4], _x = texs[0] };
-            verts[4 * 4 + 1] = new MeshVert() { _v = box[1], _n = norms[4], _x = texs[1] };
-            verts[4 * 4 + 2] = new MeshVert() { _v = box[2], _n = norms[4], _x = texs[2] };
-            verts[4 * 4 + 3] = new MeshVert() { _v = box[3], _n = norms[4], _x = texs[3] };
+            verts[4 * 4 + 0] = new v_v3n3x2() { _v = box[0], _n = norms[4], _x = texs[0] };
+            verts[4 * 4 + 1] = new v_v3n3x2() { _v = box[1], _n = norms[4], _x = texs[1] };
+            verts[4 * 4 + 2] = new v_v3n3x2() { _v = box[2], _n = norms[4], _x = texs[2] };
+            verts[4 * 4 + 3] = new v_v3n3x2() { _v = box[3], _n = norms[4], _x = texs[3] };
 
-            verts[5 * 4 + 0] = new MeshVert() { _v = box[5], _n = norms[5], _x = texs[0] };
-            verts[5 * 4 + 1] = new MeshVert() { _v = box[4], _n = norms[5], _x = texs[1] };
-            verts[5 * 4 + 2] = new MeshVert() { _v = box[7], _n = norms[5], _x = texs[2] };
-            verts[5 * 4 + 3] = new MeshVert() { _v = box[6], _n = norms[5], _x = texs[3] };
+            verts[5 * 4 + 0] = new v_v3n3x2() { _v = box[5], _n = norms[5], _x = texs[0] };
+            verts[5 * 4 + 1] = new v_v3n3x2() { _v = box[4], _n = norms[5], _x = texs[1] };
+            verts[5 * 4 + 2] = new v_v3n3x2() { _v = box[7], _n = norms[5], _x = texs[2] };
+            verts[5 * 4 + 3] = new v_v3n3x2() { _v = box[6], _n = norms[5], _x = texs[3] };
 
-            var inds = GenerateQuadIndices(verts.Length/4);
-            return new MeshData(verts, inds);
+            var indsBoxed = GenerateQuadIndicesArray(verts.Length / 4);
+            var vertsBoxed = Gpu.SerializeGPUData(verts);
+            return new MeshData("box", PrimitiveType.Triangles, v_v3n3x2.VertexFormat, vertsBoxed, IndexFormatType.Uint32, indsBoxed);
         }
         public static MeshData GenTextureFront(Camera3D c, float x, float y, float w, float h)
         {
             //Let's do the UI from bottom left like OpenGL
-            MeshVert[] verts = new MeshVert[4];
+            v_v3n3x2[] verts = new v_v3n3x2[4];
             verts[0]._v = c.ProjectPoint(new Vec2f(x, y), TransformSpace.Local, 0.01f).p0;
             verts[1]._v = c.ProjectPoint(new Vec2f(x + w, y), TransformSpace.Local, 0.01f).p0;
             verts[2]._v = c.ProjectPoint(new Vec2f(x, y + h), TransformSpace.Local, 0.01f).p0;
@@ -252,14 +364,15 @@ namespace PirateCraft
             verts[2]._n = new Vec3f(0, 0, -1);
             verts[3]._n = new Vec3f(0, 0, -1);
 
-            var inds = GenerateQuadIndices(verts.Length / 4);
+            var indsBoxed = GenerateQuadIndicesArray(verts.Length / 4);
+            var vertsBoxed = Gpu.SerializeGPUData(verts);
 
-            return new MeshData(verts, inds);
+            return new MeshData("texturefrtont", PrimitiveType.Triangles, v_v3n3x2.VertexFormat, vertsBoxed, IndexFormatType.Uint32, indsBoxed);
         }
         public static MeshData GenSphere(int slices = 128, int stacks = 128, float radius = 1, bool smooth = false)
         {
             int vcount = slices * stacks * 4;
-            MeshVert[] verts = new MeshVert[vcount];
+            v_v3n3x2[] verts = new v_v3n3x2[vcount];
 
             //Use a 2D grid as a sphere. This is less optimal but doesn't mess up the tex coords.
             for (int stack = 0; stack < stacks; stack++)
@@ -298,7 +411,7 @@ namespace PirateCraft
                     }
                     else
                     {
-                        Vec3f n = Vec3f.Cross((verts[vind + 1]._v - verts[vind + 0]._v) , (verts[vind + 2]._v - verts[vind + 0]._v)).Normalized();
+                        Vec3f n = Vec3f.Cross((verts[vind + 1]._v - verts[vind + 0]._v), (verts[vind + 2]._v - verts[vind + 0]._v)).Normalized();
                         verts[vind + 0]._n = n;
                         verts[vind + 1]._n = n;
                         verts[vind + 2]._n = n;
@@ -317,9 +430,10 @@ namespace PirateCraft
                 }
             }
 
-            var inds = GenerateQuadIndices(verts.Length / 4, true);
+            var indsBoxed = GenerateQuadIndicesArray(verts.Length / 4, true);
+            var vertsBoxed = Gpu.SerializeGPUData(verts);
 
-            return new MeshData(verts, inds);
+            return new MeshData("sphere", PrimitiveType.Triangles, v_v3n3x2.VertexFormat, vertsBoxed, IndexFormatType.Uint32, indsBoxed);
         }
 
 

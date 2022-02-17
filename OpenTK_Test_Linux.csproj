@@ -1,4 +1,3 @@
-<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
@@ -10,7 +9,7 @@
     <TargetFrameworkVersion>v4.7</TargetFrameworkVersion>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x86' ">
-  <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
@@ -19,7 +18,7 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <ExternalConsole>true</ExternalConsole>
-    <PlatformTarget>x86</PlatformTarget>
+    <LangVersion>7.3</LangVersion>
     <LangVersion>7.2</LangVersion>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
@@ -30,8 +29,10 @@
     <WarningLevel>4</WarningLevel>
     <ExternalConsole>true</ExternalConsole>
     <PlatformTarget>x86</PlatformTarget>
-    <LangVersion>7.2</LangVersion>
+    <LangVersion>7.3</LangVersion>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <NoStdLib>false</NoStdLib>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
@@ -43,10 +44,10 @@
     <Reference Include="SharpFont">
       <HintPath>packages\SharpFont.1.0.2\lib\SharpFont.dll</HintPath>
     </Reference>
+    <Reference Include="Microsoft.CSharp" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs" />
-
     <Compile Include="src\Program.cs" />
     <Compile Include="src\Renderer.cs" />
     <Compile Include="src\Camera3D.cs" />
@@ -79,6 +80,7 @@
     <Compile Include="src\Gu.cs" />
     <Compile Include="src\World.cs" />
     <Compile Include="src\PCKeyboard.cs" />
+    <Compile Include="src\GPUBuffer.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="OpenTK.dll.config" />
@@ -88,7 +90,6 @@
     <None Include="freetype.dll" />
   </ItemGroup>
   <ItemGroup>
-    <Folder Include="src\" />
     <Folder Include="data\" />
   </ItemGroup>
   <ItemGroup>
@@ -96,6 +97,7 @@
     <EmbeddedResource Include="data\BasicShader_vert.glsl" />
     <EmbeddedResource Include="data\main char.png" />
     <EmbeddedResource Include="data\grass_base.png" />
+    <Compile Include="src\GpuDataArray.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
 </Project>

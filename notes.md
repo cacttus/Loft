@@ -1,4 +1,36 @@
-﻿The current issue is the position of camera at -10, 0 -10 is incorrect on the x axis. Need tofigure out why
+﻿
+InlineMeshData : MeshData(v_v3c4, null, null)
+  List<v_v3c4> verts;
+
+var mm = new InlineMeshData()
+
+mm.Begin(GL_LINES)
+  verts.clear()
+mm.vert(new Vec3(..), new Vec4(..))
+  verts.add()
+mm.End()
+  Buffer b
+  foreach vert : verts
+
+  
+
+
+Material im = new Material("layout (location=0) in vec3 v; .. ", "fragColor=color");
+
+WorldObject wo = new WorldObject("MyMesh");
+wo.geometry = mm;
+wo.material = im;
+
+wo.geometry.BeginEdit()
+wo.geometry.EndEdit()
+
+
+
+
+Next task is to make meshdata accept a byte buffer and make it generic and accept a vertexformat instead.
+Then utilmesh so we can creat3e verts
+
+The current issue is the position of camera at -10, 0 -10 is incorrect on the x axis. Need tofigure out why
 TODO:
 empty object should be axis mesh.
 

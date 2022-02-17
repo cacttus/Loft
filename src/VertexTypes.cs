@@ -10,7 +10,7 @@ using Mat4f = OpenTK.Matrix4;
 
 namespace PirateCraft
 {
-    public enum VertexUserType
+    public enum VertexComponentType
     {
         v2_01,
         v2_02,
@@ -59,10 +59,10 @@ namespace PirateCraft
         public int ComponentCount { get; set; }
         public VertexAttribPointerType DataType { get; set; }
         public int AttributeType { get { return VertexFormat.ComputeAttributeType((int)DataType, ComponentCount); } }
-        public VertexUserType UserType { get; set; }
+        public VertexComponentType UserType { get; set; }
         public int ByteOffset { get; set; }
         public int AttribLocation { get; set; } //Attrib Location
-        public int Location { get; set; }
+        public string Name { get; set; }// _v2 _c4 ...
 
         //int32_t getSizeBytes() { return _iSizeBytes; }
         //  int32_t getComponentCount() { return _iComponentCount; }
@@ -83,12 +83,90 @@ namespace PirateCraft
         //int32_t _iByteOffset;
     };
 
+
+    //Format for interleaved vertex.
     public class VertexFormat
     {
-        private Dictionary<VertexUserType, VertexComponent> Components = new Dictionary<VertexUserType, VertexComponent>();
+        public Dictionary<VertexComponentType, VertexComponent> Components { get; private set; } = new Dictionary<VertexComponentType, VertexComponent>();
         public int VertexSizeBytes { get; private set; } = 0;
         public string Name { get; private set; } = "Undefind vtx format";
-        public int SizeBytes { get; private set; }
+        public int GetComponentOffset(VertexComponentType t)
+        {
+            VertexComponent val = null;
+            if (Components.TryGetValue(t, out val))
+            {
+                return val.ByteOffset;
+            }
+            return -1;
+        }
+
+        public unsafe dynamic Access(int vertex_index, VertexComponentType type, byte[] data)
+        {
+            //This is fun. Ok.
+            //index is the vertex index
+            //comp_index is which ccomponent, e.g. in v_v3x2v3v3 comp_index is 0, 1, 2 for v3
+            VertexComponent comp = null;
+            if (!Components.TryGetValue(type, out comp))
+            {
+                Gu.BRThrowException("Could not get component value for " + type);
+            }
+
+            int comp_off = comp.ByteOffset;
+            int total_offset = vertex_index * VertexSizeBytes + comp_off;
+            if (total_offset >= data.Length)
+            {
+                Gu.BRThrowException("Access to vertex data byte buffer is out of range (" + total_offset + ").");
+            }
+
+            dynamic ret = null;
+            fixed (byte* dat = data)
+            {
+                //Declare more types here as needed.
+                if (comp.DataType == VertexAttribPointerType.Float)
+                {
+                    if (comp.ComponentCount == 2)
+                    {
+                        ret = *((Vec2f*)(dat + total_offset));
+                    }
+                    else if (comp.ComponentCount == 3)
+                    {
+                        ret = *((Vec3f*)(dat + total_offset));
+                    }
+                    else if (comp.ComponentCount == 4)
+                    {
+                        ret = *((Vec4f*)(dat + total_offset));
+                    }
+                    else
+                    {
+                        Gu.BRThrowNotImplementedException();
+                    }
+                }
+                else if (comp.DataType == VertexAttribPointerType.Int)
+                {
+                    if (comp.ComponentCount == 2)
+                    {
+                        ret = *((iVec2f*)(dat + total_offset));
+                    }
+                    else if (comp.ComponentCount == 3)
+                    {
+                        ret = *((iVec3f*)(dat + total_offset));
+                    }
+                    else if (comp.ComponentCount == 4)
+                    {
+                        ret = *((iVec4f*)(dat + total_offset));
+                    }
+                    else
+                    {
+                        Gu.BRThrowNotImplementedException();
+                    }
+                }
+                else
+                {
+                    Gu.BRThrowNotImplementedException();
+                }
+            }
+            return ret;
+        }
 
         public static VertexFormat DeclareVertexFormat(string name, string format)
         {
@@ -96,7 +174,7 @@ namespace PirateCraft
             // Format will get parsed v_xxyyzzww.. name is arbitrary
             //ex v_v2c4x3
             VertexFormat vft = new VertexFormat();
-            Dictionary<VertexUserType, int> occurances = new Dictionary<VertexUserType, int>();
+            Dictionary<VertexComponentType, int> occurances = new Dictionary<VertexComponentType, int>();
             if (!format.StartsWith("v_", StringComparison.InvariantCulture))
             {
                 throw new Exception("Vertex format must start with v_, and name attributes ex: v_v3n3x2c4");
@@ -107,7 +185,7 @@ namespace PirateCraft
                 c += format[i];
                 if (c.Length == 2)
                 {
-                    VertexUserType outType = ParseUserType(c);
+                    VertexComponentType outType = ParseUserType(c);
                     int count = 0;
                     if (occurances.TryGetValue(outType, out count))
                     {
@@ -122,7 +200,7 @@ namespace PirateCraft
                     {
                         occurances.Add(outType, 1);
                     }
-                    vft.AddComponent(outType);
+                    vft.AddComponent(outType, c);
 
                     c = "";
                 }
@@ -130,36 +208,36 @@ namespace PirateCraft
 
             return vft;
         }
-        private static VertexUserType ParseUserType(string st)
+        private static VertexComponentType ParseUserType(string st)
         {
             switch (st)
             {
-                case "v2": return VertexUserType.v2_01;
-                case "v3": return VertexUserType.v3_01;
-                case "n3": return VertexUserType.n3_01;
-                case "c4": return VertexUserType.c4_01;
-                case "x2": return VertexUserType.x2_01;
+                case "v2": return VertexComponentType.v2_01;
+                case "v3": return VertexComponentType.v3_01;
+                case "n3": return VertexComponentType.n3_01;
+                case "c4": return VertexComponentType.c4_01;
+                case "x2": return VertexComponentType.x2_01;
             }
             Gu.BRThrowNotImplementedException();
-            return VertexUserType.NoVertexType;
+            return VertexComponentType.NoVertexType;
         }
-        public void AddComponent(VertexUserType eUserType)
+        public void AddComponent(VertexComponentType eUserType, string name)
         {
             VertexAttribPointerType eType; //GLenum
             int compCount;
             int size;
             switch (eUserType)
             {
-                case VertexUserType.v2_01:
-                case VertexUserType.v2_02:
-                case VertexUserType.v2_03:
+                case VertexComponentType.v2_01:
+                case VertexComponentType.v2_02:
+                case VertexComponentType.v2_03:
                     eType = VertexAttribPointerType.Float;
                     compCount = 2;
                     size = Marshal.SizeOf(default(Vec2f));
                     break;
-                case VertexUserType.v3_01:
-                case VertexUserType.v3_02:
-                case VertexUserType.v3_03:
+                case VertexComponentType.v3_01:
+                case VertexComponentType.v3_02:
+                case VertexComponentType.v3_03:
                     //*******************************************
                     //**Look at the size: Vec4f - note this from the opengl wiki
                     //"Implementations sometimes get the std140 layout wrong for Vec3f components.
@@ -169,51 +247,51 @@ namespace PirateCraft
                     size = Marshal.SizeOf(default(Vec4f));
                     //*******************************************
                     break;
-                case VertexUserType.v4_01:
-                case VertexUserType.v4_02:
-                case VertexUserType.v4_03:
+                case VertexComponentType.v4_01:
+                case VertexComponentType.v4_02:
+                case VertexComponentType.v4_03:
                     eType = VertexAttribPointerType.Float;
                     compCount = 4;
                     size = Marshal.SizeOf(default(Vec4f));
                     break;
-                case VertexUserType.c4_01:
-                case VertexUserType.c4_02:
-                case VertexUserType.c4_03:
+                case VertexComponentType.c4_01:
+                case VertexComponentType.c4_02:
+                case VertexComponentType.c4_03:
                     eType = VertexAttribPointerType.Float;
                     compCount = 4;
                     size = Marshal.SizeOf(default(Vec4f));
                     break;
-                case VertexUserType.c3_01:
-                case VertexUserType.c3_02:
-                case VertexUserType.c3_03:
+                case VertexComponentType.c3_01:
+                case VertexComponentType.c3_02:
+                case VertexComponentType.c3_03:
                     eType = VertexAttribPointerType.Float;
                     compCount = 3;
                     size = Marshal.SizeOf(default(Vec4f));  //**Look at the size: Vec4f - OpenGL requires components to be 64 byte aligned.
                     break;
-                case VertexUserType.n3_01:
-                case VertexUserType.n3_02:
-                case VertexUserType.n3_03:
+                case VertexComponentType.n3_01:
+                case VertexComponentType.n3_02:
+                case VertexComponentType.n3_03:
                     eType = VertexAttribPointerType.Float;
                     compCount = 3;
                     size = Marshal.SizeOf(default(Vec4f));  //**Look at the size: Vec4f  - OpenGL requires components to be 64 byte aligned.
                     break;
-                case VertexUserType.x2_01:
-                case VertexUserType.x2_02:
-                case VertexUserType.x2_03:
+                case VertexComponentType.x2_01:
+                case VertexComponentType.x2_02:
+                case VertexComponentType.x2_03:
                     eType = VertexAttribPointerType.Float;
                     compCount = 2;
                     size = Marshal.SizeOf(default(Vec4f));  //**Look at the size: Vec4f  - OpenGL requires components to be 64 byte aligned.
                     break;
-                case VertexUserType.i2_01:
-                case VertexUserType.i2_02:
-                case VertexUserType.i2_03:
+                case VertexComponentType.i2_01:
+                case VertexComponentType.i2_02:
+                case VertexComponentType.i2_03:
                     eType = VertexAttribPointerType.Int;
                     compCount = 2;
                     size = Marshal.SizeOf(default(Vec2f));
                     break;
-                case VertexUserType.u2_01:
-                case VertexUserType.u2_02:
-                case VertexUserType.u2_03:
+                case VertexComponentType.u2_01:
+                case VertexComponentType.u2_02:
+                case VertexComponentType.u2_03:
                     eType = VertexAttribPointerType.UnsignedInt;
                     compCount = 2;
                     size = Marshal.SizeOf(default(uVec2f));
@@ -238,12 +316,12 @@ namespace PirateCraft
                     throw new Exception("Vertex user type not impelmented.");
             }
 
-            AddComponent(eType, compCount, size, eUserType);
+            AddComponent(eType, compCount, size, eUserType, name);
         }
         public void AddComponent(VertexAttribPointerType type, int componentCount,
-            int size, VertexUserType eUserType = VertexUserType.NoVertexType)
+            int size, VertexComponentType eUserType = VertexComponentType.NoVertexType, string name = "")
         {
-            foreach (KeyValuePair<VertexUserType, VertexComponent> entry in Components)
+            foreach (KeyValuePair<VertexComponentType, VertexComponent> entry in Components)
             {
                 if (entry.Value.UserType == eUserType)
                 {
@@ -257,9 +335,10 @@ namespace PirateCraft
             cmp.SizeBytes = size;
             cmp.UserType = eUserType;
             cmp.AttribLocation = Components.Count;
+            cmp.Name = name;
 
             cmp.ByteOffset = 0;
-            foreach (KeyValuePair<VertexUserType, VertexComponent> entry in Components)
+            foreach (KeyValuePair<VertexComponentType, VertexComponent> entry in Components)
             {
                 cmp.ByteOffset += entry.Value.SizeBytes;
             }
@@ -268,7 +347,7 @@ namespace PirateCraft
 
             //Re-calculate size of vertex
             VertexSizeBytes = 0;
-            foreach (KeyValuePair<VertexUserType, VertexComponent> entry in Components)
+            foreach (KeyValuePair<VertexComponentType, VertexComponent> entry in Components)
             {
                 VertexSizeBytes += entry.Value.SizeBytes;
             }
@@ -360,25 +439,25 @@ namespace PirateCraft
             }
             return 0;
         }
-        public static string GetUserTypeName(VertexUserType eUserType)
+        public static string GetUserTypeName(VertexComponentType eUserType)
         {
             switch (eUserType)
             {
-                case VertexUserType.c4_01:
+                case VertexComponentType.c4_01:
                     return ("Color4f");
-                case VertexUserType.v2_01:
+                case VertexComponentType.v2_01:
                     return ("Position2f");
-                case VertexUserType.v3_01:
+                case VertexComponentType.v3_01:
                     return ("Position3f");
-                case VertexUserType.n3_01:
+                case VertexComponentType.n3_01:
                     return ("Normal3f");
-                case VertexUserType.x2_01:
+                case VertexComponentType.x2_01:
                     return ("Texcoord2f");
-                case VertexUserType.u2_01:
+                case VertexComponentType.u2_01:
                     return ("Unsigned_Int_2");
-                case VertexUserType.v4_01:
-                case VertexUserType.v4_02:
-                case VertexUserType.v4_03:
+                case VertexComponentType.v4_01:
+                case VertexComponentType.v4_02:
+                case VertexComponentType.v4_03:
                     return ("Position4f");
             };
 
@@ -386,19 +465,82 @@ namespace PirateCraft
             return ("Unknown User Type.");
         }
     }
+
+    public enum IndexFormatType
+    {
+        None,
+        Uint16,
+        Uint32
+    }
+    public class IndexFormat
+    {
+        public static readonly IndexFormat IFMT_U32 = new IndexFormat(IndexFormatType.Uint32);
+        public static readonly IndexFormat IFMT_U16 = new IndexFormat(IndexFormatType.Uint16);
+        public int SizeBytes
+        {
+            get
+            {
+                if (IndexFormatType == IndexFormatType.Uint16)
+                {
+                    return 2;
+                }
+                else if (IndexFormatType == IndexFormatType.Uint32)
+                {
+                    return 4;
+                }
+                else
+                {
+                    Gu.BRThrowNotImplementedException();
+                }
+                return 0;
+            }
+        }
+        public IndexFormatType IndexFormatType { get; private set; } = IndexFormatType.Uint32;
+        public IndexFormat(IndexFormatType t)
+        {
+            IndexFormatType = t;
+        }
+        public unsafe dynamic Access(int index, byte[] data)
+        {
+            Gu.Assert(IndexFormatType == IndexFormatType.Uint32);
+            int offset = index * SizeBytes;
+
+            Gu.Assert(offset < data.Length);
+
+            dynamic ret = 0;
+            fixed (byte* dat = data)
+            {
+                if (IndexFormatType == IndexFormatType.Uint16)
+                {
+                    ret = *((UInt16*)(dat + offset));
+                }
+                else if (IndexFormatType == IndexFormatType.Uint32)
+                {
+                    ret = *((UInt32*)(dat + offset));
+                }
+                else
+                {
+                    Gu.BRThrowNotImplementedException();
+                }
+            }
+            return ret;
+        }
+    }
+
+
     [StructLayout(LayoutKind.Sequential)]
-    public struct UtilMeshVert
+    public struct v_v3c4
     {
         public Vec3f _v;
         public float pad1;
         public Vec4f _c;
-        public static int SizeBytes
-        {
-            get { return 12 * 2; }
-        }
+
+        public static VertexFormat VertexFormat = VertexFormat.DeclareVertexFormat("v_v3c4", "v_v3c4");
     }
+
+    [Serializable]
     [StructLayout(LayoutKind.Sequential)]
-    public struct MeshVert
+    public struct v_v3n3x2
     {
         public Vec3f _v;
         public float pad1;
@@ -407,11 +549,7 @@ namespace PirateCraft
         public Vec2f _x;
         public float pad3;
         public float pad4;
-        public static int SizeBytes
-        {
-            get { return 12 * 4; }
-        }
 
-        public static VertexFormat VertexFormat = null;
+        public static VertexFormat VertexFormat = VertexFormat.DeclareVertexFormat("v_v3n3x2", "v_v3n3x2");
     }
 }

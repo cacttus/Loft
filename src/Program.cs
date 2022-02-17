@@ -60,8 +60,8 @@ namespace PirateCraft
                 Texture grass = new Texture(Gu.EmbeddedDataPath + "grass_base.png", true);
 
                 _boxMeshThing = CreateObject("BoxMesh",MeshData.GenBox(1, 1, 1), new Material(noise, Shader.DefaultDiffuse()));
-                CreateObject("TextureFront",MeshData.GenTextureFront(_camera, 0, 0, Width, Height), new Material(peron, Shader.DefaultDiffuse()));
-                CreateObject("Plane.",MeshData.GenPlane(10, 10), new Material(grass, Shader.DefaultDiffuse()));
+             //   CreateObject("TextureFront",MeshData.GenTextureFront(_camera, 0, 0, Width, Height), new Material(peron, Shader.DefaultDiffuse()));
+             //   CreateObject("Plane.",MeshData.GenPlane(10, 10), new Material(grass, Shader.DefaultDiffuse()));
 
                 _boxMeshThing.Position = new Vec3f(0, _boxMeshThing.BoundBox.Height() * 0.5f, 0);
 
@@ -91,14 +91,11 @@ namespace PirateCraft
             //TODO: we might need to use STB here. This is just .. ugh
             try
             {
-
                 //Font f = new Font(ttf_loc);
                 //System.Drawing.Bitmap b = f.RenderString("Hello World");
                 //b.Save("./test.bmp");
                 //var fff = b.RawFormat;
                 //var ffff = b.PixelFormat;
-
-
                 //System.Console.WriteLine("whate");
                 //System.Console.WriteLine(System.IO.Directory.GetCurrentDirectory());
                 //NRasterizer.OpenTypeReader r = new NRasterizer.OpenTypeReader();
@@ -134,6 +131,11 @@ namespace PirateCraft
             if (keyState.IsKeyDown(Key.Escape))
             {
                 Exit();
+            }
+            if (Gu.Window.PCKeyboard.KeyPress(Key.Number1)){
+              // _boxMeshThing.Mesh.BeginEdit(0, 1);
+              // MeshVert v= _boxMeshThing.Mesh.EditVert(0);
+              // _boxMeshThing.Mesh.EndEdit();
             }
             if (Gu.Window.PCKeyboard.AnyKeysPressedOrHeld(new List<Key>() { Key.Up, Key.W }))
             {

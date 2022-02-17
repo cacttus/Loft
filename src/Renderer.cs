@@ -79,27 +79,11 @@ namespace PirateCraft
                 tex.Bind();
                 GL.ActiveTexture(TextureUnit.Texture0);
             }
-            Gu.CheckGpuErrorsDbg();
-            if (!GL.IsVertexArray(ms._intVaoId))
-            {
-                Gu.Log.Error("Mesh was not a VAO.");
-                return;
-            }
-            GL.BindVertexArray(ms._intVaoId);
+
             Gu.CheckGpuErrorsDbg();
             shader.Bind();
-            GL.DrawElements(PrimitiveType.Triangles,
-                            ms.IndexCount,
-                            DrawElementsType.UnsignedInt,
-                            IntPtr.Zero
-                            );
-
-            GL.BindVertexArray(0);
+            ms.Draw();
             shader.Unbind();
-
-            // GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
-            //  GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
-
             Gu.CheckGpuErrorsDbg();
 
             if (tex != null)
