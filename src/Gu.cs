@@ -16,225 +16,225 @@ using OpenTK.Graphics.OpenGL;
 
 namespace PirateCraft
 {
-  // Global Utils. static lcass
-  public static class Gu
-  {
-    private static Dictionary<GameWindow, WindowContext> Contexts = new Dictionary<GameWindow, WindowContext>();
+   // Global Utils. static lcass
+   public static class Gu
+   {
+      private static Dictionary<GameWindow, WindowContext> Contexts = new Dictionary<GameWindow, WindowContext>();
 
-    //This will be gotten via current context if we have > 1
-    public static CoordinateSystem CoordinateSystem { get; set; } = CoordinateSystem.Rhs;
-    public static EngineConfig EngineConfig { get; set; } = new EngineConfig();
-    public static Log Log { get; set; } = new Log("./logs/");
-    public static WindowContext Window { get; private set; }
-    public static readonly string EmbeddedDataPath = "PirateCraft.data.";
-    public static World World = new World();
+      //This will be gotten via current context if we have > 1
+      public static CoordinateSystem CoordinateSystem { get; set; } = CoordinateSystem.Rhs;
+      public static EngineConfig EngineConfig { get; set; } = new EngineConfig();
+      public static Log Log { get; set; } = new Log("./logs/");
+      public static WindowContext CurrentWindowContext { get; private set; }
+      public static readonly string EmbeddedDataPath = "PirateCraft.data.";
+      public static World World = new World();
 
-    // public static PCKeyboard Keyboard { get { return Context.PCKeyboard; } }//If we have more than one context this will change.
-    //public static double Delta { get { return Context.Delta; } }//If we have more than one context this will change.
-    public static Bitmap CreateBitmapARGB(int width, int height, byte[] pixels)
-    {
-      Bitmap b = new Bitmap(width, width, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-      BitmapData bmpData = b.LockBits(new Rectangle(0, 0, width, width),
-                                      ImageLockMode.WriteOnly,
-                                      b.PixelFormat);
-
-      IntPtr ptr = bmpData.Scan0;
-
-      int bytes = bmpData.Stride * b.Height;
-      var rgbValues = new byte[bytes];
-
-      rgbValues[0] = 255;
-      rgbValues[1] = 255;
-      rgbValues[2] = 255;
-      rgbValues[3] = 255;
-
-      Marshal.Copy(rgbValues, 0, ptr, bytes);
-      b.UnlockBits(bmpData);
-      return b;
-    }
-    private static void RegisterContext(GameWindow g)
-    {
-      Contexts.Add(g, new WindowContext(g));
-    }
-    public static void SetContext(GameWindow g)
-    {
-      WindowContext c = null;
-      if (Contexts.TryGetValue(g, out c))
+      // public static PCKeyboard Keyboard { get { return Context.PCKeyboard; } }//If we have more than one context this will change.
+      //public static double Delta { get { return Context.Delta; } }//If we have more than one context this will change.
+      public static Bitmap CreateBitmapARGB(int width, int height, byte[] pixels)
       {
-        Window = c;
+         Bitmap b = new Bitmap(width, width, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+         BitmapData bmpData = b.LockBits(new Rectangle(0, 0, width, width),
+                                         ImageLockMode.WriteOnly,
+                                         b.PixelFormat);
+
+         IntPtr ptr = bmpData.Scan0;
+
+         int bytes = bmpData.Stride * b.Height;
+         var rgbValues = new byte[bytes];
+
+         rgbValues[0] = 255;
+         rgbValues[1] = 255;
+         rgbValues[2] = 255;
+         rgbValues[3] = 255;
+
+         Marshal.Copy(rgbValues, 0, ptr, bytes);
+         b.UnlockBits(bmpData);
+         return b;
       }
-      else
+      private static void RegisterContext(GameWindow g)
       {
-        Gu.BRThrowException("Context for game window " + g.Title + " not found.");
+         Contexts.Add(g, new WindowContext(g));
       }
-    }
-    public static void BRThrowException(string msg)
-    {
-      throw new Exception("Error: " + msg);
-    }
-
-    public static void BRThrowNotImplementedException()
-    {
-      throw new NotImplementedException();
-    }
-
-    public static void Init(GameWindow g)
-    {
-      Gu.Log.Info("Initializing Globals");
-      RegisterContext(g);
-      SetContext(g);
-    }
-    public static string ReadTextFile(string location, bool embedded)
-    {
-      string data = "";
-
-      if (embedded)
+      public static void SetContext(GameWindow g)
       {
-        using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(location))
-        using (StreamReader reader = new StreamReader(stream))
-        {
-          data = reader.ReadToEnd();
-        }
+         WindowContext c = null;
+         if (Contexts.TryGetValue(g, out c))
+         {
+            CurrentWindowContext = c;
+         }
+         else
+         {
+            Gu.BRThrowException("Context for game window " + g.Title + " not found.");
+         }
       }
-      else
+      public static void BRThrowException(string msg)
       {
-        Assert(System.IO.File.Exists(location));
-        using (Stream stream = File.Open(location, FileMode.Open, FileAccess.Read, FileShare.None))
-        using (StreamReader reader = new StreamReader(stream))
-        {
-          data = reader.ReadToEnd();
-        }
+         throw new Exception("Error: " + msg);
       }
 
-      return data;
-    }
-    public static Bitmap LoadBitmap(string path, bool embedded)
-    {
-      Bitmap b = null;
-      if (embedded)
+      public static void BRThrowNotImplementedException()
       {
-        using (var fs = Assembly.GetExecutingAssembly().GetManifestResourceStream(path))
-        {
-          if (fs != null)
-          {
-            b = new Bitmap(fs);
-          }
-        }
+         throw new NotImplementedException();
       }
-      else
+
+      public static void Init(GameWindow g)
       {
-        if (!System.IO.File.Exists(path))
-        {
-          throw new Exception("File " + path + " does not exist.");
-        }
-        b = new Bitmap(path);
+         Gu.Log.Info("Initializing Globals");
+         RegisterContext(g);
+         SetContext(g);
       }
-      if (b == null)
+      public static string ReadTextFile(string location, bool embedded)
       {
-        Gu.BRThrowException("Failed to load image file " + path);
+         string data = "";
+
+         if (embedded)
+         {
+            using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(location))
+            using (StreamReader reader = new StreamReader(stream))
+            {
+               data = reader.ReadToEnd();
+            }
+         }
+         else
+         {
+            Assert(System.IO.File.Exists(location));
+            using (Stream stream = File.Open(location, FileMode.Open, FileAccess.Read, FileShare.None))
+            using (StreamReader reader = new StreamReader(stream))
+            {
+               data = reader.ReadToEnd();
+            }
+         }
+
+         return data;
       }
-      return b;
-    }
-    //public static string ReadTextFileSafe(string location)
-    //{
-    //    string data = "";
-    //    byte[] bytes = null;
-    //    int readed = 0;
-    //    using (var fs = File.Open(location, FileMode.Open, FileAccess.Read, FileShare.None))
-    //    {
-    //        if (fs != null)
-    //        {
-    //            bytes = new byte[fs.Length];
-    //            readed = fs.Read(bytes, 0, (int)fs.Length);
-    //        }
-    //    }
-    //    if (bytes != null && readed > 0)
-    //    {
-    //        data = Encoding.Default.GetString(bytes);
-    //    }
-    //    else
-    //    {
-    //        Gu.BRThrowException("Failed to load file " + location);
-    //    }
-    //    return data;
-    //}
-    public static Int64 Nanoseconds()
-    {
-      return DateTime.UtcNow.Ticks * 100;
-    }
-    public static Int64 Microseconds()
-    {
-      return Nanoseconds() / 1000;
-    }
-    public static void CheckGpuErrorsRt()
-    {
-      ErrorCode c = GL.GetError();
-      if (c != ErrorCode.NoError)
+      public static Bitmap LoadBitmap(string path, bool embedded)
       {
-        if (Gu.EngineConfig.LogErrors)
-        {
-          Log.Error("OpenGL Error " + c.ToString());
-        }
-        if (Gu.EngineConfig.BreakOnOpenGLError)
-        {
-          System.Diagnostics.Debugger.Break();
-        }
+         Bitmap b = null;
+         if (embedded)
+         {
+            using (var fs = Assembly.GetExecutingAssembly().GetManifestResourceStream(path))
+            {
+               if (fs != null)
+               {
+                  b = new Bitmap(fs);
+               }
+            }
+         }
+         else
+         {
+            if (!System.IO.File.Exists(path))
+            {
+               throw new Exception("File " + path + " does not exist.");
+            }
+            b = new Bitmap(path);
+         }
+         if (b == null)
+         {
+            Gu.BRThrowException("Failed to load image file " + path);
+         }
+         return b;
       }
-    }
-    public static void CheckGpuErrorsDbg()
-    {
+      //public static string ReadTextFileSafe(string location)
+      //{
+      //    string data = "";
+      //    byte[] bytes = null;
+      //    int readed = 0;
+      //    using (var fs = File.Open(location, FileMode.Open, FileAccess.Read, FileShare.None))
+      //    {
+      //        if (fs != null)
+      //        {
+      //            bytes = new byte[fs.Length];
+      //            readed = fs.Read(bytes, 0, (int)fs.Length);
+      //        }
+      //    }
+      //    if (bytes != null && readed > 0)
+      //    {
+      //        data = Encoding.Default.GetString(bytes);
+      //    }
+      //    else
+      //    {
+      //        Gu.BRThrowException("Failed to load file " + location);
+      //    }
+      //    return data;
+      //}
+      public static Int64 Nanoseconds()
+      {
+         return DateTime.UtcNow.Ticks * 100;
+      }
+      public static Int64 Microseconds()
+      {
+         return Nanoseconds() / 1000;
+      }
+      public static void CheckGpuErrorsRt()
+      {
+         ErrorCode c = GL.GetError();
+         if (c != ErrorCode.NoError)
+         {
+            if (Gu.EngineConfig.LogErrors)
+            {
+               Log.Error("OpenGL Error " + c.ToString());
+            }
+            if (Gu.EngineConfig.BreakOnOpenGLError)
+            {
+               System.Diagnostics.Debugger.Break();
+            }
+         }
+      }
+      public static void CheckGpuErrorsDbg()
+      {
 #if DEBUG
-      CheckGpuErrorsRt();
+         CheckGpuErrorsRt();
 #endif
-    }
-    public static void Assert(bool x, [CallerLineNumber] int lineNumber = 0, [CallerMemberName] string caller = null)
-    {
-      if (!x)
-      {
-        throw new Exception("Assertion failed: " + caller + ":" + lineNumber.ToString());
       }
-    }
-    public static void DebugBreak()
-    {
-      Debugger.Break();
-    }
-    public static T GetRef<T>(WeakReference<T> v) where T : class
-    {
-      if (v == null)
+      public static void Assert(bool x, [CallerLineNumber] int lineNumber = 0, [CallerMemberName] string caller = null)
       {
-        return null;
+         if (!x)
+         {
+            throw new Exception("Assertion failed: " + caller + ":" + lineNumber.ToString());
+         }
       }
-      T wr = default(T);
-      v.TryGetTarget(out wr);
-      return wr;
-    }
-    //This does not work for me. Error that MeshVert can't be converted as it's unmanaged.
-    // public static byte[] StructureToByteArray(object obj)
-    // {
-    //   //https://stackoverflow.com/questions/4107359/c-convert-list-of-simple-structs-to-byte
-    //   int length = Marshal.SizeOf(obj);
-    //   byte[] data = new byte[length];
-    //   IntPtr ptr = Marshal.AllocHGlobal(length);
-    //   Marshal.StructureToPtr(obj, ptr, true);
-    //   Marshal.Copy(ptr, data, 0, length);
-    //   Marshal.FreeHGlobal(ptr);
-    //   return data;
-    // }
-    //[DllImport("kernel32.dll", EntryPoint = "CopyMemory", SetLastError = false)]
-    //private static unsafe extern void CopyMemory(void* dest, void* src, int count);
+      public static void DebugBreak()
+      {
+         Debugger.Break();
+      }
+      public static T GetRef<T>(WeakReference<T> v) where T : class
+      {
+         if (v == null)
+         {
+            return null;
+         }
+         T wr = default(T);
+         v.TryGetTarget(out wr);
+         return wr;
+      }
+      //This does not work for me. Error that MeshVert can't be converted as it's unmanaged.
+      // public static byte[] StructureToByteArray(object obj)
+      // {
+      //   //https://stackoverflow.com/questions/4107359/c-convert-list-of-simple-structs-to-byte
+      //   int length = Marshal.SizeOf(obj);
+      //   byte[] data = new byte[length];
+      //   IntPtr ptr = Marshal.AllocHGlobal(length);
+      //   Marshal.StructureToPtr(obj, ptr, true);
+      //   Marshal.Copy(ptr, data, 0, length);
+      //   Marshal.FreeHGlobal(ptr);
+      //   return data;
+      // }
+      //[DllImport("kernel32.dll", EntryPoint = "CopyMemory", SetLastError = false)]
+      //private static unsafe extern void CopyMemory(void* dest, void* src, int count);
 
-    //public static unsafe byte[] Serialize<T>(T[] objs)
-    //{
-    //    var buffer = new byte[Marshal.SizeOf(typeof(T)) * objs.Length];
-    //    fixed (void* d = &buffer[0])
-    //    {
-    //        fixed (void* s = &objs[0])
-    //        {
-    //            CopyMemory(d, s, buffer.Length);
-    //        }
-    //    }
+      //public static unsafe byte[] Serialize<T>(T[] objs)
+      //{
+      //    var buffer = new byte[Marshal.SizeOf(typeof(T)) * objs.Length];
+      //    fixed (void* d = &buffer[0])
+      //    {
+      //        fixed (void* s = &objs[0])
+      //        {
+      //            CopyMemory(d, s, buffer.Length);
+      //        }
+      //    }
 
-    //    return buffer;
-    //}
-  }
+      //    return buffer;
+      //}
+   }
 }

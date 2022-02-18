@@ -31,9 +31,9 @@ namespace PirateCraft
     }
     public void BeginRender(double dt, Camera3D camera, Mat4f model_matrix)
     {
-      Gu.Window.Gpu.GpuRenderState.CullFace = GpuRenderState.CullFace;
-      Gu.Window.Gpu.GpuRenderState.DepthTest = GpuRenderState.DepthTest;
-      Gu.Window.Gpu.GpuRenderState.ScissorTest = GpuRenderState.ScissorTest;
+      Gu.CurrentWindowContext.Gpu.GpuRenderState.CullFace = GpuRenderState.CullFace;
+      Gu.CurrentWindowContext.Gpu.GpuRenderState.DepthTest = GpuRenderState.DepthTest;
+      Gu.CurrentWindowContext.Gpu.GpuRenderState.ScissorTest = GpuRenderState.ScissorTest;
       Shader.UpdateAndBind(dt, camera, model_matrix);
     }
     public void EndRender()

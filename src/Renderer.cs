@@ -45,7 +45,7 @@ namespace PirateCraft
         {
             RenderState = RenderPipelineState.End;
             Gu.CheckGpuErrorsRt();
-            Gu.Window.GameWindow.SwapBuffers();
+            Gu.CurrentWindowContext.GameWindow.SwapBuffers();
         }
         private static void SetInitialGpuRenderState()
         {
