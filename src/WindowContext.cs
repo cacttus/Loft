@@ -1,4 +1,6 @@
 ﻿using OpenTK;
+using System;
+
 namespace PirateCraft
 {
     //Graphics Contxt + Window Frame Sync
@@ -10,7 +12,7 @@ namespace PirateCraft
         public GameWindow GameWindow { get; set; } = null;
         public double Delta { get; private set; } = 0;
         public PCKeyboard PCKeyboard = new PCKeyboard();
-        public long FrameStamp { get; private set; }
+        public UInt64 FrameStamp { get; private set; }
 
         public WindowContext(GameWindow g)
         {

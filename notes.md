@@ -1,5 +1,8 @@
-﻿WO - Debug Meshes
-    Need generic shader uniforms to map _ufObjectColor to the correct data.
+﻿
+WO - PVS for objects and globs
+     textures for glob meshs.
+     destroy globs.
+    
     
 * Roadmap
     * Goal is minecraft looking thing - must have
@@ -38,39 +41,6 @@
     * Real materials "closure" with PBR materials 
         * Marble. Metal.
     
-
-
-
-
-
-
-InlineMeshData : MeshData(v_v3c4, null, null)
-  List<v_v3c4> verts;
-
-var mm = new InlineMeshData()
-
-mm.Begin(GL_LINES)
-  verts.clear()
-mm.vert(new Vec3(..), new Vec4(..))
-  verts.add()
-mm.End()
-  Buffer b
-  foreach vert : verts
-
-  
-
-
-Material im = new Material("layout (location=0) in vec3 v; .. ", "fragColor=color");
-
-WorldObject wo = new WorldObject("MyMesh");
-wo.geometry = mm;
-wo.material = im;
-
-wo.geometry.BeginEdit()
-wo.geometry.EndEdit()
-
-
-
 
 Next task is to make meshdata accept a byte buffer and make it generic and accept a vertexformat instead.
 Then utilmesh so we can creat3e verts
@@ -143,171 +113,7 @@ Next question is how they actually compile all these shaders together. They actu
  If there is no input into the Principled BSDF then a color is used
  So for pixel shader we have a limited set of inputs, the principled, then colors, or, images in them.
  Principled BSDF defines all these no need to make our own.
- 
-GlobCompressor 
-{
-    //Waaaay later. This should be easy enough thugh.
-    public UInt64[] CompressGlob(Uint64[] data
-    {
-        //Huffman
-        //build tree
-        //walk.
-        //done.
-    }
-}
 
-using Block = System.UInt32;
- 
- class BlockDensity {
-    public byte Positive = 0x00;
-    public byte Negative = 0x01;
- }
- class BlockItemCode {
-    public byte Invalid = 0x00;
-    public byte Grass = 0x01;
-    public byte Dirt = 0x02;
- }
- Glob
- {
-    public Mesh _transparent = null;
-    public Mesh _opaque = null;
-    public Block[] _blocks = null;
-    public iVec3f _size = new iVec3f(0,0,0);
-    
-    Glob() {
-    }
-        
-    void Update()
-    {
-    
-    }
- }
-   
- GlobWorld
- {
-    public const float RenderRadius = 500.0f;
-    public const float BlockSizeX = 1.0f;
-    public const float BlockSizeY = 1.0f;
-    public const float BlockSizeZ = 1.0f;
-    public const int GlobBlocksX = 16;
-    public const int GlobBlocksY = 16;
-    public const int GlobBlocksZ = 16;
-      
-    Dictionary<iVec3f, Glob> _globs = new D<iVec3f,Glob>();
-    
-    public Vec3f GetGlobOriginFromGlobIndex(iVec3f idx)
-    {
-        //Global space 
-    }
-    public uint GetGlobRelativeBlockIndex(iVec3f relative_block_idx)
-    {
-        //Glob space
-    }
-    public Block PackBlock(BlockItemCode code, BlockDensity density){
-        // <-----Unused-------> ItemCode   Density
-        // [........][........][........][........]
-        //                32 bits 
-        Block ret=0;
-        ret = code << 8 | density;
-        return ret;
-    }
-    Glob GenerateGlob(iVec3f xyz) 
-    {
-        //Freedomcraft
-    
-        Vec3f globOrigin = GetGlobOriginFromGlobIndex(xyz);
-        
-        Vec3f halfBlock = new Vec3f(BlockSizeX*0.5f,BlockSizeY*0.5f,BlockSizeZ*0.5f);
-        
-        Glob g = new Glob();
-        g._blocks = new Block[GlobWorld.GlobBlocksZ * GlobWorld.GlobBlocksZ * size.Z + GlobWorld.GlobBlocksY * size.Y + size.x];
-            
-        for(int z = 0; z< GlobBlocksZ; z++)
-        {
-            for(int y = 0; y< GlobBlocksY; y++) 
-            {
-                for(int x = 0; x< GlobBlocksX; x++) 
-                {
-                    uint bidx = GetGlobRelativeBlockIndex(x,y,z);
-                
-                    //noise in the block center.
-                    Vec3f noise_pt = globOrigin +  new Vec3f(x * BlockSizeX, y*BlockSizeY, z*BlockSizeZ) + halfBlock;
-
-                    if(Noise.Noise(noise_pt) > 0)
-                    {
-                        g._blocks[bidx] = PackBlock(BlockItemCode.Grass, BlockDensity.Positive);
-                    }
-                    else
-                    {
-                        g._blocks[bidx] = 0;
-                    }
-                 }
-             }
-         }
-    }
-    Update() 
-    {
-        Box3i = (player pos - Vec3f(render radius) ,player pos + Vec3f(render radius))
-    
-        //Make globs
-        for(int z= ibox.min.Z; z< ibox.max.Z; z++)
-        {
-            for(int y= ibox.min.Y; y< ibox.max.Y; y++)
-            {
-                for(int x= ibox.min.X; x< ibox.max.X; x++)
-                {
-                    GenerateGlob(x,y,z)
-                }
-            }
-        }
-        
-        //Destroy globs
-        for all globs in _globs
-        {
-           if( min point of glob BB is > this.RenderRadius)
-           {
-              // Destroy abandoned blocks after a certain time.
-              if(g.Loaded)
-              {
-                 g.AbandonTime = Current_Time
-                 g.Loaded = false;
-              }
-           }
-        }
-        
-        for all globs
-        {
-        if g.Loaded == false
-            if g.AbandonTime > 3 seconds or so.
-                remove g from globs.
-                unload mesh data
-                
-        }
-    }
- }
- 
- //Let awareness be the render distance. Camera Z
-
-
-
-    collect visible nodes
-            
- ob - world - one object
-    ob - meshdatas  < loaded cells.
-
-jnot sure
-
-so we need to get a way to make more general meshes first - 
-debug / util mesh is super important
-debug 
-v c 
-obj
-v t n 
-and many maps.
-cell
-v t n cell id, etc .
-ShaderBuilder - kind of like the node thing
-so if you add a texutre map, you get a texture attribute
 
 GPU_stack_link takes a shader function as a parameter
 

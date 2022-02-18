@@ -145,15 +145,15 @@ namespace PirateCraft
                 {
                     if (comp.ComponentCount == 2)
                     {
-                        ret = *((iVec2f*)(dat + total_offset));
+                        ret = *((ivec2*)(dat + total_offset));
                     }
                     else if (comp.ComponentCount == 3)
                     {
-                        ret = *((iVec3f*)(dat + total_offset));
+                        ret = *((ivec3*)(dat + total_offset));
                     }
                     else if (comp.ComponentCount == 4)
                     {
-                        ret = *((iVec4f*)(dat + total_offset));
+                        ret = *((ivec3*)(dat + total_offset));
                     }
                     else
                     {

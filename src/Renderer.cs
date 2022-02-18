@@ -8,6 +8,7 @@ using Vec2f = OpenTK.Vector2;
 using Vec3f = OpenTK.Vector3;
 using Vec4f = OpenTK.Vector4;
 using Mat4f = OpenTK.Matrix4;
+using System.Collections.Generic;
 
 namespace PirateCraft
 {
@@ -64,8 +65,37 @@ namespace PirateCraft
          GL.Enable(EnableCap.DepthTest);
          GL.Enable(EnableCap.ScissorTest);
       }
+      public static void Render(Camera3D cam, List<MeshData> meshes, Material m)
+      {
+         //Render a single material to a group of meshes (faster)
+         Gu.Assert(m != null);
+         m.GpuRenderState.SetState();
+         Gu.Assert(RenderState == RenderPipelineState.Begin);
+
+         if (m.Texture != null)
+         {
+            //TODO material
+            m.Texture.Bind();
+            GL.ActiveTexture(TextureUnit.Texture0);
+         }
+
+         Gpu.CheckGpuErrorsDbg();
+         m.Shader.Bind();
+         foreach(MeshData mesh in meshes)
+         {
+            mesh.Draw();
+         }
+         m.Shader.Unbind();
+         Gpu.CheckGpuErrorsDbg();
+
+         if (m.Texture != null)
+         {
+            m.Texture.Unbind();
+         }
+      }
       public static void Render(Camera3D cam, WorldObject ob, Material m)
       {
+         //Render single material to a single object with object data included
          Gu.Assert(m != null);
          m.GpuRenderState.SetState();
          Render(cam, ob.Mesh, m.Shader, m.Texture);
@@ -73,6 +103,7 @@ namespace PirateCraft
       //We're using instanced rendering so vs sohuld be instanced as well.
       private static void Render(Camera3D bc, MeshData ms, Shader shader, Texture tex)// InstancedVisibleSet vs) << TODO
       {
+         
          Gu.Assert(RenderState == RenderPipelineState.Begin);
 
          if (tex != null)

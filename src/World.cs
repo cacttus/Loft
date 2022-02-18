@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Runtime.InteropServices;
 using System.Collections.Generic;
 using Vec2f = OpenTK.Vector2;
 using Vec3f = OpenTK.Vector3;
@@ -9,17 +10,221 @@ using Quat = OpenTK.Quaternion;
 
 namespace PirateCraft
 {
+   public class BlockItemCode
+   {
+      //Blocks
+      public const ushort Empty = 0x00;
+      public const ushort Grass = 0x01;
+      public const ushort Dirt = 0x02;
+      //Items
+      //...
+   }
+   //The effigious block
+   [StructLayout(LayoutKind.Sequential)]
+   public struct Block
+   {
+      public Block(UInt16 val) { Value = val; }
+      public UInt16 Value;
+      public bool HasDensity()
+      {
+         return Value != 0;
+      }
+      public bool IsItem()
+      {
+         //Items are special case cullables since they may not, or may cull entire faces.
+         return false;
+      }
+      public bool IsSolidBlockNotTransparent()
+      {
+         //This should return whether the block is a solid (non-item) non-transparent block. 
+         // Used for face culling.
+         //Technically it should index into a LUT to see whether this block-item is solid or not.
+         //For now - we are just rendering blocks so we can return HasDensity for this.
+         return HasDensity();
+      }
+   }
+   //Unit box for creating mesh cubes
+   class UnitBoxMeshData
+   {
+      private static Vec3f[] bx_box = new Vec3f[8];
+      private static Vec3f[] bx_norms = new Vec3f[6];//lrbtaf
+      private static Vec2f[] bx_texs = new Vec2f[4];
+      public static v_v3n3x2[,] bx_verts_face { get; private set; } = new v_v3n3x2[6, 4];//lrbtaf
+      public static uint[] bx_face_inds { get; private set; }
+
+      public static void Generate()
+      {
+         //Left Righ, Botom top, back front
+         float w2 = 1, h2 = 1, d2 = 1;
+         bx_box[0] = new Vec3f(0, 0, 0);
+         bx_box[1] = new Vec3f(w2, 0, 0);
+         bx_box[2] = new Vec3f(0, h2, 0);
+         bx_box[3] = new Vec3f(w2, h2, 0);
+         bx_box[4] = new Vec3f(0, 0, d2);
+         bx_box[5] = new Vec3f(w2, 0, d2);
+         bx_box[6] = new Vec3f(0, h2, d2);
+         bx_box[7] = new Vec3f(w2, h2, d2);
+
+         bx_norms[0] = new Vec3f(-1, 0, 0);
+         bx_norms[1] = new Vec3f(1, 0, 0);
+         bx_norms[2] = new Vec3f(0, -1, 0);
+         bx_norms[3] = new Vec3f(0, 1, 0);
+         bx_norms[4] = new Vec3f(0, 0, -1);
+         bx_norms[5] = new Vec3f(0, 0, 1);
+
+         bx_texs[0] = new Vec2f(0, 1);
+         bx_texs[1] = new Vec2f(1, 1);
+         bx_texs[2] = new Vec2f(0, 0);
+         bx_texs[3] = new Vec2f(1, 0);
+
+         //     6       7
+         // 2      3
+         //     4       5
+         // 0      1
+         bx_verts_face[0, 0] = new v_v3n3x2() { _v = bx_box[4], _n = bx_norms[0], _x = bx_texs[0] };
+         bx_verts_face[0, 1] = new v_v3n3x2() { _v = bx_box[0], _n = bx_norms[0], _x = bx_texs[1] };
+         bx_verts_face[0, 2] = new v_v3n3x2() { _v = bx_box[6], _n = bx_norms[0], _x = bx_texs[2] };
+         bx_verts_face[0, 3] = new v_v3n3x2() { _v = bx_box[2], _n = bx_norms[0], _x = bx_texs[3] };
+         bx_verts_face[1, 0] = new v_v3n3x2() { _v = bx_box[1], _n = bx_norms[1], _x = bx_texs[0] };
+         bx_verts_face[1, 1] = new v_v3n3x2() { _v = bx_box[5], _n = bx_norms[1], _x = bx_texs[1] };
+         bx_verts_face[1, 2] = new v_v3n3x2() { _v = bx_box[3], _n = bx_norms[1], _x = bx_texs[2] };
+         bx_verts_face[1, 3] = new v_v3n3x2() { _v = bx_box[7], _n = bx_norms[1], _x = bx_texs[3] };
+         bx_verts_face[2, 0] = new v_v3n3x2() { _v = bx_box[4], _n = bx_norms[2], _x = bx_texs[0] };
+         bx_verts_face[2, 1] = new v_v3n3x2() { _v = bx_box[5], _n = bx_norms[2], _x = bx_texs[1] };
+         bx_verts_face[2, 2] = new v_v3n3x2() { _v = bx_box[0], _n = bx_norms[2], _x = bx_texs[2] };
+         bx_verts_face[2, 3] = new v_v3n3x2() { _v = bx_box[1], _n = bx_norms[2], _x = bx_texs[3] };
+         bx_verts_face[3, 0] = new v_v3n3x2() { _v = bx_box[2], _n = bx_norms[3], _x = bx_texs[0] };
+         bx_verts_face[3, 1] = new v_v3n3x2() { _v = bx_box[3], _n = bx_norms[3], _x = bx_texs[1] };
+         bx_verts_face[3, 2] = new v_v3n3x2() { _v = bx_box[6], _n = bx_norms[3], _x = bx_texs[2] };
+         bx_verts_face[3, 3] = new v_v3n3x2() { _v = bx_box[7], _n = bx_norms[3], _x = bx_texs[3] };
+         bx_verts_face[4, 0] = new v_v3n3x2() { _v = bx_box[0], _n = bx_norms[4], _x = bx_texs[0] };
+         bx_verts_face[4, 1] = new v_v3n3x2() { _v = bx_box[1], _n = bx_norms[4], _x = bx_texs[1] };
+         bx_verts_face[4, 2] = new v_v3n3x2() { _v = bx_box[2], _n = bx_norms[4], _x = bx_texs[2] };
+         bx_verts_face[4, 3] = new v_v3n3x2() { _v = bx_box[3], _n = bx_norms[4], _x = bx_texs[3] };
+         bx_verts_face[5, 0] = new v_v3n3x2() { _v = bx_box[5], _n = bx_norms[5], _x = bx_texs[0] };
+         bx_verts_face[5, 1] = new v_v3n3x2() { _v = bx_box[4], _n = bx_norms[5], _x = bx_texs[1] };
+         bx_verts_face[5, 2] = new v_v3n3x2() { _v = bx_box[7], _n = bx_norms[5], _x = bx_texs[2] };
+         bx_verts_face[5, 3] = new v_v3n3x2() { _v = bx_box[6], _n = bx_norms[5], _x = bx_texs[3] };
+
+         bool flip = true;
+         bx_face_inds = new uint[6] {
+            0,
+            (uint)(flip ? 2 : 3),
+            (uint)(flip ? 3 : 2),
+            0,
+            (uint)(flip ? 3 : 1),
+            (uint)(flip ? 1 : 3)
+         };
+
+      }
+   }
+   //   GlobCompressor 
+   //{
+   //    //Waaaay later. This should be easy enough thugh.
+   //    public UInt64[] CompressGlob(Uint64[] data
+   //    {
+   //      //Huffman
+   //      //build tree
+   //      //walk.
+   //      //done.
+   //   }
+   //}
+   public enum GlobDensityState
+   {
+      Partial, SolidBlocksOnly, SolidItems, Empty_AndNoData//Partial = renderable, Solid = fully solid, Empty = empty
+   }
+   public class Glob
+   {
+      public UInt64 GeneratedFrameStamp { get; private set; } = 0;
+      public MeshData Transparent = null;
+      public MeshData Opaque = null;
+      public Block[] Blocks = null;
+      public ivec3 Pos { get; private set; }
+      public GlobDensityState GlobDensityState = GlobDensityState.Partial;
+      private void AllocateBlocksIfEmpty()
+      {
+         if (Blocks == null)
+         {
+            Blocks = new Block[World.GlobBlocksX * World.GlobBlocksY * World.GlobBlocksZ];
+         }
+      }
+      public Vec3f OriginR3
+      {
+         get
+         {
+            Vec3f r = new Vec3f(Pos.x * World.GlobWidthX, Pos.y * World.GlobWidthY, Pos.z * World.GlobWidthZ);
+            return r;
+         }
+      }
+      public Glob(ivec3 pos, UInt64 genframeStamp)
+      {
+         Pos = pos;
+         GeneratedFrameStamp = genframeStamp;
+      }
+
+      public void SetBlock(int x, int y, int z, Block b)
+      {
+         //We may be empty, in which case we need to reallocate our data. If the block is empty, though, then setting it to empty does nothing, as we are already empty.
+         if (!b.HasDensity() && GlobDensityState == GlobDensityState.Empty_AndNoData)
+         {
+            return;
+         }
+         AllocateBlocksIfEmpty();
+         Blocks[z * World.GlobBlocksX * World.GlobBlocksY + y * World.GlobBlocksX + x] = b;
+      }
+      public Block GetBlock(int x, int y, int z)
+      {
+         //If we are empty, then we have deleted our Block[] data to save space. Return an empty block
+         if (this.GlobDensityState == GlobDensityState.Empty_AndNoData)
+         {
+            return new Block(BlockItemCode.Empty);
+         }
+
+         return Blocks[z * World.GlobBlocksX * World.GlobBlocksY + y * World.GlobBlocksX + x];
+      }
+
+      public void Update()
+      {
+      }
+   }
+   //GlobWorld
    public class World
    {
       private Dictionary<string, WorldObject> Objects { get; set; } = new Dictionary<string, WorldObject>();
 
-      //Public <camera, rendertexture>
-      //Store rendertexture array to each camera.
-      // Update array when camera changes size.
+      public const float RenderRadiusShell = 50.0f;
+      public const float RenderRadiusMax = 50.0f;
+      public const float MaxTotalGlobs = 4096 * 2 * 2;
+      public const float MaxRenderGlobs = 4096;
+      public int MaxGlobsToGeneratePerFrameShell = 10;
+
+      public const float BlockSizeX = 1.0f;
+      public const float BlockSizeY = 1.0f;
+      public const float BlockSizeZ = 1.0f;
+      public const int GlobBlocksX = 16;
+      public const int GlobBlocksY = 16;
+      public const int GlobBlocksZ = 16;
+      public const float GlobWidthX = GlobBlocksX * BlockSizeX;
+      public const float GlobWidthY = GlobBlocksY * BlockSizeY;
+      public const float GlobWidthZ = GlobBlocksZ * BlockSizeZ;
+
+      private bool _firstGeneration = true; //Whether this is the initial generation, where we would need to generate everything around the player.
+      private int _currentShell = 1;
+      private ivec3 playerLastGlob = new ivec3(0, 0, 0);
+
+      Dictionary<ivec3, Glob> _globs = new Dictionary<ivec3, Glob>(new ivec3EqualityComparer()); //All globs
+      Dictionary<ivec3, Glob> _renderGlobs = new Dictionary<ivec3, Glob>(new ivec3EqualityComparer()); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
+
+      //TODO:players
+      public WorldObject player = null;
 
       public World()
       {
+         UnitBoxMeshData.Generate();
       }
+
+      #region Objects
+
       public WorldObject FindObject(string name)
       {
          WorldObject obj = null;
@@ -42,7 +247,7 @@ namespace PirateCraft
          while (FindObject(name_suffix) != null)
          {
             suffix++;
-            name_suffix = name +"-"+ suffix.ToString();
+            name_suffix = name + "-" + suffix.ToString();
          }
          ob.Name = name_suffix;
          Objects.Add(name_suffix, ob);
@@ -70,6 +275,11 @@ namespace PirateCraft
       }
       public void Update(double dt)
       {
+         BuildWorld();
+         UpdateObjects(dt);
+      }
+      private void UpdateObjects(double dt)
+      {
          foreach (var ob in Objects.Values)
          {
             ob.Update(dt);
@@ -79,11 +289,35 @@ namespace PirateCraft
       {
          camera.BeginRender();
          {
-            //TODO: of course we're going to use a bucket collection algorithm. This is in the future.
+            //Objects
+            //TODO: PVS of course we're going to use a bucket collection algorithm. This is in the future.
             foreach (var ob in Objects.Values)
             {
-               DrawOb(ob,Delta,camera);
+               DrawOb(ob, Delta, camera);
             }
+
+            //PVS for globs
+            List<MeshData> visible_op = new List<MeshData>();
+            List<MeshData> visible_tp = new List<MeshData>();
+            foreach (var g in _renderGlobs)
+            {
+               //No PVS, render all at first
+               if (g.Value.Opaque != null)
+               {
+                  visible_op.Add(g.Value.Opaque);
+               }
+               if (g.Value.Transparent != null)
+               {
+                  visible_tp.Add(g.Value.Transparent);
+               }
+            }
+
+            WorldObject dummy = new WorldObject();
+
+            Material m = Material.DefaultDiffuse(); // TODO: Opaque material & Transparent Material
+            m.BeginRender(Delta, camera, dummy);
+            Renderer.Render(camera, visible_op, m);
+            m.EndRender();
          }
          camera.EndRender();
       }
@@ -94,16 +328,432 @@ namespace PirateCraft
             Material mat = ob.Material;
             if (ob.Material == null)
             {
-               mat = Material.Default(ob.Color);
+               mat = Material.DefaultFlatColor();
             }
             mat.BeginRender(Delta, camera, ob);
             Renderer.Render(camera, ob, mat);
             mat.EndRender();
          }
-         foreach(var c in ob.Children)
+         foreach (var c in ob.Children)
          {
-            DrawOb(c,Delta,camera);
+            DrawOb(c, Delta, camera);
          }
       }
+
+      #endregion
+
+      #region Globs
+
+      private void BuildWorld()
+      {
+         Gu.Assert(player != null);
+
+         if (_globs.Count >= MaxTotalGlobs || _renderGlobs.Count >= MaxRenderGlobs)
+         {
+            return;
+         }
+
+         if (_firstGeneration)
+         {
+            playerLastGlob = R3toI3Glob(player.Position);
+         }
+
+         if (Gu.CurrentWindowContext.FrameStamp % 3 == 0)
+         {
+            //Quick-n-dirty "don't kill me"
+            ivec3 newPlayerGlob = R3toI3Glob(player.Position);
+
+            float awareness_radius = RenderRadiusShell * _currentShell;
+
+            Vec3f ppos = player.World.ExtractTranslation();
+            List<Glob> newGlobs = BuildGlobGrid(ppos, awareness_radius);
+
+            if ((newPlayerGlob != playerLastGlob))
+            {
+               _currentShell = 1;
+               playerLastGlob = newPlayerGlob;
+            }
+            else if (newGlobs.Count == 0)
+            {
+               //Only increase shell if we're done generating for this particular shell.
+               _currentShell++;
+            }
+
+            //Prevent unnecessary stitching.
+            foreach (Glob g in newGlobs)
+            {
+               if (g.GlobDensityState != GlobDensityState.Empty_AndNoData)
+               {
+                  //The block is empty, the inside of the block has no topology.
+                  TopologizeGlob(g);
+               }
+               if (g.GlobDensityState != GlobDensityState.SolidBlocksOnly)
+               {
+                  //No neighboring blocks would be visible, so stitchin gisn't needed
+                  StitchGlob(g);
+               }
+            }
+
+         }
+
+         //We are no longer initially generating the world.
+         _firstGeneration = false;
+
+         //TODO: 
+         //   //Destroy globs
+         //   for all globs in _globs
+         //   {
+         //      if (min point of glob BB is > this.RenderRadius)
+         //     {
+         //      // Destroy abandoned blocks after a certain time.
+         //      if (g.Loaded)
+         //      {
+         //         g.AbandonTime = Current_Time
+         //           g.Loaded = false;
+         //      }
+         //   }
+         //}
+
+         //TODO: 
+         //  for all globs
+         //{
+         //  if g.Loaded == false
+         //      if g.AbandonTime > 3 seconds or so.
+         //          remove g from globs.
+         //          unload mesh data
+
+         //}
+
+      }
+      private List<Glob> BuildGlobGrid(Vec3f origin, float awareness_radius)
+      {
+         //Build a grid of globs in the volume specified by origin/radius
+         List<Glob> newGlobs = new List<Glob>();
+
+         //TODO: we use a cube here, we should check against an actual sphere below. It looks nicer.
+         Vec3f awareness = new Vec3f(awareness_radius, awareness_radius, awareness_radius);
+         Box3f bf = new Box3f(origin - awareness, origin + awareness);
+
+         Box3i ibox;
+         ibox._min = new ivec3((int)(bf._min.X / GlobWidthX), (int)(bf._min.Y / GlobWidthY), (int)(bf._min.Z / GlobWidthZ));
+         ibox._max = new ivec3((int)(bf._max.X / GlobWidthX), (int)(bf._max.Y / GlobWidthY), (int)(bf._max.Z / GlobWidthZ));
+
+         for (int z = ibox._min.z; z <= ibox._max.z; z++)
+         {
+            for (int y = ibox._min.y; y <= ibox._max.y; y++)
+            {
+               for (int x = ibox._min.x; x <= ibox._max.x; x++)
+               {
+                  if (_renderGlobs.Count >= MaxRenderGlobs)
+                  {
+                     return newGlobs;
+                  }
+                  if (_globs.Count + newGlobs.Count >= MaxTotalGlobs)
+                  {
+                     return newGlobs;
+                  }
+                  if (newGlobs.Count >= MaxGlobsToGeneratePerFrameShell && _firstGeneration == false)
+                  {
+                     return newGlobs;
+                  }
+
+                  ivec3 gpos = new ivec3(x, y, z);
+                  if (!_globs.ContainsKey(gpos))
+                  {
+                     Glob g = GenerateGlob(gpos);
+                     _globs.Add(gpos, g);
+                     newGlobs.Add(g);
+                  }
+
+               }
+            }
+         }
+         return newGlobs;
+      }
+      private Glob GenerateGlob(ivec3 gpos)
+      {
+         //Density and all that.
+         Glob g = new Glob(gpos, Gu.CurrentWindowContext.FrameStamp);
+         Vec3f globOriginR3 = new Vec3f(GlobWidthX * gpos.x, GlobWidthY * gpos.y, GlobWidthZ * gpos.z);
+
+         bool hasSolid = false;
+         bool hasEmpty = false;
+         bool hasItems = false;//Item blocks would cull based on which sides are culled. This is a special case.
+
+         for (int z = 0; z < GlobBlocksZ; z++)
+         {
+            for (int y = 0; y < GlobBlocksY; y++)
+            {
+               for (int x = 0; x < GlobBlocksX; x++)
+               {
+                  Vec3f block_world = globOriginR3 + new Vec3f(x * BlockSizeX, y * BlockSizeY, z * BlockSizeZ);
+                  var block = new Block(Density(block_world));
+                  if (block.IsSolidBlockNotTransparent())
+                  {
+                     hasSolid = true;
+                  }
+                  else if (block.IsItem())
+                  {
+                     hasItems = true;
+                  }
+                  else
+                  {
+                     hasEmpty = true;
+                  }
+                  g.SetBlock(x, y, z, block);
+               }
+            }
+         }
+
+         if (hasSolid && hasEmpty)
+         {
+            g.GlobDensityState = GlobDensityState.Partial;
+         }
+         else if (hasSolid)
+         {
+            g.GlobDensityState = GlobDensityState.SolidBlocksOnly;
+         }
+         else if (hasEmpty)
+         {
+            //Delete block data to save space for empty globs.
+            g.GlobDensityState = GlobDensityState.Empty_AndNoData;
+            g.Blocks = null;
+         }
+
+         return g;
+      }
+      private Glob GetNeighborGlob(Glob g, int i)
+      {
+         //Gets neighbor i=left,right,bottom,top,back,front
+         Vec3f[] glob_offs = new Vec3f[] {
+            new Vec3f(-World.GlobWidthX, 0, 0),
+            new Vec3f(World.GlobWidthX, 0, 0),
+            new Vec3f(0, -World.GlobWidthY, 0),
+            new Vec3f(0, World.GlobWidthY, 0),
+            new Vec3f(0, 0, -World.GlobWidthZ),
+            new Vec3f(0, 0, World.GlobWidthZ),
+         };
+         Vec3f glob_center_R3 = g.OriginR3 + new Vec3f(World.GlobWidthX * 0.5f, World.GlobWidthY * 0.5f, World.GlobWidthZ * 0.5f);
+         Vec3f neighbor_center_R3 = glob_center_R3 + glob_offs[i];
+         Glob ret = FindGlobR3(neighbor_center_R3);
+         return ret;
+      }
+      private void StitchGlob(Glob g)
+      {
+         for (int ni = 0; ni < 6; ++ni)
+         {
+            Glob gn = GetNeighborGlob(g, ni);
+            if (gn != null)
+            {
+               if (gn.GeneratedFrameStamp == g.GeneratedFrameStamp)
+               {
+                  //They were generated on the same frame, and don't need to be stitched.
+               }
+               else
+               {
+                  //It's way faster to do a cutsom stitching of just the borders, but this is a Q&D thing right now.
+                  TopologizeGlob(gn);
+               }
+            }
+         }
+      }
+      private void TopologizeGlob(Glob g)
+      {
+         bool globTopologyBefore = g.Opaque != null || g.Transparent != null;
+
+         g.Opaque = null;
+         g.Transparent = null;
+         //    6    7
+         // 2    3
+         //    4    5
+         // 0    1
+         //Mesh
+         List<v_v3n3x2> verts = new List<v_v3n3x2>();
+         List<uint> inds = new List<uint>();
+         Vec3f[] face_offs = new Vec3f[] {
+            new Vec3f(-World.BlockSizeX, 0, 0),
+            new Vec3f(World.BlockSizeX, 0, 0),
+            new Vec3f(0, -World.BlockSizeY, 0),
+            new Vec3f(0, World.BlockSizeY, 0),
+            new Vec3f(0, 0, -World.BlockSizeZ),
+            new Vec3f(0, 0, World.BlockSizeZ),
+         };
+
+         for (int z = 0; z < GlobBlocksZ; z++)
+         {
+            for (int y = 0; y < GlobBlocksY; y++)
+            {
+               for (int x = 0; x < GlobBlocksX; x++)
+               {
+                  var b = g.GetBlock(x, y, z);
+                  if (!b.HasDensity())
+                  {
+                     continue;
+                  }
+
+                  for (int face = 0; face < 6; ++face)
+                  {
+                     //Bottom left corner
+                     //This is the exact block center location in R3. It's less efficent but it's easier to use
+                     Vec3f block_pos_rel_R3 = new Vec3f(World.BlockSizeX * x, World.BlockSizeY * y, World.BlockSizeZ * z);
+                     Vec3f block_pos_rel_R3_Center = block_pos_rel_R3 + new Vec3f(World.BlockSizeX * 0.5f, World.BlockSizeY * 0.5f, World.BlockSizeZ * 0.5f);
+                     Vec3f block_pos_abs_R3_Center = block_pos_rel_R3_Center + g.OriginR3;
+                     Vec3f block_pos_abs_R3_Center_Neighbor = block_pos_abs_R3_Center + face_offs[face];
+                     ivec3 v = R3toI3Glob(block_pos_abs_R3_Center_Neighbor);
+                     Block? b_n;
+                     if (v == g.Pos)
+                     {
+                        //We are same glob - globs may not be added to the list yet.
+                        ivec3 bpos = R3toI3BlockLocal(block_pos_abs_R3_Center_Neighbor);
+                        b_n = g.GetBlock(bpos.x, bpos.y, bpos.z);
+                     }
+                     else
+                     {
+                        b_n = GrabBlockR3(block_pos_abs_R3_Center_Neighbor);
+                     }
+
+                     if (b_n == null || b_n.Value.IsSolidBlockNotTransparent())
+                     {
+                        //no verts
+                        int n = 0;
+                        n++;
+                     }
+                     else
+                     {
+                        uint foff = (uint)verts.Count;
+
+                        //Verts + Indexes
+                        Vec3f block_pos_abs_R3 = block_pos_rel_R3 + g.OriginR3;
+                        for (int vi = 0; vi < 4; ++vi)
+                        {
+                           verts.Add(new v_v3n3x2()
+                           {
+                              _v = UnitBoxMeshData.bx_verts_face[face, vi]._v + block_pos_abs_R3,
+                              _n = UnitBoxMeshData.bx_verts_face[face, vi]._n,
+                              _x = UnitBoxMeshData.bx_verts_face[face, vi]._x,
+                           });
+                        }
+
+                        for (int ii = 0; ii < 6; ++ii)
+                        {
+                           inds.Add(foff + UnitBoxMeshData.bx_face_inds[ii]);
+                        }
+
+                     }
+                  }
+
+               }
+            }
+         }
+
+         if (inds.Count > 0)
+         {
+            g.Opaque = new MeshData("", OpenTK.Graphics.OpenGL4.PrimitiveType.Triangles,
+               v_v3n3x2.VertexFormat, Gpu.SerializeGPUData(verts.ToArray()),
+               IndexFormatType.Uint32, Gpu.SerializeGPUData(inds.ToArray())
+               );
+         }
+
+         //Update RenderGlobs
+         bool globTopologyAfter = g.Opaque != null || g.Transparent != null;
+         if (globTopologyBefore && !globTopologyAfter)
+         {
+            _renderGlobs.Remove(g.Pos);
+         }
+         else if (!globTopologyBefore && globTopologyAfter)
+         {
+            _renderGlobs.Add(g.Pos, g);
+         }
+
+      }
+      private Block? GrabBlockR3(Vec3f R3_pos)
+      {
+         Glob g = FindGlobR3(R3_pos);
+         if (g == null)
+         {
+            return null;
+         }
+         ivec3 bpos = R3toI3BlockLocal(R3_pos);
+         Block b = g.GetBlock(bpos.x, bpos.y, bpos.z);
+
+         return b;
+      }
+      ivec3 R3toI3BlockLocal(Vec3f R3)
+      {
+         Vec3f bpos = new Vec3f(); ;
+         if (R3.X < 0)
+         {
+            bpos.X = (float)((Math.Floor(R3.X / World.BlockSizeX) % World.GlobWidthX + World.GlobWidthX) % World.GlobWidthX);
+         }
+         else
+         {
+            bpos.X = (float)(Math.Floor(R3.X / World.BlockSizeX) % 16);
+         }
+         if (R3.Y < 0)
+         {
+            bpos.Y = (float)((Math.Floor(R3.Y / World.BlockSizeY) % World.GlobWidthY + World.GlobWidthY) % World.GlobWidthY);
+         }
+         else
+         {
+            bpos.Y = (float)(Math.Floor(R3.Y / World.BlockSizeY) % 16);
+         }
+         if (R3.Z < 0)
+         {
+            bpos.Z = (float)((Math.Floor(R3.Z / World.BlockSizeZ) % World.GlobWidthZ + World.GlobWidthZ) % World.GlobWidthZ);
+         }
+         else
+         {
+            bpos.Z = (float)(Math.Floor(R3.Z / World.BlockSizeZ) % 16);
+         }
+
+         return new ivec3((int)bpos.X, (int)bpos.Y, (int)bpos.Z);
+      }
+      ivec3 R3toI3Glob(Vec3f R3)
+      {
+         ivec3 gpos = new ivec3(
+            (int)Math.Floor(R3.X / World.GlobWidthX),
+            (int)Math.Floor(R3.Y / World.GlobWidthY),
+            (int)Math.Floor(R3.Z / World.GlobWidthZ));
+         return gpos;
+      }
+      private Glob FindGlobR3(Vec3f R3_pos)
+      {
+         ivec3 gpos = R3toI3Glob(R3_pos);
+
+         Glob g = null;
+         if (_globs.TryGetValue(gpos, out g))
+         {
+            return g;
+         }
+         return null;
+      }
+      private UInt16 Density(Vec3f world_pos)
+      {
+         float d = -world_pos.Y;
+
+         //basic hilly thingy
+         for (int ia = 1; ia <= 4; ++ia)
+         {
+            float a = (float)ia;
+            float f = 1 / a;
+
+            float sign = ia % 2 == 0 ? -1 : 1;//prevent huge hils
+
+            d = d + (sign) * MathUtils.cosf(world_pos.X * 0.1f * f) * 3 * a + (sign) * MathUtils.sinf(world_pos.Z * 0.1f * f) * 3 * a;
+         }
+
+         ushort item = BlockItemCode.Empty;
+         //Yes, other stuff.
+         if (d < 0)
+         {
+            //We have stuff. Default to grassy grass.
+            item = BlockItemCode.Grass;
+         }
+
+         return item;
+      }
+
+      #endregion
+
    }
 }

@@ -1,8 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
-using System.Runtime.InteropServices;
 using OpenTK;
 using OpenTK.Graphics;
 using OpenTK.Graphics.OpenGL4;
@@ -13,7 +10,6 @@ using Vec4f = OpenTK.Vector4;
 using Mat3f = OpenTK.Matrix3;
 using Mat4f = OpenTK.Matrix4;
 using Quat = OpenTK.Quaternion;
-using System.Security.Cryptography;
 
 namespace PirateCraft
 {
@@ -47,7 +43,9 @@ namespace PirateCraft
             Gu.Init(this);
 
             //Cameras
-            _camera = Gu.World.CreateCamera("Camera-001", Width, Height, new Vec3f(0, 0, -10));
+            _camera = Gu.World.CreateCamera("Camera-001", Width, Height, new Vec3f(0, 10, -10));
+
+            Gu.World.player = _camera;
 
             //Textures
             Texture noise = Noise3D.TestNoise();
@@ -64,8 +62,8 @@ namespace PirateCraft
             {
                Gu.World.DestroyObject("BoxMesh-" + i.ToString());
             }
-            //   CreateObject("TextureFront",MeshData.GenTextureFront(_camera, 0, 0, Width, Height), new Material(peron, Shader.DefaultDiffuse()));
-            //   CreateObject("Plane.",MeshData.GenPlane(10, 10), new Material(grass, Shader.DefaultDiffuse()));
+            Gu.World.CreateObject("TextureFront",MeshData.GenTextureFront(_camera, 0, 0, Width, Height), new Material(peron, Shader.DefaultDiffuse()));
+            Gu.World.CreateObject("Plane.",MeshData.GenPlane(10, 10), new Material(grass, Shader.DefaultDiffuse()));
             _boxMeshThing = Gu.World.FindObject("BoxMesh");
             _boxMeshThing.Position = new Vec3f(0, _boxMeshThing.BoundBox.Height() * 0.5f, 0);
 
@@ -82,8 +80,6 @@ namespace PirateCraft
             var db = DebugDraw.CreateBoxLines(new Vec3f(.5f, .5f, .5f), new Vec3f(1, 1, 1), new Vec4f(.2f, .2f, .2f, 1));
             db.Color = new Vec4f(1, 0, 0, 1);
             _boxMeshThing.AddChild(db);
-
-
 
             CursorVisible = true;
          }
@@ -146,21 +142,22 @@ namespace PirateCraft
             // MeshVert v= _boxMeshThing.Mesh.EditVert(0);
             // _boxMeshThing.Mesh.EndEdit();
          }
+         float speed = 10.7f;
          if (Gu.CurrentWindowContext.PCKeyboard.AnyKeysPressedOrHeld(new List<Key>() { Key.Up, Key.W }))
          {
-            _camera.Position += _camera.BasisZ * 0.1f;
+            _camera.Position += _camera.BasisZ * speed * (float)Gu.CurrentWindowContext.Delta;
          }
          if (Gu.CurrentWindowContext.PCKeyboard.AnyKeysPressedOrHeld(new List<Key>() { Key.Down, Key.S }))
          {
-            _camera.Position -= _camera.BasisZ * 0.1f;
+            _camera.Position -= _camera.BasisZ * speed * (float)Gu.CurrentWindowContext.Delta;
          }
          if (Gu.CurrentWindowContext.PCKeyboard.AnyKeysPressedOrHeld(new List<Key>() { Key.Right, Key.D }))
          {
-            _camera.Position -= _camera.BasisX * 0.1f * coordMul;
+            _camera.Position -= _camera.BasisX * speed * coordMul * (float)Gu.CurrentWindowContext.Delta;
          }
          if (Gu.CurrentWindowContext.PCKeyboard.AnyKeysPressedOrHeld(new List<Key>() { Key.Left, Key.A }))
          {
-            _camera.Position += _camera.BasisX * 0.1f * coordMul;
+            _camera.Position += _camera.BasisX * speed * coordMul * (float)Gu.CurrentWindowContext.Delta;
          }
          if (Gu.CurrentWindowContext.PCKeyboard.KeyPress(Key.Number1))
          {
@@ -244,7 +241,7 @@ namespace PirateCraft
 
          Renderer.EndRender();
          //This is big.
-         GC.Collect();
+         //GC.Collect();
          Gpu.FreeGPUMemory(Gu.CurrentWindowContext);
       }
    }
@@ -253,7 +250,7 @@ namespace PirateCraft
       public static void Main(string[] args)
       {
          var m = new MainWindow();
-         m.VSync = OpenTK.VSyncMode.On;
+         m.VSync = OpenTK.VSyncMode.Off;
          m.Run();
       }
    }

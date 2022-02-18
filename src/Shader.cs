@@ -112,6 +112,7 @@ namespace PirateCraft
       public Shader(string name, string vsSrc = "", string psSrc = "", string gsSrc = "")
       {
          Name = name;
+         Gu.Log.Debug("Compiling shader '" + Name + "'");
          Gpu.CheckGpuErrorsDbg();
          {
             State = ShaderLoadState.Loading;

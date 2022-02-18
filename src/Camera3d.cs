@@ -54,9 +54,9 @@ namespace PirateCraft
          _view_w = w;
          _view_h = h;
       }
-      public override void Update(double dt,Box3f parentBoundBox = null)
+      public override void Update(double dt, Box3f? parentBoundBox = null)
       {
-         base.Update(dt,parentBoundBox);
+         base.Update(dt, parentBoundBox);
 
          //Not really necessary to keep calling this unless we change window parameters
          ProjectionMatrix = Mat4f.CreatePerspectiveFieldOfView(FOV, Viewport_Width / Viewport_Height, Near, Far);

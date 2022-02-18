@@ -362,6 +362,7 @@ namespace PirateCraft
       public List<Component> Components { get; private set; } = new List<Component>();
       public List<Constraint> Constraints { get; private set; } = new List<Constraint>();// *This is an ordered list they come in order
 
+      //TODO: make this part of animation component / apply animation in the component update.
       public Quat AnimatedRotation { get; set; } = Quat.Identity;
       public Vec3f AnimatedScale { get; set; } = new Vec3f(1, 1, 1);
       public Vec3f AnimatedPosition { get; set; } = new Vec3f(0, 0, 0);
@@ -394,7 +395,7 @@ namespace PirateCraft
             c.Apply(this);
          }
       }
-      public virtual void Update(double dt, Box3f parentBoundBox = null)
+      public virtual void Update(double dt, Box3f? parentBoundBox = null)
       {
          if (Hidden)
          {
