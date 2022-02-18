@@ -50,32 +50,6 @@ namespace PirateCraft
          GL.BindVertexArray(0);
       }
    }
-   // public class MeshDataInlineEdit : MeshData
-   // {
-   //   private PrimitiveType _primType = PrimitiveType.Lines;
-   //   private List<v_v3c4> _inlineVerts = null;
-   //   MeshDataInlineEdit() : base(v_v3c4.VertexFormat)
-   //   {
-   //   }
-   //   public void Begin(PrimitiveType p = PrimitiveType.Lines)
-   //   {
-   //     _primType = p;
-   //   }
-   //   public void v3c4(Vec3f v, Vec4f c)
-   //   {
-   //     _inlineVerts.Add(new v_v3c4() { _v = v, _c = c });
-   //   }
-   //   public void End()
-   //   {
-   //     foreach (var vert in _inlineVerts)
-   //     {
-
-   //     }
-   //     //CreateBuffers(verts,inds);
-   //     _inlineVerts = null;
-   //   }
-   // }
-
    public class MeshData : DataBlock
    {
       private GPUBuffer _indexBuffer = null;
@@ -97,6 +71,7 @@ namespace PirateCraft
       public MeshData(string name, PrimitiveType pt, VertexFormat fmt, IndexFormatType ifmt = IndexFormatType.None) : base(name)
       {
          Gu.Assert(fmt != null);
+         PrimitiveType = pt;
          VertexFormat = fmt;
          if (ifmt == IndexFormatType.None)
          {
@@ -117,6 +92,7 @@ namespace PirateCraft
       }
       public MeshData(string name, PrimitiveType pt, VertexFormat fmt, GpuDataArray verts, IndexFormatType ifmt = IndexFormatType.None, GpuDataArray indexes = null) : this(name, pt, fmt, ifmt)
       {
+         PrimitiveType = pt;
          if (verts == null || indexes == null)
          {
             Gu.Log.Error("Mesh(): Error: vertexes and indexes null.");
@@ -125,7 +101,7 @@ namespace PirateCraft
       }
       public void Draw()
       {
-         Gu.CheckGpuErrorsDbg();
+         Gpu.CheckGpuErrorsDbg();
          _vao.Bind();
 
          //This is assuming the VAO and all other bindings are already called.
@@ -139,7 +115,7 @@ namespace PirateCraft
                    IntPtr.Zero
                    );
                //This is the big guns
-               Gu.CheckGpuErrorsRt();
+               Gpu.CheckGpuErrorsRt();
             }
             else
             {
@@ -155,7 +131,7 @@ namespace PirateCraft
       }
       public void CreateBuffers(GpuDataArray verts, GpuDataArray indexes = null)
       {
-         Gu.CheckGpuErrorsDbg();
+         Gpu.CheckGpuErrorsDbg();
          _vao = new VertexArrayObject();
 
 
@@ -180,14 +156,20 @@ namespace PirateCraft
             n++;
          }
 
-         Gu.CheckGpuErrorsDbg();
+         Gpu.CheckGpuErrorsDbg();
          GL.BindVertexArray(0);
          GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
          GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
-         Gu.CheckGpuErrorsDbg();
+         Gpu.CheckGpuErrorsDbg();
 
          ComputeBoundBox();
       }
+
+      //private void EditVertex(VertexComponentType comp_type, byte[] comp, byte[] verts)
+      //{
+      //   int voff = VertexFormat.GetComponentOffset(VertexComponentType.v3_01);
+      //   //Essentially copy comp to verts. but ther's an easier way
+      //}
 
       private void ComputeBoundBox()
       {

@@ -1,4 +1,49 @@
-﻿
+﻿WO - Debug Meshes
+    Need generic shader uniforms to map _ufObjectColor to the correct data.
+    
+* Roadmap
+    * Goal is minecraft looking thing - must have
+        * voxel world with textures
+        * grass, trees, top bot textures
+        * infinite render distance
+        * islands
+        * be able to move around, jump (physics)
+
+* Steps
+    * Debug Mesh Inline (to show globs)
+        default debug material
+        flat shaded p3 c4
+        WorldObject    
+
+    * World generation
+        * Glob grid. 
+        * Voxel generator
+        * Voxel struct { Uint16 value; } - packed
+        * Draw voxels as individual meshes
+            * Optimization, some kind of mesh pool.
+    * Textures
+        * Load small textures into a megatexture Pack them with the dist.
+        * Use them as textures, top, bot, side.
+            * Voxel shader (top / bot / side) with mega tex.
+    * Sky
+        * Render just as background thingymajig
+        * Sky dome no background
+        * Environment Map
+        * Equirectangular HDRI
+    * Water
+        * 2nd mesh.
+        * Topology algorithm.
+
+    Improvements
+    * Real materials "closure" with PBR materials 
+        * Marble. Metal.
+    
+
+
+
+
+
+
 InlineMeshData : MeshData(v_v3c4, null, null)
   List<v_v3c4> verts;
 

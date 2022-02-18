@@ -134,5 +134,28 @@ namespace PirateCraft
             }
          }
       }
+      public static void CheckGpuErrorsRt()
+      {
+         ErrorCode c = GL.GetError();
+         if (c != ErrorCode.NoError)
+         {
+            if (Gu.EngineConfig.LogErrors)
+            {
+               Gu.Log.Error("OpenGL Error " + c.ToString());
+            }
+            if (Gu.EngineConfig.BreakOnOpenGLError)
+            {
+               System.Diagnostics.Debugger.Break();
+            }
+         }
+      }
+      public static void CheckGpuErrorsDbg()
+      {
+#if DEBUG
+         CheckGpuErrorsRt();
+#endif
+      }
+
+
    }
 }

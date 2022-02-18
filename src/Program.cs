@@ -71,19 +71,21 @@ namespace PirateCraft
 
             //Animation test
             var cmp = new AnimationComponent();
-            cmp.KeyFrames.Add(new Keyframe(0, Mat3f.CreateRotationY(0).ExtractRotation(), KeyframeInterpolation.Slerp, new Vec3f(0,0,0), KeyframeInterpolation.Ease));
-            cmp.KeyFrames.Add(new Keyframe(1, Mat3f.CreateRotationY((float)(MathUtils.M_PI_2*0.5 - 0.01)).ExtractRotation(), KeyframeInterpolation.Slerp, new Vec3f(0, 1, 0), KeyframeInterpolation.Ease));
-            cmp.KeyFrames.Add(new Keyframe(2, Mat3f.CreateRotationY((float)(MathUtils.M_PI_2 - 0.01)).ExtractRotation(), KeyframeInterpolation.Slerp, new Vec3f(1, 1, 0), KeyframeInterpolation.Ease)); ;
-            cmp.KeyFrames.Add(new Keyframe(3, Mat3f.CreateRotationY((float)(MathUtils.M_PI_2*0.5 - 0.01)).ExtractRotation(), KeyframeInterpolation.Slerp, new Vec3f(1, 0, 0), KeyframeInterpolation.Ease)); ;
-            cmp.KeyFrames.Add(new Keyframe(4, Mat3f.CreateRotationY((float)(0)).ExtractRotation(), KeyframeInterpolation.Slerp, new Vec3f(0, 0, 0), KeyframeInterpolation.Ease)); ;
+            cmp.KeyFrames.Add(new Keyframe(0, Mat3f.CreateRotationY(0).ExtractRotation(), KeyframeInterpolation.Slerp, new Vec3f(0, 0, 0), KeyframeInterpolation.Ease));
+            cmp.KeyFrames.Add(new Keyframe(1, Mat3f.CreateRotationY((float)(MathUtils.M_PI_2 * 0.5 - 0.001)).ExtractRotation(), KeyframeInterpolation.Slerp, new Vec3f(0, 1, 0), KeyframeInterpolation.Ease));
+            cmp.KeyFrames.Add(new Keyframe(2, Mat3f.CreateRotationY((float)(MathUtils.M_PI_2 - 0.002)).ExtractRotation(), KeyframeInterpolation.Slerp, new Vec3f(1, 1, 0), KeyframeInterpolation.Ease)); ;
+            cmp.KeyFrames.Add(new Keyframe(3, Mat3f.CreateRotationY((float)(MathUtils.M_PI_2 + MathUtils.M_PI_2 * 0.5 - 0.004)).ExtractRotation(), KeyframeInterpolation.Slerp, new Vec3f(1, 0, 0), KeyframeInterpolation.Ease)); ;
+            cmp.KeyFrames.Add(new Keyframe(4, Mat3f.CreateRotationY((float)(MathUtils.M_PI * 2 - 0.006)).ExtractRotation(), KeyframeInterpolation.Slerp, new Vec3f(0, 0, 0), KeyframeInterpolation.Ease)); ;
             cmp.Start();
             _boxMeshThing.Components.Add(cmp);
 
+            var db = DebugDraw.CreateBoxLines(new Vec3f(.5f, .5f, .5f), new Vec3f(1, 1, 1), new Vec4f(.2f, .2f, .2f, 1));
+            db.Color = new Vec4f(1, 0, 0, 1);
+            _boxMeshThing.AddChild(db);
+
+
+
             CursorVisible = true;
-            //var siz = Mvec3rshal.SizeOf(default(MeshVert));
-            //var fmt = VertexFormat.DeclareVertexFormat("MeshFmt", "v_v3n3x2");
-            //int n = 0;
-            //n++;
          }
          catch (Exception ex)
          {
@@ -239,6 +241,7 @@ namespace PirateCraft
       {
          Renderer.BeginRender(this, new Vec4f(1, 1, 1, 1));
          Gu.World.Render(Gu.CurrentWindowContext.Delta, _camera);
+
          Renderer.EndRender();
          //This is big.
          GC.Collect();

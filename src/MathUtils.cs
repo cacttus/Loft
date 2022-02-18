@@ -450,112 +450,7 @@ namespace PirateCraft
             return new uVec2f(a.X - f, a.Y - f);
         }
     }
-    //[StructLayout(LayoutKind.Sequential)]
-    //public struct Vec4f
-    //{
-    //    public float x, y, z, w;
 
-    //    public Vec4f(Vec3f d, float dw) { x = d.X; y = d.Y; z = d.Z; w = dw; }
-    //    public Vec4f(Vec4f dxy) { x = dxy.X; y = dxy.Y; z = dxy.Z; w = dxy.w; }
-    //    public Vec4f(float dx, float dy, float dz, float dw) { x = dx; y = dy; z = dz; w = dw; }
-    //    public Vec4f(OpenTK.Vector4 v) { x = v.X; y = v.Y; z = v.Z; w = v.W; }//From XNA's Vector2
-
-    //    public override string ToString() { return "(" + x + "," + y + "," + z + "," + w + ")"; }
-    //    public Vec4f construct(float dx, float dy, float dz, float dw)
-    //    {
-    //        x = dx; y = dy; z = dz; w = dw;
-    //        return this;
-    //    }
-
-    //    public static Vec4f Clamp(Vec4f v, float a, float b)
-    //    {
-    //        Vec4f ret = new Vec4f();
-    //        ret.Z = OpenTK.MathHelper.Clamp(v.Z, a, b);
-    //        ret.X = OpenTK.MathHelper.Clamp(v.X, a, b);
-    //        ret.Y = OpenTK.MathHelper.Clamp(v.Y, a, b);
-    //        ret.w = OpenTK.MathHelper.Clamp(v.w, a, b);
-    //        return ret;
-    //    }
-    //    public void Clamp(float a, float b)
-    //    {
-    //        this = Clamp(this, a, b);
-    //    }
-    //    public void SetMinLightValue(float val)
-    //    {
-    //        //Make sure there's enough light for this.
-    //        //Val = the minimum amount of light.
-    //        //This isn't perfect
-    //        float tot = x + y + z;
-    //        if (tot < val)
-    //        {
-    //            float add = (2 - tot) / val;
-    //            x += add;
-    //            y += add;
-    //            z += add;
-    //            x = OpenTK.MathHelper.Clamp(x, 0, 1);
-    //            y = OpenTK.MathHelper.Clamp(y, 0, 1);
-    //            z = OpenTK.MathHelper.Clamp(z, 0, 1);
-    //        }
-
-    //    }
-    //    public OpenTK.Vector4 toOpenTK()
-    //    {
-    //        return new OpenTK.Vector4(x, y, z, w);
-    //    }
-    //    public OpenTK.Graphics.Color4 toOpenTKColor()
-    //    {
-    //        var x = toOpenTK();
-    //        return new OpenTK.Graphics.Color4(x.X, x.Y, x.Z, x.W);
-    //    }
-    //    public static Vec4f operator -(Vec4f d)
-    //    {
-    //        return new Vec4f(-d.X, -d.Y, -d.Z, -d.w);
-    //    }
-
-    //    public static Vec4f operator +(Vec4f a, Vec4f b)
-    //    {
-    //        return new Vec4f(a.X + b.X, a.Y + b.Y, a.Z + b.Z, a.w + b.w);
-    //    }
-    //    public static Vec4f operator -(Vec4f a, Vec4f b)
-    //    {
-    //        return new Vec4f(a.X - b.X, a.Y - b.Y, a.Z - b.Z, a.w - b.w);
-    //    }
-    //    public static Vec4f operator *(Vec4f a, Vec4f b)
-    //    {
-    //        return new Vec4f(a.X * b.X, a.Y * b.Y, a.Z * b.Z, a.w * b.w);
-    //    }
-    //    public static Vec4f operator *(Vec4f a, float b)
-    //    {
-    //        return new Vec4f(a.X * b, a.Y * b, a.Z * b, a.w * b);
-    //    }
-    //    public static Vec4f operator /(Vec4f a, float b)
-    //    {
-    //        return new Vec4f(a.X / b, a.Y / b, a.Z / b, a.w / b);
-    //    }
-    //    public static Vec4f Minv(Vec4f a, Vec4f b)
-    //    {
-    //        Vec4f ret = new Vec4f();
-    //        ret.X = (float)Math.Min(a.X, b.X);
-    //        ret.Y = (float)Math.Min(a.Y, b.Y);
-    //        ret.Z = (float)Math.Min(a.Z, b.Z);
-    //        ret.w = (float)Math.Min(a.w, b.w);
-    //        return ret;
-    //    }
-    //    public static Vec4f Maxv(Vec4f a, Vec4f b)
-    //    {
-    //        Vec4f ret = new Vec4f();
-    //        ret.X = (float)Math.Max(a.X, b.X);
-    //        ret.Y = (float)Math.Max(a.Y, b.Y);
-    //        ret.Z = (float)Math.Max(a.Z, b.Z);
-    //        ret.w = (float)Math.Max(a.w, b.w);
-    //        return ret;
-    //    }
-    //    public Vec3f xyz()
-    //    {
-    //        return new Vec3f(x, y, z);
-    //    }
-
-    //}
    
      public struct RaycastHit
     {
@@ -1094,555 +989,660 @@ namespace PirateCraft
             X = dx; Y = dy; Z = dz; W = dw;
         }
     }
-    //[StructLayout(LayoutKind.Sequential)]
-    //public struct Vec3f
-    //{
-    //    public float x;
-    //    public float y;
-    //    public float z;
-
-    //    public static Vec3f VEC3_MIN()
-    //    {
-    //        return new Vec3f(float.MinValue, float.MinValue, float.MinValue);
-    //    }
-    //    public static Vec3f VEC3_MAX()
-    //    {
-    //        return new Vec3f(float.MaxValue, float.MaxValue, float.MaxValue);
-    //    }
-
-    //    public Vec3f(Vec3f rhs)
-    //    {
-    //        this.X = rhs.X;
-    //        this.Y = rhs.Y;
-    //        this.Z = rhs.Z;
-    //    }
-    //    public Vec3f(float dx, float dy, float dz)
-    //    {
-    //        x = dx;
-    //        y = dy;
-    //        z = dz;
-    //    }
-    //    public Vec3f(int rhs)
-    //    {
-    //        x = (float)rhs;
-    //        y = (float)rhs;
-    //        z = (float)rhs;
-    //    }
-    //    public Vec3f(float rhs)
-    //    {
-    //        x = rhs;
-    //        y = rhs;
-    //        z = rhs;
-    //    }
-    //    public Vec3f construct(float dx, float dy, float dz)
-    //    {
-    //        x = dx; y = dy; z = dz;
-    //        return this;
-    //    }
-    //    public override string ToString()
-    //    {
-    //        return "" + x + "," + y + "," + z;
-    //    }
-    //    //    public static Vec3f minv(in Vec3f v_a, in Vec3f v_b) {
-    //    //      Vec3f outt = new Vec3f();
-
-    //    //      outt.X = Math.Min(v_a.X, v_b.X);
-    //    //      outt.Y = Math.Min(v_a.Y, v_b.Y);
-    //    //      outt.Z = Math.Min(v_a.Z, v_b.Z);
-
-    //    //      return outt;
-    //    //    }
-    //    //public static Vec3f maxv(in Vec3f v_a, in Vec3f v_b)
-    //    //{
-    //    //      Vec3f outt = new Vec3f();
-
-    //    //      outt.X = Math.Max(v_a.X, v_b.X);
-    //    //      outt.Y = Math.Max(v_a.Y, v_b.Y);
-    //    //      outt.Z = Math.Max(v_a.Z, v_b.Z);
-
-    //    //      return outt;
-    //    //}
-    //    // template <class Tx>
-    //    // Vec3f(const Vec2x<float>& rhs) {
-    //    //   x = (float)rhs.X;
-    //    //   y = (float)rhs.Y;
-    //    //   z = 0;  // This isn't correct. The problem is we get auto casted when we add.
-    //    // }
-    //    // template <class Tx>
-    //    // Vec3f(const Vec2x<double>& rhs) {
-    //    //   x = (float)rhs.X;
-    //    //   y = (float)rhs.Y;
-    //    //   z = 0;  // This isn't correct. The problem is we get auto casted when we add.
-    //    // }
-    //    // template <class Tx>
-    //    // Vec3f(const Vec4x<Tx>& rhs) {
-    //    //   x = (float)rhs.X;
-    //    //   y = (float)rhs.Y;
-    //    //   z = (float)rhs.Z;
-    //    // }
-
-    //    //////////////////////////////////////////////////////////////////////////
-    //    //////////////////////////////////////////////////////////////////////////
-    //    //////////////////////////////////////////////////////////////////////////
-
-    //    public static Vec3f minv(in Vec3f v_a, in Vec3f v_b)
-    //    {
-    //        Vec3f outv = new Vec3f();
-
-    //        outv.X = Math.Min(v_a.X, v_b.X);
-    //        outv.Y = Math.Min(v_a.Y, v_b.Y);
-    //        outv.Z = Math.Min(v_a.Z, v_b.Z);
-
-    //        return outv;
-    //    }
-    //    public static Vec3f maxv(in Vec3f v_a, in Vec3f v_b)
-    //    {
-    //        Vec3f outv = new Vec3f();
-
-    //        outv.X = Math.Max(v_a.X, v_b.X);
-    //        outv.Y = Math.Max(v_a.Y, v_b.Y);
-    //        outv.Z = Math.Max(v_a.Z, v_b.Z);
-
-    //        return outv;
-    //    }
-    //    public static Vec3f maxv_a(in Vec3f v_a, in Vec3f v_b)
-    //    {
-    //        Vec3f outv = new Vec3f();
-
-    //        outv.X = Math.Max(Math.Abs(v_a.X), Math.Abs(v_b.X));
-    //        outv.Y = Math.Max(Math.Abs(v_a.Y), Math.Abs(v_b.Y));
-    //        outv.Z = Math.Max(Math.Abs(v_a.Z), Math.Abs(v_b.Z));
-    //        return outv;
-    //    }
-    //    public static float maxf_a(in Vec3f v_a, in Vec3f v_b)
-    //    {
-    //        Vec3f tmp = maxv_a(v_a, v_b);
-    //        return Math.Max(Math.Abs(tmp.X), Math.Max(Math.Abs(tmp.Y), Math.Abs(tmp.Z)));
-    //    }
-    //    public Vec2f xz()
-    //    {
-    //        return new Vec2f(x, z);
-    //    }
-    //    public Vec2f xy()
-    //    {
-    //        return new Vec2f(x, y);
-    //    }
 
 
-    //    //Vec3f VEC3X_MIN()
-    //    //{
-    //    //    return Vec3f(-COMP_MAX < float >::m(), -COMP_MAX < float >::m(), -COMP_MAX < float >::m());
-    //    //}
+   [StructLayout(LayoutKind.Sequential)]
+   public struct vec3
+   {
+      public float x;
+      public float y;
+      public float z;
 
-    //    //Vec3f VEC3X_MAX()
-    //    //{
-    //    //    return Vec3f(COMP_MAX < float >::m(), COMP_MAX < float >::m(), COMP_MAX < float >::m());
-    //    //}
-    //    //#define VEC3_MIN (Vec3f(-FLT_MAX,-FLT_MAX,-FLT_MAX))
-    //    //#define VEC3_MAX (Vec3f(FLT_MAX,FLT_MAX,FLT_MAX))
-    //    public float length()
-    //    {
-    //        return (float)Math.Sqrt(x * x + y * y + z * z);
-    //    }
-    //    public double lengthd()
-    //    {
-    //        double dx = (double)x;
-    //        double dy = (double)y;
-    //        double dz = (double)z;
+      public static vec3 VEC3_MIN()
+      {
+         return new vec3(float.MinValue, float.MinValue, float.MinValue);
+      }
+      public static vec3 VEC3_MAX()
+      {
+         return new vec3(float.MaxValue, float.MaxValue, float.MaxValue);
+      }
 
-    //        return Math.Sqrt(dx * dx + dy * dy + dz * dz);
-    //    }
-    //    public float length2()
-    //    {
-    //        return (x * x + y * y + z * z);
-    //    }
-    //    public float squaredLength()
-    //    {
-    //        return length2();
-    //    }
-    //    public Vec3f normalize()
-    //    {
-    //        //we may be able to get away with rsqrt here...
-    //        //but maybe not.
-    //        float a = length();
-    //        return normalize(a);
-    //    }
-    //    public Vec3f normalize(float len)
-    //    {
-    //        //we may be able to get away with rsqrt here...
-    //        //but maybe not.
-    //        // We should allow the float to hit infinity if we try to divide zero
-    //        if (len != 0)
-    //        {
-    //            float a1 = 1.0f / len;
-    //            x *= a1;
-    //            y *= a1;
-    //            z *= a1;
-    //        }
-    //        else
-    //        {
-    //            x = y = z = 0;
-    //        }
-    //        return this;
-    //    }
-    //    public void len_and_norm(out Vec3f n, out float len)
-    //    {
-    //        //Computes length and normal to avoid having do do len() then norm()
-    //        len = length();
-    //        n = this;
-    //        n.normalize(len);
-    //    }
-    //    public Vec3f normalized()
-    //    {
-    //        Vec3f ret = new Vec3f(this);
-    //        return ret.normalize();
-    //    }
-    //    public Vec3f abs()
-    //    {
-    //        Vec3f ret = new Vec3f(this);
-    //        ret.X = Math.Abs(ret.X);
-    //        ret.Y = Math.Abs(ret.Y);
-    //        ret.Z = Math.Abs(ret.Z);
-    //        return ret;
-    //    }
-    //    public float dot(in Vec3f v)
-    //    {
-    //        return (x * v.X + y * v.Y + z * v.Z);
-    //    }
-    //    public float distance(in Vec3f v1)
-    //    {
-    //        return ((this) - v1).length();
-    //    }
-    //    public float distance2(in Vec3f v1)
-    //    {
-    //        return ((this) - v1).length2();
-    //    }
-    //    public Vec3f cross(in Vec3f v1)
-    //    {
-    //        Vec3f vt;
-    //        vt.X = (y * v1.Z) - (v1.Y * z);
-    //        vt.Y = (z * v1.X) - (v1.Z * x);
-    //        vt.Z = (x * v1.Y) - (v1.X * y);
+      public vec3(vec3 rhs)
+      {
+         this.x = rhs.x;
+         this.y = rhs.y;
+         this.z = rhs.z;
+      }
+      public vec3(float dx, float dy, float dz)
+      {
+         x = dx;
+         y = dy;
+         z = dz;
+      }
+      public vec3(int rhs)
+      {
+         x = (float)rhs;
+         y = (float)rhs;
+         z = (float)rhs;
+      }
+      public vec3(float rhs)
+      {
+         x = rhs;
+         y = rhs;
+         z = rhs;
+      }
+      public vec3 construct(float dx, float dy, float dz)
+      {
+         x = dx; y = dy; z = dz;
+         return this;
+      }
+      public override string ToString()
+      {
+         return "" + x + "," + y + "," + z;
+      }
+      //    public static vec3 minv(in vec3 v_a, in vec3 v_b) {
+      //      vec3 outt = new vec3();
 
-    //        return vt;
-    //    }
-    //    public Vec3f lerpTo(in Vec3f v1, float t)
-    //    {
-    //        Vec3f ret = this + (v1 - this) * t;
-    //        return ret;
-    //    }
-    //    public Vec3f clampTo(in Vec3f vMin, in Vec3f vMax)
-    //    {
-    //        //Technically we can just use the #define for clamp() to get the same result.
-    //        //but my brain isn't working right now and i want to see this line for line
-    //        Vec3f outv = new Vec3f(this);
+      //      outt.x = Math.Min(v_a.x, v_b.x);
+      //      outt.y = Math.Min(v_a.y, v_b.y);
+      //      outt.z = Math.Min(v_a.z, v_b.z);
 
-    //        if (outv.X < vMin.X)
-    //        {
-    //            outv.X = vMin.X;
-    //        }
-    //        if (outv.Y < vMin.Y)
-    //        {
-    //            outv.Y = vMin.Y;
-    //        }
-    //        if (outv.Z < vMin.Z)
-    //        {
-    //            outv.Z = vMin.Z;
-    //        }
+      //      return outt;
+      //    }
+      //public static vec3 maxv(in vec3 v_a, in vec3 v_b)
+      //{
+      //      vec3 outt = new vec3();
 
-    //        if (outv.X > vMax.X)
-    //        {
-    //            outv.X = vMax.X;
-    //        }
-    //        if (outv.Y > vMax.Y)
-    //        {
-    //            outv.Y = vMax.Y;
-    //        }
-    //        if (outv.Z > vMax.Z)
-    //        {
-    //            outv.Z = vMax.Z;
-    //        }
+      //      outt.x = Math.Max(v_a.x, v_b.x);
+      //      outt.y = Math.Max(v_a.y, v_b.y);
+      //      outt.z = Math.Max(v_a.z, v_b.z);
 
-    //        return outv;
-    //    }
-    //    public static Vec3f operator -(in Vec3f d)
-    //    {
-    //        return new Vec3f(-d.X, -d.Y, -d.Z);
-    //    }
-    //    public static Vec3f operator +(in Vec3f a, in Vec3f b)
-    //    {
-    //        return new Vec3f(a.X + b.X, a.Y + b.Y, a.Z + b.Z);
-    //    }
-    //    public static Vec3f operator -(in Vec3f a, in Vec3f b)
-    //    {
-    //        return new Vec3f(a.X - b.X, a.Y - b.Y, a.Z - b.Z);
-    //    }
-    //    public static Vec3f operator *(in Vec3f a, in Vec3f b)
-    //    {
-    //        return new Vec3f(a.X * b.X, a.Y * b.Y, a.Z * b.Z);
-    //    }
-    //    public static Vec3f operator /(in Vec3f a, in Vec3f b)
-    //    {
-    //        return new Vec3f(a.X / b.X, a.Y / b.Y, a.Z / b.Z);
-    //    }
-    //    public static Vec3f operator +(in Vec3f a, float f)
-    //    {
-    //        return new Vec3f(a.X + f, a.Y + f, a.Z + f);
-    //    }
-    //    public static Vec3f operator -(in Vec3f a, float f)
-    //    {
-    //        return new Vec3f(a.X - f, a.Y - f, a.Z - f);
-    //    }
-    //    public static Vec3f operator *(in Vec3f a, float b)
-    //    {
-    //        return new Vec3f(a.X * b, a.Y * b, a.Z * b);
-    //    }
-    //    public static Vec3f operator /(in Vec3f a, float b)
-    //    {
-    //        return new Vec3f(a.X / b, a.Y / b, a.Z / b);
-    //    }
-    //    public static bool operator >(in Vec3f v1, in Vec3f v2)
-    //    {
-    //        return (v1.X > v2.X && v1.Y > v2.Y && v1.Z > v2.Z);
-    //    }
-    //    public static bool operator >=(in Vec3f v1, in Vec3f v2)
-    //    {
-    //        return (v1.X >= v2.X && v1.Y >= v2.Y && v1.Z >= v2.Z);
-    //    }
-    //    public static bool operator <(in Vec3f v1, in Vec3f v2)
-    //    {
-    //        return (v1.X < v2.X && v1.Y < v2.Y && v1.Z < v2.Z);
-    //    }
-    //    public static bool operator <=(in Vec3f v1, in Vec3f v2)
-    //    {
-    //        return (v1.X <= v2.X && v1.Y <= v2.Y && v1.Z <= v2.Z);
-    //    }
+      //      return outt;
+      //}
+      // template <class Tx>
+      // vec3(const Vec2x<float>& rhs) {
+      //   x = (float)rhs.x;
+      //   y = (float)rhs.y;
+      //   z = 0;  // This isn't correct. The problem is we get auto casted when we add.
+      // }
+      // template <class Tx>
+      // vec3(const Vec2x<double>& rhs) {
+      //   x = (float)rhs.x;
+      //   y = (float)rhs.y;
+      //   z = 0;  // This isn't correct. The problem is we get auto casted when we add.
+      // }
+      // template <class Tx>
+      // vec3(const Vec4x<Tx>& rhs) {
+      //   x = (float)rhs.x;
+      //   y = (float)rhs.y;
+      //   z = (float)rhs.z;
+      // }
 
-    //    // template <class Tx>
-    //    // Vec3x<Tx> Vec3x<Tx>::operator*(const Mat3x<Tx>& m) {
-    //    //   Vec3x<Tx> ret;
-    //    //   ret.X = (Tx)(m._m11 * x + m._m21 * x + m._m31 * x);
-    //    //   ret.Y = (Tx)(m._m12 * y + m._m22 * y + m._m32 * y);
-    //    //   ret.Z = (Tx)(m._m13 * z + m._m23 * z + m._m33 * z);
-    //    //   return ret;
-    //    // }
-    //    //bool operator>(float f) {
-    //    //  return (x > f && y > f && z > f);
-    //    //}
+      //////////////////////////////////////////////////////////////////////////
+      //////////////////////////////////////////////////////////////////////////
+      //////////////////////////////////////////////////////////////////////////
 
-    //    //bool operator>=(float f) {
-    //    //  return (x >= f && y >= f && z >= f);
-    //    //}
+      public static vec3 minv(in vec3 v_a, in vec3 v_b)
+      {
+         vec3 outv = new vec3();
 
-    //    //bool operator<(float f) {
-    //    //  return (x<f && y<f && z<f);
-    //    //}
+         outv.x = Math.Min(v_a.x, v_b.x);
+         outv.y = Math.Min(v_a.y, v_b.y);
+         outv.z = Math.Min(v_a.z, v_b.z);
 
-    //    //bool operator<=(float f) {
-    //    //  return (x <= f && y <= f && z <= f);
-    //    //}
+         return outv;
+      }
+      public static vec3 maxv(in vec3 v_a, in vec3 v_b)
+      {
+         vec3 outv = new vec3();
 
-    //    //// Constructors
+         outv.x = Math.Max(v_a.x, v_b.x);
+         outv.y = Math.Max(v_a.y, v_b.y);
+         outv.z = Math.Max(v_a.z, v_b.z);
 
-    //    //void construct(in Vec3f rhs)
-    //    //{
-    //    //    x = rhs.X;
-    //    //    y = rhs.Y;
-    //    //    z = rhs.Z;
-    //    //}
+         return outv;
+      }
+      public static vec3 maxv_a(in vec3 v_a, in vec3 v_b)
+      {
+         vec3 outv = new vec3();
 
-    //    //void construct(float dx, float dy, float dz)
-    //    //{
-    //    //    x = dx;
-    //    //    y = dy;
-    //    //    z = dz;
-    //    //}
-
-    //    //Vec3f zero()
-    //    //{
-    //    //    return Vec3f(0, 0, 0);
-    //    //}
+         outv.x = Math.Max(Math.Abs(v_a.x), Math.Abs(v_b.x));
+         outv.y = Math.Max(Math.Abs(v_a.y), Math.Abs(v_b.y));
+         outv.z = Math.Max(Math.Abs(v_a.z), Math.Abs(v_b.z));
+         return outv;
+      }
+      public static float maxf_a(in vec3 v_a, in vec3 v_b)
+      {
+         vec3 tmp = maxv_a(v_a, v_b);
+         return Math.Max(Math.Abs(tmp.x), Math.Max(Math.Abs(tmp.y), Math.Abs(tmp.z)));
+      }
+      public Vec2f xz()
+      {
+         return new Vec2f(x, z);
+      }
+      public Vec2f xy()
+      {
+         return new Vec2f(x, y);
+      }
 
 
-    //    //uint32_t toUint() {
-    //    //  uint32_t ret = (uint32_t)(
-    //    //      ((uint32_t)0 << 16) |
-    //    //      ((uint32_t)r() << 16) |
-    //    //      ((uint32_t)g() << 8) |
-    //    //      ((uint32_t)b()));
-    //    //  return ret;
-    //    //}
+      //vec3 VEC3X_MIN()
+      //{
+      //    return vec3(-COMP_MAX < float >::m(), -COMP_MAX < float >::m(), -COMP_MAX < float >::m());
+      //}
 
-    //    //void fromUint(const uint32_t& i)
-    //    //{
-    //    //    r() = (i >> 16) & 0xFF;
-    //    //    g() = (i >> 8) & 0xFF;
-    //    //    b() = (i) & 0xFF;
-    //    //}
+      //vec3 VEC3X_MAX()
+      //{
+      //    return vec3(COMP_MAX < float >::m(), COMP_MAX < float >::m(), COMP_MAX < float >::m());
+      //}
+      //#define VEC3_MIN (vec3(-FLT_MAX,-FLT_MAX,-FLT_MAX))
+      //#define VEC3_MAX (vec3(FLT_MAX,FLT_MAX,FLT_MAX))
+      public float length()
+      {
+         return (float)Math.Sqrt(x * x + y * y + z * z);
+      }
+      public double lengthd()
+      {
+         double dx = (double)x;
+         double dy = (double)y;
+         double dz = (double)z;
 
-    //    bool compareTo(in Vec3f rhs)
-    //    {
-    //        Vec3f lhs = this;
+         return Math.Sqrt(dx * dx + dy * dy + dz * dz);
+      }
+      public float length2()
+      {
+         return (x * x + y * y + z * z);
+      }
+      public float squaredLength()
+      {
+         return length2();
+      }
+      public vec3 normalize()
+      {
+         //we may be able to get away with rsqrt here...
+         //but maybe not.
+         float a = length();
+         return normalize(a);
+      }
+      public vec3 normalize(float len)
+      {
+         //we may be able to get away with rsqrt here...
+         //but maybe not.
+         // We should allow the float to hit infinity if we try to divide zero
+         if (len != 0)
+         {
+            float a1 = 1.0f / len;
+            x *= a1;
+            y *= a1;
+            z *= a1;
+         }
+         else
+         {
+            x = y = z = 0;
+         }
+         return this;
+      }
+      public void len_and_norm(out vec3 n, out float len)
+      {
+         //Computes length and normal to avoid having do do len() then norm()
+         len = length();
+         n = this;
+         n.normalize(len);
+      }
+      public vec3 normalized()
+      {
+         vec3 ret = new vec3(this);
+         return ret.normalize();
+      }
+      public vec3 abs()
+      {
+         vec3 ret = new vec3(this);
+         ret.x = Math.Abs(ret.x);
+         ret.y = Math.Abs(ret.y);
+         ret.z = Math.Abs(ret.z);
+         return ret;
+      }
+      public float dot(in vec3 v)
+      {
+         return (x * v.x + y * v.y + z * v.z);
+      }
+      public float distance(in vec3 v1)
+      {
+         return ((this) - v1).length();
+      }
+      public float distance2(in vec3 v1)
+      {
+         return ((this) - v1).length2();
+      }
+      public vec3 cross(in vec3 v1)
+      {
+         vec3 vt;
+         vt.x = (y * v1.z) - (v1.y * z);
+         vt.y = (z * v1.x) - (v1.z * x);
+         vt.z = (x * v1.y) - (v1.x * y);
 
-    //        if (lhs.X < rhs.X)
-    //        {
-    //            return true;
-    //        }
-    //        else if (lhs.X > rhs.X)
-    //        {
-    //            return false;
-    //        }
-    //        else
-    //        {
-    //            if (lhs.Y < rhs.Y)
-    //            {
-    //                return true;
-    //            }
-    //            else if (lhs.Y > rhs.Y)
-    //            {
-    //                return false;
-    //            }
-    //            else
-    //            {
-    //                if (lhs.Z < rhs.Z)
-    //                {
-    //                    return true;
-    //                }
-    //                else
-    //                {//if(lhs->z > rhs->z)
-    //                    return false;
-    //                }
-    //            }
-    //        }
-    //    }
+         return vt;
+      }
+      public vec3 lerpTo(in vec3 v1, float t)
+      {
+         vec3 ret = this + (v1 - this) * t;
+         return ret;
+      }
+      public vec3 clampTo(in vec3 vMin, in vec3 vMax)
+      {
+         //Technically we can just use the #define for clamp() to get the same result.
+         //but my brain isn't working right now and i want to see this line for line
+         vec3 outv = new vec3(this);
 
-    //    ////template < class float >
-    //    ////Vec3f( const dVec3f& rhs )
-    //    ////{
-    //    ////  x = (float)rhs.X;
-    //    ////  y = (float)rhs.Y;
-    //    ////  z = (float)rhs.Z;
-    //    ////}
+         if (outv.x < vMin.x)
+         {
+            outv.x = vMin.x;
+         }
+         if (outv.y < vMin.y)
+         {
+            outv.y = vMin.y;
+         }
+         if (outv.z < vMin.z)
+         {
+            outv.z = vMin.z;
+         }
 
-    //    //// - Vector shorthands
-    //    public static Vec3f normalize(in Vec3f v1)
-    //    {
-    //        return (new Vec3f(v1)).normalized();
-    //    }
-    //    public static Vec3f cross(in Vec3f v1, in Vec3f v2)
-    //    {
-    //        return (new Vec3f(v1)).cross(new Vec3f(v2));
-    //    }
-    //    ////template < typename float >
-    //    ////Vec3f rotate(in Vec3f v1, const float& angle, in Vec3f normal)
-    //    ////{
-    //    ////  //TODO: test.
-    //    ////  Mat3f m = Mat3f::getRotationRad(angle, normal);
-    //    ////  Vec3f ret = v1;
-    //    ////  ret = ret*m;
-    //    ////  return ret;
-    //    ////}
-    //    //template<typename Tx>
-    //    public static float dot(in Vec3f v1, in Vec3f v2)
-    //    {
-    //        return (new Vec3f(v1)).dot(new Vec3f(v2));
-    //    }
-    //    //template<typename Tx>
-    //    //void bilinear_interpolate(
-    //    //    in Vec3f a,
-    //    //    in Vec3f b,
-    //    //    in Vec3f c,
-    //    //    in Vec3f d,
-    //    //    Vec3f& __out_ avg,
-    //    //    float pct)
-    //    //{
-    //    //    Vec3f v1, v2, v3;
-    //    //    v1 = a + (b - a) * pct;
-    //    //    v2 = c + (d - c) * pct;
-    //    //    avg = v1 + (v2 - v1) * pct;
-    //    //}
-    //    //template<typename Tx>
-    //    static void reflect(in Vec3f v, in Vec3f n, out Vec3f v_r)
-    //    {
-    //        v_r = v - (n * n.dot(v)) * 2.0f;
-    //    }
-    //    //template<typename Tx>
-    //    //void checkNormalOrZero()
-    //    //{
-    //    //    //Make sure the number is a normal FP number
-    //    //    int cx = std::fpclassify(x);
-    //    //    int cy = std::fpclassify(y);
-    //    //    int cz = std::fpclassify(z);
-    //    //    if (cx != FP_ZERO && cx != FP_NORMAL)
-    //    //        x = 0.0f;
-    //    //    if (cy != FP_ZERO && cy != FP_NORMAL)
-    //    //        y = 0.0f;
-    //    //    if (cz != FP_ZERO && cz != FP_NORMAL)
-    //    //        z = 0.0f;
-    //    //}
-    //    //template<typename Tx>
-    //    //bool isNormalFloat()
-    //    //{
-    //    //    bool b = true;
+         if (outv.x > vMax.x)
+         {
+            outv.x = vMax.x;
+         }
+         if (outv.y > vMax.y)
+         {
+            outv.y = vMax.y;
+         }
+         if (outv.z > vMax.z)
+         {
+            outv.z = vMax.z;
+         }
 
-    //    //    //Make sure the number is a normal FP number
-    //    //    int cx = std::fpclassify(x);
-    //    //    int cy = std::fpclassify(y);
-    //    //    int cz = std::fpclassify(z);
-    //    //    //NAN
-    //    //    if (cx == FP_NAN)
-    //    //    {
-    //    //        b = false;
-    //    //    }
-    //    //    if (cy == FP_NAN)
-    //    //    {
-    //    //        b = false;
-    //    //    }
-    //    //    if (cz == FP_NAN)
-    //    //    {
-    //    //        b = false;
-    //    //    }
-    //    //    ////DEN
-    //    //    //If the number is too small who cares. Let it round to zero.
-    //    //    //AssertOrThrow2(cx!= FP_SUBNORMAL);
-    //    //    //AssertOrThrow2(cy!= FP_SUBNORMAL);
-    //    //    //AssertOrThrow2(cz!= FP_SUBNORMAL);
-    //    //    //INF
-    //    //    if (cx == FP_INFINITE)
-    //    //    {
-    //    //        b = false;
-    //    //    }
-    //    //    if (cy == FP_INFINITE)
-    //    //    {
-    //    //        b = false;
-    //    //    }
-    //    //    if (cz == FP_INFINITE)
-    //    //    {
-    //    //        b = false;
-    //    //    }
+         return outv;
+      }
+      public static vec3 operator -(in vec3 d)
+      {
+         return new vec3(-d.x, -d.y, -d.z);
+      }
+      public static vec3 operator +(in vec3 a, in vec3 b)
+      {
+         return new vec3(a.x + b.x, a.y + b.y, a.z + b.z);
+      }
+      public static vec3 operator -(in vec3 a, in vec3 b)
+      {
+         return new vec3(a.x - b.x, a.y - b.y, a.z - b.z);
+      }
+      public static vec3 operator *(in vec3 a, in vec3 b)
+      {
+         return new vec3(a.x * b.x, a.y * b.y, a.z * b.z);
+      }
+      public static vec3 operator /(in vec3 a, in vec3 b)
+      {
+         return new vec3(a.x / b.x, a.y / b.y, a.z / b.z);
+      }
+      public static vec3 operator +(in vec3 a, float f)
+      {
+         return new vec3(a.x + f, a.y + f, a.z + f);
+      }
+      public static vec3 operator -(in vec3 a, float f)
+      {
+         return new vec3(a.x - f, a.y - f, a.z - f);
+      }
+      public static vec3 operator *(in vec3 a, float b)
+      {
+         return new vec3(a.x * b, a.y * b, a.z * b);
+      }
+      public static vec3 operator /(in vec3 a, float b)
+      {
+         return new vec3(a.x / b, a.y / b, a.z / b);
+      }
+      public static bool operator >(in vec3 v1, in vec3 v2)
+      {
+         return (v1.x > v2.x && v1.y > v2.y && v1.z > v2.z);
+      }
+      public static bool operator >=(in vec3 v1, in vec3 v2)
+      {
+         return (v1.x >= v2.x && v1.y >= v2.y && v1.z >= v2.z);
+      }
+      public static bool operator <(in vec3 v1, in vec3 v2)
+      {
+         return (v1.x < v2.x && v1.y < v2.y && v1.z < v2.z);
+      }
+      public static bool operator <=(in vec3 v1, in vec3 v2)
+      {
+         return (v1.x <= v2.x && v1.y <= v2.y && v1.z <= v2.z);
+      }
 
-    //    //    return b;
-    //    //}
-    //    //template<typename Tx>
-    //    //void checkNormalOrZeroAndLimitVector(float fMaxLength, bool bShowWarningMessage)
-    //    //{
-    //    //    //Normalize number
-    //    //    checkNormalOrZero();
+      // template <class Tx>
+      // Vec3x<Tx> Vec3x<Tx>::operator*(const Mat3x<Tx>& m) {
+      //   Vec3x<Tx> ret;
+      //   ret.x = (Tx)(m._m11 * x + m._m21 * x + m._m31 * x);
+      //   ret.y = (Tx)(m._m12 * y + m._m22 * y + m._m32 * y);
+      //   ret.z = (Tx)(m._m13 * z + m._m23 * z + m._m33 * z);
+      //   return ret;
+      // }
+      //bool operator>(float f) {
+      //  return (x > f && y > f && z > f);
+      //}
 
-    //    //    // Make sure the vector length isn't too big.
-    //    //    if (squaredLength() >= (fMaxLength * fMaxLength))
-    //    //    {
-    //    //        if (bShowWarningMessage == true)
-    //    //            BRLogWarn("Object has launched into orbit: v=(", x, ", y, " ", z, ")");
-    //    //        *this = normalized() * fMaxLength;
-    //    //    }
-    //    //}
+      //bool operator>=(float f) {
+      //  return (x >= f && y >= f && z >= f);
+      //}
 
-    //    //class Vec3Basis : public VirtualMemory {
-    //    //public:
-    //    //    Vec3f _x, _y, _z;
-    //    //};
-    //}
+      //bool operator<(float f) {
+      //  return (x<f && y<f && z<f);
+      //}
 
+      //bool operator<=(float f) {
+      //  return (x <= f && y <= f && z <= f);
+      //}
+
+      //// Constructors
+
+      //void construct(in vec3 rhs)
+      //{
+      //    x = rhs.x;
+      //    y = rhs.y;
+      //    z = rhs.z;
+      //}
+
+      //void construct(float dx, float dy, float dz)
+      //{
+      //    x = dx;
+      //    y = dy;
+      //    z = dz;
+      //}
+
+      //vec3 zero()
+      //{
+      //    return vec3(0, 0, 0);
+      //}
+
+
+      //uint32_t toUint() {
+      //  uint32_t ret = (uint32_t)(
+      //      ((uint32_t)0 << 16) |
+      //      ((uint32_t)r() << 16) |
+      //      ((uint32_t)g() << 8) |
+      //      ((uint32_t)b()));
+      //  return ret;
+      //}
+
+      //void fromUint(const uint32_t& i)
+      //{
+      //    r() = (i >> 16) & 0xFF;
+      //    g() = (i >> 8) & 0xFF;
+      //    b() = (i) & 0xFF;
+      //}
+
+      bool compareTo(in vec3 rhs)
+      {
+         vec3 lhs = this;
+
+         if (lhs.x < rhs.x)
+         {
+            return true;
+         }
+         else if (lhs.x > rhs.x)
+         {
+            return false;
+         }
+         else
+         {
+            if (lhs.y < rhs.y)
+            {
+               return true;
+            }
+            else if (lhs.y > rhs.y)
+            {
+               return false;
+            }
+            else
+            {
+               if (lhs.z < rhs.z)
+               {
+                  return true;
+               }
+               else
+               {//if(lhs->z > rhs->z)
+                  return false;
+               }
+            }
+         }
+      }
+
+      ////template < class float >
+      ////vec3( const dvec3& rhs )
+      ////{
+      ////  x = (float)rhs.x;
+      ////  y = (float)rhs.y;
+      ////  z = (float)rhs.z;
+      ////}
+
+      //// - Vector shorthands
+      public static vec3 normalize(in vec3 v1)
+      {
+         return (new vec3(v1)).normalized();
+      }
+      public static vec3 cross(in vec3 v1, in vec3 v2)
+      {
+         return (new vec3(v1)).cross(new vec3(v2));
+      }
+      ////template < typename float >
+      ////vec3 rotate(in vec3 v1, const float& angle, in vec3 normal)
+      ////{
+      ////  //TODO: test.
+      ////  Mat3f m = Mat3f::getRotationRad(angle, normal);
+      ////  vec3 ret = v1;
+      ////  ret = ret*m;
+      ////  return ret;
+      ////}
+      //template<typename Tx>
+      public static float dot(in vec3 v1, in vec3 v2)
+      {
+         return (new vec3(v1)).dot(new vec3(v2));
+      }
+      //template<typename Tx>
+      //void bilinear_interpolate(
+      //    in vec3 a,
+      //    in vec3 b,
+      //    in vec3 c,
+      //    in vec3 d,
+      //    vec3& __out_ avg,
+      //    float pct)
+      //{
+      //    vec3 v1, v2, v3;
+      //    v1 = a + (b - a) * pct;
+      //    v2 = c + (d - c) * pct;
+      //    avg = v1 + (v2 - v1) * pct;
+      //}
+      //template<typename Tx>
+      static void reflect(in vec3 v, in vec3 n, out vec3 v_r)
+      {
+         v_r = v - (n * n.dot(v)) * 2.0f;
+      }
+      //template<typename Tx>
+      //void checkNormalOrZero()
+      //{
+      //    //Make sure the number is a normal FP number
+      //    int cx = std::fpclassify(x);
+      //    int cy = std::fpclassify(y);
+      //    int cz = std::fpclassify(z);
+      //    if (cx != FP_ZERO && cx != FP_NORMAL)
+      //        x = 0.0f;
+      //    if (cy != FP_ZERO && cy != FP_NORMAL)
+      //        y = 0.0f;
+      //    if (cz != FP_ZERO && cz != FP_NORMAL)
+      //        z = 0.0f;
+      //}
+      //template<typename Tx>
+      //bool isNormalFloat()
+      //{
+      //    bool b = true;
+
+      //    //Make sure the number is a normal FP number
+      //    int cx = std::fpclassify(x);
+      //    int cy = std::fpclassify(y);
+      //    int cz = std::fpclassify(z);
+      //    //NAN
+      //    if (cx == FP_NAN)
+      //    {
+      //        b = false;
+      //    }
+      //    if (cy == FP_NAN)
+      //    {
+      //        b = false;
+      //    }
+      //    if (cz == FP_NAN)
+      //    {
+      //        b = false;
+      //    }
+      //    ////DEN
+      //    //If the number is too small who cares. Let it round to zero.
+      //    //AssertOrThrow2(cx!= FP_SUBNORMAL);
+      //    //AssertOrThrow2(cy!= FP_SUBNORMAL);
+      //    //AssertOrThrow2(cz!= FP_SUBNORMAL);
+      //    //INF
+      //    if (cx == FP_INFINITE)
+      //    {
+      //        b = false;
+      //    }
+      //    if (cy == FP_INFINITE)
+      //    {
+      //        b = false;
+      //    }
+      //    if (cz == FP_INFINITE)
+      //    {
+      //        b = false;
+      //    }
+
+      //    return b;
+      //}
+      //template<typename Tx>
+      //void checkNormalOrZeroAndLimitVector(float fMaxLength, bool bShowWarningMessage)
+      //{
+      //    //Normalize number
+      //    checkNormalOrZero();
+
+      //    // Make sure the vector length isn't too big.
+      //    if (squaredLength() >= (fMaxLength * fMaxLength))
+      //    {
+      //        if (bShowWarningMessage == true)
+      //            BRLogWarn("Object has launched into orbit: v=(", x, ", y, " ", z, ")");
+      //        *this = normalized() * fMaxLength;
+      //    }
+      //}
+
+      //class Vec3Basis : public VirtualMemory {
+      //public:
+      //    vec3 _x, _y, _z;
+      //};
+   }
+   [StructLayout(LayoutKind.Sequential)]
+   public struct vec4
+   {
+      public float x, y, z, w;
+
+      public vec4(vec3 d, float dw) { x = d.x; y = d.y; z = d.z; w = dw; }
+      public vec4(vec4 dxy) { x = dxy.x; y = dxy.y; z = dxy.z; w = dxy.w; }
+      public vec4(float dx, float dy, float dz, float dw) { x = dx; y = dy; z = dz; w = dw; }
+      public vec4(OpenTK.Vector4 v) { x = v.X; y = v.Y; z = v.Z; w = v.W; }//From XNA's Vector2
+
+      public override string ToString() { return "(" + x + "," + y + "," + z + "," + w + ")"; }
+      public vec4 construct(float dx, float dy, float dz, float dw)
+      {
+         x = dx; y = dy; z = dz; w = dw;
+         return this;
+      }
+
+      public static vec4 Clamp(vec4 v, float a, float b)
+      {
+         vec4 ret = new vec4();
+         ret.z = OpenTK.MathHelper.Clamp(v.z, a, b);
+         ret.x = OpenTK.MathHelper.Clamp(v.x, a, b);
+         ret.y = OpenTK.MathHelper.Clamp(v.y, a, b);
+         ret.w = OpenTK.MathHelper.Clamp(v.w, a, b);
+         return ret;
+      }
+      public void Clamp(float a, float b)
+      {
+         this = Clamp(this, a, b);
+      }
+      public void SetMinLightValue(float val)
+      {
+         //Make sure there's enough light for this.
+         //Val = the minimum amount of light.
+         //This isn't perfect
+         float tot = x + y + z;
+         if (tot < val)
+         {
+            float add = (2 - tot) / val;
+            x += add;
+            y += add;
+            z += add;
+            x = OpenTK.MathHelper.Clamp(x, 0, 1);
+            y = OpenTK.MathHelper.Clamp(y, 0, 1);
+            z = OpenTK.MathHelper.Clamp(z, 0, 1);
+         }
+
+      }
+      public OpenTK.Vector4 toOpenTK()
+      {
+         return new OpenTK.Vector4(x, y, z, w);
+      }
+      public OpenTK.Graphics.Color4 toOpenTKColor()
+      {
+         var x = toOpenTK();
+         return new OpenTK.Graphics.Color4(x.X, x.Y, x.Z, x.W);
+      }
+      public static vec4 operator -(vec4 d)
+      {
+         return new vec4(-d.x, -d.y, -d.z, -d.w);
+      }
+      public static vec4 operator +(vec4 a, vec4 b)
+      {
+         return new vec4(a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w);
+      }
+      public static vec4 operator -(vec4 a, vec4 b)
+      {
+         return new vec4(a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w);
+      }
+      public static vec4 operator *(vec4 a, vec4 b)
+      {
+         return new vec4(a.x * b.x, a.y * b.y, a.z * b.z, a.w * b.w);
+      }
+      public static vec4 operator *(vec4 a, float b)
+      {
+         return new vec4(a.x * b, a.y * b, a.z * b, a.w * b);
+      }
+      public static vec4 operator /(vec4 a, float b)
+      {
+         return new vec4(a.x / b, a.y / b, a.z / b, a.w / b);
+      }
+      public static vec4 Minv(vec4 a, vec4 b)
+      {
+         vec4 ret = new vec4();
+         ret.x = (float)Math.Min(a.x, b.x);
+         ret.y = (float)Math.Min(a.y, b.y);
+         ret.z = (float)Math.Min(a.z, b.z);
+         ret.w = (float)Math.Min(a.w, b.w);
+         return ret;
+      }
+      public static vec4 Maxv(vec4 a, vec4 b)
+      {
+         vec4 ret = new vec4();
+         ret.x = (float)Math.Max(a.x, b.x);
+         ret.y = (float)Math.Max(a.y, b.y);
+         ret.z = (float)Math.Max(a.z, b.z);
+         ret.w = (float)Math.Max(a.w, b.w);
+         return ret;
+      }
+      public vec3 xyz()
+      {
+         return new vec3(x, y, z);
+      }
+   }
 
 }

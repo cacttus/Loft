@@ -25,7 +25,7 @@
 //        public bool UserAdjusted { get; set; }
 //        private void CreateBuffer()
 //        {
-//            Gu.CheckGpuErrorsDbg();
+//            Gpu.CheckGpuErrorsDbg();
 
 //            _intVboId = GL.GenBuffer();
 //            _intIboId = GL.GenBuffer();
@@ -38,7 +38,7 @@
 
 //            GL.BindVertexArray(_intVaoId);
 
-//            Gu.CheckGpuErrorsDbg();
+//            Gpu.CheckGpuErrorsDbg();
 
 //            //Bind Vertexes
 //            GL.BindBuffer(BufferTarget.ArrayBuffer, _intVboId);
@@ -60,7 +60,7 @@
 //            GL.VertexAttribPointer(attr_n, 3, VertexAttribPointerType.Float, false, v3c4n3x2.ByteSize(), (IntPtr)(0 + v4s + v4s));
 //            GL.VertexAttribPointer(attr_x, 2, VertexAttribPointerType.Float, false, v3c4n3x2.ByteSize(), (IntPtr)(0 + v4s + v4s + v4s));
 
-//            Gu.CheckGpuErrorsDbg();
+//            Gpu.CheckGpuErrorsDbg();
 
 //            //Bind indexes
 //            GL.BindBuffer(BufferTarget.ElementArrayBuffer, _intIboId);
@@ -70,13 +70,13 @@
 //                IntPtr.Zero, //Fill data later
 //                BufferUsageHint.StaticDraw
 //                );
-//            Gu.CheckGpuErrorsDbg();
+//            Gpu.CheckGpuErrorsDbg();
 
 //            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
 //            GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
 //            GL.BindVertexArray(0);
 
-//            Gu.CheckGpuErrorsDbg();
+//            Gpu.CheckGpuErrorsDbg();
 //        }
 //        private void CopyVertexData()
 //        {
@@ -92,11 +92,11 @@
 //            // Creates vertexes and stuff
 //            GL.BindBuffer(BufferTarget.ArrayBuffer, _intVboId);
 //            GL.BindBuffer(BufferTarget.ElementArrayBuffer, _intIboId);
-//            Gu.CheckGpuErrorsDbg();
+//            Gpu.CheckGpuErrorsDbg();
 
 //            IntPtr pIbo = GL.MapBuffer(BufferTarget.ElementArrayBuffer, BufferAccess.WriteOnly);
 //            IntPtr pVbo = GL.MapBuffer(BufferTarget.ArrayBuffer, BufferAccess.WriteOnly);
-//            Gu.CheckGpuErrorsDbg();
+//            Gpu.CheckGpuErrorsDbg();
 //            unsafe
 //            {
 //                uint* pIndexes = (uint*)pIbo.ToPointer();
@@ -141,7 +141,7 @@
 //            }
 //            GL.UnmapBuffer(BufferTarget.ElementArrayBuffer);
 //            GL.UnmapBuffer(BufferTarget.ArrayBuffer);
-//            Gu.CheckGpuErrorsDbg();
+//            Gpu.CheckGpuErrorsDbg();
 
 //            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
 //            GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
@@ -219,10 +219,10 @@
 //            if (_objTexture != null)
 //                _objTexture.Bind();
 
-//            Gu.CheckGpuErrorsDbg();
+//            Gpu.CheckGpuErrorsDbg();
 //            //bool b = GL.IsVertexArray(_intVaoId);
 //            GL.BindVertexArray(_intVaoId);
-//            Gu.CheckGpuErrorsDbg();
+//            Gpu.CheckGpuErrorsDbg();
 
 //            GL.BindBuffer(BufferTarget.ArrayBuffer, _intVboId);
 //            GL.BindBuffer(BufferTarget.ElementArrayBuffer, _intIboId);
@@ -237,7 +237,7 @@
 //            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
 //            GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
 
-//            Gu.CheckGpuErrorsDbg();
+//            Gpu.CheckGpuErrorsDbg();
 
 //            if (_objTexture != null)
 //                _objTexture.Unbind();

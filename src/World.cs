@@ -82,22 +82,28 @@ namespace PirateCraft
             //TODO: of course we're going to use a bucket collection algorithm. This is in the future.
             foreach (var ob in Objects.Values)
             {
-               if (ob.Mesh != null)
-               {
-                  if (ob.Material != null)
-                  {
-                     ob.Material.BeginRender(Delta, camera, ob.World);
-                     Renderer.Render(camera, ob);
-                     ob.Material.EndRender();
-                  }
-                  else
-                  {
-                     Gu.Log.Error("Object had no material");
-                  }
-               }
+               DrawOb(ob,Delta,camera);
             }
          }
          camera.EndRender();
+      }
+      private void DrawOb(WorldObject ob, double Delta, Camera3D camera)
+      {
+         if (ob.Mesh != null)
+         {
+            Material mat = ob.Material;
+            if (ob.Material == null)
+            {
+               mat = Material.Default(ob.Color);
+            }
+            mat.BeginRender(Delta, camera, ob);
+            Renderer.Render(camera, ob, mat);
+            mat.EndRender();
+         }
+         foreach(var c in ob.Children)
+         {
+            DrawOb(c,Delta,camera);
+         }
       }
    }
 }

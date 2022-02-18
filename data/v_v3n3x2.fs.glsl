@@ -16,10 +16,11 @@ uniform sampler2D _ufTextureId_i0;
 in vec3 _vsNormal;
 in vec2 _vsTcoords;
 in vec3 _vsVertex;
-uniform vec3 cam_pos;
-uniform int lightingModel;
-uniform float GGX_X;
-uniform float GGX_Y;
+
+uniform vec3 _ufCamera_Position;
+uniform int _ufLightModel_Index;
+uniform float _ufLightModel_GGX_X;
+uniform float _ufLightModel_GGX_Y;
 
 
 out vec4 _psColorOut;
@@ -33,14 +34,14 @@ void main(void)
     lights[0]._radius = 100.0f;
     lights[0]._color = vec3(.95,.9691,.9488);
     lights[0]._power = 0.67; // power within radius of light. 1 = is constant, 0.5 linear, 0 would be no light. <0.5 power falloff >0.5 is slow faloff. y=x^(1/p), p=[0,1], p!=0
-    lights[1]._pos = cam_pos;
+    lights[1]._pos = _ufCamera_Position;
     lights[1]._radius = 100.0f;
     lights[1]._color = vec3(.9613,.9,.98);
     lights[1]._power = 0.63;// power within radius of light. 1 = is constant, 0.5 linear, 0 would be no light. <0.5 power falloff >0.5 is slow faloff. y=x^(1/p), p=[0,1] ,p!=0
 
     vec4 tex = texture(_ufTextureId_i0, vec2(_vsTcoords));
 
-    vec3 eye = normalize(cam_pos - _vsVertex); // vec3(0, 10, -10);
+    vec3 eye = normalize(_ufCamera_Position - _vsVertex); // vec3(0, 10, -10);
     //[Param]
     float rho = 0.17f; //Albedo [0,1], 1 = 100% white, 0 = black body.
     //[Param]
@@ -94,25 +95,25 @@ void main(void)
 #endif
         //Phong
         float distribution = 0;
-        if(lightingModel == 0){
+        if(_ufLightModel_Index == 0){
             vec3 vReflect= reflect(-lightpos_normal, _vsNormal);
             distribution = clamp( pow(clamp(dot(vReflect, eye), 0,1), fSpecHardness), 0,1 );
 
         }
-        if(lightingModel == 1){
+        if(_ufLightModel_Index == 1){
             vec3 vReflect = (lightpos_normal+ _vsNormal)*0.5f;
             distribution = clamp( pow(clamp(dot(vReflect, eye), 0,1), fSpecHardness), 0,1 );
         }
-        if(lightingModel == 2){
+        if(_ufLightModel_Index == 2){
             //GGX only
             //https://jcgt.org/published/0007/04/01/paper.pdf
-            float bias = (_vsNormal.x*_vsNormal.x)/(GGX_X*GGX_X) +(_vsNormal.z*_vsNormal.z)/(GGX_Y*GGX_Y)+_vsNormal.y*_vsNormal.y;
-             distribution = 1.0 / (M_PI*GGX_X*GGX_Y*bias*bias);
+            float bias = (_vsNormal.x*_vsNormal.x)/(_ufLightModel_GGX_X*_ufLightModel_GGX_X) +(_vsNormal.z*_vsNormal.z)/(_ufLightModel_GGX_Y*_ufLightModel_GGX_Y)+_vsNormal.y*_vsNormal.y;
+             distribution = 1.0 / (M_PI*_ufLightModel_GGX_X*_ufLightModel_GGX_Y*bias*bias);
         }
-        if(lightingModel == 3){
+        if(_ufLightModel_Index == 3){
             //Smith shadowing model with GGX for microfacet distributions
             //https://jcgt.org/published/0007/04/01/paper.pdf
-            float gamma = (-1 + ((_vsNormal.x*_vsNormal.x)*(GGX_X*GGX_X) +(_vsNormal.z*_vsNormal.z)*(GGX_Y*GGX_Y))/(_vsNormal.y*_vsNormal.y)) * 0.5f;
+            float gamma = (-1 + ((_vsNormal.x*_vsNormal.x)*(_ufLightModel_GGX_X*_ufLightModel_GGX_X) +(_vsNormal.z*_vsNormal.z)*(_ufLightModel_GGX_Y*_ufLightModel_GGX_Y))/(_vsNormal.y*_vsNormal.y)) * 0.5f;
              distribution = 1.0 / (1+gamma);
         }
         //Blinn-Phong

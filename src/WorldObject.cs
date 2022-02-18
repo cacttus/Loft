@@ -233,7 +233,7 @@ namespace PirateCraft
          //Sigmoid "ease"
          //Assuming time is normalized [0,1]
          double k = 0.1; //Slope
-         double f = 1 / (1 + Math.Exp(-((time-0.5) / k)));
+         double f = 1 / (1 + Math.Exp(-((time - 0.5) / k)));
          return a * (1 - (float)f) + b * (float)f;
       }
       private Vec3f CubicInterpolate(Vec3f a, Vec3f b, double time)
@@ -260,6 +260,8 @@ namespace PirateCraft
    }
    public class TrackToConstraint : Constraint
    {
+      //*This does not work correctly.
+      //Essentially it would set the camera object's world matrix, but it doesn't wrok.
       public bool Relative = false;
       public WorldObject LookAt = null;
       public Vec3f Up = new Vec3f(0, 1, 0);
@@ -305,6 +307,9 @@ namespace PirateCraft
          // self.Rotation = mm.ExtractRotation().ToAxisAngle();
       }
    }
+   /// <summary>
+   /// This is the main object that stores matrix for pos/rot/scale, and components for mesh, sound, script .. etc. GameObject in Unity.
+   /// </summary>
    public class WorldObject
    {
       // public RotationType RotationType = RotationType.AxisAngle;
@@ -324,11 +329,28 @@ namespace PirateCraft
       private WorldObject _parent = null;
       private Mat4f _world = Mat4f.Identity;
 
+      public Vec4f Color { get; set; } = new Vec4f(1, 1, 1, 1); // Mesh color if no material
       public bool TransformChanged { get; private set; } = false;
       public bool Hidden { get; set; } = false;
       public Box3f BoundBox { get; set; } = new Box3f(new Vec3f(0, 0, 0), new Vec3f(1, 1, 1));
-      public WorldObject Parent { get { return _parent; } set { _parent = value; SetTransformChanged(); } }
-      public List<WorldObject> Children { get; set; } = new List<WorldObject>();
+      public WorldObject Parent { get { return _parent; } private set { _parent = value; SetTransformChanged(); } }
+      public List<WorldObject> Children { get; private set; } = new List<WorldObject>();
+
+      public void AddChild(WorldObject child)
+      {
+         if (child.Parent != null)
+         {
+            child.Parent.RemoveChild(child);
+         }
+         Children.Add(child);
+         child.Parent = this;
+      }
+      public void RemoveChild(WorldObject child)
+      {
+         Children.Remove(child);
+         child.Parent = null;
+      }
+
       public Quat Rotation { get { return _rotation; } set { _rotation = value; SetTransformChanged(); } }//xyz,angle
       public Vec3f Scale { get { return _scale; } set { _scale = value; SetTransformChanged(); } }
       public Vec3f Position { get { return _position; } set { _position = value; SetTransformChanged(); } }
@@ -353,13 +375,13 @@ namespace PirateCraft
 
       //TODO: Clone
 
-      public WorldObject(Vec3f pos)
+      public WorldObject(Vec3f pos) : base()
       {
          Position = pos;
       }
       public WorldObject()
       {
-
+         Color = Random.NextVec4(new Vec4f(0.3f,0.3f,0.3f,1), new Vec4f(1,1,1,1));
       }
       public void SetTransformChanged()
       {

@@ -28,13 +28,13 @@ namespace PirateCraft
       public ShaderType ShaderType { get; private set; } = ShaderType.VertexShader;
       public ShaderStage(ShaderType tt, string src)
       {
-         ShaderType = tt; 
+         ShaderType = tt;
          _glId = GL.CreateShader(tt);
-         Gu.CheckGpuErrorsRt();
+         Gpu.CheckGpuErrorsRt();
          GL.ShaderSource(_glId, src);
-         Gu.CheckGpuErrorsRt();
+         Gpu.CheckGpuErrorsRt();
          GL.CompileShader(_glId);
-         Gu.CheckGpuErrorsRt();
+         Gpu.CheckGpuErrorsRt();
       }
       public override void Dispose()
       {
@@ -45,42 +45,74 @@ namespace PirateCraft
          base.Dispose();
       }
    }
+   public class ShaderUniform
+   {
+      public int Location { get; private set; } = 0;
+      public string Name { get; private set; } = "unset";
+      public string Value { get; private set; } = "unset";
+      public int SizeBytes { get; private set; } = 0;
+      public ActiveUniformType Type { get; private set; } = ActiveUniformType.Int;
+
+      public ShaderUniform(int location, int u_size, ActiveUniformType u_type, string u_name)
+      {
+         Location = location; ;
+         Name = u_name;
+         Type = u_type;
+         SizeBytes = u_size;
+      }
+   }
    public class Shader : OpenGLResource
    {
-      ShaderStage _vertexStage = null;
-      ShaderStage _fragmentStage = null;
-      ShaderStage _geomStage = null;
+      private ShaderStage _vertexStage = null;
+      private ShaderStage _fragmentStage = null;
+      private ShaderStage _geomStage = null;
 
-      int _viewMatrixLocation;
-      int _modelMatrixLocation;
-      int _projectionMatrixLocation;
-      int _texLocation;
-      int _camPosLocation;
-      int _lightingModelLocation;
-      int _GGX_XLocation;
-      int _GGX_YLocation;
+      private Dictionary<string, ShaderUniform> _uniforms = new Dictionary<string, ShaderUniform>();
+
+      //Just debug stuff that will go away.
       public float GGX_X = .8f;
       public float GGX_Y = .8f;
       public int lightingModel = 2;
-      List<string> _shaderErrors = new List<string>();
 
-      ShaderLoadState State = ShaderLoadState.None;
+      private List<string> _shaderErrors = new List<string>();
+
+      private ShaderLoadState State = ShaderLoadState.None;
 
       private static Shader _defaultDiffuseShader = null;
+      private static Shader _defaultFlatColorShader = null;
+
+      public string Name { get; private set; } = "<unset>";
+
+      public static Shader DefaultFlatColorShader()
+      {
+         if (_defaultFlatColorShader == null)
+         {
+            _defaultFlatColorShader = LoadShaderGeneric("v_v3", false);
+         }
+         return _defaultFlatColorShader;
+      }
       public static Shader DefaultDiffuse()
       {
          //Returns a basic v3 n3 x2 lambert+blinn-phong shader.
          if (_defaultDiffuseShader == null)
          {
-            string frag = Gu.ReadTextFile(Gu.EmbeddedDataPath + "BasicShader_frag.glsl", true);
-            string vert = Gu.ReadTextFile(Gu.EmbeddedDataPath + "BasicShader_vert.glsl", true);
-            _defaultDiffuseShader = new Shader(vert, frag);
+            _defaultDiffuseShader = LoadShaderGeneric("v_v3n3x2", false);
          }
          return _defaultDiffuseShader;
       }
-      public Shader(string vsSrc = "", string psSrc = "", string gsSrc="")
+      private static Shader LoadShaderGeneric(string generic_name, bool gs)
       {
-         Gu.CheckGpuErrorsDbg();
+         Shader ret = null;
+         string vert = Gu.ReadTextFile(Gu.EmbeddedDataPath + generic_name + ".vs.glsl", true);
+         string geom = gs ? Gu.ReadTextFile(Gu.EmbeddedDataPath + generic_name + ".gs.glsl", true) : "";
+         string frag = Gu.ReadTextFile(Gu.EmbeddedDataPath + generic_name + ".fs.glsl", true);
+         ret = new Shader(generic_name, vert, frag, geom);
+         return ret;
+      }
+      public Shader(string name, string vsSrc = "", string psSrc = "", string gsSrc = "")
+      {
+         Name = name;
+         Gpu.CheckGpuErrorsDbg();
          {
             State = ShaderLoadState.Loading;
             CreateShaders(vsSrc, psSrc, gsSrc);
@@ -88,17 +120,18 @@ namespace PirateCraft
             if (State != ShaderLoadState.Failed)
             {
                GL.UseProgram(_glId);
-               QueryMatrixLocations();
+
+               ParseUniforms();
 
                State = ShaderLoadState.Success;
             }
             else
             {
-               Gu.Log.Error("Failed to load shader.\r\n" + String.Join("\r\n", _shaderErrors.ToArray()));
+               Gu.Log.Error("Failed to load shader '" + Name + "'.\r\n" + String.Join("\r\n", _shaderErrors.ToArray()));
                Gu.DebugBreak();
             }
          }
-         Gu.CheckGpuErrorsDbg();
+         Gpu.CheckGpuErrorsDbg();
       }
       public override void Dispose()
       {
@@ -110,64 +143,35 @@ namespace PirateCraft
       }
       public void Bind()
       {
-         Gu.CheckGpuErrorsDbg();
+         Gpu.CheckGpuErrorsDbg();
          {
             GL.UseProgram(_glId);
          }
-         Gu.CheckGpuErrorsDbg();
+         Gpu.CheckGpuErrorsDbg();
       }
       public void Unbind()
       {
-         Gu.CheckGpuErrorsDbg();
+         Gpu.CheckGpuErrorsDbg();
          {
             GL.UseProgram(0);
          }
-         Gu.CheckGpuErrorsDbg();
+         Gpu.CheckGpuErrorsDbg();
       }
-      Vec3f _camvpos;
-      //int _normalMatrixLocation=0;
-      public void UpdateAndBind(double dt, Camera3D cam, Mat4f model)
+      public void UpdateAndBind(double dt, Camera3D cam, WorldObject ob)
       {
          //**Pre - render - update uniforms.
-         Gu.CheckGpuErrorsDbg();
+         Gpu.CheckGpuErrorsDbg();
          {
             Bind();
-
-            var v_mat_tk = cam.ViewMatrix;
-            var p_mat_tk = cam.ProjectionMatrix;
-            var m_mat_tk = model;
-            var n_mat_tk = model.Inverted();
-
-            //var a = model.inverseOf() * model;
-
-            GL.UniformMatrix4(_viewMatrixLocation, false, ref v_mat_tk);
-            Gu.CheckGpuErrorsDbg();
-            GL.UniformMatrix4(_projectionMatrixLocation, false, ref p_mat_tk);
-            Gu.CheckGpuErrorsDbg();
-            GL.UniformMatrix4(_modelMatrixLocation, false, ref m_mat_tk);
-            Gu.CheckGpuErrorsDbg();
-            //GL.UniformMatrix4(_normalMatrixLocation, false, ref n_mat_tk);
-            //Gu.CheckGpuErrorsDbg();
-
-            GL.Uniform1(_texLocation, TextureUnit.Texture0 - TextureUnit.Texture0);
-            Gu.CheckGpuErrorsRt();
-            GL.Uniform1(_lightingModelLocation, lightingModel);
-            Gu.CheckGpuErrorsRt();
-            GL.Uniform1(_GGX_XLocation, GGX_X);
-            GL.Uniform1(_GGX_YLocation, GGX_Y);
-            Gu.CheckGpuErrorsRt();
-
-            _camvpos = cam.Position;
-
-            GL.ProgramUniform3(_glId, _camPosLocation, _camvpos.X, _camvpos.Y, _camvpos.Z);
-            Gu.CheckGpuErrorsDbg();
+            BindUniforms(dt, cam, ob);
          }
-         Gu.CheckGpuErrorsDbg();
+         Gpu.CheckGpuErrorsDbg();
       }
       #region Private
-      private void CreateShaders(string vs, string ps, string gs="")
+
+      private void CreateShaders(string vs, string ps, string gs = "")
       {
-         Gu.CheckGpuErrorsRt();
+         Gpu.CheckGpuErrorsRt();
          {
             _vertexStage = new ShaderStage(ShaderType.VertexShader, vs);
             _fragmentStage = new ShaderStage(ShaderType.FragmentShader, ps);
@@ -176,26 +180,26 @@ namespace PirateCraft
                _geomStage = new ShaderStage(ShaderType.GeometryShader, gs);
             }
          }
-         Gu.CheckGpuErrorsRt();
+         Gpu.CheckGpuErrorsRt();
       }
       private void CreateProgram()
       {
-         Gu.CheckGpuErrorsRt();
+         Gpu.CheckGpuErrorsRt();
          {
             _glId = GL.CreateProgram();
 
             GL.AttachShader(_glId, _vertexStage.GetGlId());
-            Gu.CheckGpuErrorsRt();
+            Gpu.CheckGpuErrorsRt();
             GL.AttachShader(_glId, _fragmentStage.GetGlId());
-            Gu.CheckGpuErrorsRt();
+            Gpu.CheckGpuErrorsRt();
             if (_geomStage != null)
             {
                GL.AttachShader(_glId, _geomStage.GetGlId());
-               Gu.CheckGpuErrorsRt();
+               Gpu.CheckGpuErrorsRt();
             }
 
             GL.LinkProgram(_glId);
-            Gu.CheckGpuErrorsRt();
+            Gpu.CheckGpuErrorsRt();
 
             string programInfoLog;
             GL.GetProgramInfoLog(_glId, out programInfoLog);
@@ -207,34 +211,82 @@ namespace PirateCraft
             }
 
          }
-         Gu.CheckGpuErrorsRt();
+         Gpu.CheckGpuErrorsRt();
       }
-      private void FindUniformOrDieTryin(ref int loc, string name)
+      private void ParseUniforms()
       {
-         if ((loc = GL.GetUniformLocation(_glId, name)) == 0)
-         {
-            Gu.Log.Error("Failed to find uniform location '" + name + "'");
-         }
+         int u_count = 0;
+         GL.GetProgram(_glId, GetProgramParameterName.ActiveUniforms, out u_count);
+         Gpu.CheckGpuErrorsRt();
 
+         for (var i = 0; i < u_count; i++)
+         {
+            ActiveUniformType u_type;
+            int u_size = 0;
+            string u_name = "DEADDEADDEADDEADDEADDEADDEADDEADDEADDEADDEADDEADDEADDEADDEADDEAD";//idk.
+            int u_name_len = 0;
+
+            GL.GetActiveUniform(GetGlId(), i, out u_size, out u_type);
+            Gpu.CheckGpuErrorsRt();
+            GL.GetActiveUniformName(GetGlId(), i, u_name.Length, out u_name_len, out u_name);
+            Gpu.CheckGpuErrorsRt();
+
+            u_name = u_name.Substring(0, u_name_len);
+
+            ShaderUniform su = new ShaderUniform(i, u_size, u_type, u_name);
+            _uniforms.Add(u_name, su);
+         }
       }
-      private void QueryMatrixLocations()
+      private void BindUniforms(double dt, Camera3D cam, WorldObject ob)
       {
-         Gu.CheckGpuErrorsDbg();
+         foreach (var u in _uniforms.Values)
          {
-            FindUniformOrDieTryin(ref _projectionMatrixLocation, "projection_matrix");
-            FindUniformOrDieTryin(ref _viewMatrixLocation, "view_matrix");
-            FindUniformOrDieTryin(ref _modelMatrixLocation, "model_matrix");
-            FindUniformOrDieTryin(ref _texLocation, "_ufTextureId_i0");
-            FindUniformOrDieTryin(ref _camPosLocation, "cam_pos");
-            FindUniformOrDieTryin(ref _lightingModelLocation, "lightingModel");
-            FindUniformOrDieTryin(ref _GGX_XLocation, "GGX_X");
-            FindUniformOrDieTryin(ref _GGX_YLocation, "GGX_Y");
+            //bind uniforms based on name.
+            switch (u.Name)
+            {
+               case "_ufCamera_Position":
+                  GL.ProgramUniform3(_glId, u.Location, cam.Position.X, cam.Position.Y, cam.Position.Z);
+                  break;
+               case "_ufLightModel_GGX_X":
+                  GL.Uniform1(u.Location, GGX_X);
+                  break;
+               case "_ufLightModel_GGX_Y":
+                  GL.Uniform1(u.Location, GGX_Y);
+                  break;
+               case "_ufLightModel_Index":
+                  GL.Uniform1(u.Location, lightingModel);
+                  break;
+               case "_ufTextureId_i0":
+                  GL.Uniform1(u.Location, TextureUnit.Texture0 - TextureUnit.Texture0);
+                  break;
+               case "_ufWorldObject_Color":
+                  GL.ProgramUniform4(_glId, u.Location, ob.Color.X, ob.Color.Y, ob.Color.Z, ob.Color.W);
+                  break;
+               case "_ufMatrix_Normal":
+                  var n_mat_tk = ob.World.Inverted();
+                  GL.UniformMatrix4(u.Location, false, ref n_mat_tk);
+                  break;
+               case "_ufMatrix_Model":
+                  var m_mat_tk = ob.World;
+                  GL.UniformMatrix4(u.Location, false, ref m_mat_tk);
+                  break;
+               case "_ufMatrix_View":
+                  var v_mat_tk = cam.ViewMatrix;
+                  GL.UniformMatrix4(u.Location, false, ref v_mat_tk);
+                  break;
+               case "_ufMatrix_Projection":
+                  var p_mat_tk = cam.ProjectionMatrix;
+                  GL.UniformMatrix4(u.Location, false, ref p_mat_tk);
+                  break;
+               default:
+                  Gu.Log.Warn("Unknown uniform variable '" + u.Name + "'.");
+                  break;
+            }
 
-            Gu.CheckGpuErrorsRt();
+            //Check for errors.
+            Gpu.CheckGpuErrorsDbg();
          }
-         Gu.CheckGpuErrorsDbg();
       }
-      
       #endregion
 
    }

@@ -29,12 +29,12 @@ namespace PirateCraft
       Texture = t;
       Shader = s;
     }
-    public void BeginRender(double dt, Camera3D camera, Mat4f model_matrix)
+    public void BeginRender(double dt, Camera3D camera, WorldObject ob)
     {
       Gu.CurrentWindowContext.Gpu.GpuRenderState.CullFace = GpuRenderState.CullFace;
       Gu.CurrentWindowContext.Gpu.GpuRenderState.DepthTest = GpuRenderState.DepthTest;
       Gu.CurrentWindowContext.Gpu.GpuRenderState.ScissorTest = GpuRenderState.ScissorTest;
-      Shader.UpdateAndBind(dt, camera, model_matrix);
+      Shader.UpdateAndBind(dt, camera,  ob);
     }
     public void EndRender()
     {

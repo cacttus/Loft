@@ -84,21 +84,34 @@ namespace PirateCraft
          RegisterContext(g);
          SetContext(g);
       }
+
       public static string ReadTextFile(string location, bool embedded)
       {
+         //Returns empty string when failSilently is true.
          string data = "";
 
          if (embedded)
          {
-            using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(location))
-            using (StreamReader reader = new StreamReader(stream))
+            if (!Assembly.GetExecutingAssembly().GetManifestResourceNames().Contains(location))
             {
-               data = reader.ReadToEnd();
+               Gu.BRThrowException("File '" + location + "' does not exist.");
+            }
+
+            using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(location))
+            {
+               using (StreamReader reader = new StreamReader(stream))
+               {
+                  data = reader.ReadToEnd();
+               }
             }
          }
          else
          {
-            Assert(System.IO.File.Exists(location));
+            if (!System.IO.File.Exists(location))
+            {
+               Gu.BRThrowException("File '" + location + "' does not exist.");
+            }
+
             using (Stream stream = File.Open(location, FileMode.Open, FileAccess.Read, FileShare.None))
             using (StreamReader reader = new StreamReader(stream))
             {
@@ -166,27 +179,7 @@ namespace PirateCraft
       {
          return Nanoseconds() / 1000;
       }
-      public static void CheckGpuErrorsRt()
-      {
-         ErrorCode c = GL.GetError();
-         if (c != ErrorCode.NoError)
-         {
-            if (Gu.EngineConfig.LogErrors)
-            {
-               Log.Error("OpenGL Error " + c.ToString());
-            }
-            if (Gu.EngineConfig.BreakOnOpenGLError)
-            {
-               System.Diagnostics.Debugger.Break();
-            }
-         }
-      }
-      public static void CheckGpuErrorsDbg()
-      {
-#if DEBUG
-         CheckGpuErrorsRt();
-#endif
-      }
+
       public static void Assert(bool x, [CallerLineNumber] int lineNumber = 0, [CallerMemberName] string caller = null)
       {
          if (!x)
