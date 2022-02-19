@@ -1937,7 +1937,7 @@ namespace PirateCraft
       public quat toQuat()
       {
          quat q = new quat();
-         mat3 m =   this.transposed();//Testing to see if this is thr problem
+         mat3 m =   this.transposed();//Testing to see if this is thr problem..it is -- fix this
 
          float tr = m._m11 + m._m22 + m._m33;
 
@@ -2792,6 +2792,7 @@ namespace PirateCraft
 
 
    }//mat4
+   
    [StructLayout(LayoutKind.Sequential)]
    public struct quat
    {
@@ -2811,13 +2812,34 @@ namespace PirateCraft
          z = dz;
          w = dw;
       }
-      public float Dot(in quat rhs)
+      public float dot(in quat rhs)
       {
          return (x * rhs.x + y * rhs.y + z * rhs.z + w * rhs.w);
       }
       public float mag()
       {
-         return w * w + (x * x + y * y + z * z);
+         float ret = (float)Math.Sqrt(w * w + x * x + y * y + z * z);
+         return ret;
+      }
+      public quat normalized()
+      {
+         quat ret;
+         float len = mag();
+         if (len != 0)
+         {
+
+         ret = new quat(
+            this.x / len,
+            this.y / len,
+            this.z / len,
+            this.w / len
+            );
+         }
+         else
+         {
+            ret = quat.identity();
+         }
+         return ret;
       }
       public quat inverse()
       {
@@ -2855,6 +2877,15 @@ namespace PirateCraft
          outv.w = q.w * f;
          return outv;
       }
+      public static quat operator *(in quat q, double f)
+      {
+         quat outv;
+         outv.x = q.x * (float)f;
+         outv.y = q.y * (float)f;
+         outv.z = q.z * (float)f;
+         outv.w = q.w * (float)f;
+         return outv;
+      }
       public static quat operator +(in quat lhs, in quat rhs)
       {
          quat outv;
@@ -2864,37 +2895,30 @@ namespace PirateCraft
          outv.w = lhs.w + rhs.w;
          return outv;
       }
+      public quat lerpTo(in quat rhs, float t)
+      {
+         quat ret = new quat(
+            x * (1 - t) + t * rhs.x,
+            y * (1 - t) + t * rhs.y,
+            z * (1 - t) + t * rhs.z,
+            w * (1 - t) + t * rhs.w
+            ).normalized();
+         return ret;
+      }
       public quat slerpTo(in quat rhs, float t)
       {
          //SLERP Spherical Linear interpolate this quaternion to rhs.
          // @param rhs The Quat to slerp
          // @param t Interpolation value [0 to 1]
          quat ret;
-         float s0, s1, sinAng, ang, cosAng, absAng;
-         float sinSqr;
 
-         cosAng = Dot(rhs);
-         absAng = (float)Math.Abs(cosAng);
+         double theta = Math.Acos(this.dot(rhs));
+         double sintheta = Math.Sin(theta);
+         double wp = (Math.Sin(1 - t) * theta) / sintheta;
+         double wq = (Math.Sin(t) * theta) / sintheta;
 
-         if ((1 - absAng) > 1e-6f)
-         {
-            sinSqr = 1.0f - absAng * absAng;
-            sinAng = 1.0f / (float)Math.Sqrt(sinSqr);
-            ang = (float)Math.Atan2(sinSqr * sinAng, absAng);
-            s0 = (float)Math.Sin((1.0f - t) * ang) * sinAng;
-            s1 = (float)Math.Cos(t * ang) * sinAng;
-         }
-         else
-         {
-            s0 = (1.0f - t);
-            s1 = t;
-         }
-         s1 = (cosAng >= 0.0f) ? s1 : -s1;
-         ret.x = s0 * x + s1 * rhs.x;
-         ret.y = s0 * y + s1 * rhs.y;
-         ret.z = s0 * z + s1 * rhs.z;
-         ret.w = s0 * w + s1 * rhs.w;
-
+         ret = (this) * wp + rhs * wq;
+         ret = ret.normalized();
          return ret;
       }
       public static quat operator *(in quat q, in vec3 v)

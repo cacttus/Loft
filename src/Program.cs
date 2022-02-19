@@ -140,7 +140,7 @@ namespace PirateCraft
          Sphere_Rotate_Quat_Test.Rotation = quat.fromAxisAngle(new vec3(1, 1, 1), (float)Gu.RotationPerSecond(10));
          
          Sphere_Rotate_Quat_Test2.Position = new vec3(-3, 3, 0);
-         Sphere_Rotate_Quat_Test2.Rotation = mat4.getRotation(new vec3(1, 1, 1), (float)Gu.RotationPerSecond(10)).toQuat();
+         Sphere_Rotate_Quat_Test2.Rotation = mat4.getRotation(new vec3(-1,-1, -1), (float)Gu.RotationPerSecond(10)).toQuat();
         
          Sphere_Rotate_Quat_Test3.Position = new vec3(3, 3, 0);
          Sphere_Rotate_Quat_Test3.Rotation = quat.fromAxisAngle(new vec3(1, 1, 1), (float)Gu.RotationPerSecond(3));

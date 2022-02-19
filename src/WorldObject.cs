@@ -192,7 +192,7 @@ namespace PirateCraft
 
             //Ok, now slerp it up
             // Current.Rot = quat.Slerp(f0.Rot, f1.Rot, (float)slerpTime);
-             Current.Rot = f0.Rot.slerpTo(f1.Rot, (float)slerpTime);
+            Current.Rot = f0.Rot.slerpTo(f1.Rot, (float)slerpTime);
             Current.Pos = InterpolateV3(f1.PosInterp, f0.Pos, f1.Pos, slerpTime);
             Current.Scale = InterpolateV3(f1.SclInterp, f0.Scale, f1.Scale, slerpTime);
          }
