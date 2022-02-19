@@ -72,7 +72,7 @@ namespace PirateCraft
       //Just debug stuff that will go away.
       public float GGX_X = .8f;
       public float GGX_Y = .8f;
-      public int lightingModel = 2;
+      public int lightingModel = 4;
 
       private List<string> _shaderErrors = new List<string>();
 
@@ -103,9 +103,9 @@ namespace PirateCraft
       private static Shader LoadShaderGeneric(string generic_name, bool gs)
       {
          Shader ret = null;
-         string vert = Gu.ReadTextFile(Gu.EmbeddedDataPath + generic_name + ".vs.glsl", true);
-         string geom = gs ? Gu.ReadTextFile(Gu.EmbeddedDataPath + generic_name + ".gs.glsl", true) : "";
-         string frag = Gu.ReadTextFile(Gu.EmbeddedDataPath + generic_name + ".fs.glsl", true);
+         string vert = Gu.ReadTextFile(new FileLoc(generic_name + ".vs.glsl", FileStorage.Embedded));
+         string geom = gs ? Gu.ReadTextFile(new FileLoc(generic_name + ".gs.glsl", FileStorage.Embedded)) : "";
+         string frag = Gu.ReadTextFile(new FileLoc(generic_name + ".fs.glsl", FileStorage.Embedded));
          ret = new Shader(generic_name, vert, frag, geom);
          return ret;
       }

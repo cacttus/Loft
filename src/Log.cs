@@ -22,13 +22,8 @@ namespace PirateCraft
       //Loc is the path to the logs, not the logs.
       public Log(string loc)
       {
-         _fileLoc = loc;
-         if (String.IsNullOrEmpty(System.IO.Path.GetFileName(_fileLoc)))
-         {
-            _fileLoc = System.IO.Path.Combine(_fileLoc, "Log" + LogFileNameStr() + ".log");
-         }
-
-         Console.BackgroundColor = ConsoleColor.Black;
+         _fileLoc = System.IO.Path.Combine(loc, "Log" + LogFileNameStr() + ".log");
+         //Console.BackgroundColor = ConsoleColor.Black;
       }
       public void Debug(string s)
       {

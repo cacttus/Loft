@@ -31,12 +31,12 @@ void main(void)
 #define NUM_LIGHTS 2
     GpuLight lights[NUM_LIGHTS];
     lights[0]._pos = vec3(10,10,-10);
-    lights[0]._radius = 100.0f;
-    lights[0]._color = vec3(.95,.9691,.9488);
+    lights[0]._radius = 200.0f;
+    lights[0]._color = vec3(1,1,1);
     lights[0]._power = 0.67; // power within radius of light. 1 = is constant, 0.5 linear, 0 would be no light. <0.5 power falloff >0.5 is slow faloff. y=x^(1/p), p=[0,1], p!=0
     lights[1]._pos = _ufCamera_Position;
-    lights[1]._radius = 100.0f;
-    lights[1]._color = vec3(.9613,.9,.98);
+    lights[1]._radius = 200.0f;
+    lights[1]._color = vec3(1,1,1);
     lights[1]._power = 0.63;// power within radius of light. 1 = is constant, 0.5 linear, 0 would be no light. <0.5 power falloff >0.5 is slow faloff. y=x^(1/p), p=[0,1] ,p!=0
 
     vec4 tex = texture(_ufTextureId_i0, vec2(_vsTcoords));
@@ -96,11 +96,12 @@ void main(void)
         //Phong
         float distribution = 0;
         if(_ufLightModel_Index == 0){
+            //Phong
             vec3 vReflect= reflect(-lightpos_normal, _vsNormal);
             distribution = clamp( pow(clamp(dot(vReflect, eye), 0,1), fSpecHardness), 0,1 );
-
         }
         if(_ufLightModel_Index == 1){
+            //Blinn-Phong
             vec3 vReflect = (lightpos_normal+ _vsNormal)*0.5f;
             distribution = clamp( pow(clamp(dot(vReflect, eye), 0,1), fSpecHardness), 0,1 );
         }
@@ -116,11 +117,15 @@ void main(void)
             float gamma = (-1 + ((_vsNormal.x*_vsNormal.x)*(_ufLightModel_GGX_X*_ufLightModel_GGX_X) +(_vsNormal.z*_vsNormal.z)*(_ufLightModel_GGX_Y*_ufLightModel_GGX_Y))/(_vsNormal.y*_vsNormal.y)) * 0.5f;
              distribution = 1.0 / (1+gamma);
         }
-        //Blinn-Phong
+        
         finalSpecColor += lights[i]._color * fSpecIntensity * fQuadraticAttenuation * distribution;// * shadowMul; 
         
     }
-
+    if(_ufLightModel_Index==4){
+    //Flat shaidn
+        finalDiffuseColor= vec3(1,1,1);
+        finalSpecColor = vec3(0,0,0);
+        }
     _psColorOut.xyz = finalDiffuseColor *  tex.rgb + finalSpecColor;
     _psColorOut.w = 1.0f; //tex.a - but alpha compositing needs to be implemented.
 }

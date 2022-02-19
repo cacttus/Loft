@@ -39,18 +39,18 @@ namespace PirateCraft
       {
          try
          {
-            Gu.Log.Info("Base Dir=" + System.IO.Directory.GetCurrentDirectory());
             Gu.Init(this);
 
             //Cameras
             _camera = Gu.World.CreateCamera("Camera-001", Width, Height, new Vec3f(0, 10, -10));
 
+            Gu.World.Initialize();
             Gu.World.player = _camera;
 
             //Textures
             Texture noise = Noise3D.TestNoise();
-            Texture peron = new Texture(Gu.EmbeddedDataPath + "main char.png", true);
-            Texture grass = new Texture(Gu.EmbeddedDataPath + "grass_base.png", true);
+            Texture peron = new Texture(new FileLoc("main char.png", FileStorage.Embedded));
+            Texture grass = new Texture(new FileLoc("grass_base.png", FileStorage.Embedded));
 
             //Objects
             //Integrity test of GPU memory.
@@ -117,7 +117,9 @@ namespace PirateCraft
       }
       protected override void OnUpdateFrame(FrameEventArgs e)
       {
-         Title = $"(Vsync: {VSync}) FPS: {1f / e.Time:0} Size: {Width}x{Height}";
+         float chary = this._camera.Position.Y;
+         Title = $"(CharY = {chary}) (Vsync: {VSync}) FPS: {1f / e.Time:0} Globs: {Gu.World.NumGlobs} Render: {Gu.World.NumRenderGlobs}";
+         
          Gu.CurrentWindowContext.Update();
 
          //_boxMeshThing.Rotation = Quaternion.FromAxisAngle(new Vec3f(0, 1, 0), (float)rot);
@@ -161,7 +163,7 @@ namespace PirateCraft
          }
          if (Gu.CurrentWindowContext.PCKeyboard.KeyPress(Key.Number1))
          {
-            _boxMeshThing.Material.Shader.lightingModel = ((_boxMeshThing.Material.Shader.lightingModel + 1) % 4);
+            _boxMeshThing.Material.Shader.lightingModel = ((_boxMeshThing.Material.Shader.lightingModel + 1) % 5);
          }
          if (Gu.CurrentWindowContext.PCKeyboard.KeyPressOrDown(Key.Number2))
          {

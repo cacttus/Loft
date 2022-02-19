@@ -49,6 +49,8 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="src\Camera3d.cs" />
     <Compile Include="src\DebugDraw.cs" />
+    <Compile Include="src\Img32.cs" />
+    <Compile Include="src\MegaTexture.cs" />
     <Compile Include="src\Program.cs" />
     <Compile Include="src\Random.cs" />
     <Compile Include="src\Renderer.cs" />
@@ -92,13 +94,21 @@
     <None Include="SharpFont.dll.config" />
     <None Include="freetype.dll" />
   </ItemGroup>
-  <ItemGroup />
+  <ItemGroup>
+    <EmbeddedResource Include="data\tx64_brick.png" />
+    <EmbeddedResource Include="data\tx64_dirt.png" />
+    <EmbeddedResource Include="data\tx64_grass.png" />
+    <EmbeddedResource Include="data\tx64_plank.png" />
+  </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="data\v_v3n3x2.fs.glsl" />
     <EmbeddedResource Include="data\v_v3n3x2.vs.glsl" />
     <EmbeddedResource Include="data\main char.png" />
     <EmbeddedResource Include="data\grass_base.png" />
     <Compile Include="src\GpuDataArray.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="data\tx64_brick2.png" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
 </Project>

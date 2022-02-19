@@ -7,6 +7,8 @@ using Vec4f = OpenTK.Vector4;
 using Mat3f = OpenTK.Matrix3;
 using Mat4f = OpenTK.Matrix4;
 using Quat = OpenTK.Quaternion;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace PirateCraft
 {
@@ -16,6 +18,8 @@ namespace PirateCraft
       public const ushort Empty = 0x00;
       public const ushort Grass = 0x01;
       public const ushort Dirt = 0x02;
+      public const ushort Brick = 0x03;
+      public const ushort Brick2 = 0x04;
       //Items
       //...
    }
@@ -55,7 +59,7 @@ namespace PirateCraft
       public static void Generate()
       {
          //Left Righ, Botom top, back front
-         float w2 = 1, h2 = 1, d2 = 1;
+         float w2 = World.BlockSizeX, h2 = World.BlockSizeY, d2 = World.BlockSizeZ;
          bx_box[0] = new Vec3f(0, 0, 0);
          bx_box[1] = new Vec3f(w2, 0, 0);
          bx_box[2] = new Vec3f(0, h2, 0);
@@ -81,32 +85,38 @@ namespace PirateCraft
          // 2      3
          //     4       5
          // 0      1
+         //Order of faces: Left, Right, Bottom, Top, Back Front (LRBTAF)
          bx_verts_face[0, 0] = new v_v3n3x2() { _v = bx_box[4], _n = bx_norms[0], _x = bx_texs[0] };
          bx_verts_face[0, 1] = new v_v3n3x2() { _v = bx_box[0], _n = bx_norms[0], _x = bx_texs[1] };
          bx_verts_face[0, 2] = new v_v3n3x2() { _v = bx_box[6], _n = bx_norms[0], _x = bx_texs[2] };
          bx_verts_face[0, 3] = new v_v3n3x2() { _v = bx_box[2], _n = bx_norms[0], _x = bx_texs[3] };
+
          bx_verts_face[1, 0] = new v_v3n3x2() { _v = bx_box[1], _n = bx_norms[1], _x = bx_texs[0] };
          bx_verts_face[1, 1] = new v_v3n3x2() { _v = bx_box[5], _n = bx_norms[1], _x = bx_texs[1] };
          bx_verts_face[1, 2] = new v_v3n3x2() { _v = bx_box[3], _n = bx_norms[1], _x = bx_texs[2] };
          bx_verts_face[1, 3] = new v_v3n3x2() { _v = bx_box[7], _n = bx_norms[1], _x = bx_texs[3] };
+
          bx_verts_face[2, 0] = new v_v3n3x2() { _v = bx_box[4], _n = bx_norms[2], _x = bx_texs[0] };
          bx_verts_face[2, 1] = new v_v3n3x2() { _v = bx_box[5], _n = bx_norms[2], _x = bx_texs[1] };
          bx_verts_face[2, 2] = new v_v3n3x2() { _v = bx_box[0], _n = bx_norms[2], _x = bx_texs[2] };
          bx_verts_face[2, 3] = new v_v3n3x2() { _v = bx_box[1], _n = bx_norms[2], _x = bx_texs[3] };
+
          bx_verts_face[3, 0] = new v_v3n3x2() { _v = bx_box[2], _n = bx_norms[3], _x = bx_texs[0] };
          bx_verts_face[3, 1] = new v_v3n3x2() { _v = bx_box[3], _n = bx_norms[3], _x = bx_texs[1] };
          bx_verts_face[3, 2] = new v_v3n3x2() { _v = bx_box[6], _n = bx_norms[3], _x = bx_texs[2] };
          bx_verts_face[3, 3] = new v_v3n3x2() { _v = bx_box[7], _n = bx_norms[3], _x = bx_texs[3] };
+
          bx_verts_face[4, 0] = new v_v3n3x2() { _v = bx_box[0], _n = bx_norms[4], _x = bx_texs[0] };
          bx_verts_face[4, 1] = new v_v3n3x2() { _v = bx_box[1], _n = bx_norms[4], _x = bx_texs[1] };
          bx_verts_face[4, 2] = new v_v3n3x2() { _v = bx_box[2], _n = bx_norms[4], _x = bx_texs[2] };
          bx_verts_face[4, 3] = new v_v3n3x2() { _v = bx_box[3], _n = bx_norms[4], _x = bx_texs[3] };
+
          bx_verts_face[5, 0] = new v_v3n3x2() { _v = bx_box[5], _n = bx_norms[5], _x = bx_texs[0] };
          bx_verts_face[5, 1] = new v_v3n3x2() { _v = bx_box[4], _n = bx_norms[5], _x = bx_texs[1] };
          bx_verts_face[5, 2] = new v_v3n3x2() { _v = bx_box[7], _n = bx_norms[5], _x = bx_texs[2] };
          bx_verts_face[5, 3] = new v_v3n3x2() { _v = bx_box[6], _n = bx_norms[5], _x = bx_texs[3] };
 
-         bool flip = true;
+         bool flip = false;
          bx_face_inds = new uint[6] {
             0,
             (uint)(flip ? 2 : 3),
@@ -212,18 +222,120 @@ namespace PirateCraft
       private int _currentShell = 1;
       private ivec3 playerLastGlob = new ivec3(0, 0, 0);
 
+      public int NumGlobs { get { return _globs.Count; } }
+      public int NumRenderGlobs { get { return _renderGlobs.Count; } }
+
       Dictionary<ivec3, Glob> _globs = new Dictionary<ivec3, Glob>(new ivec3EqualityComparer()); //All globs
       Dictionary<ivec3, Glob> _renderGlobs = new Dictionary<ivec3, Glob>(new ivec3EqualityComparer()); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
 
       //TODO:players
       public WorldObject player = null;
 
+      Thread GlobGenerator;
+      object GlobMutex;
+
+      Material _worldMaterial;
+      Texture _worldTexture;
+      MegaTex _worldMegatex = new MegaTex("tex", true);
+
       public World()
       {
-         UnitBoxMeshData.Generate();
       }
 
       #region Objects
+
+      Dictionary<ushort, List<FileLoc>> _blockTiles;
+      Dictionary<ushort, List<MtTex>> _tileUVs;
+      Dictionary<TileImage, FileLoc> _tile_resources = new Dictionary<TileImage, FileLoc>() {
+            { TileImage.Grass, new FileLoc("tx64_grass.png", FileStorage.Embedded) },
+            { TileImage.Dirt, new FileLoc("tx64_dirt.png", FileStorage.Embedded) },
+            { TileImage.Plank, new FileLoc("tx64_plank.png", FileStorage.Embedded) },
+            { TileImage.Brick, new FileLoc("tx64_brick.png", FileStorage.Embedded) },
+            { TileImage.Brick2, new FileLoc("tx64_brick2.png", FileStorage.Embedded) },
+         };
+      private enum TileImage
+      {
+         Grass, Dirt, Plank, Brick, Brick2
+      }
+      private class BlockUVSide
+      {
+         public const int Top = 0;
+         public const int Side = 1;
+         public const int Bottom = 2;
+      }
+      private FileLoc GetTileFile(TileImage img)
+      {
+         _tile_resources.TryGetValue(img, out var loc);
+         Gu.Assert(loc != null);
+         return loc;
+      }
+      public void Initialize()
+      {
+         //_blockTiles - Manual array that specifies which tiles go on the top, side, bottom
+         //The tiles are specified by FileLoc structure which must be a class type.
+         //This is used to index into the megatex to find the generated UV coordinates.
+         _blockTiles = new Dictionary<ushort, List<FileLoc>>()
+         {
+            { BlockItemCode.Grass, new List<FileLoc>(){ GetTileFile(TileImage.Grass), GetTileFile(TileImage.Dirt), GetTileFile(TileImage.Dirt) } },
+            { BlockItemCode.Dirt, new List<FileLoc>(){ GetTileFile(TileImage.Dirt), GetTileFile(TileImage.Dirt), GetTileFile(TileImage.Dirt) } },
+            { BlockItemCode.Brick, new List<FileLoc>(){ GetTileFile(TileImage.Brick), GetTileFile(TileImage.Brick), GetTileFile(TileImage.Brick) } },
+            { BlockItemCode.Brick2, new List<FileLoc>(){ GetTileFile(TileImage.Brick2), GetTileFile(TileImage.Brick2), GetTileFile(TileImage.Brick2) } },
+         };
+
+         //Create empty array that matches BlockTiles for the tile UVs
+         _tileUVs = new Dictionary<ushort, List<MtTex>>();
+         foreach (var block in _blockTiles)
+         {
+            List<MtTex> texs = new List<MtTex>();
+            _tileUVs.Add(block.Key, texs);
+            foreach (var floc in block.Value)
+            {
+               texs.Add(null);
+            }
+            //Count must be 3 for all sides of the block.
+            Gu.Assert(texs.Count == 3);
+         }
+
+         //Create the atlas.
+         //Must be called after context is set.
+         foreach (var resource in _tile_resources)
+         {
+            MtTexPatch p = _worldMegatex.getTex(resource.Value);
+            if (p.getTexs().Count > 0)
+            {
+               MtTex mtt = p.getTexs()[0];
+               foreach (var block in _blockTiles)
+               {
+                  //It's late.
+                  for (int ifloc = 0; ifloc < block.Value.Count; ifloc++)
+                  {
+                     if (block.Value[ifloc] == resource.Value)
+                     {
+                        _tileUVs[block.Key][ifloc] = mtt;
+                     }
+                  }
+               }
+            }
+            else
+            {
+               Gu.Log.Warn("Megatex resource generated no textures.");
+               Gu.DebugBreak();
+            }
+
+         }
+         _worldMegatex.loadImages();
+         _worldTexture = _worldMegatex.compile();
+
+         //World material from atlas.
+         _worldMaterial = new Material(_worldTexture, Shader.DefaultDiffuse());
+
+         //Generate the mesh data we use to create cubess
+         UnitBoxMeshData.Generate();
+
+         //Asynchronous generator .. (TODO)
+         // Task.Factory.StartNew(() => {
+         //});
+      }
 
       public WorldObject FindObject(string name)
       {
@@ -314,10 +426,11 @@ namespace PirateCraft
 
             WorldObject dummy = new WorldObject();
 
-            Material m = Material.DefaultDiffuse(); // TODO: Opaque material & Transparent Material
-            m.BeginRender(Delta, camera, dummy);
-            Renderer.Render(camera, visible_op, m);
-            m.EndRender();
+            //Material m = Material.DefaultDiffuse(); // TODO: Opaque material & Transparent Material
+
+            _worldMaterial.BeginRender(Delta, camera, dummy);
+            Renderer.Render(camera, visible_op, _worldMaterial);
+            _worldMaterial.EndRender();
          }
          camera.EndRender();
       }
@@ -578,6 +691,9 @@ namespace PirateCraft
             new Vec3f(0, 0, -World.BlockSizeZ),
             new Vec3f(0, 0, World.BlockSizeZ),
          };
+         Block b;
+         Vec2f[] texs = new Vec2f[4];
+         List<MtTex> patches = new List<MtTex>();
 
          for (int z = 0; z < GlobBlocksZ; z++)
          {
@@ -585,11 +701,14 @@ namespace PirateCraft
             {
                for (int x = 0; x < GlobBlocksX; x++)
                {
-                  var b = g.GetBlock(x, y, z);
+                  b = g.GetBlock(x, y, z);
                   if (!b.HasDensity())
                   {
                      continue;
                   }
+
+                  patches = null;
+                  _tileUVs.TryGetValue(b.Value, out patches);
 
                   for (int face = 0; face < 6; ++face)
                   {
@@ -599,9 +718,10 @@ namespace PirateCraft
                      Vec3f block_pos_rel_R3_Center = block_pos_rel_R3 + new Vec3f(World.BlockSizeX * 0.5f, World.BlockSizeY * 0.5f, World.BlockSizeZ * 0.5f);
                      Vec3f block_pos_abs_R3_Center = block_pos_rel_R3_Center + g.OriginR3;
                      Vec3f block_pos_abs_R3_Center_Neighbor = block_pos_abs_R3_Center + face_offs[face];
-                     ivec3 v = R3toI3Glob(block_pos_abs_R3_Center_Neighbor);
+                     ivec3 g_n = R3toI3Glob(block_pos_abs_R3_Center_Neighbor);
+
                      Block? b_n;
-                     if (v == g.Pos)
+                     if (g_n == g.Pos)
                      {
                         //We are same glob - globs may not be added to the list yet.
                         ivec3 bpos = R3toI3BlockLocal(block_pos_abs_R3_Center_Neighbor);
@@ -610,8 +730,13 @@ namespace PirateCraft
                      else
                      {
                         b_n = GrabBlockR3(block_pos_abs_R3_Center_Neighbor);
+                        if (face == 3 && b_n!=null)
+                        {
+                           int n = 0;
+                           n++;
+                        }
                      }
-
+         
                      if (b_n == null || b_n.Value.IsSolidBlockNotTransparent())
                      {
                         //no verts
@@ -622,6 +747,44 @@ namespace PirateCraft
                      {
                         uint foff = (uint)verts.Count;
 
+                        //b.Value
+                        if (patches != null && patches.Count == 3)
+                        {
+                           if ((face == 0) || (face == 1) || (face == 4) || (face == 5))
+                           {
+                              //LRAF
+                              texs[0] = new Vec2f(patches[BlockUVSide.Side].uv0.x, patches[BlockUVSide.Side].uv0.y);
+                              texs[1] = new Vec2f(patches[BlockUVSide.Side].uv1.x, patches[BlockUVSide.Side].uv0.y);
+                              texs[2] = new Vec2f(patches[BlockUVSide.Side].uv0.x, patches[BlockUVSide.Side].uv1.y);
+                              texs[3] = new Vec2f(patches[BlockUVSide.Side].uv1.x, patches[BlockUVSide.Side].uv1.y);
+                           }
+                           else if (face == 2)
+                           {
+                              //B
+                              texs[0] = new Vec2f(patches[BlockUVSide.Bottom].uv0.x, patches[BlockUVSide.Bottom].uv0.y);
+                              texs[1] = new Vec2f(patches[BlockUVSide.Bottom].uv1.x, patches[BlockUVSide.Bottom].uv0.y);
+                              texs[2] = new Vec2f(patches[BlockUVSide.Bottom].uv0.x, patches[BlockUVSide.Bottom].uv1.y);
+                              texs[3] = new Vec2f(patches[BlockUVSide.Bottom].uv1.x, patches[BlockUVSide.Bottom].uv1.y);
+                           }
+                           else if (face == 3)
+                           {
+                              //T
+                              texs[0] = new Vec2f(patches[BlockUVSide.Top].uv0.x, patches[BlockUVSide.Top].uv0.y);
+                              texs[1] = new Vec2f(patches[BlockUVSide.Top].uv1.x, patches[BlockUVSide.Top].uv0.y);
+                              texs[2] = new Vec2f(patches[BlockUVSide.Top].uv0.x, patches[BlockUVSide.Top].uv1.y);
+                              texs[3] = new Vec2f(patches[BlockUVSide.Top].uv1.x, patches[BlockUVSide.Top].uv1.y);
+                           }
+
+                        }
+                        else
+                        {
+                           //The Top/Side/Bot tile images could not be found (were not created) - default to the whole megatexture [0,1]
+                           texs[0] = UnitBoxMeshData.bx_verts_face[face, 0]._x;
+                           texs[1] = UnitBoxMeshData.bx_verts_face[face, 1]._x;
+                           texs[2] = UnitBoxMeshData.bx_verts_face[face, 2]._x;
+                           texs[3] = UnitBoxMeshData.bx_verts_face[face, 3]._x;
+                        }
+
                         //Verts + Indexes
                         Vec3f block_pos_abs_R3 = block_pos_rel_R3 + g.OriginR3;
                         for (int vi = 0; vi < 4; ++vi)
@@ -630,7 +793,7 @@ namespace PirateCraft
                            {
                               _v = UnitBoxMeshData.bx_verts_face[face, vi]._v + block_pos_abs_R3,
                               _n = UnitBoxMeshData.bx_verts_face[face, vi]._n,
-                              _x = UnitBoxMeshData.bx_verts_face[face, vi]._x,
+                              _x = texs[vi],
                            });
                         }
 
@@ -664,7 +827,6 @@ namespace PirateCraft
          {
             _renderGlobs.Add(g.Pos, g);
          }
-
       }
       private Block? GrabBlockR3(Vec3f R3_pos)
       {
@@ -680,7 +842,7 @@ namespace PirateCraft
       }
       ivec3 R3toI3BlockLocal(Vec3f R3)
       {
-         Vec3f bpos = new Vec3f(); ;
+         Vec3f bpos = new Vec3f();
          if (R3.X < 0)
          {
             bpos.X = (float)((Math.Floor(R3.X / World.BlockSizeX) % World.GlobWidthX + World.GlobWidthX) % World.GlobWidthX);
@@ -744,10 +906,14 @@ namespace PirateCraft
 
          ushort item = BlockItemCode.Empty;
          //Yes, other stuff.
-         if (d < 0)
+         if (d > 0)
          {
+            //Testing..
             //We have stuff. Default to grassy grass.
             item = BlockItemCode.Grass;
+             //  Random.Next() > 0.3f ?
+             //BlockItemCode.Grass :
+             //(Random.Next() > 0.6f ? BlockItemCode.Brick2 : BlockItemCode.Brick);
          }
 
          return item;

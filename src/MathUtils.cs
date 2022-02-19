@@ -265,113 +265,114 @@ namespace PirateCraft
       public Vec3f p0;
       public Vec3f p1;
    }
-   //[StructLayout(LayoutKind.Sequential)]
-   //public struct Vec2f
-   //{
-   //    public Vec2f(Point p)
-   //    {
-   //        x = (float)p.X;
-   //        y = (float)p.Y;
-   //    }
-   //    public float x, y;
-   //    public Vec2f construct(float a, float b) { x = a; y = b; return this; }
-   //    //public Vec2f() { }
-   //    public Vec2f(Vec2f dxy) { x = dxy.X; y = dxy.Y; }
-   //    public Vec2f(float dx, float dy) { x = dx; y = dy; }
-   //    public Vec2f(OpenTK.Vector2 v) { x = v.X; y = v.Y; }//From XNA's Vector2
-   //    public float Len() { return (float)Math.Sqrt((x * x) + (y * y)); }
+   [StructLayout(LayoutKind.Sequential)]
+   public struct vec2
+   {
+      public vec2(Point p)
+      {
+         x = (float)p.X;
+         y = (float)p.Y;
+      }
+      public float x, y;
+      public vec2 construct(float a, float b) { x = a; y = b; return this; }
+      //public Vec2f() { }
+      public vec2(Vec2f dxy) { x = dxy.X; y = dxy.Y; }
+      public vec2(vec2 dxy) { x = dxy.x; y = dxy.y; }
+      public vec2(float dx, float dy) { x = dx; y = dy; }
+    //  public vec2(OpenTK.Vector2 v) { x = v.X; y = v.Y; }//From XNA's Vector2
+      public float Len() { return (float)Math.Sqrt((x * x) + (y * y)); }
 
-   //    public Vec2f Perp()
-   //    {
-   //        //Perpendicular
-   //        return new Vec2f(y, -x);
-   //    }
-   //    public void Normalize()
-   //    {
-   //        float l = Len();
-   //        if (l != 0)
-   //        {
-   //            x /= l;
-   //            y /= l;
-   //        }
-   //        else
-   //        {
-   //            x = 0; y = 0;
-   //        }
+      public Vec2f Perp()
+      {
+         //Perpendicular
+         return new Vec2f(y, -x);
+      }
+      public void Normalize()
+      {
+         float l = Len();
+         if (l != 0)
+         {
+            x /= l;
+            y /= l;
+         }
+         else
+         {
+            x = 0; y = 0;
+         }
 
-   //    }
-   //    public Vec2f Normalized()
-   //    {
-   //        Vec2f v = new Vec2f(this);
-   //        v.Normalize();
-   //        return v;
+      }
+      public vec2 Normalized()
+      {
+         vec2 v = new vec2(this);
+         v.Normalize();
+         return v;
 
-   //    }
-   //    public float Len2() { return Dot(this, this); }
-   //    public OpenTK.Vector2 toXNA() { return new OpenTK.Vector2(x, y); }
+      }
+      public float Len2() { return Dot(this, this); }
+      public OpenTK.Vector2 toXNA() { return new OpenTK.Vector2(x, y); }
 
 
-   //    static public implicit operator Vec2f(float f)
-   //    {
-   //        return new Vec2f(f, f);
-   //    }
-   //    //public static Vec2f operator =(Vec2f a, float f)
-   //    //{
-   //    //    return new Vec2f(f, f);
-   //    //}
-   //    public static float Dot(Vec2f a, Vec2f b)
-   //    {
-   //        return (a.X * b.X) + (a.Y * b.Y);
-   //    }
-   //    public float Dot(Vec2f b)
-   //    {
-   //        return (x * b.X) + (y * b.Y);
-   //    }
-   //    public static Vec2f operator -(Vec2f d)
-   //    {
-   //        return new Vec2f(-d.X, -d.Y);
-   //    }
-   //    public static Vec2f operator +(Vec2f a, Vec2f b)
-   //    {
-   //        return new Vec2f(a.X + b.X, a.Y + b.Y);
-   //    }
-   //    public static Vec2f operator -(Vec2f a, Vec2f b)
-   //    {
-   //        return new Vec2f(a.X - b.X, a.Y - b.Y);
-   //    }
-   //    public static Vec2f operator *(Vec2f a, float b)
-   //    {
-   //        return new Vec2f(a.X * b, a.Y * b);
-   //    }
-   //    public static Vec2f operator *(Vec2f a, Vec2f b)
-   //    {
-   //        return new Vec2f(a.X * b.X, a.Y * b.Y);
-   //    }
-   //    public static Vec2f operator /(Vec2f a, float b)
-   //    {
-   //        return new Vec2f(a.X / b, a.Y / b);
-   //    }
-   //    public static Vec2f operator -(Vec2f a, float f)
-   //    {
-   //        return new Vec2f(a.X - f, a.Y - f);
-   //    }
-   //    public static Vec2f Minv(Vec2f a, Vec2f b)
-   //    {
-   //        Vec2f ret = new Vec2f();
-   //        ret.X = (float)Math.Min(a.X, b.X);
-   //        ret.Y = (float)Math.Min(a.Y, b.Y);
+      static public implicit operator vec2(float f)
+      {
+         return new vec2(f, f);
+      }
+      //public static Vec2f operator =(Vec2f a, float f)
+      //{
+      //    return new Vec2f(f, f);
+      //}
+      public static float Dot(vec2 a, vec2 b)
+      {
+         return (a.x * b.x) + (a.y * b.y);
+      }
+      public float Dot(vec2 b)
+      {
+         return (x * b.x) + (y * b.y);
+      }
+      public static vec2 operator -(vec2 d)
+      {
+         return new vec2(-d.x, -d.y);
+      }
+      public static vec2 operator +(vec2 a, vec2 b)
+      {
+         return new vec2(a.x + b.x, a.y + b.y);
+      }
+      public static vec2 operator -(vec2 a, vec2 b)
+      {
+         return new vec2(a.x - b.x, a.y - b.y);
+      }
+      public static vec2 operator *(vec2 a, float b)
+      {
+         return new vec2(a.x * b, a.y * b);
+      }
+      public static vec2 operator *(vec2 a, vec2 b)
+      {
+         return new vec2(a.x * b.x, a.y * b.y);
+      }
+      public static vec2 operator /(vec2 a, float b)
+      {
+         return new vec2(a.x / b, a.y / b);
+      }
+      public static vec2 operator -(vec2 a, float f)
+      {
+         return new vec2(a.x - f, a.y - f);
+      }
+      public static vec2 Minv(vec2 a, vec2 b)
+      {
+         vec2 ret = new vec2();
+         ret.x = (float)Math.Min(a.x, b.x);
+         ret.y = (float)Math.Min(a.y, b.y);
 
-   //        return ret;
-   //    }
-   //    public static Vec2f Maxv(Vec2f a, Vec2f b)
-   //    {
-   //        Vec2f ret = new Vec2f();
-   //        ret.X = (float)Math.Max(a.X, b.X);
-   //        ret.Y = (float)Math.Max(a.Y, b.Y);
-   //        return ret;
-   //    }
+         return ret;
+      }
+      public static vec2 Maxv(vec2 a, vec2 b)
+      {
+         vec2 ret = new vec2();
+         ret.x = (float)Math.Max(a.x, b.x);
+         ret.y = (float)Math.Max(a.y, b.y);
+         return ret;
+      }
 
-   //}
+   }
    [StructLayout(LayoutKind.Sequential)]
    public struct ivec2
    {
@@ -780,7 +781,37 @@ namespace PirateCraft
          _isOpt = true;
       }
    }
+   [StructLayout(LayoutKind.Sequential)]
+   public struct Box2i
+   {
+      public ivec2 _min;
+      public ivec2 _max;
+      public Box2i(in ivec2 min, in ivec2 max)
+      {
+         _min = min;
+         _max = max;
+      }
+      public int left() {  return _min.x; }
+      public int top() {  return _min.y; }
+      public int right() {  return _max.x; }
+      public int bottom() {  return _max.y; }
 
+      public int Width()
+      {
+         return _max.x - _min.x;
+      }
+      public int Height()
+      {
+         return _max.y - _min.y;
+      }
+      public void Construct(int minx, int miny, int maxx, int maxy)
+      {
+         _min.x = minx;
+         _min.y = miny;
+         _max.x = maxx;
+         _max.y = maxy;
+      }
+   }
    [StructLayout(LayoutKind.Sequential)]
    public struct Box3i
    {

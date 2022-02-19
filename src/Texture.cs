@@ -54,13 +54,18 @@ namespace PirateCraft
          {
          }
       }
-      public Texture(string location, bool embedded)
+      public Texture(FileLoc loc)
       {
-         Load(location, embedded);
+         Load(loc);
       }
       public Texture(Bitmap b)
       {
-         LoadToGpu(b);
+         Img32 img = new Img32(b);
+         LoadToGpu(img);
+      }
+      public Texture(Img32 img)
+      {
+         LoadToGpu(img);
       }
       private int GetNumMipmaps(int w, int h)
       {
@@ -72,13 +77,13 @@ namespace PirateCraft
          }
          return numMipMaps;
       }
-      private TextureLoadResult Load(string path, bool embedded)
+      private TextureLoadResult Load(FileLoc loc)
       {
-         Bitmap bmp = Gu.LoadBitmap(path, embedded);
+         var bmp = Gu.LoadImage(loc);
 
          return LoadToGpu(bmp);
       }
-      private TextureLoadResult LoadToGpu(Bitmap bmp)
+      private TextureLoadResult LoadToGpu(Img32 bmp)
       {
          Width = bmp.Width;
          Height = bmp.Height;
@@ -95,33 +100,36 @@ namespace PirateCraft
 
          _glId = GL.GenTexture();
          GL.BindTexture(TextureTarget.Texture2D, GetGlId());
-         GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.LinearMipmapLinear);
+         GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.NearestMipmapNearest);//LinearMipmapLinear
          GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
          GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
          GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
 
-         BitmapData bmp_data = bmp.LockBits(
-             new Rectangle(0, 0, bmp.Width, bmp.Height),
-             ImageLockMode.ReadOnly,
-             WindowsPixelFormat);//Note:if you change this make sure to change save image.
+         //BitmapData bmp_data = bmp.LockBits(
+         //    new Rectangle(0, 0, bmp.Width, bmp.Height),
+         //    ImageLockMode.ReadOnly,
+         //    WindowsPixelFormat);//Note:if you change this make sure to change save image.
 
 
          int numMipmaps = GetNumMipmaps((int)Width, (int)Height);
 
          GL.TexStorage2D(TextureTarget2d.Texture2D, numMipmaps, SizedInternalFormat.Rgba8, (int)Width, (int)Height);
 
+         var raw = Gpu.SerializeGPUData(bmp.Data);
+
          GL.TexSubImage2D(TextureTarget.Texture2D,
              0, //mipmap level
              0, 0, //x.y
-             bmp_data.Width,
-             bmp_data.Height,
+             bmp.Width,
+             bmp.Height,
              GlPixelFormat,
              PixelType.UnsignedByte,
-             bmp_data.Scan0);
+             raw.Lock());
+         raw.Unlock();
 
          GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
 
-         bmp.UnlockBits(bmp_data);
+       //  bmp.UnlockBits(bmp_data);
 
 
          return TextureLoadResult.Success;

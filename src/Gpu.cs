@@ -5,7 +5,7 @@ using System;
 
 namespace PirateCraft
 {
-   public class GpuRenderState
+   public class GpuRenderState 
    {
       //State switches to prevent unnecessary gpu context changes.
       private bool _depthTestEnabledLast = false;
@@ -14,6 +14,19 @@ namespace PirateCraft
       private bool _cullFaceEnabled = true;
       private bool _scissorTestEnabledLast = false;
       private bool _scissorTestEnabled = true;
+
+      public GpuRenderState Clone()
+      {
+         GpuRenderState clone = new GpuRenderState();
+         clone._depthTestEnabledLast = _depthTestEnabledLast;
+         clone._depthTestEnabled = _depthTestEnabled;
+         clone._cullFaceEnabledLast = _cullFaceEnabledLast;
+         clone._cullFaceEnabled = _cullFaceEnabled;
+         clone._scissorTestEnabledLast = _scissorTestEnabledLast;
+         clone._scissorTestEnabled = _scissorTestEnabled;
+         return clone;
+      }
+
       public bool CullFace { get { return _cullFaceEnabled; } set { _cullFaceEnabledLast = _cullFaceEnabled; _cullFaceEnabled = value; } }
       public bool DepthTest { get { return _depthTestEnabled; } set { _depthTestEnabledLast = _depthTestEnabled; _depthTestEnabled = value; } }
       public bool ScissorTest { get { return _scissorTestEnabled; } set { _scissorTestEnabledLast = _scissorTestEnabled; _scissorTestEnabled = value; } }

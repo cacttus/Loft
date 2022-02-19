@@ -9,12 +9,20 @@ namespace PirateCraft
 {
    public class Material
    {
+      //Clonable members
       public Texture Texture { get; private set; } = null;
       public Shader Shader { get; private set; } = null;
       public GpuRenderState GpuRenderState { get; set; } = new GpuRenderState(); //The rendering state of the material: clipping, depth, alpha, culling, etc
 
       private static Material _defaultDiffuse = null; //Default color material / shader.
       private static Material _defaultFlatColor = null; //Default color material / shader.
+
+      public Material Clone()
+      {
+         Material m = new Material(this.Texture, this.Shader);
+         m.GpuRenderState = GpuRenderState.Clone();
+         return m;
+      }
       public static Material DefaultFlatColor()
       {
          //TODO: - the input shader should also be default.

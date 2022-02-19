@@ -79,10 +79,10 @@ namespace PirateCraft
          GL.BufferData(
                    BufferTarget,
              (int)(items.Count * items.ItemSizeBytes),
-             items.AllocPtr(),
+             items.Lock(),
              BufferUsageHint.StaticDraw
              );
-         items.FreePtr();
+         items.Unlock();
          Unbind();
 
       }

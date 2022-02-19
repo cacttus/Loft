@@ -16,7 +16,74 @@ using OpenTK.Graphics.OpenGL;
 
 namespace PirateCraft
 {
-   // Global Utils. static lcass
+   public enum FileStorage
+   {
+      Disk,
+      Embedded,
+      Web,
+      Fake,//File does not exist (on purpose)
+   }
+   /// <summary>
+   /// FileLoc represents a virtual file location on disk, embed, or web
+   /// </summary>
+   public class FileLoc
+   {
+      public FileStorage FileStorage { get; private set; } = FileStorage.Disk;
+      public string RawPath { get; private set; } ="";
+      
+      public FileLoc(string path, FileStorage storage) { 
+         RawPath= path; 
+         FileStorage = storage;
+      }
+      public void AssertExists()
+      {
+         if (!Exists)
+         {
+            throw new Exception("File " + QualifiedPath + " does not exist.");
+         }
+      }
+      public string QualifiedPath 
+      {
+         get
+         {
+            string path = RawPath;
+            if (FileStorage == FileStorage.Embedded)
+            {
+               path = Gu.EmbeddedDataPath + path;
+            }
+            else if (FileStorage == FileStorage.Disk)
+            {
+               //noop
+            }
+            else
+            {
+               Gu.BRThrowNotImplementedException();
+            }
+            return path;
+         }
+      }
+      public bool Exists
+      {
+         get
+         {
+            if (FileStorage== FileStorage.Embedded)
+            {
+               bool exist = Assembly.GetExecutingAssembly().GetManifestResourceNames().Contains(QualifiedPath);
+               return exist;
+            }
+            else if (FileStorage == FileStorage.Disk)
+            {
+               return File.Exists(QualifiedPath);
+            }
+            else
+            {
+               Gu.BRThrowNotImplementedException();
+            }
+            return false;
+         }
+      }
+   }
+   // Global Utils. static Class
    public static class Gu
    {
       private static Dictionary<GameWindow, WindowContext> Contexts = new Dictionary<GameWindow, WindowContext>();
@@ -24,13 +91,30 @@ namespace PirateCraft
       //This will be gotten via current context if we have > 1
       public static CoordinateSystem CoordinateSystem { get; set; } = CoordinateSystem.Rhs;
       public static EngineConfig EngineConfig { get; set; } = new EngineConfig();
-      public static Log Log { get; set; } = new Log("./logs/");
+      public static Log Log { get; set; } = null;
       public static WindowContext CurrentWindowContext { get; private set; }
       public static readonly string EmbeddedDataPath = "PirateCraft.data.";
       public static World World = new World();
 
-      // public static PCKeyboard Keyboard { get { return Context.PCKeyboard; } }//If we have more than one context this will change.
-      //public static double Delta { get { return Context.Delta; } }//If we have more than one context this will change.
+      public static string LocalCachePath = "./data/cache";
+      public static void Init(GameWindow g)
+      {
+         //Create cache
+         var dir = Path.GetDirectoryName(LocalCachePath);
+         if (!Directory.Exists(dir))
+         {
+            Directory.CreateDirectory(dir);
+         }
+
+         Log = new Log(Gu.LocalCachePath);
+         Gu.Log.Info("Initializing Globals");
+
+         Gu.Log.Info("Base Dir=" + System.IO.Directory.GetCurrentDirectory());
+
+         Gu.Log.Info("Register Context");
+         RegisterContext(g);
+         SetContext(g);
+      }
       public static Bitmap CreateBitmapARGB(int width, int height, byte[] pixels)
       {
          Bitmap b = new Bitmap(width, width, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
@@ -72,32 +156,19 @@ namespace PirateCraft
       {
          throw new Exception("Error: " + msg);
       }
-
       public static void BRThrowNotImplementedException()
       {
          throw new NotImplementedException();
       }
-
-      public static void Init(GameWindow g)
-      {
-         Gu.Log.Info("Initializing Globals");
-         RegisterContext(g);
-         SetContext(g);
-      }
-
-      public static string ReadTextFile(string location, bool embedded)
+      public static string ReadTextFile(FileLoc loc)
       {
          //Returns empty string when failSilently is true.
          string data = "";
+         loc.AssertExists();
 
-         if (embedded)
+         if (loc.FileStorage == FileStorage.Embedded)
          {
-            if (!Assembly.GetExecutingAssembly().GetManifestResourceNames().Contains(location))
-            {
-               Gu.BRThrowException("File '" + location + "' does not exist.");
-            }
-
-            using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(location))
+            using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(loc.QualifiedPath))
             {
                using (StreamReader reader = new StreamReader(stream))
                {
@@ -105,28 +176,52 @@ namespace PirateCraft
                }
             }
          }
-         else
+         else if(loc.FileStorage == FileStorage.Disk)
          {
-            if (!System.IO.File.Exists(location))
+            if (!System.IO.File.Exists(loc.RawPath))
             {
-               Gu.BRThrowException("File '" + location + "' does not exist.");
+               Gu.BRThrowException("File '" + loc.RawPath + "' does not exist.");
             }
 
-            using (Stream stream = File.Open(location, FileMode.Open, FileAccess.Read, FileShare.None))
+            using (Stream stream = File.Open(loc.RawPath, FileMode.Open, FileAccess.Read, FileShare.None))
             using (StreamReader reader = new StreamReader(stream))
             {
                data = reader.ReadToEnd();
             }
          }
+         else
+         {
+            Gu.BRThrowNotImplementedException();
+         }
 
          return data;
       }
-      public static Bitmap LoadBitmap(string path, bool embedded)
+      public static void SaveImage(string path, Img32 image)
+      {
+         Bitmap b = image.ToBitmap();
+         var dir = Path.GetDirectoryName(path);
+         if (!Directory.Exists(dir))
+         {
+            Directory.CreateDirectory(dir);
+         }
+         b.Save(path);
+      }
+      public static Img32 LoadImage(FileLoc loc)
+      {
+         //Load an image in the form of Img32
+         Bitmap b = LoadBitmap(loc);
+         Img32 ret = new Img32(b);
+         return ret;
+      }
+      public static Bitmap LoadBitmap(FileLoc loc)
       {
          Bitmap b = null;
-         if (embedded)
+
+         loc.AssertExists();
+         
+         if (loc.FileStorage == FileStorage.Embedded)
          {
-            using (var fs = Assembly.GetExecutingAssembly().GetManifestResourceStream(path))
+            using (var fs = Assembly.GetExecutingAssembly().GetManifestResourceStream(loc.QualifiedPath))
             {
                if (fs != null)
                {
@@ -134,43 +229,20 @@ namespace PirateCraft
                }
             }
          }
+         else if(loc.FileStorage == FileStorage.Disk)
+         {
+            b = new Bitmap(loc.QualifiedPath);
+         }
          else
          {
-            if (!System.IO.File.Exists(path))
-            {
-               throw new Exception("File " + path + " does not exist.");
-            }
-            b = new Bitmap(path);
+            Gu.BRThrowNotImplementedException();
          }
          if (b == null)
          {
-            Gu.BRThrowException("Failed to load image file " + path);
+            Gu.BRThrowException("Failed to load image file " + loc.QualifiedPath);
          }
          return b;
       }
-      //public static string ReadTextFileSafe(string location)
-      //{
-      //    string data = "";
-      //    byte[] bytes = null;
-      //    int readed = 0;
-      //    using (var fs = File.Open(location, FileMode.Open, FileAccess.Read, FileShare.None))
-      //    {
-      //        if (fs != null)
-      //        {
-      //            bytes = new byte[fs.Length];
-      //            readed = fs.Read(bytes, 0, (int)fs.Length);
-      //        }
-      //    }
-      //    if (bytes != null && readed > 0)
-      //    {
-      //        data = Encoding.Default.GetString(bytes);
-      //    }
-      //    else
-      //    {
-      //        Gu.BRThrowException("Failed to load file " + location);
-      //    }
-      //    return data;
-      //}
       public static Int64 Nanoseconds()
       {
          return DateTime.UtcNow.Ticks * 100;
@@ -179,7 +251,6 @@ namespace PirateCraft
       {
          return Nanoseconds() / 1000;
       }
-
       public static void Assert(bool x, [CallerLineNumber] int lineNumber = 0, [CallerMemberName] string caller = null)
       {
          if (!x)
@@ -201,33 +272,5 @@ namespace PirateCraft
          v.TryGetTarget(out wr);
          return wr;
       }
-      //This does not work for me. Error that MeshVert can't be converted as it's unmanaged.
-      // public static byte[] StructureToByteArray(object obj)
-      // {
-      //   //https://stackoverflow.com/questions/4107359/c-convert-list-of-simple-structs-to-byte
-      //   int length = Marshal.SizeOf(obj);
-      //   byte[] data = new byte[length];
-      //   IntPtr ptr = Marshal.AllocHGlobal(length);
-      //   Marshal.StructureToPtr(obj, ptr, true);
-      //   Marshal.Copy(ptr, data, 0, length);
-      //   Marshal.FreeHGlobal(ptr);
-      //   return data;
-      // }
-      //[DllImport("kernel32.dll", EntryPoint = "CopyMemory", SetLastError = false)]
-      //private static unsafe extern void CopyMemory(void* dest, void* src, int count);
-
-      //public static unsafe byte[] Serialize<T>(T[] objs)
-      //{
-      //    var buffer = new byte[Marshal.SizeOf(typeof(T)) * objs.Length];
-      //    fixed (void* d = &buffer[0])
-      //    {
-      //        fixed (void* s = &objs[0])
-      //        {
-      //            CopyMemory(d, s, buffer.Length);
-      //        }
-      //    }
-
-      //    return buffer;
-      //}
    }
 }
