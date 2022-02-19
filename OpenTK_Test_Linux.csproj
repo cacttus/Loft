@@ -56,7 +56,6 @@
     <Compile Include="src\Renderer.cs" />
     <Compile Include="src\Viewport.cs" />
     <Compile Include="src\Frustum3D.cs" />
-    <Compile Include="src\BaseNode.cs" />
     <Compile Include="src\Enums.cs" />
     <Compile Include="src\PickRay.cs" />
     <Compile Include="src\VisibleSet.cs" />
@@ -67,7 +66,6 @@
     <Compile Include="src\Font.cs" />
     <Compile Include="src\Log.cs" />
     <Compile Include="src\VertexTypes.cs" />
-    <Compile Include="src\BaseImage.cs" />
     <Compile Include="src\Texture.cs" />
     <Compile Include="src\OpenGLResource.cs" />
     <Compile Include="src\Gpu.cs" />
@@ -109,6 +107,15 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="data\tx64_brick2.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="data\mclovin.jpg" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="data\usopp.jpg" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="data\hogback.jpg" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
 </Project>

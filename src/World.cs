@@ -1,12 +1,7 @@
 ﻿using System;
 using System.Runtime.InteropServices;
 using System.Collections.Generic;
-using Vec2f = OpenTK.Vector2;
-using Vec3f = OpenTK.Vector3;
-using Vec4f = OpenTK.Vector4;
-using Mat3f = OpenTK.Matrix3;
-using Mat4f = OpenTK.Matrix4;
-using Quat = OpenTK.Quaternion;
+
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -50,9 +45,9 @@ namespace PirateCraft
    //Unit box for creating mesh cubes
    class UnitBoxMeshData
    {
-      private static Vec3f[] bx_box = new Vec3f[8];
-      private static Vec3f[] bx_norms = new Vec3f[6];//lrbtaf
-      private static Vec2f[] bx_texs = new Vec2f[4];
+      private static vec3[] bx_box = new vec3[8];
+      private static vec3[] bx_norms = new vec3[6];//lrbtaf
+      private static vec2[] bx_texs = new vec2[4];
       public static v_v3n3x2[,] bx_verts_face { get; private set; } = new v_v3n3x2[6, 4];//lrbtaf
       public static uint[] bx_face_inds { get; private set; }
 
@@ -60,26 +55,26 @@ namespace PirateCraft
       {
          //Left Righ, Botom top, back front
          float w2 = World.BlockSizeX, h2 = World.BlockSizeY, d2 = World.BlockSizeZ;
-         bx_box[0] = new Vec3f(0, 0, 0);
-         bx_box[1] = new Vec3f(w2, 0, 0);
-         bx_box[2] = new Vec3f(0, h2, 0);
-         bx_box[3] = new Vec3f(w2, h2, 0);
-         bx_box[4] = new Vec3f(0, 0, d2);
-         bx_box[5] = new Vec3f(w2, 0, d2);
-         bx_box[6] = new Vec3f(0, h2, d2);
-         bx_box[7] = new Vec3f(w2, h2, d2);
+         bx_box[0] = new vec3(0, 0, 0);
+         bx_box[1] = new vec3(w2, 0, 0);
+         bx_box[2] = new vec3(0, h2, 0);
+         bx_box[3] = new vec3(w2, h2, 0);
+         bx_box[4] = new vec3(0, 0, d2);
+         bx_box[5] = new vec3(w2, 0, d2);
+         bx_box[6] = new vec3(0, h2, d2);
+         bx_box[7] = new vec3(w2, h2, d2);
 
-         bx_norms[0] = new Vec3f(-1, 0, 0);
-         bx_norms[1] = new Vec3f(1, 0, 0);
-         bx_norms[2] = new Vec3f(0, -1, 0);
-         bx_norms[3] = new Vec3f(0, 1, 0);
-         bx_norms[4] = new Vec3f(0, 0, -1);
-         bx_norms[5] = new Vec3f(0, 0, 1);
+         bx_norms[0] = new vec3(-1, 0, 0);
+         bx_norms[1] = new vec3(1, 0, 0);
+         bx_norms[2] = new vec3(0, -1, 0);
+         bx_norms[3] = new vec3(0, 1, 0);
+         bx_norms[4] = new vec3(0, 0, -1);
+         bx_norms[5] = new vec3(0, 0, 1);
 
-         bx_texs[0] = new Vec2f(0, 1);
-         bx_texs[1] = new Vec2f(1, 1);
-         bx_texs[2] = new Vec2f(0, 0);
-         bx_texs[3] = new Vec2f(1, 0);
+         bx_texs[0] = new vec2(0, 1);
+         bx_texs[1] = new vec2(1, 1);
+         bx_texs[2] = new vec2(0, 0);
+         bx_texs[3] = new vec2(1, 0);
 
          //     6       7
          // 2      3
@@ -158,11 +153,11 @@ namespace PirateCraft
             Blocks = new Block[World.GlobBlocksX * World.GlobBlocksY * World.GlobBlocksZ];
          }
       }
-      public Vec3f OriginR3
+      public vec3 OriginR3
       {
          get
          {
-            Vec3f r = new Vec3f(Pos.x * World.GlobWidthX, Pos.y * World.GlobWidthY, Pos.z * World.GlobWidthZ);
+            vec3 r = new vec3(Pos.x * World.GlobWidthX, Pos.y * World.GlobWidthY, Pos.z * World.GlobWidthZ);
             return r;
          }
       }
@@ -225,8 +220,8 @@ namespace PirateCraft
       public int NumGlobs { get { return _globs.Count; } }
       public int NumRenderGlobs { get { return _renderGlobs.Count; } }
 
-      Dictionary<ivec3, Glob> _globs = new Dictionary<ivec3, Glob>(new ivec3EqualityComparer()); //All globs
-      Dictionary<ivec3, Glob> _renderGlobs = new Dictionary<ivec3, Glob>(new ivec3EqualityComparer()); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
+      Dictionary<ivec3, Glob> _globs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //All globs
+      Dictionary<ivec3, Glob> _renderGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
 
       //TODO:players
       public WorldObject player = null;
@@ -343,7 +338,7 @@ namespace PirateCraft
          Objects.TryGetValue(name, out obj);
          return obj;
       }
-      public Camera3D CreateCamera(string name, int w, int h, Vec3f pos)
+      public Camera3D CreateCamera(string name, int w, int h, vec3 pos)
       {
          Camera3D c = new Camera3D(name, w, h);
          c.Position = pos;
@@ -364,7 +359,7 @@ namespace PirateCraft
          ob.Name = name_suffix;
          Objects.Add(name_suffix, ob);
       }
-      public WorldObject CreateObject(string name, MeshData mesh, Material material, Vec3f pos = default(Vec3f))
+      public WorldObject CreateObject(string name, MeshData mesh, Material material, vec3 pos = default(vec3))
       {
          WorldObject ob = new WorldObject(pos);
          ob.Name = name;
@@ -478,7 +473,7 @@ namespace PirateCraft
 
             float awareness_radius = RenderRadiusShell * _currentShell;
 
-            Vec3f ppos = player.World.ExtractTranslation();
+            vec3 ppos = player.World.extractTranslation();
             List<Glob> newGlobs = BuildGlobGrid(ppos, awareness_radius);
 
             if ((newPlayerGlob != playerLastGlob))
@@ -538,18 +533,18 @@ namespace PirateCraft
          //}
 
       }
-      private List<Glob> BuildGlobGrid(Vec3f origin, float awareness_radius)
+      private List<Glob> BuildGlobGrid(vec3 origin, float awareness_radius)
       {
          //Build a grid of globs in the volume specified by origin/radius
          List<Glob> newGlobs = new List<Glob>();
 
          //TODO: we use a cube here, we should check against an actual sphere below. It looks nicer.
-         Vec3f awareness = new Vec3f(awareness_radius, awareness_radius, awareness_radius);
+         vec3 awareness = new vec3(awareness_radius, awareness_radius, awareness_radius);
          Box3f bf = new Box3f(origin - awareness, origin + awareness);
 
          Box3i ibox;
-         ibox._min = new ivec3((int)(bf._min.X / GlobWidthX), (int)(bf._min.Y / GlobWidthY), (int)(bf._min.Z / GlobWidthZ));
-         ibox._max = new ivec3((int)(bf._max.X / GlobWidthX), (int)(bf._max.Y / GlobWidthY), (int)(bf._max.Z / GlobWidthZ));
+         ibox._min = new ivec3((int)(bf._min.x / GlobWidthX), (int)(bf._min.y / GlobWidthY), (int)(bf._min.z / GlobWidthZ));
+         ibox._max = new ivec3((int)(bf._max.x / GlobWidthX), (int)(bf._max.y / GlobWidthY), (int)(bf._max.z / GlobWidthZ));
 
          for (int z = ibox._min.z; z <= ibox._max.z; z++)
          {
@@ -587,7 +582,7 @@ namespace PirateCraft
       {
          //Density and all that.
          Glob g = new Glob(gpos, Gu.CurrentWindowContext.FrameStamp);
-         Vec3f globOriginR3 = new Vec3f(GlobWidthX * gpos.x, GlobWidthY * gpos.y, GlobWidthZ * gpos.z);
+         vec3 globOriginR3 = new vec3(GlobWidthX * gpos.x, GlobWidthY * gpos.y, GlobWidthZ * gpos.z);
 
          bool hasSolid = false;
          bool hasEmpty = false;
@@ -599,7 +594,7 @@ namespace PirateCraft
             {
                for (int x = 0; x < GlobBlocksX; x++)
                {
-                  Vec3f block_world = globOriginR3 + new Vec3f(x * BlockSizeX, y * BlockSizeY, z * BlockSizeZ);
+                  vec3 block_world = globOriginR3 + new vec3(x * BlockSizeX, y * BlockSizeY, z * BlockSizeZ);
                   var block = new Block(Density(block_world));
                   if (block.IsSolidBlockNotTransparent())
                   {
@@ -638,16 +633,16 @@ namespace PirateCraft
       private Glob GetNeighborGlob(Glob g, int i)
       {
          //Gets neighbor i=left,right,bottom,top,back,front
-         Vec3f[] glob_offs = new Vec3f[] {
-            new Vec3f(-World.GlobWidthX, 0, 0),
-            new Vec3f(World.GlobWidthX, 0, 0),
-            new Vec3f(0, -World.GlobWidthY, 0),
-            new Vec3f(0, World.GlobWidthY, 0),
-            new Vec3f(0, 0, -World.GlobWidthZ),
-            new Vec3f(0, 0, World.GlobWidthZ),
+         vec3[] glob_offs = new vec3[] {
+            new vec3(-World.GlobWidthX, 0, 0),
+            new vec3(World.GlobWidthX, 0, 0),
+            new vec3(0, -World.GlobWidthY, 0),
+            new vec3(0, World.GlobWidthY, 0),
+            new vec3(0, 0, -World.GlobWidthZ),
+            new vec3(0, 0, World.GlobWidthZ),
          };
-         Vec3f glob_center_R3 = g.OriginR3 + new Vec3f(World.GlobWidthX * 0.5f, World.GlobWidthY * 0.5f, World.GlobWidthZ * 0.5f);
-         Vec3f neighbor_center_R3 = glob_center_R3 + glob_offs[i];
+         vec3 glob_center_R3 = g.OriginR3 + new vec3(World.GlobWidthX * 0.5f, World.GlobWidthY * 0.5f, World.GlobWidthZ * 0.5f);
+         vec3 neighbor_center_R3 = glob_center_R3 + glob_offs[i];
          Glob ret = FindGlobR3(neighbor_center_R3);
          return ret;
       }
@@ -683,16 +678,16 @@ namespace PirateCraft
          //Mesh
          List<v_v3n3x2> verts = new List<v_v3n3x2>();
          List<uint> inds = new List<uint>();
-         Vec3f[] face_offs = new Vec3f[] {
-            new Vec3f(-World.BlockSizeX, 0, 0),
-            new Vec3f(World.BlockSizeX, 0, 0),
-            new Vec3f(0, -World.BlockSizeY, 0),
-            new Vec3f(0, World.BlockSizeY, 0),
-            new Vec3f(0, 0, -World.BlockSizeZ),
-            new Vec3f(0, 0, World.BlockSizeZ),
+         vec3[] face_offs = new vec3[] {
+            new vec3(-World.BlockSizeX, 0, 0),
+            new vec3(World.BlockSizeX, 0, 0),
+            new vec3(0, -World.BlockSizeY, 0),
+            new vec3(0, World.BlockSizeY, 0),
+            new vec3(0, 0, -World.BlockSizeZ),
+            new vec3(0, 0, World.BlockSizeZ),
          };
          Block b;
-         Vec2f[] texs = new Vec2f[4];
+         vec2[] texs = new vec2[4];
          List<MtTex> patches = new List<MtTex>();
 
          for (int z = 0; z < GlobBlocksZ; z++)
@@ -714,10 +709,10 @@ namespace PirateCraft
                   {
                      //Bottom left corner
                      //This is the exact block center location in R3. It's less efficent but it's easier to use
-                     Vec3f block_pos_rel_R3 = new Vec3f(World.BlockSizeX * x, World.BlockSizeY * y, World.BlockSizeZ * z);
-                     Vec3f block_pos_rel_R3_Center = block_pos_rel_R3 + new Vec3f(World.BlockSizeX * 0.5f, World.BlockSizeY * 0.5f, World.BlockSizeZ * 0.5f);
-                     Vec3f block_pos_abs_R3_Center = block_pos_rel_R3_Center + g.OriginR3;
-                     Vec3f block_pos_abs_R3_Center_Neighbor = block_pos_abs_R3_Center + face_offs[face];
+                     vec3 block_pos_rel_R3 = new vec3(World.BlockSizeX * x, World.BlockSizeY * y, World.BlockSizeZ * z);
+                     vec3 block_pos_rel_R3_Center = block_pos_rel_R3 + new vec3(World.BlockSizeX * 0.5f, World.BlockSizeY * 0.5f, World.BlockSizeZ * 0.5f);
+                     vec3 block_pos_abs_R3_Center = block_pos_rel_R3_Center + g.OriginR3;
+                     vec3 block_pos_abs_R3_Center_Neighbor = block_pos_abs_R3_Center + face_offs[face];
                      ivec3 g_n = R3toI3Glob(block_pos_abs_R3_Center_Neighbor);
 
                      Block? b_n;
@@ -753,26 +748,26 @@ namespace PirateCraft
                            if ((face == 0) || (face == 1) || (face == 4) || (face == 5))
                            {
                               //LRAF
-                              texs[0] = new Vec2f(patches[BlockUVSide.Side].uv0.x, patches[BlockUVSide.Side].uv0.y);
-                              texs[1] = new Vec2f(patches[BlockUVSide.Side].uv1.x, patches[BlockUVSide.Side].uv0.y);
-                              texs[2] = new Vec2f(patches[BlockUVSide.Side].uv0.x, patches[BlockUVSide.Side].uv1.y);
-                              texs[3] = new Vec2f(patches[BlockUVSide.Side].uv1.x, patches[BlockUVSide.Side].uv1.y);
+                              texs[0] = new vec2(patches[BlockUVSide.Side].uv0.x, patches[BlockUVSide.Side].uv0.y);
+                              texs[1] = new vec2(patches[BlockUVSide.Side].uv1.x, patches[BlockUVSide.Side].uv0.y);
+                              texs[2] = new vec2(patches[BlockUVSide.Side].uv0.x, patches[BlockUVSide.Side].uv1.y);
+                              texs[3] = new vec2(patches[BlockUVSide.Side].uv1.x, patches[BlockUVSide.Side].uv1.y);
                            }
                            else if (face == 2)
                            {
                               //B
-                              texs[0] = new Vec2f(patches[BlockUVSide.Bottom].uv0.x, patches[BlockUVSide.Bottom].uv0.y);
-                              texs[1] = new Vec2f(patches[BlockUVSide.Bottom].uv1.x, patches[BlockUVSide.Bottom].uv0.y);
-                              texs[2] = new Vec2f(patches[BlockUVSide.Bottom].uv0.x, patches[BlockUVSide.Bottom].uv1.y);
-                              texs[3] = new Vec2f(patches[BlockUVSide.Bottom].uv1.x, patches[BlockUVSide.Bottom].uv1.y);
+                              texs[0] = new vec2(patches[BlockUVSide.Bottom].uv0.x, patches[BlockUVSide.Bottom].uv0.y);
+                              texs[1] = new vec2(patches[BlockUVSide.Bottom].uv1.x, patches[BlockUVSide.Bottom].uv0.y);
+                              texs[2] = new vec2(patches[BlockUVSide.Bottom].uv0.x, patches[BlockUVSide.Bottom].uv1.y);
+                              texs[3] = new vec2(patches[BlockUVSide.Bottom].uv1.x, patches[BlockUVSide.Bottom].uv1.y);
                            }
                            else if (face == 3)
                            {
                               //T
-                              texs[0] = new Vec2f(patches[BlockUVSide.Top].uv0.x, patches[BlockUVSide.Top].uv0.y);
-                              texs[1] = new Vec2f(patches[BlockUVSide.Top].uv1.x, patches[BlockUVSide.Top].uv0.y);
-                              texs[2] = new Vec2f(patches[BlockUVSide.Top].uv0.x, patches[BlockUVSide.Top].uv1.y);
-                              texs[3] = new Vec2f(patches[BlockUVSide.Top].uv1.x, patches[BlockUVSide.Top].uv1.y);
+                              texs[0] = new vec2(patches[BlockUVSide.Top].uv0.x, patches[BlockUVSide.Top].uv0.y);
+                              texs[1] = new vec2(patches[BlockUVSide.Top].uv1.x, patches[BlockUVSide.Top].uv0.y);
+                              texs[2] = new vec2(patches[BlockUVSide.Top].uv0.x, patches[BlockUVSide.Top].uv1.y);
+                              texs[3] = new vec2(patches[BlockUVSide.Top].uv1.x, patches[BlockUVSide.Top].uv1.y);
                            }
 
                         }
@@ -786,7 +781,7 @@ namespace PirateCraft
                         }
 
                         //Verts + Indexes
-                        Vec3f block_pos_abs_R3 = block_pos_rel_R3 + g.OriginR3;
+                        vec3 block_pos_abs_R3 = block_pos_rel_R3 + g.OriginR3;
                         for (int vi = 0; vi < 4; ++vi)
                         {
                            verts.Add(new v_v3n3x2()
@@ -828,7 +823,7 @@ namespace PirateCraft
             _renderGlobs.Add(g.Pos, g);
          }
       }
-      private Block? GrabBlockR3(Vec3f R3_pos)
+      private Block? GrabBlockR3(vec3 R3_pos)
       {
          Glob g = FindGlobR3(R3_pos);
          if (g == null)
@@ -840,45 +835,45 @@ namespace PirateCraft
 
          return b;
       }
-      ivec3 R3toI3BlockLocal(Vec3f R3)
+      ivec3 R3toI3BlockLocal(vec3 R3)
       {
-         Vec3f bpos = new Vec3f();
-         if (R3.X < 0)
+         vec3 bpos = new vec3();
+         if (R3.x < 0)
          {
-            bpos.X = (float)((Math.Floor(R3.X / World.BlockSizeX) % World.GlobWidthX + World.GlobWidthX) % World.GlobWidthX);
+            bpos.x = (float)((Math.Floor(R3.x / World.BlockSizeX) % World.GlobWidthX + World.GlobWidthX) % World.GlobWidthX);
          }
          else
          {
-            bpos.X = (float)(Math.Floor(R3.X / World.BlockSizeX) % 16);
+            bpos.x = (float)(Math.Floor(R3.x / World.BlockSizeX) % 16);
          }
-         if (R3.Y < 0)
+         if (R3.y < 0)
          {
-            bpos.Y = (float)((Math.Floor(R3.Y / World.BlockSizeY) % World.GlobWidthY + World.GlobWidthY) % World.GlobWidthY);
-         }
-         else
-         {
-            bpos.Y = (float)(Math.Floor(R3.Y / World.BlockSizeY) % 16);
-         }
-         if (R3.Z < 0)
-         {
-            bpos.Z = (float)((Math.Floor(R3.Z / World.BlockSizeZ) % World.GlobWidthZ + World.GlobWidthZ) % World.GlobWidthZ);
+            bpos.y = (float)((Math.Floor(R3.y / World.BlockSizeY) % World.GlobWidthY + World.GlobWidthY) % World.GlobWidthY);
          }
          else
          {
-            bpos.Z = (float)(Math.Floor(R3.Z / World.BlockSizeZ) % 16);
+            bpos.y = (float)(Math.Floor(R3.y / World.BlockSizeY) % 16);
+         }
+         if (R3.z < 0)
+         {
+            bpos.z = (float)((Math.Floor(R3.z / World.BlockSizeZ) % World.GlobWidthZ + World.GlobWidthZ) % World.GlobWidthZ);
+         }
+         else
+         {
+            bpos.z = (float)(Math.Floor(R3.z / World.BlockSizeZ) % 16);
          }
 
-         return new ivec3((int)bpos.X, (int)bpos.Y, (int)bpos.Z);
+         return new ivec3((int)bpos.x, (int)bpos.y, (int)bpos.z);
       }
-      ivec3 R3toI3Glob(Vec3f R3)
+      ivec3 R3toI3Glob(vec3 R3)
       {
          ivec3 gpos = new ivec3(
-            (int)Math.Floor(R3.X / World.GlobWidthX),
-            (int)Math.Floor(R3.Y / World.GlobWidthY),
-            (int)Math.Floor(R3.Z / World.GlobWidthZ));
+            (int)Math.Floor(R3.x / World.GlobWidthX),
+            (int)Math.Floor(R3.y / World.GlobWidthY),
+            (int)Math.Floor(R3.z / World.GlobWidthZ));
          return gpos;
       }
-      private Glob FindGlobR3(Vec3f R3_pos)
+      private Glob FindGlobR3(vec3 R3_pos)
       {
          ivec3 gpos = R3toI3Glob(R3_pos);
 
@@ -889,9 +884,9 @@ namespace PirateCraft
          }
          return null;
       }
-      private UInt16 Density(Vec3f world_pos)
+      private UInt16 Density(vec3 world_pos)
       {
-         float d = -world_pos.Y;
+         float d = -world_pos.y;
 
          //basic hilly thingy
          for (int ia = 1; ia <= 4; ++ia)
@@ -901,7 +896,7 @@ namespace PirateCraft
 
             float sign = ia % 2 == 0 ? -1 : 1;//prevent huge hils
 
-            d = d + (sign) * MathUtils.cosf(world_pos.X * 0.1f * f) * 3 * a + (sign) * MathUtils.sinf(world_pos.Z * 0.1f * f) * 3 * a;
+            d = d + (sign) * MathUtils.cosf(world_pos.x * 0.1f * f) * 3 * a + (sign) * MathUtils.sinf(world_pos.z * 0.1f * f) * 3 * a;
          }
 
          ushort item = BlockItemCode.Empty;

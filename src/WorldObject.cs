@@ -1,12 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-using Quat = OpenTK.Quaternion;
-using Vec2f = OpenTK.Vector2;
-using Vec3f = OpenTK.Vector3;
-using Vec4f = OpenTK.Vector4;
-using Mat3f = OpenTK.Matrix3;
-using Mat4f = OpenTK.Matrix4;
+
 
 namespace PirateCraft
 {
@@ -34,13 +29,13 @@ namespace PirateCraft
    public class Keyframe
    {
       public double Time = 0;
-      public Quat Rot { get; set; } = Quat.Identity;
-      public Vec3f Pos { get; set; } = new Vec3f(0, 0, 0);
-      public Vec3f Scale { get; set; } = new Vec3f(1, 1, 1);
+      public quat Rot { get; set; } = quat.identity();
+      public vec3 Pos { get; set; } = new vec3(0, 0, 0);
+      public vec3 Scale { get; set; } = new vec3(1, 1, 1);
       public KeyframeInterpolation PosInterp { get; private set; } = KeyframeInterpolation.Cubic;
       public KeyframeInterpolation RotInterp { get; private set; } = KeyframeInterpolation.Slerp;
       public KeyframeInterpolation SclInterp { get; private set; } = KeyframeInterpolation.Cubic;
-      public Keyframe(double time, Quat quat, KeyframeInterpolation rotInt, Vec3f pos, KeyframeInterpolation posInt)
+      public Keyframe(double time, quat quat, KeyframeInterpolation rotInt, vec3 pos, KeyframeInterpolation posInt)
       {
          Rot = quat;
          Pos = pos;
@@ -48,18 +43,18 @@ namespace PirateCraft
          RotInterp = rotInt;
          PosInterp = posInt;
       }
-      public Keyframe(double time, Quat quat, Vec3f pos)
+      public Keyframe(double time, quat quat, vec3 pos)
       {
          Rot = quat;
          Pos = pos;
          Time = time;
       }
-      public Keyframe(double time, Quat quat)
+      public Keyframe(double time, quat quat)
       {
          Rot = quat;
          Time = time;
       }
-      public Keyframe(double time, Vec3f pos)
+      public Keyframe(double time, vec3 pos)
       {
          Pos = pos;
          Time = time;
@@ -114,9 +109,9 @@ namespace PirateCraft
          myObj.AnimatedRotation = Current.Rot;
          myObj.AnimatedScale = Current.Scale;
 
-         //Mat4f mScl = Mat4f.CreateScale(Current.Scale);
-         //Mat4f mRot = Mat4f.CreateFromQuaternion(Current.Rot);
-         //Mat4f mPos = Mat4f.CreateTranslation(Current.Pos);
+         //mat4 mScl = mat4.CreateScale(Current.Scale);
+         //mat4 mRot = mat4.CreateFromquaternion(Current.Rot);
+         //mat4 mPos = mat4.CreateTranslation(Current.Pos);
          //   myObj.Local = myObj.Local * (mScl) * (mRot) * mPos;
 
          //TODO: put this in the keyframe when modified.
@@ -196,13 +191,14 @@ namespace PirateCraft
             }
 
             //Ok, now slerp it up
-            Current.Rot = Quat.Slerp(f0.Rot, f1.Rot, (float)slerpTime);
+            // Current.Rot = quat.Slerp(f0.Rot, f1.Rot, (float)slerpTime);
+             Current.Rot = f0.Rot.slerpTo(f1.Rot, (float)slerpTime);
             Current.Pos = InterpolateV3(f1.PosInterp, f0.Pos, f1.Pos, slerpTime);
             Current.Scale = InterpolateV3(f1.SclInterp, f0.Scale, f1.Scale, slerpTime);
          }
 
       }
-      private Vec3f InterpolateV3(KeyframeInterpolation interp, Vec3f f0, Vec3f f1, double slerpTime)
+      private vec3 InterpolateV3(KeyframeInterpolation interp, vec3 f0, vec3 f1, double slerpTime)
       {
          if (interp == KeyframeInterpolation.Linear)
          {
@@ -223,12 +219,12 @@ namespace PirateCraft
          Gu.BRThrowNotImplementedException();
          return f0;
       }
-      private Vec3f LinearInterpolate(Vec3f a, Vec3f b, double time)
+      private vec3 LinearInterpolate(vec3 a, vec3 b, double time)
       {
-         Vec3f ret = a + (b - a) * (float)time;
+         vec3 ret = a + (b - a) * (float)time;
          return ret;
       }
-      private Vec3f EaseInterpolate(Vec3f a, Vec3f b, double time)
+      private vec3 EaseInterpolate(vec3 a, vec3 b, double time)
       {
          //Sigmoid "ease"
          //Assuming time is normalized [0,1]
@@ -236,7 +232,7 @@ namespace PirateCraft
          double f = 1 / (1 + Math.Exp(-((time - 0.5) / k)));
          return a * (1 - (float)f) + b * (float)f;
       }
-      private Vec3f CubicInterpolate(Vec3f a, Vec3f b, double time)
+      private vec3 CubicInterpolate(vec3 a, vec3 b, double time)
       {
          //This is actually cosine interpolate. We need to update this to be cubic.
          //TODO:
@@ -244,9 +240,9 @@ namespace PirateCraft
          double f = (1.0 - Math.Cos(ft)) * 0.5;
          return a * (1 - (float)f) + b * (float)f;
       }
-      private Vec3f ConstantInterpolate(Vec3f a, Vec3f b, double time)
+      private vec3 ConstantInterpolate(vec3 a, vec3 b, double time)
       {
-         Vec3f ret = a;
+         vec3 ret = a;
          return ret;
       }
    }
@@ -264,7 +260,7 @@ namespace PirateCraft
       //Essentially it would set the camera object's world matrix, but it doesn't wrok.
       public bool Relative = false;
       public WorldObject LookAt = null;
-      public Vec3f Up = new Vec3f(0, 1, 0);
+      public vec3 Up = new vec3(0, 1, 0);
       public TrackToConstraint(WorldObject ob, bool relative)
       {
          LookAt = ob;
@@ -280,7 +276,7 @@ namespace PirateCraft
          //apply xforms to children
          //apply constraints to parents
          //apply constraitns to children
-         Vec3f eye;
+         vec3 eye;
          if (!Relative)
          {
             eye = LookAt.Position - self.Position;
@@ -290,19 +286,19 @@ namespace PirateCraft
             eye = LookAt.Position;
          }
 
-         Vec3f zaxis = (eye).Normalized();
-         Vec3f xaxis = Vec3f.Cross(Up, zaxis).Normalized();
-         Vec3f yaxis = Vec3f.Cross(zaxis, xaxis);
-         //Vec3f zaxis = (LookAt - eye).normalize();
-         //Vec3f xaxis = zaxis.cross(Up).normalize();
-         //Vec3f yaxis = xaxis.cross(zaxis);
-         //zaxis*=-1;
+         //vec3 zaxis = (eye).Normalized();
+         //vec3 xaxis = vec3.Cross(Up, zaxis).Normalized();
+         //vec3 yaxis = vec3.Cross(zaxis, xaxis);
+         ////vec3 zaxis = (LookAt - eye).normalize();
+         ////vec3 xaxis = zaxis.cross(Up).normalize();
+         ////vec3 yaxis = xaxis.cross(zaxis);
+         ////zaxis*=-1;
 
-         Mat4f mm = Mat4f.Identity;
-         mm.M11 = xaxis.X; mm.M12 = yaxis.X; mm.M13 = zaxis.X;
-         mm.M21 = xaxis.Y; mm.M22 = yaxis.Y; mm.M23 = zaxis.Y;
-         mm.M31 = xaxis.Z; mm.M32 = yaxis.Z; mm.M33 = zaxis.Z;
-         // mm = mm.Inverted();
+         //mat4 mm = mat4.Identity;
+         //mm.M11 = xaxis.x; mm.M12 = yaxis.x; mm.M13 = zaxis.x;
+         //mm.M21 = xaxis.y; mm.M22 = yaxis.y; mm.M23 = zaxis.y;
+         //mm.M31 = xaxis.z; mm.M32 = yaxis.z; mm.M33 = zaxis.z;
+         //// mm = mm.Inverted();
 
          // self.Rotation = mm.ExtractRotation().ToAxisAngle();
       }
@@ -323,16 +319,16 @@ namespace PirateCraft
          }
       }
 
-      private Quat _rotation = new Quat(0, 0, 0, 1); //Axis-Angle xyz,ang
-      private Vec3f _scale = new Vec3f(1, 1, 1);
-      private Vec3f _position = new Vec3f(0, 0, 0);
+      private quat _rotation = new quat(0, 0, 0, 1); //Axis-Angle xyz,ang
+      private vec3 _scale = new vec3(1, 1, 1);
+      private vec3 _position = new vec3(0, 0, 0);
       private WorldObject _parent = null;
-      private Mat4f _world = Mat4f.Identity;
+      private mat4 _world = mat4.identity();
 
-      public Vec4f Color { get; set; } = new Vec4f(1, 1, 1, 1); // Mesh color if no material
+      public vec4 Color { get; set; } = new vec4(1, 1, 1, 1); // Mesh color if no material
       public bool TransformChanged { get; private set; } = false;
       public bool Hidden { get; set; } = false;
-      public Box3f BoundBox { get; set; } = new Box3f(new Vec3f(0, 0, 0), new Vec3f(1, 1, 1));
+      public Box3f BoundBox { get; set; } = new Box3f(new vec3(0, 0, 0), new vec3(1, 1, 1));
       public WorldObject Parent { get { return _parent; } private set { _parent = value; SetTransformChanged(); } }
       public List<WorldObject> Children { get; private set; } = new List<WorldObject>();
 
@@ -351,38 +347,38 @@ namespace PirateCraft
          child.Parent = null;
       }
 
-      public Quat Rotation { get { return _rotation; } set { _rotation = value; SetTransformChanged(); } }//xyz,angle
-      public Vec3f Scale { get { return _scale; } set { _scale = value; SetTransformChanged(); } }
-      public Vec3f Position { get { return _position; } set { _position = value; SetTransformChanged(); } }
-      public Mat4f Bind { get; private set; } = Mat4f.Identity; // Skinned Bind matrix
-      public Mat4f InverseBind { get; private set; } = Mat4f.Identity; // Skinned Inverse Bind
-      public Mat4f Local { get; private set; } = Mat4f.Identity;
-      public Mat4f World { get { return _world; } set { _world = value; } }
+      public quat Rotation { get { return _rotation; } set { _rotation = value; SetTransformChanged(); } }//xyz,angle
+      public vec3 Scale { get { return _scale; } set { _scale = value; SetTransformChanged(); } }
+      public vec3 Position { get { return _position; } set { _position = value; SetTransformChanged(); } }
+      public mat4 Bind { get; private set; } = mat4.identity(); // Skinned Bind matrix
+      public mat4 InverseBind { get; private set; } = mat4.identity(); // Skinned Inverse Bind
+      public mat4 Local { get; private set; } = mat4.identity();
+      public mat4 World { get { return _world; } set { _world = value; } }
       public Int64 LastUpdate { get; private set; } = 0;
       public List<Component> Components { get; private set; } = new List<Component>();
       public List<Constraint> Constraints { get; private set; } = new List<Constraint>();// *This is an ordered list they come in order
 
       //TODO: make this part of animation component / apply animation in the component update.
-      public Quat AnimatedRotation { get; set; } = Quat.Identity;
-      public Vec3f AnimatedScale { get; set; } = new Vec3f(1, 1, 1);
-      public Vec3f AnimatedPosition { get; set; } = new Vec3f(0, 0, 0);
+      public quat AnimatedRotation { get; set; } = quat.identity();
+      public vec3 AnimatedScale { get; set; } = new vec3(1, 1, 1);
+      public vec3 AnimatedPosition { get; set; } = new vec3(0, 0, 0);
 
-      public Vec3f BasisX { get { return (World * new Vec4f(1, 0, 0, 0)).Xyz.Normalized(); } private set { } }
-      public Vec3f BasisY { get { return (World * new Vec4f(0, 1, 0, 0)).Xyz.Normalized(); } private set { } }
-      public Vec3f BasisZ { get { return (World * new Vec4f(0, 0, 1, 0)).Xyz.Normalized(); } private set { } }
+      public vec3 BasisX { get { return (World * new vec4(1, 0, 0, 0)).xyz().normalized(); } private set { } }
+      public vec3 BasisY { get { return (World * new vec4(0, 1, 0, 0)).xyz().normalized(); } private set { } }
+      public vec3 BasisZ { get { return (World * new vec4(0, 0, 1, 0)).xyz().normalized(); } private set { } }
 
       public MeshData Mesh = null;
       public Material Material = null;
 
       //TODO: Clone
 
-      public WorldObject(Vec3f pos) : base()
+      public WorldObject(vec3 pos) : base()
       {
          Position = pos;
       }
       public WorldObject()
       {
-         Color = Random.NextVec4(new Vec4f(0.3f,0.3f,0.3f,1), new Vec4f(1,1,1,1));
+         Color = Random.NextVec4(new vec4(0.3f,0.3f,0.3f,1), new vec4(1,1,1,1));
       }
       public void SetTransformChanged()
       {
@@ -421,13 +417,13 @@ namespace PirateCraft
             return;
          }
 
-         Mat4f mSclA = Mat4f.CreateScale(AnimatedScale);
-         Mat4f mRotA = Mat4f.CreateFromQuaternion(AnimatedRotation);
-         Mat4f mPosA = Mat4f.CreateTranslation(AnimatedPosition);
+         mat4 mSclA = mat4.getScale(AnimatedScale);
+         mat4 mRotA = mat4.getRotation(AnimatedRotation);
+         mat4 mPosA = mat4.getTranslation(AnimatedPosition);
 
-         Mat4f mScl = Mat4f.CreateScale(Scale);
-         Mat4f mRot = Mat4f.CreateFromQuaternion(Rotation);
-         Mat4f mPos = Mat4f.CreateTranslation(Position);
+         mat4 mScl = mat4.getScale(Scale);
+         mat4 mRot = mat4.getRotation(Rotation);
+         mat4 mPos = mat4.getTranslation(Position);
          Local = (mScl * mSclA) * (mRot * mRotA) * (mPos * mPosA);
       }
       public void ApplyParentMatrix()

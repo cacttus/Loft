@@ -3,11 +3,6 @@ using System.Collections.Generic;
 using OpenTK;
 using OpenTK.Graphics;
 using OpenTK.Graphics.OpenGL;
-using System.Drawing.Imaging;
-using Vec2f = OpenTK.Vector2;
-using Vec3f = OpenTK.Vector3;
-using Vec4f = OpenTK.Vector4;
-using Mat4f = OpenTK.Matrix4;
 
 namespace PirateCraft
 {
@@ -22,23 +17,23 @@ namespace PirateCraft
       private float _widthFar = 1;
       private float _heightFar = 1;
 
-      Vec3f _nearCenter = new Vec3f(0, 0, 0);
-      Vec3f _farCenter = new Vec3f(0, 0, 0);
-      Vec3f _nearTopLeft = new Vec3f(0, 0, 0);
-      Vec3f _farTopLeft = new Vec3f(0, 0, 0);
-      Mat4f _projectionMatrix = Mat4f.Identity;
-      Mat4f _viewMatrix = Mat4f.Identity;
+      vec3 _nearCenter = new vec3(0, 0, 0);
+      vec3 _farCenter = new vec3(0, 0, 0);
+      vec3 _nearTopLeft = new vec3(0, 0, 0);
+      vec3 _farTopLeft = new vec3(0, 0, 0);
+      mat4 _projectionMatrix = mat4.identity();
+      mat4 _viewMatrix = mat4.identity();
       //ProjectionMode ProjectionMode = ProjectionMode.Perspective;
 
       public float FOV { get { return _fov; } set { _fov = value; } }
       public float Near { get { return _near; } private set { _near = value; } }
       public float Far { get { return _far; } private set { _far = value; } }
-      public Vec3f NearCenter { get { return _nearCenter; } private set { _nearCenter = value; } }
-      public Vec3f FarCenter { get { return _farCenter; } private set { _farCenter = value; } }
-      public Vec3f NearTopLeft { get { return _nearTopLeft; } private set { _nearTopLeft = value; } }
-      public Vec3f FarTopLeft { get { return _farTopLeft; } private set { _farTopLeft = value; } }
-      public Mat4f ProjectionMatrix { get { return _projectionMatrix; } private set { _projectionMatrix = value; } }
-      public Mat4f ViewMatrix { get { return _viewMatrix; } private set { _viewMatrix = value; } }
+      public vec3 NearCenter { get { return _nearCenter; } private set { _nearCenter = value; } }
+      public vec3 FarCenter { get { return _farCenter; } private set { _farCenter = value; } }
+      public vec3 NearTopLeft { get { return _nearTopLeft; } private set { _nearTopLeft = value; } }
+      public vec3 FarTopLeft { get { return _farTopLeft; } private set { _farTopLeft = value; } }
+      public mat4 ProjectionMatrix { get { return _projectionMatrix; } private set { _projectionMatrix = value; } }
+      public mat4 ViewMatrix { get { return _viewMatrix; } private set { _viewMatrix = value; } }
 
       public int _view_x = 0, _view_y = 0, _view_w = 800, _view_h = 600;
       public int Viewport_X { get { return _view_x; } set { _view_x = value; } }
@@ -59,8 +54,10 @@ namespace PirateCraft
          base.Update(dt, parentBoundBox);
 
          //Not really necessary to keep calling this unless we change window parameters
-         ProjectionMatrix = Mat4f.CreatePerspectiveFieldOfView(FOV, Viewport_Width / Viewport_Height, Near, Far);
-         ViewMatrix = Mat4f.LookAt(Position, Position + BasisZ.Normalized(), new Vec3f(0, 1, 0));
+      //   ProjectionMatrix = mat4.CreatePerspectiveFieldOfView(FOV, Viewport_Width / Viewport_Height, Near, Far);
+      //  ViewMatrix = mat4.LookAt(Position, Position + BasisZ.Normalized(), new vec3(0, 1, 0));
+         ProjectionMatrix = mat4.projection(FOV, Viewport_Width, Viewport_Height, Near, Far);
+         ViewMatrix = mat4.getLookAt(new vec3(Position), new vec3(Position+BasisZ.normalized()), new vec3(0, 1, 0));
 
          //Frustum
          float tanfov2 = MathUtils.tanf(FOV / 2.0f);
@@ -101,32 +98,32 @@ namespace PirateCraft
       //public override void UpdateBoundBox()
       //{
       //    //BoundBoxComputed._vmax = BoundBoxComputed._vmin = Pos;
-      //    //BoundBoxComputed._vmax.X += _mainVolume._radius;
-      //    //BoundBoxComputed._vmax.Y += _mainVolume._radius;
-      //    //BoundBoxComputed._vmax.Z += _mainVolume._radius;
-      //    //BoundBoxComputed._vmin.X += -_mainVolume._radius;
-      //    //BoundBoxComputed._vmin.Y += -_mainVolume._radius;
-      //    //BoundBoxComputed._vmin.Z += -_mainVolume._radius;
+      //    //BoundBoxComputed._vmax.x += _mainVolume._radius;
+      //    //BoundBoxComputed._vmax.y += _mainVolume._radius;
+      //    //BoundBoxComputed._vmax.z += _mainVolume._radius;
+      //    //BoundBoxComputed._vmin.x += -_mainVolume._radius;
+      //    //BoundBoxComputed._vmin.y += -_mainVolume._radius;
+      //    //BoundBoxComputed._vmin.z += -_mainVolume._radius;
       //}
 
-      public Line3f ProjectPoint(Vec2f point_on_screen, TransformSpace space = TransformSpace.World, float additionalZDepthNear = 0)
+      public Line3f ProjectPoint(vec2 point_on_screen, TransformSpace space = TransformSpace.World, float additionalZDepthNear = 0)
       {
          //Note: we were using PickRay before because that's used to pick OOBs. We don't need that right now but we will in the future.
          Line3f pt = new Line3f();
 
-         float left_pct = point_on_screen.X / (float)Viewport_Width;
-         float top_pct = (point_on_screen.Y) / (float)Viewport_Height;
+         float left_pct = point_on_screen.x / (float)Viewport_Width;
+         float top_pct = (point_on_screen.y) / (float)Viewport_Height;
 
          if (space == TransformSpace.Local)
          {
             //Transform in local coordinates.
-            Vec3f localX = new Vec3f(1, 0, 0);
-            Vec3f localY = new Vec3f(0, 1, 0);
-            Vec3f localZ = new Vec3f(0, 0, 1);
-            Vec3f near_center_local = localZ * Near;
-            Vec3f far_center_local = localZ * Far;
-            Vec3f ntl = near_center_local - localX * _widthNear + localY * _heightNear;
-            Vec3f ftl = far_center_local - localX * _widthFar + localY * _heightFar;
+            vec3 localX = new vec3(1, 0, 0);
+            vec3 localY = new vec3(0, 1, 0);
+            vec3 localZ = new vec3(0, 0, 1);
+            vec3 near_center_local = localZ * Near;
+            vec3 far_center_local = localZ * Far;
+            vec3 ntl = near_center_local - localX * _widthNear + localY * _heightNear;
+            vec3 ftl = far_center_local - localX * _widthFar + localY * _heightFar;
             pt.p0 = ntl + localX * _widthNear * left_pct + localY * _heightNear * top_pct;
             pt.p1 = ftl + localX * _widthFar * left_pct + localY * _heightFar * top_pct;
             pt.p0 += localZ * additionalZDepthNear;

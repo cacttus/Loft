@@ -1,10 +1,4 @@
-﻿using Quat = OpenTK.Quaternion;
-using Vec2f = OpenTK.Vector2;
-using Vec3f = OpenTK.Vector3;
-using Vec4f = OpenTK.Vector4;
-using Mat3f = OpenTK.Matrix3;
-using Mat4f = OpenTK.Matrix4;
-
+﻿
 namespace PirateCraft
 {
    public class Random
@@ -16,28 +10,28 @@ namespace PirateCraft
          ret = (float)r.NextDouble();
          return ret;
       }
-      public static Vec2f NextVec2()
+      public static vec2 NextVec2()
       {
-         Vec2f ret;
-         ret.X = (float)r.NextDouble();
-         ret.Y = (float)r.NextDouble();
+         vec2 ret;
+         ret.x = (float)r.NextDouble();
+         ret.y = (float)r.NextDouble();
          return ret;
       }
-      public static Vec3f NextVec3()
+      public static vec3 NextVec3()
       {
-         Vec3f ret;
-         ret.X = (float)r.NextDouble();
-         ret.Y = (float)r.NextDouble();
-         ret.Z = (float)r.NextDouble();
+         vec3 ret;
+         ret.x = (float)r.NextDouble();
+         ret.y = (float)r.NextDouble();
+         ret.z = (float)r.NextDouble();
          return ret;
       }
-      public static Vec4f NextVec4(Vec4f a , Vec4f b )
+      public static vec4 NextVec4(vec4 a , vec4 b )
       {
-         Vec4f ret;
-         ret.X = a.X + (float)r.NextDouble() * (b.X - a.X);
-         ret.Y = a.Y + (float)r.NextDouble() * (b.Y - a.Y);
-         ret.Z = a.Z + (float)r.NextDouble() * (b.Z - a.Z);
-         ret.W = a.W + (float)r.NextDouble() * (b.W - a.W);
+         vec4 ret;
+         ret.x = a.x + (float)r.NextDouble() * (b.x - a.x);
+         ret.y = a.y + (float)r.NextDouble() * (b.y - a.y);
+         ret.z = a.z + (float)r.NextDouble() * (b.z - a.z);
+         ret.w = a.w + (float)r.NextDouble() * (b.w - a.w);
          return ret;
       }
    }

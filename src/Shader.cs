@@ -246,7 +246,7 @@ namespace PirateCraft
             switch (u.Name)
             {
                case "_ufCamera_Position":
-                  GL.ProgramUniform3(_glId, u.Location, cam.Position.X, cam.Position.Y, cam.Position.Z);
+                  GL.ProgramUniform3(_glId, u.Location, cam.Position.x, cam.Position.y, cam.Position.z);
                   break;
                case "_ufLightModel_GGX_X":
                   GL.Uniform1(u.Location, GGX_X);
@@ -261,22 +261,22 @@ namespace PirateCraft
                   GL.Uniform1(u.Location, TextureUnit.Texture0 - TextureUnit.Texture0);
                   break;
                case "_ufWorldObject_Color":
-                  GL.ProgramUniform4(_glId, u.Location, ob.Color.X, ob.Color.Y, ob.Color.Z, ob.Color.W);
+                  GL.ProgramUniform4(_glId, u.Location, ob.Color.x, ob.Color.y, ob.Color.z, ob.Color.w);
                   break;
                case "_ufMatrix_Normal":
-                  var n_mat_tk = ob.World.Inverted();
+                  var n_mat_tk = ob.World.inverseOf().ToOpenTK();
                   GL.UniformMatrix4(u.Location, false, ref n_mat_tk);
                   break;
                case "_ufMatrix_Model":
-                  var m_mat_tk = ob.World;
+                  var m_mat_tk = ob.World.ToOpenTK();
                   GL.UniformMatrix4(u.Location, false, ref m_mat_tk);
                   break;
                case "_ufMatrix_View":
-                  var v_mat_tk = cam.ViewMatrix;
+                  var v_mat_tk = cam.ViewMatrix.ToOpenTK();
                   GL.UniformMatrix4(u.Location, false, ref v_mat_tk);
                   break;
                case "_ufMatrix_Projection":
-                  var p_mat_tk = cam.ProjectionMatrix;
+                  var p_mat_tk = cam.ProjectionMatrix.ToOpenTK();
                   GL.UniformMatrix4(u.Location, false, ref p_mat_tk);
                   break;
                default:

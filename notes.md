@@ -10,6 +10,7 @@ WO - PVS for objects and globs
         * grass, trees, top bot textures
         * infinite render distance
         * islands
+        * water
         * be able to move around, jump (physics)
 
 * Steps

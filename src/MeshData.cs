@@ -3,13 +3,7 @@ using OpenTK;
 using OpenTK.Graphics.OpenGL4;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
-using Vec2f = OpenTK.Vector2;
-using Vec3f = OpenTK.Vector3;
-using Vec4f = OpenTK.Vector4;
-using Mat3f = OpenTK.Matrix3;
-using Mat4f = OpenTK.Matrix4;
-using System.IO;
-using System.Runtime.Serialization.Formatters.Binary;
+
 
 namespace PirateCraft
 {
@@ -146,7 +140,7 @@ namespace PirateCraft
             _indexBuffer.Bind();
          }
 
-         //Note: we use Vec4f size offsets here because of the 16 byte padding required by GPUs.
+         //Note: we use vec4 size offsets here because of the 16 byte padding required by GPUs.
          foreach (var comp in VertexFormat.Components)
          {
             GL.EnableVertexAttribArray(comp.Value.AttribLocation);
@@ -209,7 +203,7 @@ namespace PirateCraft
                            {
                               Gu.BRThrowException("Index outside range.");
                            }
-                           Vec3f vv = *((Vec3f*)(vbarr + index * vertexes.ItemSizeBytes + voff));
+                           vec3 vv = *((vec3*)(vbarr + index * vertexes.ItemSizeBytes + voff));
                            BoundBox.genExpandByPoint(vv);
                         }
                      }
@@ -218,7 +212,7 @@ namespace PirateCraft
                   {
                      for (int vi = 0; vi < vertexes.Count; ++vi)
                      {
-                        Vec3f vv = *((Vec3f*)(vbarr + vi * vertexes.ItemSizeBytes + voff));
+                        vec3 vv = *((vec3*)(vbarr + vi * vertexes.ItemSizeBytes + voff));
                         BoundBox.genExpandByPoint(vv);
                      }
                   }//if hasindexes
@@ -257,22 +251,22 @@ namespace PirateCraft
       public static MeshData GenPlane(float w, float h)
       {
          //Left Righ, Botom top, back front
-         Vec3f[] box = new Vec3f[4];
+         vec3[] box = new vec3[4];
          float w2 = w * 0.5f;
          float h2 = h * 0.5f;
-         box[0] = new Vec3f(-w2, 0, -h2);
-         box[1] = new Vec3f(w2, 0, -h2);
-         box[2] = new Vec3f(-w2, 0, h2);
-         box[3] = new Vec3f(w2, 0, h2);
+         box[0] = new vec3(-w2, 0, -h2);
+         box[1] = new vec3(w2, 0, -h2);
+         box[2] = new vec3(-w2, 0, h2);
+         box[3] = new vec3(w2, 0, h2);
 
-         Vec3f[] norms = new Vec3f[1];//lrbtaf
-         norms[0] = new Vec3f(0, 1, 0);
+         vec3[] norms = new vec3[1];//lrbtaf
+         norms[0] = new vec3(0, 1, 0);
 
-         Vec2f[] texs = new Vec2f[4];
-         texs[0] = new Vec2f(0, 0);
-         texs[1] = new Vec2f(1, 0);
-         texs[2] = new Vec2f(0, 1);
-         texs[3] = new Vec2f(1, 1);
+         vec2[] texs = new vec2[4];
+         texs[0] = new vec2(0, 0);
+         texs[1] = new vec2(1, 0);
+         texs[2] = new vec2(0, 1);
+         texs[3] = new vec2(1, 1);
 
          v_v3n3x2[] verts = new v_v3n3x2[4];
          verts[0 * 4 + 0] = new v_v3n3x2() { _v = box[0], _n = norms[0], _x = texs[0] };
@@ -288,30 +282,30 @@ namespace PirateCraft
       public static MeshData GenBox(float w, float h, float d)
       {
          //Left Righ, Botom top, back front
-         Vec3f[] box = new Vec3f[8];
+         vec3[] box = new vec3[8];
          float w2 = w * 0.5f, h2 = h * 0.5f, d2 = d * 0.5f;
-         box[0] = new Vec3f(-w2, -h2, -d2);
-         box[1] = new Vec3f(w2, -h2, -d2);
-         box[2] = new Vec3f(-w2, h2, -d2);
-         box[3] = new Vec3f(w2, h2, -d2);
-         box[4] = new Vec3f(-w2, -h2, d2);
-         box[5] = new Vec3f(w2, -h2, d2);
-         box[6] = new Vec3f(-w2, h2, d2);
-         box[7] = new Vec3f(w2, h2, d2);
+         box[0] = new vec3(-w2, -h2, -d2);
+         box[1] = new vec3(w2, -h2, -d2);
+         box[2] = new vec3(-w2, h2, -d2);
+         box[3] = new vec3(w2, h2, -d2);
+         box[4] = new vec3(-w2, -h2, d2);
+         box[5] = new vec3(w2, -h2, d2);
+         box[6] = new vec3(-w2, h2, d2);
+         box[7] = new vec3(w2, h2, d2);
 
-         Vec3f[] norms = new Vec3f[6];//lrbtaf
-         norms[0] = new Vec3f(-1, 0, 0);
-         norms[1] = new Vec3f(1, 0, 0);
-         norms[2] = new Vec3f(0, -1, 0);
-         norms[3] = new Vec3f(0, 1, 0);
-         norms[4] = new Vec3f(0, 0, -1);
-         norms[5] = new Vec3f(0, 0, 1);
+         vec3[] norms = new vec3[6];//lrbtaf
+         norms[0] = new vec3(-1, 0, 0);
+         norms[1] = new vec3(1, 0, 0);
+         norms[2] = new vec3(0, -1, 0);
+         norms[3] = new vec3(0, 1, 0);
+         norms[4] = new vec3(0, 0, -1);
+         norms[5] = new vec3(0, 0, 1);
 
-         Vec2f[] texs = new Vec2f[4];
-         texs[0] = new Vec2f(0, 1);
-         texs[1] = new Vec2f(1, 1);
-         texs[2] = new Vec2f(0, 0);
-         texs[3] = new Vec2f(1, 0);
+         vec2[] texs = new vec2[4];
+         texs[0] = new vec2(0, 1);
+         texs[1] = new vec2(1, 1);
+         texs[2] = new vec2(0, 0);
+         texs[3] = new vec2(1, 0);
 
          //     6       7
          // 2      3
@@ -356,20 +350,20 @@ namespace PirateCraft
       {
          //Let's do the UI from bottom left like OpenGL
          v_v3n3x2[] verts = new v_v3n3x2[4];
-         verts[0]._v = c.ProjectPoint(new Vec2f(x, y), TransformSpace.Local, 0.01f).p0;
-         verts[1]._v = c.ProjectPoint(new Vec2f(x + w, y), TransformSpace.Local, 0.01f).p0;
-         verts[2]._v = c.ProjectPoint(new Vec2f(x, y + h), TransformSpace.Local, 0.01f).p0;
-         verts[3]._v = c.ProjectPoint(new Vec2f(x + w, y + h), TransformSpace.Local, 0.01f).p0;
+         verts[0]._v = c.ProjectPoint(new vec2(x, y), TransformSpace.Local, 0.01f).p0;
+         verts[1]._v = c.ProjectPoint(new vec2(x + w, y), TransformSpace.Local, 0.01f).p0;
+         verts[2]._v = c.ProjectPoint(new vec2(x, y + h), TransformSpace.Local, 0.01f).p0;
+         verts[3]._v = c.ProjectPoint(new vec2(x + w, y + h), TransformSpace.Local, 0.01f).p0;
 
-         verts[0]._x = new Vec2f(1, 0);
-         verts[1]._x = new Vec2f(1, 1);
-         verts[2]._x = new Vec2f(1, 0);
-         verts[3]._x = new Vec2f(0, 0);
+         verts[0]._x = new vec2(1, 0);
+         verts[1]._x = new vec2(1, 1);
+         verts[2]._x = new vec2(1, 0);
+         verts[3]._x = new vec2(0, 0);
 
-         verts[0]._n = new Vec3f(0, 0, -1);
-         verts[1]._n = new Vec3f(0, 0, -1);
-         verts[2]._n = new Vec3f(0, 0, -1);
-         verts[3]._n = new Vec3f(0, 0, -1);
+         verts[0]._n = new vec3(0, 0, -1);
+         verts[1]._n = new vec3(0, 0, -1);
+         verts[2]._n = new vec3(0, 0, -1);
+         verts[3]._n = new vec3(0, 0, -1);
 
          var indsBoxed = GenerateQuadIndicesArray(verts.Length / 4);
          var vertsBoxed = Gpu.SerializeGPUData(verts);
@@ -401,7 +395,7 @@ namespace PirateCraft
                      // 2 3
                      // 0 1  
                      // >x ^y
-                     verts[vind + p * 2 + t]._v = new Vec3f(
+                     verts[vind + p * 2 + t]._v = new vec3(
                          radius * MathUtils.sinf(phi[p]) * MathUtils.cosf(theta[t]),
                          radius * MathUtils.cosf(phi[p]),
                          radius * MathUtils.sinf(phi[p]) * MathUtils.sinf(theta[t])
@@ -411,14 +405,14 @@ namespace PirateCraft
 
                if (smooth)
                {
-                  verts[vind + 0]._n = verts[vind + 0]._v.Normalized();
-                  verts[vind + 1]._n = verts[vind + 1]._v.Normalized();
-                  verts[vind + 2]._n = verts[vind + 2]._v.Normalized();
-                  verts[vind + 3]._n = verts[vind + 3]._v.Normalized();
+                  verts[vind + 0]._n = verts[vind + 0]._v.normalized();
+                  verts[vind + 1]._n = verts[vind + 1]._v.normalized();
+                  verts[vind + 2]._n = verts[vind + 2]._v.normalized();
+                  verts[vind + 3]._n = verts[vind + 3]._v.normalized();
                }
                else
                {
-                  Vec3f n = Vec3f.Cross((verts[vind + 1]._v - verts[vind + 0]._v), (verts[vind + 2]._v - verts[vind + 0]._v)).Normalized();
+                  vec3 n = (verts[vind + 1]._v - verts[vind + 0]._v).cross(verts[vind + 2]._v - verts[vind + 0]._v).normalized();
                   verts[vind + 0]._n = n;
                   verts[vind + 1]._n = n;
                   verts[vind + 2]._n = n;
@@ -429,10 +423,10 @@ namespace PirateCraft
                float ty0 = (float)stack / (float)stacks;
                float tx1 = (float)(slice + 1) / (float)slices;
                float ty1 = (float)(stack + 1) / (float)stacks;
-               verts[vind + 0]._x = new Vec2f(tx0, ty0);
-               verts[vind + 1]._x = new Vec2f(tx1, ty0);
-               verts[vind + 2]._x = new Vec2f(tx0, ty1);
-               verts[vind + 3]._x = new Vec2f(tx1, ty1);
+               verts[vind + 0]._x = new vec2(tx0, ty0);
+               verts[vind + 1]._x = new vec2(tx1, ty0);
+               verts[vind + 2]._x = new vec2(tx0, ty1);
+               verts[vind + 3]._x = new vec2(tx1, ty1);
 
             }
          }

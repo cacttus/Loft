@@ -2,14 +2,9 @@
 using System.Collections.Generic;
 using System.Drawing;
 using System.Runtime.InteropServices;
-//using Microsoft.Xna.Framework;
+//using Microsoft.xna.Framework;
 
 //Copied this stuff from legend of \kevin
-using Vec2f = OpenTK.Vector2;
-using Vec3f = OpenTK.Vector3;
-using Vec4f = OpenTK.Vector4;
-using Mat3f = OpenTK.Matrix3;
-using Mat4f = OpenTK.Matrix4;
 
 namespace PirateCraft
 {
@@ -54,12 +49,12 @@ namespace PirateCraft
       {
          return Math.Max(Math.Min(f, b), a);
       }
-      public static Mat4f m4f16(float[] mv)
+      public static mat4 m4f16(float[] mv)
       {
          if (mv.Length != 16)
             throw new Exception("matrix was not 16 elements wide.");
 
-         return new Mat4f(
+         return new mat4(
                mv[0],
                mv[1],
                mv[2],
@@ -95,11 +90,11 @@ namespace PirateCraft
       {
          return (degs / 180.0f) * (double)Math.PI;
       }
-      public static Vec2f DecomposeRotation(float r)
+      public static vec2 DecomposeRotation(float r)
       {
          //Turn a rotation into a vector (for chars mostly)
          float r2 = r - (float)Math.PI * 0.5f;
-         Vec2f dxy = new Vec2f(
+         vec2 dxy = new vec2(
              (float)Math.Cos(r2),
              (float)Math.Sin(r2)
              );
@@ -124,18 +119,18 @@ namespace PirateCraft
       {
          float num = 0f;
          float maxValue = float.MaxValue;
-         if (Math.Abs(ray.Dir.X) < 1E-06f)
+         if (Math.Abs(ray.Dir.x) < 1E-06f)
          {
-            if ((ray.Origin.X < box.Min.X) || (ray.Origin.X > box.Max.X))
+            if ((ray.Origin.x < box.Min.x) || (ray.Origin.x > box.Max.x))
             {
                return null;
             }
          }
          else
          {
-            float num11 = 1f / ray.Dir.X;
-            float num8 = (box.Min.X - ray.Origin.X) * num11;
-            float num7 = (box.Max.X - ray.Origin.X) * num11;
+            float num11 = 1f / ray.Dir.x;
+            float num8 = (box.Min.x - ray.Origin.x) * num11;
+            float num7 = (box.Max.x - ray.Origin.x) * num11;
             if (num8 > num7)
             {
                float num14 = num8;
@@ -149,18 +144,18 @@ namespace PirateCraft
                return null;
             }
          }
-         if (Math.Abs(ray.Dir.Y) < 1E-06f)
+         if (Math.Abs(ray.Dir.y) < 1E-06f)
          {
-            if ((ray.Origin.Y < box.Min.Y) || (ray.Origin.Y > box.Max.Y))
+            if ((ray.Origin.y < box.Min.y) || (ray.Origin.y > box.Max.y))
             {
                return null;
             }
          }
          else
          {
-            float num10 = 1f / ray.Dir.Y;
-            float num6 = (box.Min.Y - ray.Origin.Y) * num10;
-            float num5 = (box.Max.Y - ray.Origin.Y) * num10;
+            float num10 = 1f / ray.Dir.y;
+            float num6 = (box.Min.y - ray.Origin.y) * num10;
+            float num5 = (box.Max.y - ray.Origin.y) * num10;
             if (num6 > num5)
             {
                float num13 = num6;
@@ -200,7 +195,7 @@ namespace PirateCraft
    //{
    //    public bool Equals(Vec2f x, Vec2f y)
    //    {
-   //        return x.X == y.X && x.Y == y.Y;
+   //        return x.x == y.x && x.y == y.y;
    //    }
 
    //    public int GetHashCode(Vec2f x)
@@ -208,44 +203,12 @@ namespace PirateCraft
    //        return x.x.GetHashCode() + x.y.GetHashCode();
    //    }
    //}
-   [StructLayout(LayoutKind.Sequential)]
-   class mat2
-   {
-      //0 1
-      //2 3
-      public static int m00 = 0;
-      public static int m01 = 1;
-      public static int m10 = 2;
-      public static int m11 = 3;
-      public float[] m = new float[4];
 
-      public static Vec2f operator *(mat2 a, Vec2f b)
-      {
-         Vec2f r = new Vec2f(0, 0);
-
-         r.X = a.m[0] * b.X + a.m[1] * b.Y;
-         r.Y = a.m[2] * b.X + a.m[3] * b.Y;
-         return r;
-      }
-      public static mat2 GetRot(float theta)
-      {
-         mat2 ret = new mat2();
-
-         //This is an incorrect rotation function - sin 10 shouldn't be negative.
-         ret.m[m00] = (float)Math.Cos(theta);
-         ret.m[m10] = (float)Math.Sin(theta);
-         ret.m[m01] = -(float)Math.Sin(theta);
-         ret.m[m11] = (float)Math.Cos(theta);
-
-         return ret;
-      }
-
-   }
    //public class iVec2fEqualityComparer : IEqualityComparer<iVec2f>
    //{
    //    public bool Equals(iVec2f x, iVec2f y)
    //    {
-   //        return x.X == y.X && x.Y == y.Y;
+   //        return x.x == y.x && x.y == y.y;
    //    }
 
    //    public int GetHashCode(iVec2f x)
@@ -256,14 +219,14 @@ namespace PirateCraft
    [StructLayout(LayoutKind.Sequential)]
    public struct Line2f
    {
-      public Vec2f p0;
-      public Vec2f p1;
+      public vec2 p0;
+      public vec2 p1;
    }
    [StructLayout(LayoutKind.Sequential)]
    public struct Line3f
    {
-      public Vec3f p0;
-      public Vec3f p1;
+      public vec3 p0;
+      public vec3 p1;
    }
    [StructLayout(LayoutKind.Sequential)]
    public struct vec2
@@ -276,16 +239,16 @@ namespace PirateCraft
       public float x, y;
       public vec2 construct(float a, float b) { x = a; y = b; return this; }
       //public Vec2f() { }
-      public vec2(Vec2f dxy) { x = dxy.X; y = dxy.Y; }
+      public vec2(OpenTK.Vector2 dxy) { x = dxy.X; y = dxy.Y; }
       public vec2(vec2 dxy) { x = dxy.x; y = dxy.y; }
       public vec2(float dx, float dy) { x = dx; y = dy; }
-    //  public vec2(OpenTK.Vector2 v) { x = v.X; y = v.Y; }//From XNA's Vector2
+      //  public vec2(OpenTK.Vector2 v) { x = v.x; y = v.y; }//From XNA's Vector2
       public float Len() { return (float)Math.Sqrt((x * x) + (y * y)); }
 
-      public Vec2f Perp()
+      public vec2 Perp()
       {
          //Perpendicular
-         return new Vec2f(y, -x);
+         return new vec2(y, -x);
       }
       public void Normalize()
       {
@@ -415,44 +378,42 @@ namespace PirateCraft
    [StructLayout(LayoutKind.Sequential)]
    public struct uVec2f
    {
-      public uVec2f(int dx, int dy) { X = dx; Y = dy; }
-      public Int32 X { get; set; }
-      public Int32 Y { get; set; }
+      public uVec2f(int dx, int dy) { x = dx; y = dy; }
+      public Int32 x { get; set; }
+      public Int32 y { get; set; }
       static public implicit operator uVec2f(int f)
       {
          return new uVec2f(f, f);
       }
       public static uVec2f operator -(uVec2f d)
       {
-         return new uVec2f(-d.X, -d.Y);
+         return new uVec2f(-d.x, -d.y);
       }
       public static uVec2f operator +(uVec2f a, uVec2f b)
       {
-         return new uVec2f(a.X + b.X, a.Y + b.Y);
+         return new uVec2f(a.x + b.x, a.y + b.y);
       }
       public static uVec2f operator -(uVec2f a, uVec2f b)
       {
-         return new uVec2f(a.X - b.X, a.Y - b.Y);
+         return new uVec2f(a.x - b.x, a.y - b.y);
       }
       public static uVec2f operator *(uVec2f a, int b)
       {
-         return new uVec2f(a.X * b, a.Y * b);
+         return new uVec2f(a.x * b, a.y * b);
       }
       public static uVec2f operator *(uVec2f a, uVec2f b)
       {
-         return new uVec2f(a.X * b.X, a.Y * b.Y);
+         return new uVec2f(a.x * b.x, a.y * b.y);
       }
       public static uVec2f operator /(uVec2f a, int b)
       {
-         return new uVec2f(a.X / b, a.Y / b);
+         return new uVec2f(a.x / b, a.y / b);
       }
       public static uVec2f operator -(uVec2f a, int f)
       {
-         return new uVec2f(a.X - f, a.Y - f);
+         return new uVec2f(a.x - f, a.y - f);
       }
    }
-
-
    public struct RaycastHit
    {
       public bool _bHit;    // Whether the ray intersected the box.
@@ -460,8 +421,8 @@ namespace PirateCraft
       public bool _p2Contained;
       public float _t; // - Time to hit [0,1]
                        //  public void* _pPickData; // picked object (BvhObject3*)
-      public Vec2f _vNormal; //The normal of the plane the raycast hit.
-                             //Do not include ray data for optimization.
+      public vec2 _vNormal; //The normal of the plane the raycast hit.
+                            //Do not include ray data for optimization.
 
       //public RaycastHit()
       //{
@@ -495,23 +456,23 @@ namespace PirateCraft
    }
    public struct ProjectedRay
    {
-      public Vec2f Origin;
-      public Vec2f Dir;
+      public vec2 Origin;
+      public vec2 Dir;
       public float _t;
-      public Vec2f _vNormal;
+      public vec2 _vNormal;
 
       // Found the following two cool optimizations on WIlliams et. al (U. Utah)
-      public Vec2f InvDir;
+      public vec2 InvDir;
       public int[] Sign;
 
       public bool IsOpt { get; private set; }    // - return true if  we optimized this
 
       public float Length;// Max length
 
-      public Vec2f Begin() { return Origin; }
-      public Vec2f End() { return Origin + Dir; }
+      public vec2 Begin() { return Origin; }
+      public vec2 End() { return Origin + Dir; }
 
-      public ProjectedRay(Vec2f origin, Vec2f dir)
+      public ProjectedRay(vec2 origin, vec2 dir)
       {
          Sign = new int[2];
          Origin = origin;
@@ -520,17 +481,17 @@ namespace PirateCraft
          IsOpt = false;
          Length = float.MaxValue;//Must be maxvalue
          _t = float.MaxValue;
-         _vNormal = new Vec2f(0, 0);
+         _vNormal = new vec2(0, 0);
 
          //opt()
          //            //**New - optimization
          //http://people.csail.mit.edu/amy/papers/box-jgt.pdf
          //Don't set to zero. We need infinity (or large value) here.
-         InvDir.X = 1.0f / Dir.X;
-         InvDir.Y = 1.0f / Dir.Y;
+         InvDir.x = 1.0f / Dir.x;
+         InvDir.y = 1.0f / Dir.y;
 
-         Sign[0] = (InvDir.X < 0) ? 1 : 0;
-         Sign[1] = (InvDir.Y < 0) ? 1 : 0;
+         Sign[0] = (InvDir.x < 0) ? 1 : 0;
+         Sign[1] = (InvDir.y < 0) ? 1 : 0;
 
          IsOpt = true;
       }
@@ -544,41 +505,41 @@ namespace PirateCraft
       {
          return _t >= 0.0f && _t <= 1.0f;
       }
-      public Vec2f HitPoint()
+      public vec2 HitPoint()
       {
-         Vec2f ret = Begin() + (End() - Begin()) * _t;
+         vec2 ret = Begin() + (End() - Begin()) * _t;
          return ret;
       }
    }
    [StructLayout(LayoutKind.Sequential)]
    public struct Box2f
    {
-      public Vec2f Min;
-      public Vec2f Max;
+      public vec2 Min;
+      public vec2 Max;
 
-      public float Width() { return Max.X - Min.X; }
-      public float Height() { return Max.Y - Min.Y; }
+      public float Width() { return Max.x - Min.x; }
+      public float Height() { return Max.y - Min.y; }
 
-      public Vec2f TopRight() { return new Vec2f(Max.X, Min.Y); }
-      public Vec2f BotRight() { return new Vec2f(Max.X, Max.Y); }
-      public Vec2f BotLeft() { return new Vec2f(Min.X, Max.Y); }
-      public Vec2f TopLeft() { return new Vec2f(Min.X, Min.Y); }
+      public vec2 TopRight() { return new vec2(Max.x, Min.y); }
+      public vec2 BotRight() { return new vec2(Max.x, Max.y); }
+      public vec2 BotLeft() { return new vec2(Min.x, Max.y); }
+      public vec2 TopLeft() { return new vec2(Min.x, Min.y); }
 
-      public void Construct(Vec2f min, Vec2f max)
+      public void Construct(vec2 min, vec2 max)
       {
          Min = min; Max = max;
       }
       public Box2f(float x, float y, float w, float h)
       {
-         Min = new Vec2f(x, y);
-         Max = new Vec2f(w, h) + Min;
+         Min = new vec2(x, y);
+         Max = new vec2(w, h) + Min;
       }
-      public Box2f(Vec2f min, Vec2f max)
+      public Box2f(vec2 min, vec2 max)
       {
          Min = min;
          Max = max;
       }
-      public Vec2f Center()
+      public vec2 Center()
       {
          return Min + (Max - Min) * 0.5f;
       }
@@ -586,32 +547,32 @@ namespace PirateCraft
       {
          //Flip the box inside of a larger box (w)
          Box2f ret = new Box2f();
-         ret.Min.X = w - b.Max.X;
-         ret.Max.X = w - b.Min.X;
+         ret.Min.x = w - b.Max.x;
+         ret.Max.x = w - b.Min.x;
 
-         ret.Min.Y = b.Min.Y;
-         ret.Max.Y = b.Max.Y;
+         ret.Min.y = b.Min.y;
+         ret.Max.y = b.Max.y;
          return ret;
       }
       public static Box2f FlipBoxV(Box2f b, float h)
       {
          //Flip the box inside of a larger box (h)
          Box2f ret = new Box2f();
-         ret.Min.Y = h - b.Max.Y;
-         ret.Max.Y = h - b.Min.Y;
+         ret.Min.y = h - b.Max.y;
+         ret.Max.y = h - b.Min.y;
 
-         ret.Min.X = b.Min.X;
-         ret.Max.X = b.Max.X;
+         ret.Min.x = b.Min.x;
+         ret.Max.x = b.Max.x;
          return ret;
       }
       public Rectangle ToXNARect()
       {
          Rectangle r = new Rectangle();
 
-         r.X = (int)(Min.X);
-         r.Y = (int)(Min.Y);
-         r.Width = (int)(Max.X - Min.X);
-         r.Height = (int)(Max.Y - Min.Y);
+         r.X = (int)(Min.x);
+         r.Y = (int)(Min.y);
+         r.Width = (int)(Max.x - Min.x);
+         r.Height = (int)(Max.y - Min.y);
 
          return r;
       }
@@ -620,77 +581,88 @@ namespace PirateCraft
       {
          Box2f ret = new Box2f();
 
-         ret.Min.X = Single.MaxValue;
-         ret.Min.Y = Single.MaxValue;
-         ret.Max.X = -Single.MaxValue;
-         ret.Max.Y = -Single.MaxValue;
+         ret.Min.x = Single.MaxValue;
+         ret.Min.y = Single.MaxValue;
+         ret.Max.x = -Single.MaxValue;
+         ret.Max.y = -Single.MaxValue;
 
 
-         if (a.Min.X >= b.Min.X && a.Min.X <= b.Max.X)
+         if (a.Min.x >= b.Min.x && a.Min.x <= b.Max.x)
          {
-            ret.Min.X = Math.Min(ret.Min.X, a.Min.X);
+            ret.Min.x = Math.Min(ret.Min.x, a.Min.x);
          }
-         if (a.Max.X <= b.Max.X && a.Max.X >= b.Min.X)
+         if (a.Max.x <= b.Max.x && a.Max.x >= b.Min.x)
          {
-            ret.Max.X = Math.Max(ret.Max.X, a.Max.X);
+            ret.Max.x = Math.Max(ret.Max.x, a.Max.x);
          }
-         if (a.Min.Y >= b.Min.Y && a.Min.Y <= b.Max.Y)
+         if (a.Min.y >= b.Min.y && a.Min.y <= b.Max.y)
          {
-            ret.Min.Y = Math.Min(ret.Min.Y, a.Min.Y);
+            ret.Min.y = Math.Min(ret.Min.y, a.Min.y);
          }
-         if (a.Max.Y <= b.Max.Y && a.Max.Y >= b.Min.Y)
+         if (a.Max.y <= b.Max.y && a.Max.y >= b.Min.y)
          {
-            ret.Max.Y = Math.Max(ret.Max.Y, a.Max.Y);
+            ret.Max.y = Math.Max(ret.Max.y, a.Max.y);
          }
 
-         if (b.Min.X >= a.Min.X && b.Min.X <= a.Max.X)
+         if (b.Min.x >= a.Min.x && b.Min.x <= a.Max.x)
          {
-            ret.Min.X = Math.Min(ret.Min.X, b.Min.X);
+            ret.Min.x = Math.Min(ret.Min.x, b.Min.x);
          }
-         if (b.Max.X <= a.Max.X && b.Max.X >= a.Min.X)
+         if (b.Max.x <= a.Max.x && b.Max.x >= a.Min.x)
          {
-            ret.Max.X = Math.Max(ret.Max.X, b.Max.X);
+            ret.Max.x = Math.Max(ret.Max.x, b.Max.x);
          }
-         if (b.Min.Y >= a.Min.Y && b.Min.Y <= a.Max.Y)
+         if (b.Min.y >= a.Min.y && b.Min.y <= a.Max.y)
          {
-            ret.Min.Y = Math.Min(ret.Min.Y, b.Min.Y);
+            ret.Min.y = Math.Min(ret.Min.y, b.Min.y);
          }
-         if (b.Max.Y <= a.Max.Y && b.Max.Y >= a.Min.Y)
+         if (b.Max.y <= a.Max.y && b.Max.y >= a.Min.y)
          {
-            ret.Max.Y = Math.Max(ret.Max.Y, b.Max.Y);
+            ret.Max.y = Math.Max(ret.Max.y, b.Max.y);
          }
          return ret;
       }
 
       public void GenResetExtents()
       {
-         Min = new Vec2f(Single.MaxValue, Single.MaxValue);
-         Max = new Vec2f(-Single.MaxValue, -Single.MaxValue);
+         Min = new vec2(Single.MaxValue, Single.MaxValue);
+         Max = new vec2(-Single.MaxValue, -Single.MaxValue);
       }
-      public void ExpandByPoint(Vec2f v)
+      public void ExpandByPoint(vec2 v)
       {
-         Min = Vec2f.ComponentMin(Min, v);// Vec2f.Minv(Min, v);
-         Max = Vec2f.ComponentMax(Max, v);// Vec2f.Maxv(Max, v);
+         Min = vec2.Minv(Min, v);// Vec2f.ComponentMin(Min, v);// Vec2f.Minv(Min, v);
+         Max = vec2.Maxv(Max, v); //Vec2f.ComponentMax(Max, v);// Vec2f.Maxv(Max, v);
       }
       public bool BoxIntersect_EasyOut_Inclusive(Box2f cc)
       {
-         return cc.Min.X <= Max.X && cc.Min.Y <= Max.Y && Min.X <= cc.Max.X && Min.Y <= cc.Max.Y;
+         return cc.Min.x <= Max.x && cc.Min.y <= Max.y && Min.x <= cc.Max.x && Min.y <= cc.Max.y;
       }
-      public bool ContainsPointInclusive(Vec2f point)
+      public bool ContainsPointInclusive(vec2 point)
       {
-         if (point.X < Min.X)
+         if (point.x < Min.x)
+         {
             return false;
-         if (point.Y < Min.Y)
+         }
+         if (point.y < Min.y)
+         {
             return false;
-         if (point.X > Max.X)
+         }
+         if (point.x > Max.x)
+         {
             return false;
-         if (point.Y > Max.Y)
+         }
+         if (point.y > Max.y)
+         {
             return false;
+         }
          return true;
       }
-      private Vec2f bounds(int x)
+      private vec2 bounds(int x)
       {
-         if (x == 0) return Min;
+         if (x == 0)
+         {
+            return Min;
+         }
          return Max;
       }
       public bool RayIntersect(ProjectedRay ray, ref RaycastHit bh)
@@ -704,11 +676,11 @@ namespace PirateCraft
          float txmin, txmax, tymin, tymax;
          bool bHit;
 
-         txmin = (bounds(ray.Sign[0]).X - ray.Origin.X) * ray.InvDir.X;
-         txmax = (bounds(1 - ray.Sign[0]).X - ray.Origin.X) * ray.InvDir.X;
+         txmin = (bounds(ray.Sign[0]).x - ray.Origin.x) * ray.InvDir.x;
+         txmax = (bounds(1 - ray.Sign[0]).x - ray.Origin.x) * ray.InvDir.x;
 
-         tymin = (bounds(ray.Sign[1]).Y - ray.Origin.Y) * ray.InvDir.Y;
-         tymax = (bounds(1 - ray.Sign[1]).Y - ray.Origin.Y) * ray.InvDir.Y;
+         tymin = (bounds(ray.Sign[1]).y - ray.Origin.y) * ray.InvDir.y;
+         tymax = (bounds(1 - ray.Sign[1]).y - ray.Origin.y) * ray.InvDir.y;
 
          if ((txmin > tymax) || (tymin > txmax))
          {
@@ -750,33 +722,33 @@ namespace PirateCraft
    };
    public class PickRay
    {
-      public Vec3f Origin;
-      public Vec3f Dir;
+      public vec3 Origin;
+      public vec3 Dir;
       public float _length;
       public bool _isOpt;
-      public Vec3f InvDir;
+      public vec3 InvDir;
       public int[] Sign = new int[3];
 
       public void Opt()
       {
          //**New - optimization
          //http://people.csail.mit.edu/amy/papers/box-jgt.pdf
-         // if (Dir.X != 0.0f)
-         InvDir.X = 1.0f / Dir.X;
+         // if (Dir.x != 0.0f)
+         InvDir.x = 1.0f / Dir.x;
          //   else
-         //       InvDir.X = 0.0f;
-         //   if (Dir.Y != 0.0f)
-         InvDir.Y = 1.0f / Dir.Y;
+         //       InvDir.x = 0.0f;
+         //   if (Dir.y != 0.0f)
+         InvDir.y = 1.0f / Dir.y;
          //      else
-         //         InvDir.Y = 0.0f;
-         //     if (Dir.Z != 0.0f)
-         InvDir.Z = 1.0f / Dir.Z;
+         //         InvDir.y = 0.0f;
+         //     if (Dir.z != 0.0f)
+         InvDir.z = 1.0f / Dir.z;
          //     else
-         //         InvDir.Z = 0.0f;
+         //         InvDir.z = 0.0f;
 
-         Sign[0] = Convert.ToInt32(InvDir.X < 0);
-         Sign[1] = Convert.ToInt32(InvDir.Y < 0);
-         Sign[2] = Convert.ToInt32(InvDir.Z < 0);
+         Sign[0] = Convert.ToInt32(InvDir.x < 0);
+         Sign[1] = Convert.ToInt32(InvDir.y < 0);
+         Sign[2] = Convert.ToInt32(InvDir.z < 0);
 
          _isOpt = true;
       }
@@ -791,10 +763,10 @@ namespace PirateCraft
          _min = min;
          _max = max;
       }
-      public int left() {  return _min.x; }
-      public int top() {  return _min.y; }
-      public int right() {  return _max.x; }
-      public int bottom() {  return _max.y; }
+      public int left() { return _min.x; }
+      public int top() { return _min.y; }
+      public int right() { return _max.x; }
+      public int bottom() { return _max.y; }
 
       public int Width()
       {
@@ -827,36 +799,36 @@ namespace PirateCraft
    [StructLayout(LayoutKind.Sequential)]
    public struct Box3f
    {
-      public Vec3f _min;
-      public Vec3f _max;
-      public Box3f(in Vec3f min, in Vec3f max)
+      public vec3 _min;
+      public vec3 _max;
+      public Box3f(in vec3 min, in vec3 max)
       {
          _min = min;
          _max = max;
       }
       public float Height()
       {
-         return _max.Y - _min.Y;
+         return _max.y - _min.y;
       }
       public float Width()
       {
-         return _max.X - _min.X;
+         return _max.x - _min.x;
       }
       public float Depth()
       {
-         return _max.Z - _min.Z;
+         return _max.z - _min.z;
       }
       public void Validate()
       {
-         if (_max.X < _min.X)
+         if (_max.x < _min.x)
          {
             throw new Exception("Bound box X was invalid.");
          }
-         if (_max.Y < _min.Y)
+         if (_max.y < _min.y)
          {
             throw new Exception("Bound box Y was invalid.");
          }
-         if (_max.Z < _min.Z)
+         if (_max.z < _min.z)
          {
             throw new Exception("Bound box Z was invalid.");
          }
@@ -890,7 +862,7 @@ namespace PirateCraft
 
          return false;
       }
-      private Vec3f bounds(int in__)
+      private vec3 bounds(int in__)
       {
          if (in__ == 0)
          {
@@ -908,11 +880,11 @@ namespace PirateCraft
 
          float txmin, txmax, tymin, tymax, tzmin, tzmax;
 
-         txmin = (bounds(ray.Sign[0]).X - ray.Origin.X) * ray.InvDir.X;
-         txmax = (bounds(1 - ray.Sign[0]).X - ray.Origin.X) * ray.InvDir.X;
+         txmin = (bounds(ray.Sign[0]).x - ray.Origin.x) * ray.InvDir.x;
+         txmax = (bounds(1 - ray.Sign[0]).x - ray.Origin.x) * ray.InvDir.x;
 
-         tymin = (bounds(ray.Sign[1]).Y - ray.Origin.Y) * ray.InvDir.Y;
-         tymax = (bounds(1 - ray.Sign[1]).Y - ray.Origin.Y) * ray.InvDir.Y;
+         tymin = (bounds(ray.Sign[1]).y - ray.Origin.y) * ray.InvDir.y;
+         tymax = (bounds(1 - ray.Sign[1]).y - ray.Origin.y) * ray.InvDir.y;
 
          if ((txmin > tymax) || (tymin > txmax))
          {
@@ -924,8 +896,8 @@ namespace PirateCraft
          if (tymax < txmax)
             txmax = tymax;
 
-         tzmin = (bounds(ray.Sign[2]).Z - ray.Origin.Z) * ray.InvDir.Z;
-         tzmax = (bounds(1 - ray.Sign[2]).Z - ray.Origin.Z) * ray.InvDir.Z;
+         tzmin = (bounds(ray.Sign[2]).z - ray.Origin.z) * ray.InvDir.z;
+         tzmax = (bounds(1 - ray.Sign[2]).z - ray.Origin.z) * ray.InvDir.z;
 
          if ((txmin > tzmax) || (tzmin > txmax))
          {
@@ -943,23 +915,23 @@ namespace PirateCraft
          return bh._bHit;
       }
 
-      private bool containsInclusive(Vec3f v)
+      private bool containsInclusive(vec3 v)
       {
          return (
-             (v.X >= _min.X) && (v.X <= _max.X) &&
-             (v.Y >= _min.Y) && (v.Y <= _max.Y) &&
-             (v.Z >= _min.Z) && (v.Z <= _max.Z)
+             (v.x >= _min.x) && (v.x <= _max.x) &&
+             (v.y >= _min.y) && (v.y <= _max.y) &&
+             (v.z >= _min.z) && (v.z <= _max.z)
              );
       }
       public void genResetLimits()
       {
-         _min = new Vec3f(float.MaxValue, float.MaxValue, float.MaxValue);
-         _max = new Vec3f(float.MinValue, float.MinValue, float.MinValue);
+         _min = new vec3(float.MaxValue, float.MaxValue, float.MaxValue);
+         _max = new vec3(float.MinValue, float.MinValue, float.MinValue);
       }
-      public void genExpandByPoint(in Vec3f pt)
+      public void genExpandByPoint(in vec3 pt)
       {
-         _min = Vec3f.ComponentMin(_min, pt);
-         _max = Vec3f.ComponentMax(_max, pt);
+         _min = vec3.minv(_min, pt);// Vec3f.ComponentMin(_min, pt);
+         _max = vec3.maxv(_max, pt);// Vec3f.ComponentMax(_max, pt);
       }
       public void genExpandByBox(in Box3f pc)
       {
@@ -976,9 +948,9 @@ namespace PirateCraft
       }
       private float getVolumePositiveOnly()
       {
-         float ax = (_max.X - _min.X);
-         float ay = (_max.Y - _min.Y);
-         float az = (_max.Z - _min.Z);
+         float ax = (_max.x - _min.x);
+         float ay = (_max.y - _min.y);
+         float az = (_max.z - _min.z);
          if (ax < 0.0f) ax = 0.0f;
          if (ay < 0.0f) ay = 0.0f;
          if (az < 0.0f) az = 0.0f;
@@ -986,7 +958,7 @@ namespace PirateCraft
       }
       private float getVolumeArbitrary()
       {
-         return (_max.X - _min.X) * (_max.Y - _min.Y) * (_max.Z - _min.Z);
+         return (_max.x - _min.x) * (_max.y - _min.y) * (_max.z - _min.z);
       }
    }
    [StructLayout(LayoutKind.Sequential)]
@@ -1021,26 +993,25 @@ namespace PirateCraft
       }
       public static bool operator ==(in ivec3 a, in ivec3 b)
       {
-         return (a.x==b.x) && (a.y==b.y) && (a.z==b.z);  
+         return (a.x == b.x) && (a.y == b.y) && (a.z == b.z);
       }
       public static bool operator !=(in ivec3 a, in ivec3 b)
       {
          return (a.x != b.x) || (a.y != b.y) || (a.z != b.z);
       }
-   }
-   public class ivec3EqualityComparer : IEqualityComparer<ivec3>
-   {
-      public bool Equals(ivec3 a, ivec3 b)
+      public class ivec3EqualityComparer : IEqualityComparer<ivec3>
       {
-         return a.x == b.x && a.y == b.y && a.z == b.z;
-      }
+         public bool Equals(ivec3 a, ivec3 b)
+         {
+            return a.x == b.x && a.y == b.y && a.z == b.z;
+         }
 
-      public int GetHashCode(ivec3 a)
-      {
-         return a.GetHashCode();//.x.GetHashCode() + a.y.GetHashCode() + a.z.GetHashCode();
+         public int GetHashCode(ivec3 a)
+         {
+            return a.GetHashCode();//.x.GetHashCode() + a.y.GetHashCode() + a.z.GetHashCode();
+         }
       }
    }
-
    [StructLayout(LayoutKind.Sequential)]
    public struct ivec4
    {
@@ -1053,8 +1024,6 @@ namespace PirateCraft
          x = dx; y = dy; z = dz; w = dw;
       }
    }
-
-
    [StructLayout(LayoutKind.Sequential)]
    public struct vec3
    {
@@ -1071,6 +1040,12 @@ namespace PirateCraft
          return new vec3(float.MaxValue, float.MaxValue, float.MaxValue);
       }
 
+      public vec3(OpenTK.Vector3 v)
+      {
+         x = v.X;
+         y = v.Y;
+         z = v.Z;
+      }
       public vec3(vec3 rhs)
       {
          this.x = rhs.x;
@@ -1180,13 +1155,13 @@ namespace PirateCraft
          vec3 tmp = maxv_a(v_a, v_b);
          return Math.Max(Math.Abs(tmp.x), Math.Max(Math.Abs(tmp.y), Math.Abs(tmp.z)));
       }
-      public Vec2f xz()
+      public vec2 xz()
       {
-         return new Vec2f(x, z);
+         return new vec2(x, z);
       }
-      public Vec2f xy()
+      public vec2 xy()
       {
-         return new Vec2f(x, y);
+         return new vec2(x, y);
       }
 
 
@@ -1707,6 +1682,1289 @@ namespace PirateCraft
       {
          return new vec3(x, y, z);
       }
+   }//vec4
+   [StructLayout(LayoutKind.Sequential)]
+   public struct mat2
+   {
+      float _m11, _m12, _m21, _m22;
+
+      public static vec2 operator *(mat2 a, vec2 b)
+      {
+         vec2 r = new vec2(0, 0);
+
+         r.x = a._m11 * b.x + a._m12 * b.y;
+         r.y = a._m21 * b.x + a._m22 * b.y;
+         return r;
+      }
+      public static mat2 getRotation(float theta)
+      {
+         mat2 ret = new mat2();
+
+         //This is an incorrect rotation function - sin 10 shouldn't be negative.
+         ret._m11 = (float)Math.Cos(theta);
+         ret._m12 = (float)Math.Sin(theta);
+         ret._m21 = -(float)Math.Sin(theta);
+         ret._m22 = (float)Math.Cos(theta);
+
+         return ret;
+      }
    }
+   [StructLayout(LayoutKind.Sequential)]
+   public struct mat3
+   {
+      public float _m11, _m12, _m13;
+      public float _m21, _m22, _m23;
+      public float _m31, _m32, _m33;
+      public static int CompSize() { return 9; }
+      public mat3(
+         float m11, float m12, float m13,
+         float m21, float m22, float m23,
+         float m31, float m32, float m33
+         )
+      {
+         _m11 = m11;
+         _m12 = m12;
+         _m13 = m13;
+         _m21 = m21;
+         _m22 = m22;
+         _m23 = m23;
+         _m31 = m31;
+         _m32 = m32;
+         _m33 = m33;
+      }
+      public mat3(in mat4 rhs)
+      {
+         _m11 = rhs._m11;
+         _m12 = rhs._m12;
+         _m13 = rhs._m13;
+
+         _m21 = rhs._m21;
+         _m22 = rhs._m22;
+         _m23 = rhs._m23;
+
+         _m31 = rhs._m31;
+         _m32 = rhs._m32;
+         _m33 = rhs._m33;
+      }
+      public mat3 transposed()
+      {
+         mat3 mt = new mat3(
+            _m11, _m21, _m31,
+            _m12, _m22, _m32,
+            _m13, _m23, _m33
+            );
+         return mt;
+      }
+      public void setIdentity()
+      {
+         _m11 = _m22 = _m33 = 1.0f;
+         _m12 = _m13 = _m21 = _m23 = _m31 = _m32 = 0;
+      }
+      public static mat3 operator +(in mat3 a, in mat3 b)
+      {
+         mat3 ret = new mat3();
+         for (int i = 0; i < CompSize(); ++i)
+         {
+            ret[i] = a[i] + b[i];
+         }
+         return ret;
+      }
+      //operator[]
+      public float this[int i]
+      {
+         get
+         {
+            if (i == 0)
+            {
+               return this._m11;
+            }
+            else if (i == 1)
+            {
+               return this._m12;
+            }
+            else if (i == 2)
+            {
+               return this._m13;
+            }
+            else if (i == 3)
+            {
+               return this._m21;
+            }
+            else if (i == 4)
+            {
+               return this._m22;
+            }
+            else if (i == 5)
+            {
+               return this._m23;
+            }
+            else if (i == 6)
+            {
+               return this._m31;
+            }
+            else if (i == 7)
+            {
+               return this._m32;
+            }
+            else if (i == 8)
+            {
+               return this._m33;
+            }
+            else
+            {
+               throw new Exception("mat3 array index out of bounds.");
+            }
+         }
+         set
+         {
+            if (i == 0)
+            {
+               this._m11 = value;
+            }
+            else if (i == 1)
+            {
+               this._m12 = value;
+            }
+            else if (i == 2)
+            {
+               this._m13 = value;
+            }
+            else if (i == 3)
+            {
+               this._m21 = value;
+            }
+            else if (i == 4)
+            {
+               this._m22 = value;
+            }
+            else if (i == 5)
+            {
+               this._m23 = value;
+            }
+            else if (i == 6)
+            {
+               this._m31 = value;
+            }
+            else if (i == 7)
+            {
+               this._m32 = value;
+            }
+            else if (i == 8)
+            {
+               this._m33 = value;
+            }
+            else
+            {
+               throw new Exception("mat3 array index out of bounds.");
+            }
+         }
+      }
+      public void set(float val, int index)
+      {
+         if (index == 0) { _m11 = val; }
+         else if (index == 1) { _m12 = val; }
+         else if (index == 2) { _m13 = val; }
+         else if (index == 3) { _m21 = val; }
+         else if (index == 4) { _m22 = val; }
+         else if (index == 5) { _m23 = val; }
+         else if (index == 6) { _m31 = val; }
+         else if (index == 7) { _m32 = val; }
+         else if (index == 8) { _m33 = val; }
+         else throw new Exception("Mat3 index out of range");
+      }
+      public mat3 adj()
+      {
+         // - The expanded cofactor adjoint.
+         mat3 m = new mat3();
+         m._m11 = 0.0f * ((_m22 * _m33) - (_m23 * _m32));
+         m._m12 = 1.0f * ((_m21 * _m33) - (_m23 * _m31));
+         m._m13 = 0.5f * ((_m21 * _m32) - (_m22 * _m31));
+         m._m21 = 1.0f * ((_m12 * _m33) - (_m13 * _m32));
+         m._m22 = 0.5f * ((_m11 * _m33) - (_m13 * _m31));
+         m._m23 = (float)Math.Pow(-1.00f, 2 + 1) * ((_m12 * _m31) - (_m11 * _m32));
+         m._m31 = 0.5f * ((_m12 * _m23) - (_m13 * _m22));
+         m._m32 = (float)Math.Pow(-1.00f, 2 + 1) * ((_m11 * _m23) - (_m13 * _m21));
+         m._m33 = 0.25f * ((_m11 * _m22) - (_m12 * _m21));
+         return m;
+      }
+      public float det()
+      {
+         return (
+             _m11 * _m22 * _m33 +
+             _m21 * _m32 * _m13 +
+             _m12 * _m23 * _m31 - (_m13 * _m22 * _m31) - (_m12 * _m21 * _m33) - (_m23 * _m32 * _m11));
+      }
+      public mat3 inverse()
+      {
+         mat3 m = adj();
+
+         float d = m.det();
+         for (int i = 0; i < CompSize(); ++i)
+         {
+            m[i] /= d;
+         }
+         return m;
+      }
+      public static mat3 getRotation(in vec3 axis, in float angle)
+      {
+         mat3 Temp;
+
+         vec3 xyz = axis.normalized();
+
+         float x = xyz.x;
+         float y = xyz.y;
+         float z = xyz.z;
+
+         float c = (float)Math.Cos(angle);
+         float s = (float)Math.Sin(angle);
+         float nc = 1 - c;
+         // row matrix
+
+         Temp._m11 = (x * x) * nc + c;
+         Temp._m12 = (x * y) * nc + (z * s);
+         Temp._m13 = (x * z) * nc - (y * s);
+
+         Temp._m21 = (y * x) * nc - (z * s);
+         Temp._m22 = (y * y) * nc + c;
+         Temp._m23 = (y * z) * nc + (x * s);
+
+         Temp._m31 = (z * x) * nc + (y * s);
+         Temp._m32 = (z * y) * nc - (x * s);
+         Temp._m33 = (z * z) * nc + c;
+
+         return Temp;
+      }
+      public quat toQuat()
+      {
+         quat q = new quat();
+         mat3 m =   this.transposed();//Testing to see if this is thr problem
+
+         float tr = m._m11 + m._m22 + m._m33;
+
+         if (tr > 0)
+         {
+            float S = MathUtils.sqrtf(tr + 1.0f) * 2; // S=4*qw 
+            q.w = 0.25f * S;
+            q.x = (m._m32 - m._m23) / S;
+            q.y = (m._m13 - m._m31) / S;
+            q.z = (m._m21 - m._m12) / S;
+         }
+         else if ((m._m11 > m._m22) & (m._m11 > m._m33))
+         {
+            float S = MathUtils.sqrtf(1.0f + m._m11 - m._m22 - m._m33) * 2; // S=4*qx 
+            q.w = (m._m32 - m._m23) / S;
+            q.x = 0.25f * S;
+            q.y = (m._m12 + m._m21) / S;
+            q.z = (m._m13 + m._m31) / S;
+         }
+         else if (m._m22 > m._m33)
+         {
+            float S = MathUtils.sqrtf(1.0f + m._m22 - m._m11 - m._m33) * 2; // S=4*qy
+            q.w = (m._m13 - m._m31) / S;
+            q.x = (m._m12 + m._m21) / S;
+            q.y = 0.25f * S;
+            q.z = (m._m23 + m._m32) / S;
+         }
+         else
+         {
+            float S = MathUtils.sqrtf(1.0f + m._m33 - m._m11 - m._m22) * 2; // S=4*qz
+            q.w = (m._m21 - m._m12) / S;
+            q.x = (m._m13 + m._m31) / S;
+            q.y = (m._m23 + m._m32) / S;
+            q.z = 0.25f * S;
+         }
+
+
+         //float s0, s1, s2;
+         //int k0, k1, k2, k3;
+         //float[] q1 = new float[4];
+         //if ((m._m11 + m._m22 + m._m33) > 0.0f)
+         //{
+         //   k0 = 3;
+         //   k1 = 2;
+         //   k2 = 1;
+         //   k3 = 0;
+         //   s0 = 1.0f;
+         //   s1 = 1.0f;
+         //   s2 = 1.0f;
+         //}
+         //else if ((m._m11 + m._m22 > 0.0f) && (m._m11 > m._m33))
+         //{
+         //   k0 = 0;
+         //   k1 = 1;
+         //   k2 = 2;
+         //   k3 = 3;
+         //   s0 = 1.0f;
+         //   s1 = -1.0f;
+         //   s2 = -1.0f;
+         //}
+         //else if (m._m22 > m._m33)
+         //{
+         //   k0 = 1;
+         //   k1 = 0;
+         //   k2 = 3;
+         //   k3 = 2;
+         //   s0 = -1.0f;
+         //   s1 = 1.0f;
+         //   s2 = -1.0f;
+         //}
+         //else
+         //{
+         //   k0 = 2;
+         //   k1 = 3;
+         //   k2 = 0;
+         //   k3 = 1;
+         //   s0 = -1.0f;
+         //   s1 = -1.0f;
+         //   s2 = 1.0f;
+         //}
+         //float t = (float)(s0 * m._m11 + s1 * m._m22 + s2 * m._m33 + 1.0f);
+         ////assert(t>=0.0);
+         ////if( t==0.0 ) t=1e-10f;
+         //float s = (float)((1.0 / Math.Sqrt(t)) * 0.5f);
+
+         //q1[k0] = s * t;
+
+         //q1[k1] = (float)((m._m12 - s2 * m._m21) * s);
+         //q1[k2] = (float)((m._m31 - s1 * m._m13) * s);
+         //q1[k3] = (float)((m._m23 - s0 * m._m32) * s);
+
+         //quat ret = new quat(q1[k0], q1[k1], q1[k2], q1[k3]);
+         return q;
+      }
+
+   }//mat3
+   [StructLayout(LayoutKind.Sequential)]
+   public struct mat4
+   {
+      public float _m11, _m12, _m13, _m14;   // indexes: 0,1,2,3
+      public float _m21, _m22, _m23, _m24;  // 4,5,6,7...
+      public float _m31, _m32, _m33, _m34;  //
+      public float _m41, _m42, _m43, _m44;  //
+      public int CompSize() { return 16; }
+      public mat4(in mat4 rhs)
+      {
+         _m11 = rhs._m11;
+         _m12 = rhs._m12;
+         _m13 = rhs._m13;
+         _m14 = rhs._m14;
+
+         _m21 = rhs._m21;
+         _m22 = rhs._m22;
+         _m23 = rhs._m23;
+         _m24 = rhs._m24;
+
+         _m31 = rhs._m31;
+         _m32 = rhs._m32;
+         _m33 = rhs._m33;
+         _m34 = rhs._m34;
+
+         _m41 = rhs._m41;
+         _m42 = rhs._m42;
+         _m43 = rhs._m43;
+         _m44 = rhs._m44;
+
+      }
+      public mat4(in mat3 rhs)
+      {
+         _m11 = rhs._m11;
+         _m12 = rhs._m12;
+         _m13 = rhs._m13;
+         _m14 = 0;
+
+         _m21 = rhs._m21;
+         _m22 = rhs._m22;
+         _m23 = rhs._m23;
+         _m24 = 0;
+
+         _m31 = rhs._m31;
+         _m32 = rhs._m32;
+         _m33 = rhs._m33;
+         _m34 = 0;
+
+         _m41 = 0;
+         _m42 = 0;
+         _m43 = 0;
+         _m44 = 1;
+
+      }
+      public mat4(float t0, float t1, float t2, float t3,
+          float t4, float t5, float t6, float t7,
+      float t8, float t9, float t10, float t11,
+      float t12, float t13, float t14, float t15)
+      {
+         _m11 = t0;
+         _m12 = t1;
+         _m13 = t2;
+         _m14 = t3;
+         _m21 = t4;
+         _m22 = t5;
+         _m23 = t6;
+         _m24 = t7;
+         _m31 = t8;
+         _m32 = t9;
+         _m33 = t10;
+         _m34 = t11;
+         _m41 = t12;
+         _m42 = t13;
+         _m43 = t14;
+         _m44 = t15;
+      }
+      public OpenTK.Matrix4 ToOpenTK()
+      {
+         //Note: this does not convert between row/column major. 
+         //Simply allows this matrix to be used in OpenGL
+         OpenTK.Matrix4 ret = new OpenTK.Matrix4(
+         _m11,
+         _m12,
+         _m13,
+         _m14,
+         _m21,
+         _m22,
+         _m23,
+         _m24,
+         _m31,
+         _m32,
+         _m33,
+         _m34,
+         _m41,
+         _m42,
+         _m43,
+         _m44
+             );
+         return ret;
+      }
+      public void set(float val, int index)
+      {
+         if (index == 0) { _m11 = val; }
+         else if (index == 1) { _m12 = val; }
+         else if (index == 2) { _m13 = val; }
+         else if (index == 3) { _m14 = val; }
+         else if (index == 4) { _m21 = val; }
+         else if (index == 5) { _m22 = val; }
+         else if (index == 6) { _m23 = val; }
+         else if (index == 7) { _m24 = val; }
+         else if (index == 8) { _m31 = val; }
+         else if (index == 9) { _m32 = val; }
+         else if (index == 10) { _m33 = val; }
+         else if (index == 11) { _m34 = val; }
+         else if (index == 12) { _m41 = val; }
+         else if (index == 13) { _m42 = val; }
+         else if (index == 14) { _m43 = val; }
+         else if (index == 15) { _m44 = val; }
+         else throw new Exception("Mat4 index out of range");
+      }
+      public static mat4 identity()
+      {
+         return new mat4(
+             1, 0, 0, 0,
+             0, 1, 0, 0,
+             0, 0, 1, 0,
+             0, 0, 0, 1);
+      }
+      public void clone(out mat4 to)
+      {
+         to._m11 = _m11;
+         to._m12 = _m12;
+         to._m13 = _m13;
+         to._m14 = _m14;
+         to._m21 = _m21;
+         to._m22 = _m22;
+         to._m23 = _m23;
+         to._m24 = _m24;
+         to._m31 = _m31;
+         to._m32 = _m32;
+         to._m33 = _m33;
+         to._m34 = _m34;
+         to._m41 = _m41;
+         to._m42 = _m42;
+         to._m43 = _m43;
+         to._m44 = _m44;
+      }
+      public mat4 SetTranslation(float x, float y, float z)
+      {
+         _m41 = x;
+         _m42 = y;
+         _m43 = z;
+
+         return this;
+      }
+      public quat toQuat()
+      {
+         mat3 m = new mat3(this);
+         return m.toQuat();
+
+      }
+      public static mat4 getTranslation(in vec3 vTrans)
+      {
+         return getTranslation(vTrans.x, vTrans.y, vTrans.z);
+      }
+      public static mat4 getTranslation(float x, float y, float z)
+      {
+         mat4 m = identity();
+
+         m._m41 = x;
+         m._m42 = y;
+         m._m43 = z;
+
+         return m;
+      }
+      public static mat4 getRotation(in quat q)
+      {
+         return q.toMat4();
+      }
+      public static mat4 getRotation(in vec3 axis, in float angle)
+      {
+         var m = mat3.getRotation(axis,angle);
+         mat4 Temp = new mat4(m);
+         return Temp;
+      }
+      public static mat4 getScale(in vec3 vScale)
+      {
+         return getScale(vScale.x, vScale.y, vScale.z);
+      }
+      public static mat4 getScale(float x, float y, float z)
+      {
+         mat4 m = identity();
+         m._m11 = x;
+         m._m22 = y;
+         m._m33 = z;
+
+         return m;
+      }
+      public static mat4 projection(float fov_radians, float viewport_w, float viewport_h, float z_near, float z_far)
+      {
+         //setup a 3D projection matrix.
+         //fov = field of view (radians)
+         //viewport_w - width of viewport (swapchain image)
+         //viewport_h - height of viewport.
+         //near, far = near and far clipping planes.
+         float e = (float)0.000001f;
+         if (viewport_w == 0)
+         {
+            viewport_w = 1;
+         }
+         if (fov_radians > (float)Math.PI / 2.0f - e)
+         {
+            fov_radians = (float)Math.PI / 2.0f - e;
+         }
+         if (fov_radians < 1.0f + e)
+         {
+            fov_radians = 1.0f + e;
+         }
+         float vpWidth_2 = (float)Math.Tan(fov_radians * (float)0.5f) * z_near;
+         float arat_1 = viewport_h / viewport_w;  // 1 / (w/h)
+         float vw = vpWidth_2;
+         float vh = vpWidth_2 * arat_1;
+
+         return mat4.projection(
+             z_near, z_far,
+             vw, -vw,
+             vh, -vh);
+      }
+      public static mat4 projection(float n, float f, float l, float r, float t, float b)
+      {
+         if (Gu.CoordinateSystem == CoordinateSystem.Lhs)
+         {
+            r = -r;
+            l = -l;
+         }
+
+         mat4 m = new mat4();
+         m._m11 = (float)(2 * n) / (r - l);
+         m._m12 = (float)0;
+         m._m13 = (float)0;
+         m._m14 = (float)0;
+
+         m._m21 = (float)0;
+         m._m22 = (float)(2 * n) / (t - b);  // *-1.0f; // we added a neagtive here because IDK WHY this is not right
+         m._m23 = (float)0;
+         m._m24 = (float)0;
+
+         m._m31 = (float)(r + l) / (r - l);
+         m._m32 = (float)(t + b) / (t - b);
+         m._m33 = (float)-(f + n) / (f - n);
+         m._m34 = (float)-1;
+
+         m._m41 = (float)0;
+         m._m42 = (float)0;
+         m._m43 = (float)-(2 * f * n) / (f - n);
+         m._m44 = (float)0;
+
+         return m;
+      }
+      public mat4 getOrientToVector(in vec3 iv, in vec3 iup)
+      {
+         mat4 m = identity();
+
+         vec3 v = new vec3(iv);
+         vec3 up = new vec3(iup);
+
+         if (up.x + up.y + up.z != 1.0)
+         {
+            up = up.normalize();
+         }
+
+         vec3 s = v.cross(up);
+         vec3 u = s.cross(v);
+
+         m._m11 = s.x;
+         m._m21 = u.x;
+         m._m31 = -v.x;
+
+         m._m12 = s.y;
+         m._m22 = u.y;
+         m._m32 = -v.y;
+
+         m._m13 = s.z;
+         m._m23 = u.z;
+         m._m33 = -v.z;
+
+         return m;
+      }
+      public static mat4 getLookAt(in vec3 eye, in vec3 center, in vec3 up)
+      {
+         vec3 zaxis = (center - eye).normalize();
+         vec3 xaxis = zaxis.cross(up).normalize();//This produces -y,+z -> -x
+         vec3 yaxis = xaxis.cross(zaxis);
+         zaxis *= -1;
+
+         //vec3 zaxis = (center - eye).normalize();
+         //vec3 xaxis = up.cross(zaxis).normalize();//This produces -y,+z -> -x
+         //vec3 yaxis = zaxis.cross(xaxis);
+
+         mat4 mm = new mat4();
+         mm._m11 = xaxis.x; mm._m12 = yaxis.x; mm._m13 = zaxis.x; mm._m14 = 0;
+         mm._m21 = xaxis.y; mm._m22 = yaxis.y; mm._m23 = zaxis.y; mm._m24 = 0;
+         mm._m31 = xaxis.z; mm._m32 = yaxis.z; mm._m33 = zaxis.z; mm._m34 = 0;
+         mm._m41 = -xaxis.dot(eye); mm._m42 = -yaxis.dot(eye); mm._m43 = -zaxis.dot(eye); mm._m44 = 1;
+
+         return mm;
+      }
+      public mat4 translate(float x, float y, float z)
+      {
+         this *= getTranslation(x, y, z);
+         return this;
+      }
+      public mat4 translate(in vec3 v)
+      {
+         this *= getTranslation(v.x, v.y, v.z);
+         return this;
+      }
+      public mat4 transpose()
+      {
+         mat4 ret = new mat4(
+               _m11, _m21, _m31, _m41,
+               _m12, _m22, _m32, _m42,
+               _m13, _m23, _m33, _m43,
+               _m14, _m24, _m34, _m44
+             );
+         ret.clone(out this);
+         return this;
+      }
+      public mat4 transposed()
+      {
+         mat4 ret = new mat4(this);
+         ret.transpose();
+         return ret;
+      }
+      public void setIdentity()
+      {
+         _m11 = _m22 = _m33 = _m44 = 1.0f;
+         _m21 = _m31 = _m41 = _m12 = 0.0f;
+         _m32 = _m42 = _m13 = _m23 = 0.0f;
+         _m43 = _m14 = _m24 = _m34 = 0.0f;
+      }
+      public float at(int row, int col)
+      {
+         return this[4 * row + col];
+      }
+      public int colNum(int ind)
+      {
+         return (int)Math.Floor((double)((double)ind / 4.0));
+      }
+      public int rowNum(int ind)
+      {
+         return ind % 4;
+      }
+      public static int nRows() { return 4; }
+      public static int nCols() { return 4; }
+      public mat3 minor(int r, int c)
+      {
+         //Returns the minor at the specified row and column.
+         mat3 m = new mat3();
+         m.setIdentity();
+         if (r < 0 || r > 3 || c < 0 || c > 3)
+         {
+            return m;
+         }
+
+         int ind, mind = 0;
+         for (ind = 0; ind < CompSize(); ++ind)
+         {
+            if (rowNum(ind) != r && colNum(ind) != c)
+            {
+               m[mind++] = this[ind];
+            }
+         }
+
+         return m;
+      }
+      float cofactor(int r, int c)
+      {
+         //Returns the cofactor of this matrix at the specified row and column.
+         // I.E. The determinant of the minor.
+         return (float)Math.Pow(-1.00f, (float)r + (float)c) * minor(r, c).det();  // ** May be incorrect
+      }
+      public float det()
+      {
+         float a = _m11 * ((_m22 * _m33 * _m44) + (_m23 * _m34 * _m42) + (_m24 * _m32 * _m43) - (_m22 * _m34 * _m43) - (_m23 * _m32 * _m44) - (_m24 * _m33 * _m42));
+         float b = -_m12 * ((_m21 * _m33 * _m44) + (_m23 * _m34 * _m41) + (_m24 * _m31 * _m43) - (_m21 * _m34 * _m43) - (_m23 * _m31 * _m44) - (_m24 * _m33 * _m41));
+         float c = +_m13 * ((_m21 * _m32 * _m44) + (_m22 * _m34 * _m41) + (_m24 * _m31 * _m42) - (_m21 * _m34 * _m42) - (_m22 * _m31 * _m44) - (_m24 * _m32 * _m41));
+         float d = -_m14 * ((_m21 * _m32 * _m43) + (_m22 * _m33 * _m41) + (_m23 * _m31 * _m42) - (_m21 * _m33 * _m42) - (_m22 * _m31 * _m43) - (_m23 * _m32 * _m41));
+         return a + b + c + d;
+      }
+      public mat4 adj()
+      {
+         //TODO:Optimize (transpose)
+         mat4 m = new mat4(
+             cofactor(0, 0), cofactor(0, 1), cofactor(0, 2), cofactor(0, 3),
+             cofactor(1, 0), cofactor(1, 1), cofactor(1, 2), cofactor(1, 3),
+             cofactor(2, 0), cofactor(2, 1), cofactor(2, 2), cofactor(2, 3),
+             cofactor(3, 0), cofactor(3, 1), cofactor(3, 2), cofactor(3, 3));
+         return m;
+      }
+      public mat4 invert()
+      {
+         //**Note:
+         //Transpose of an orthogonal matrix is it's inverse
+         //If we're orthogonal return the transpose.
+         //   return this.transposed();
+
+         // - Convert the matrix to Reduced RE form
+         mat4 m = new mat4();
+         // - If the determinant is zero, return m.
+         if (det() == 0)
+         {
+            return m;
+         }
+         // - Classical adjoint is favored here over Gaussian and reduced row-echlon form.
+         m = adj();
+         float d = m.det();
+         for (int i = 0; i < 16; ++i)
+         {
+            m[i] /= d;
+         }
+
+         m.clone(out this);
+
+         return this;
+      }
+      public mat4 inverseOf()
+      {
+         mat4 ret = new mat4(this);
+         ret.invert();
+         return ret;
+      }
+      public static mat4 operator +(in mat4 a, in mat4 b)
+      {
+         mat4 ret = new mat4();
+         for (int i = 0; i < 16; ++i)
+         {
+            ret[i] = a[i] + b[i];
+         }
+         return ret;
+      }
+      public float this[int i]
+      {
+         //operator[]
+         get
+         {
+
+            if (i == 0)
+            {
+               return this._m11;
+            }
+            else if (i == 1)
+            {
+               return this._m12;
+            }
+            else if (i == 2)
+            {
+               return this._m13;
+            }
+            else if (i == 3)
+            {
+               return this._m14;
+            }
+            else if (i == 4)
+            {
+               return this._m21;
+            }
+            else if (i == 5)
+            {
+               return this._m22;
+            }
+            else if (i == 6)
+            {
+               return this._m23;
+            }
+            else if (i == 7)
+            {
+               return this._m24;
+            }
+            else if (i == 8)
+            {
+               return this._m31;
+            }
+            else if (i == 9)
+            {
+               return this._m32;
+            }
+            else if (i == 10)
+            {
+               return this._m33;
+            }
+            else if (i == 11)
+            {
+               return this._m34;
+            }
+            else if (i == 12)
+            {
+               return this._m41;
+            }
+            else if (i == 13)
+            {
+               return this._m42;
+            }
+            else if (i == 14)
+            {
+               return this._m43;
+            }
+            else if (i == 15)
+            {
+               return _m44;
+            }
+            else
+            {
+               throw new Exception("mat4 array index out of bounds.");
+            }
+
+         }
+         set
+         {
+            if (i == 0)
+            {
+               this._m11 = value;
+            }
+            else if (i == 1)
+            {
+               this._m12 = value;
+            }
+            else if (i == 2)
+            {
+               this._m13 = value;
+            }
+            else if (i == 3)
+            {
+               this._m14 = value;
+            }
+            else if (i == 4)
+            {
+               this._m21 = value;
+            }
+            else if (i == 5)
+            {
+               this._m22 = value;
+            }
+            else if (i == 6)
+            {
+               this._m23 = value;
+            }
+            else if (i == 7)
+            {
+               this._m24 = value;
+            }
+            else if (i == 8)
+            {
+               this._m31 = value;
+            }
+            else if (i == 9)
+            {
+               this._m32 = value;
+            }
+            else if (i == 10)
+            {
+               this._m33 = value;
+            }
+            else if (i == 11)
+            {
+               this._m34 = value;
+            }
+            else if (i == 12)
+            {
+               this._m41 = value;
+            }
+            else if (i == 13)
+            {
+               this._m42 = value;
+            }
+            else if (i == 14)
+            {
+               this._m43 = value;
+            }
+            else if (i == 15)
+            {
+               _m44 = value;
+            }
+            else
+            {
+               throw new Exception("mat4 array index out of bounds.");
+            }
+
+         }
+      }
+      public static mat4 operator *(in mat4 a, in mat4 b)
+      {
+         if (a == b)
+         {
+            return a;
+         }
+
+         mat4 tMat = new mat4();
+         //|11 21 31 41|   |11 21 31 41|
+         //|12 22 32 42|   |12 22 32 42|
+         //|13 23 33 43| * |13 23 33 43|
+         //|14 24 34 44|   |14 24 34 44|
+         //64 mul
+         //48 add
+         tMat._m11 = (a._m11 * b._m11) + (a._m12 * b._m21) + (a._m13 * b._m31) + (a._m14 * b._m41);
+         tMat._m21 = (a._m21 * b._m11) + (a._m22 * b._m21) + (a._m23 * b._m31) + (a._m24 * b._m41);
+         tMat._m31 = (a._m31 * b._m11) + (a._m32 * b._m21) + (a._m33 * b._m31) + (a._m34 * b._m41);
+         tMat._m41 = (a._m41 * b._m11) + (a._m42 * b._m21) + (a._m43 * b._m31) + (a._m44 * b._m41);
+
+         tMat._m12 = (a._m11 * b._m12) + (a._m12 * b._m22) + (a._m13 * b._m32) + (a._m14 * b._m42);
+         tMat._m22 = (a._m21 * b._m12) + (a._m22 * b._m22) + (a._m23 * b._m32) + (a._m24 * b._m42);
+         tMat._m32 = (a._m31 * b._m12) + (a._m32 * b._m22) + (a._m33 * b._m32) + (a._m34 * b._m42);
+         tMat._m42 = (a._m41 * b._m12) + (a._m42 * b._m22) + (a._m43 * b._m32) + (a._m44 * b._m42);
+
+         tMat._m13 = (a._m11 * b._m13) + (a._m12 * b._m23) + (a._m13 * b._m33) + (a._m14 * b._m43);
+         tMat._m23 = (a._m21 * b._m13) + (a._m22 * b._m23) + (a._m23 * b._m33) + (a._m24 * b._m43);
+         tMat._m33 = (a._m31 * b._m13) + (a._m32 * b._m23) + (a._m33 * b._m33) + (a._m34 * b._m43);
+         tMat._m43 = (a._m41 * b._m13) + (a._m42 * b._m23) + (a._m43 * b._m33) + (a._m44 * b._m43);
+
+         tMat._m14 = (a._m11 * b._m14) + (a._m12 * b._m24) + (a._m13 * b._m34) + (a._m14 * b._m44);
+         tMat._m24 = (a._m21 * b._m14) + (a._m22 * b._m24) + (a._m23 * b._m34) + (a._m24 * b._m44);
+         tMat._m34 = (a._m31 * b._m14) + (a._m32 * b._m24) + (a._m33 * b._m34) + (a._m34 * b._m44);
+         tMat._m44 = (a._m41 * b._m14) + (a._m42 * b._m24) + (a._m43 * b._m34) + (a._m44 * b._m44);
+
+         return tMat;
+      }
+      public static vec4 operator *(in mat4 m, in vec4 v)
+      {
+         vec4 vret = new vec4(
+                 m._m11 * v.x + m._m21 * v.y + m._m31 * v.z + m._m41 * v.w,
+                 m._m12 * v.x + m._m22 * v.y + m._m32 * v.z + m._m42 * v.w,
+                 m._m13 * v.x + m._m23 * v.y + m._m33 * v.z + m._m43 * v.w,
+                 m._m14 * v.x + m._m24 * v.y + m._m34 * v.z + m._m44 * v.w);
+         return vret;
+      }
+      public static bool operator ==(in mat4 lhs, in mat4 rhs)
+      {
+         for (int i = 0; i < 16; ++i)
+         {
+            if (lhs[i] != rhs[i])
+            {
+               return false;
+            }
+         }
+         return true;
+      }
+      public static bool operator !=(in mat4 lhs, in mat4 rhs)
+      {
+         return !(lhs == rhs);
+      }
+      public vec3 extractTranslation()
+      {
+         vec3 ret = new vec3();
+         ret.x = _m41;
+         ret.y = _m42;
+         ret.z = _m43;
+         return ret;
+      }
+      public mat4 getOrtho(float left, float right, float top, float bottom, float neard, float fard)
+      {
+         mat4 mm = new mat4();
+
+         float a1 = (float)2.0 / (right - left);
+         float a2 = (float)2.0 / (top - bottom);   //IDK WY
+         float a3 = (float)-2.0 / (fard - neard);  //IDK WY
+         float t1 = (right + left) / (right - left) * (float)-1.0;
+         float t2 = (top + bottom) / (top - bottom) * (float)-1.0;
+         float t3 = (fard + neard) / (fard - neard) * (float)-1.0;
+
+         //Row major order version
+         //mm._m11 =a1, mm._m12 = 0, mm._m13 = 0, mm._m14 =t1,
+         //mm._m21 = 0, mm._m22 =a2, mm._m23 = 0, mm._m24 =t2,
+         //mm._m31 = 0, mm._m32 = 0, mm._m33 =a3, mm._m34 =t3,
+         //mm._m41 = 0, mm._m42 = 0, mm._m43 = 0, mm._m44 = 1;
+
+         // ** OpenGL version - the transpose of the former.
+         mm._m11 = a1; mm._m12 = 0; mm._m13 = 0; mm._m14 = 0;
+         mm._m21 = 0; mm._m22 = a2; mm._m23 = 0; mm._m24 = 0;
+         mm._m31 = 0; mm._m32 = 0; mm._m33 = a3; mm._m34 = 0;
+         mm._m41 = t1; mm._m42 = t2; mm._m43 = t3; mm._m44 = 1;
+
+         return mm;
+      }
+      public void decompose(out vec4 pos, out mat4 rot, out vec4 scale)
+      {
+         //http://math.stackexchange.com/questions/237369/given-this-transformation-matrix-how-do-i-decompose-it-into-translation-rotati
+         //11  21  31  41 << Don't use gl order
+         //12  22  32  42
+         //13  23  33  43
+         //14  24  34  44
+         pos = new vec4();
+         rot = new mat4();
+         scale = new vec4();
+
+         pos = new vec4(extractTranslation(), 0);
+
+         scale.x = new vec3(_m11, _m21, _m31).length();
+         scale.y = new vec3(_m12, _m22, _m32).length();
+         scale.z = new vec3(_m13, _m23, _m33).length();
+
+         rot.setIdentity();
+         rot._m11 = _m11 / scale.x;
+         rot._m21 = _m21 / scale.x;
+         rot._m31 = _m31 / scale.x;
+
+         rot._m12 = _m12 / scale.y;
+         rot._m22 = _m22 / scale.y;
+         rot._m32 = _m32 / scale.y;
+
+         rot._m13 = _m13 / scale.z;
+         rot._m23 = _m23 / scale.z;
+         rot._m33 = _m33 / scale.z;
+      }
+      public void decompose(out vec4 pos, out vec4 rot, out vec4 scale, bool bDegreeRotation)
+      {
+         pos = new vec4();
+         rot = new vec4();
+         scale = new vec4();
+
+         mat4 mOut = new mat4();
+         decompose(out pos, out mOut, out scale);
+
+         quat q = mOut.toQuat();
+
+         rot = q.toAxisAngle();
+         if (bDegreeRotation)
+         {
+            rot.w = MathUtils.ToDegrees(rot.w);
+         }
+      }
+
+      // bool parse(std::string tok, mat4 mOut) {
+      //   // - Parse csv matrix string.
+
+      //   size_t n = 0;
+      //   char c;
+      //   float mat[16];
+      //   std::string val = "";
+      //   int mat_ind = 0;
+
+      //   while (n < tok.length()) {
+      //     c = tok[n++];
+      //     if (c == ',' || c == '\n' || n == tok.length()) {
+      //       mat[mat_ind++] = TypeConv::strToFloat(val);
+      //       val = "";
+      //     }
+      //     else if (isalnum(c) || c == '-' || c == '.' || c == '+' || c == 'e') {
+      //       val += c;
+      //     }
+      //   }
+
+      //   mOut = mat;
+
+      //   return true;
+      // }
+
+
+   }//mat4
+   [StructLayout(LayoutKind.Sequential)]
+   public struct quat
+   {
+      public float x, y, z, w;
+
+      public quat(float dx, float dy, float dz, float dw)
+      {
+         x = dx;
+         y = dy;
+         z = dz;
+         w = dw;
+      }
+      public void construct(float dx, float dy, float dz, float dw)
+      {
+         x = dx;
+         y = dy;
+         z = dz;
+         w = dw;
+      }
+      public float Dot(in quat rhs)
+      {
+         return (x * rhs.x + y * rhs.y + z * rhs.z + w * rhs.w);
+      }
+      public float mag()
+      {
+         return w * w + (x * x + y * y + z * z);
+      }
+      public quat inverse()
+      {
+         float L = 1 / mag();
+         quat outv;
+         outv.w = L * w;
+         outv.x = -L * x;
+         outv.y = -L * y;
+         outv.z = -L * z;
+         return outv;
+      }
+      public static quat operator *(in quat lhs, in quat rhs)
+      {
+         quat ret;
+
+         //Normal quaternion multiplication
+         //Q(w,v) = w=w1w2 - v1 dot v2, v= w1v2 + w2v1 + v2 cross v1.
+
+         // - This method here is that of backwards multiplication
+         // used in the 3D Math Primer For Graphics and Game Development:
+         //    w=w1w2 - v1 dot v2, v= w1v2 + w2v1 + v1 cross v2.
+         // this allows the quaternion rotations to be concatenated in a left to right order.
+         ret.x = lhs.w * rhs.x + rhs.w * lhs.x + (lhs.y * rhs.z) - (rhs.y * lhs.z);
+         ret.y = lhs.w * rhs.y + rhs.w * lhs.y + (lhs.z * rhs.x) - (rhs.z * lhs.x);
+         ret.z = lhs.w * rhs.z + rhs.w * lhs.z + (lhs.x * rhs.y) - (rhs.x * lhs.y);
+         ret.w = lhs.w * rhs.w - (lhs.x * rhs.x + lhs.y * rhs.y + lhs.z * rhs.z);
+         return ret;
+      }
+      public static quat operator *(in quat q, float f)
+      {
+         quat outv;
+         outv.x = q.x * f;
+         outv.y = q.y * f;
+         outv.z = q.z * f;
+         outv.w = q.w * f;
+         return outv;
+      }
+      public static quat operator +(in quat lhs, in quat rhs)
+      {
+         quat outv;
+         outv.x = lhs.x + rhs.x;
+         outv.y = lhs.y + rhs.y;
+         outv.z = lhs.z + rhs.z;
+         outv.w = lhs.w + rhs.w;
+         return outv;
+      }
+      public quat slerpTo(in quat rhs, float t)
+      {
+         //SLERP Spherical Linear interpolate this quaternion to rhs.
+         // @param rhs The Quat to slerp
+         // @param t Interpolation value [0 to 1]
+         quat ret;
+         float s0, s1, sinAng, ang, cosAng, absAng;
+         float sinSqr;
+
+         cosAng = Dot(rhs);
+         absAng = (float)Math.Abs(cosAng);
+
+         if ((1 - absAng) > 1e-6f)
+         {
+            sinSqr = 1.0f - absAng * absAng;
+            sinAng = 1.0f / (float)Math.Sqrt(sinSqr);
+            ang = (float)Math.Atan2(sinSqr * sinAng, absAng);
+            s0 = (float)Math.Sin((1.0f - t) * ang) * sinAng;
+            s1 = (float)Math.Cos(t * ang) * sinAng;
+         }
+         else
+         {
+            s0 = (1.0f - t);
+            s1 = t;
+         }
+         s1 = (cosAng >= 0.0f) ? s1 : -s1;
+         ret.x = s0 * x + s1 * rhs.x;
+         ret.y = s0 * y + s1 * rhs.y;
+         ret.z = s0 * z + s1 * rhs.z;
+         ret.w = s0 * w + s1 * rhs.w;
+
+         return ret;
+      }
+      public static quat operator *(in quat q, in vec3 v)
+      {
+         return new quat(q.x * v.x, q.y * v.y, q.z * v.z, q.w);
+      }
+      public vec3 vectorPart()
+      {
+         return new vec3(x, y, z);
+      }
+      public vec3 rotatePoint(in vec3 vin)
+      {
+         return ((inverse() * vin) * this).vectorPart();
+      }
+      public static quat fromAxisAngle(in vec3 axis, float angle)
+      {
+         vec3 an = axis.normalized();
+         quat q = new quat();
+         q.x = an.x * MathUtils.sinf(angle * 0.5f);
+         q.y = an.y * MathUtils.sinf(angle * 0.5f);
+         q.z = an.z * MathUtils.sinf(angle * 0.5f);
+         q.w = MathUtils.cosf(angle * 0.5f);
+         return q;
+      }
+      public vec4 toAxisAngle()
+      {
+         //http://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToAngle/
+         vec4 v = new vec4();
+
+         if (w == 1.0f)
+         {
+            //Avoid divide by 0,( 1 - (cos(0) = 1)) =0
+            v.x = v.z = v.w = 0;
+            v.y = 1;
+            return v;
+         }
+
+         v.w = 2.0f * (float)Math.Acos(w);
+
+         float w2 = w * w;
+         float srw2_1 = 1.0f / (float)Math.Sqrt(1.0f - w2);
+         v.x = x * srw2_1;
+         v.y = y * srw2_1;
+         v.z = z * srw2_1;
+         return v;
+      }
+      public mat3 toMat3()
+      {
+         mat3 m3 = new mat3();
+         m3._m11 = 1 - 2 * y * y - 2 * z * z;
+         m3._m12 = 2 * x * y + 2 * w * z;
+         m3._m13 = 2 * x * z - 2 * w * y;
+         m3._m21 = 2 * x * y - 2 * w * z;
+         m3._m22 = 1 - 2 * x * x - 2 * z * z;
+         m3._m23 = 2 * y * z + 2 * w * x;
+         m3._m31 = 2 * x * z + 2 * w * y;
+         m3._m32 = 2 * y * z - 2 * w * x;
+         m3._m33 = 1 - 2 * x * x - 2 * y * y;
+         return m3;
+      }
+      public mat4 toMat4()
+      {
+         mat4 m = new mat4(toMat3());
+         return m;
+      }
+      public static quat identity()
+      {
+         return new quat(0, 0, 0, 1);
+      }
+   }//Quaternion
+
 
 }

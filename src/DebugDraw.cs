@@ -1,12 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL4;
-using Quat = OpenTK.Quaternion;
-using Vec2f = OpenTK.Vector2;
-using Vec3f = OpenTK.Vector3;
-using Vec4f = OpenTK.Vector4;
-using Mat3f = OpenTK.Matrix3;
-using Mat4f = OpenTK.Matrix4;
+
 
 namespace PirateCraft
 {
@@ -19,7 +14,7 @@ namespace PirateCraft
          _inlineVerts = new List<v_v3c4>();
          _inlineInds = new List<UInt16>();
       }
-      public static void v3c4(Vec3f v, Vec4f c)
+      public static void v3c4(vec3 v, vec4 c)
       {
          _inlineVerts.Add(new v_v3c4() { _v = v, _c = c });
       }
@@ -35,7 +30,7 @@ namespace PirateCraft
          _inlineVerts = null;
          _inlineInds= null;
       }
-      public static WorldObject CreateBoxLines(Vec3f i, Vec3f a, Vec4f color)
+      public static WorldObject CreateBoxLines(vec3 i, vec3 a, vec4 color)
       {
          WorldObject wo = new WorldObject();
          MeshData d = new MeshData("Debug", PrimitiveType.Lines, v_v3c4.VertexFormat, IndexFormatType.Uint16);
@@ -44,14 +39,14 @@ namespace PirateCraft
          //   2     3
          //      4      5
          // i 0     1
-         v3c4(new Vec3f(i.X, i.Y, i.Z), color);
-         v3c4(new Vec3f(a.X, i.Y, i.Z), color);
-         v3c4(new Vec3f(i.X, a.Y, i.Z), color);
-         v3c4(new Vec3f(a.X, a.Y, i.Z), color);
-         v3c4(new Vec3f(i.X, i.Y, a.Z), color);
-         v3c4(new Vec3f(a.X, i.Y, a.Z), color);
-         v3c4(new Vec3f(i.X, a.Y, a.Z), color);
-         v3c4(new Vec3f(a.X, a.Y, a.Z), color);
+         v3c4(new vec3(i.x, i.y, i.z), color);
+         v3c4(new vec3(a.x, i.y, i.z), color);
+         v3c4(new vec3(i.x, a.y, i.z), color);
+         v3c4(new vec3(a.x, a.y, i.z), color);
+         v3c4(new vec3(i.x, i.y, a.z), color);
+         v3c4(new vec3(a.x, i.y, a.z), color);
+         v3c4(new vec3(i.x, a.y, a.z), color);
+         v3c4(new vec3(a.x, a.y, a.z), color);
 
          line(0, 1);
          line(1, 3);

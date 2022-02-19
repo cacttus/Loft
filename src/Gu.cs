@@ -23,6 +23,7 @@ namespace PirateCraft
       Web,
       Fake,//File does not exist (on purpose)
    }
+   
    /// <summary>
    /// FileLoc represents a virtual file location on disk, embed, or web
    /// </summary>
@@ -97,6 +98,12 @@ namespace PirateCraft
       public static World World = new World();
 
       public static string LocalCachePath = "./data/cache";
+      public static double RotationPerSecond(double seconds)
+      {
+         var f = (CurrentWindowContext.UpTime % seconds) / seconds;
+         f*= Math.PI * 2;
+         return f;
+      }
       public static void Init(GameWindow g)
       {
          //Create cache
