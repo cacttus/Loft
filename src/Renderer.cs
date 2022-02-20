@@ -8,15 +8,27 @@ using System.Collections.Generic;
 
 namespace PirateCraft
 {
-   /*
-    *  Draw visible (culled) sets
-    * */
+   //Rendering pipeline
+   //Sets up context, passes, FBOs, and renders to multiple cameras.
+   // pipeline -> begin (FBO, pass)
+   //  camera -> begin (viewport, clip, matrices)
+   //   material -> begin (gpu state)
+   //    shader -> begin (bind uniforms, textures)
+   //     draw elements
+   //  unbind so we don't mess up the state.. 
    public class Renderer
    {
-
+      public enum RenderPipelineState
+      {
+         None,
+         Begin,
+         End
+      }
       static RenderPipelineState RenderState = RenderPipelineState.None;
       public static void BeginRender(GameWindow g, vec4 color)
       {
+         //Begin global rendering, to render to all cameras that want rendering.
+         Gu.Assert(RenderState == RenderPipelineState.End || RenderState == RenderPipelineState.None );
          RenderState = RenderPipelineState.Begin;
          Gu.SetContext(g);
          GL.ClearColor(new OpenTK.Graphics.Color4(color.x, color.y, color.z, color.w));
@@ -27,6 +39,7 @@ namespace PirateCraft
       }
       public static void EndRender()
       {
+         Gu.Assert(RenderState == RenderPipelineState.Begin);
          RenderState = RenderPipelineState.End;
          Gpu.CheckGpuErrorsRt();
          Gu.CurrentWindowContext.GameWindow.SwapBuffers();
@@ -47,71 +60,54 @@ namespace PirateCraft
          GL.Enable(EnableCap.DepthTest);
          GL.Enable(EnableCap.ScissorTest);
       }
-      public static void Render(Camera3D cam, List<MeshData> meshes, Material m)
-      {
-         //Render a single material to a group of meshes (faster)
-         Gu.Assert(m != null);
-         m.GpuRenderState.SetState();
-         Gu.Assert(RenderState == RenderPipelineState.Begin);
-
-         if (m.Texture != null)
-         {
-            //TODO material
-            m.Texture.Bind();
-            GL.ActiveTexture(TextureUnit.Texture0);
-         }
-
-         Gpu.CheckGpuErrorsDbg();
-         m.Shader.Bind();
-         foreach(MeshData mesh in meshes)
-         {
-            mesh.Draw();
-         }
-         m.Shader.Unbind();
-         Gpu.CheckGpuErrorsDbg();
-
-         if (m.Texture != null)
-         {
-            m.Texture.Unbind();
-         }
-      }
-      public static void Render(Camera3D cam, WorldObject ob, Material m)
-      {
-         //Render single material to a single object with object data included
-         Gu.Assert(m != null);
-         m.GpuRenderState.SetState();
-         Render(cam, ob.Mesh, m.Shader, m.Texture);
-      }
-      //We're using instanced rendering so vs sohuld be instanced as well.
-      private static void Render(Camera3D bc, MeshData ms, Shader shader, Texture tex)// InstancedVisibleSet vs) << TODO
-      {
+      //public static void Render(Camera3D cam, List<MeshData> meshes, Shader m)
+      //{
+      //   //Render a single material to a group of meshes (faster)
+      //   Gu.Assert(m != null);
+      //   Gu.Assert(RenderState == RenderPipelineState.Begin);
+      //   foreach (MeshData mesh in meshes)
+      //   {
+      //      mesh.Draw();
+      //   }
+      //}
+      //public static void Render(Camera3D cam, WorldObject ob, Material m)
+      //{
+      //   //Render single material to a single object with object data included
+      //   Gu.Assert(m != null);
+      //   Gu.Assert(RenderState == RenderPipelineState.Begin);
+      //   m.GpuRenderState.SetState();
+      //   Render(cam, ob.Mesh, m.Shader, m.Shader);
+      //}
+      ////We're using instanced rendering so vs sohuld be instanced as well.
+      //private static void Render(Camera3D bc, MeshData ms, Shader shader, Texture tex)// InstancedVisibleSet vs) << TODO
+      //{
          
-         Gu.Assert(RenderState == RenderPipelineState.Begin);
+      //   Gu.Assert(RenderState == RenderPipelineState.Begin);
 
-         if (tex != null)
-         {
-            //TODO material
-            tex.Bind();
-            GL.ActiveTexture(TextureUnit.Texture0);
-         }
+      //   if (tex != null)
+      //   {
+      //      //TODO material
+      //      tex.Bind();
+      //      GL.ActiveTexture(TextureUnit.Texture0);
+      //   }
 
-         Gpu.CheckGpuErrorsDbg();
-         shader.Bind();
-         ms.Draw();
-         shader.Unbind();
-         Gpu.CheckGpuErrorsDbg();
+      //   Gpu.CheckGpuErrorsDbg();
+      //   shader.Bind();
+      //   ms.Draw();
+      //   shader.Unbind();
+      //   Gpu.CheckGpuErrorsDbg();
 
-         if (tex != null)
-         {
-            tex.Unbind();
-         }
+      //   if (tex != null)
+      //   {
+      //      tex.Unbind();
+      //   }
 
-         ////GL.Disable(EnableCap.CullFace);
-         //GL.ClearColor(color.x, color.y, color.z, color.W);
+      //   ////GL.Disable(EnableCap.CullFace);
+      //   //GL.ClearColor(color.x, color.y, color.z, color.W);
 
-         //_objMainShader = new BaseShader();
-         //_objMainShader.Load();
-      }
+      //   //_objMainShader = new BaseShader();
+      //   //_objMainShader.Load();
+      //}
 
       //        void renderGrid(float r, float g, float b, int nSlices, float fSliceWidth, Vec3f center)
       //        {

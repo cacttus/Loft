@@ -15,6 +15,8 @@ namespace PirateCraft
       public const ushort Dirt = 0x02;
       public const ushort Brick = 0x03;
       public const ushort Brick2 = 0x04;
+      public const ushort Gravel = 0x05;
+      public const ushort Sand = 0x06;
       //Items
       //...
    }
@@ -226,11 +228,12 @@ namespace PirateCraft
       //TODO:players
       public WorldObject player = null;
 
-      Thread GlobGenerator;
-      object GlobMutex;
+      //Thread GlobGenerator;
+      //object GlobMutex;
 
-      Material _worldMaterial;
-      Texture _worldTexture;
+      Material _worldMaterial= null;
+      //Texture2D _worldTexture = null;
+      //Texture2D _worldBump = null;
       MegaTex _worldMegatex = new MegaTex("tex", true);
 
       public World()
@@ -247,10 +250,12 @@ namespace PirateCraft
             { TileImage.Plank, new FileLoc("tx64_plank.png", FileStorage.Embedded) },
             { TileImage.Brick, new FileLoc("tx64_brick.png", FileStorage.Embedded) },
             { TileImage.Brick2, new FileLoc("tx64_brick2.png", FileStorage.Embedded) },
+            { TileImage.Gravel, new FileLoc("tx64_gravel.png", FileStorage.Embedded) },
+            { TileImage.Sand, new FileLoc("tx64_sand.png", FileStorage.Embedded) },
          };
       private enum TileImage
       {
-         Grass, Dirt, Plank, Brick, Brick2
+         Grass, Dirt, Plank, Brick, Brick2, Gravel, Sand
       }
       private class BlockUVSide
       {
@@ -275,6 +280,8 @@ namespace PirateCraft
             { BlockItemCode.Dirt, new List<FileLoc>(){ GetTileFile(TileImage.Dirt), GetTileFile(TileImage.Dirt), GetTileFile(TileImage.Dirt) } },
             { BlockItemCode.Brick, new List<FileLoc>(){ GetTileFile(TileImage.Brick), GetTileFile(TileImage.Brick), GetTileFile(TileImage.Brick) } },
             { BlockItemCode.Brick2, new List<FileLoc>(){ GetTileFile(TileImage.Brick2), GetTileFile(TileImage.Brick2), GetTileFile(TileImage.Brick2) } },
+            { BlockItemCode.Gravel, new List<FileLoc>(){ GetTileFile(TileImage.Gravel), GetTileFile(TileImage.Gravel), GetTileFile(TileImage.Gravel) } },
+            { BlockItemCode.Sand, new List<FileLoc>(){ GetTileFile(TileImage.Sand), GetTileFile(TileImage.Sand), GetTileFile(TileImage.Sand) } },
          };
 
          //Create empty array that matches BlockTiles for the tile UVs
@@ -319,10 +326,8 @@ namespace PirateCraft
 
          }
          _worldMegatex.loadImages();
-         _worldTexture = _worldMegatex.compile();
-
-         //World material from atlas.
-         _worldMaterial = new Material(_worldTexture, Shader.DefaultDiffuse());
+         var maps = _worldMegatex.compile();
+         _worldMaterial = new Material(Shader.DefaultDiffuse(), maps.Albedo, maps.Normal);
 
          //Generate the mesh data we use to create cubess
          UnitBoxMeshData.Generate();
@@ -394,6 +399,7 @@ namespace PirateCraft
       }
       public void Render(double Delta, Camera3D camera)
       {
+         //Render to this camera.
          camera.BeginRender();
          {
             //Objects
@@ -421,10 +427,11 @@ namespace PirateCraft
 
             WorldObject dummy = new WorldObject();
 
-            //Material m = Material.DefaultDiffuse(); // TODO: Opaque material & Transparent Material
-
             _worldMaterial.BeginRender(Delta, camera, dummy);
-            Renderer.Render(camera, visible_op, _worldMaterial);
+            foreach(var md in visible_op)
+            {
+               md.Draw();
+            }
             _worldMaterial.EndRender();
          }
          camera.EndRender();
@@ -433,14 +440,15 @@ namespace PirateCraft
       {
          if (ob.Mesh != null)
          {
-            Material mat = ob.Material;
-            if (ob.Material == null)
-            {
-               mat = Material.DefaultFlatColor();
-            }
-            mat.BeginRender(Delta, camera, ob);
-            Renderer.Render(camera, ob, mat);
-            mat.EndRender();
+            //Material mat = ob.Material;
+            //if (ob.Material == null)
+            //{
+            //   mat = Material.DefaultFlatColor();
+            //}
+            ob.Material.BeginRender(Delta, camera, ob);
+            ob.Mesh.Draw();
+            //Renderer.Render(camera, ob, mat);
+            ob.Material.EndRender();
          }
          foreach (var c in ob.Children)
          {
@@ -594,7 +602,11 @@ namespace PirateCraft
             {
                for (int x = 0; x < GlobBlocksX; x++)
                {
-                  vec3 block_world = globOriginR3 + new vec3(x * BlockSizeX, y * BlockSizeY, z * BlockSizeZ);
+                  //Computing density from block center instead of corner
+                  vec3 block_world = globOriginR3 + new vec3(
+                     x * BlockSizeX + BlockSizeX * 0.5f, 
+                     y * BlockSizeY + BlockSizeY * 0.5f, 
+                     z * BlockSizeZ + BlockSizeZ * 0.5f);
                   var block = new Block(Density(block_world));
                   if (block.IsSolidBlockNotTransparent())
                   {
@@ -725,13 +737,13 @@ namespace PirateCraft
                      else
                      {
                         b_n = GrabBlockR3(block_pos_abs_R3_Center_Neighbor);
-                        if (face == 3 && b_n!=null)
+                        if (face == 3 && b_n != null)
                         {
                            int n = 0;
                            n++;
                         }
                      }
-         
+
                      if (b_n == null || b_n.Value.IsSolidBlockNotTransparent())
                      {
                         //no verts
@@ -900,15 +912,26 @@ namespace PirateCraft
          }
 
          ushort item = BlockItemCode.Empty;
-         //Yes, other stuff.
          if (d > 0)
          {
             //Testing..
             //We have stuff. Default to grassy grass.
-            item = BlockItemCode.Grass;
-             //  Random.Next() > 0.3f ?
-             //BlockItemCode.Grass :
-             //(Random.Next() > 0.6f ? BlockItemCode.Brick2 : BlockItemCode.Brick);
+            if (world_pos.y < BlockSizeY * -4)
+            {
+               item = BlockItemCode.Gravel;
+
+            }
+            else if (world_pos.y < 0)
+            {
+               item = BlockItemCode.Sand;
+            }
+            else
+            {
+               item = BlockItemCode.Grass;
+            }
+            //  Random.Next() > 0.3f ?
+            //BlockItemCode.Grass :
+            //(Random.Next() > 0.6f ? BlockItemCode.Brick2 : BlockItemCode.Brick);
          }
 
          return item;

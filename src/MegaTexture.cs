@@ -4,7 +4,6 @@ using System.Drawing;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL4;
 
 namespace PirateCraft
@@ -34,6 +33,7 @@ namespace PirateCraft
       Image,
       Font
    }
+
    /**
    *  @class MtNode
    *  @brief Node in the MegaTexture class.
@@ -165,7 +165,6 @@ namespace PirateCraft
       }
    }
    #endregion
-
    #region MtTexPatch
    public class MtTexPatch
    {
@@ -537,21 +536,27 @@ namespace PirateCraft
    ///}
    #endregion
    #region MegaTex
-   public enum MegaTexCompileState
-   {
-      NotCompiled,
-      Dirty,
-      Compiling,
-      Compiled
-   };
+
    public class MegaTex
    {
+      public enum MegaTexCompileState
+      {
+         NotCompiled,
+         Dirty,
+         Compiling,
+         Compiled
+      }
+      public class CompiledTextures
+      {
+         public Texture2D Albedo = null;
+         public Texture2D Normal = null;
+      }
+
       Dictionary<string, MtTexPatch> _mapTexs = new Dictionary<string, MtTexPatch>();
-      Box2i _b2GrowRect;
       int _iStartWH = 256;
       int _iGrowWH = 128;
       int _iMaxTexSize = 0;
-      Img32 _pMaster = null;
+      // Img32 _pMaster = null;//No need to save this. We generate textures, and we can save them.
       MtNode _pRoot = null;
       MegaTexCompileState _eState = MegaTexCompileState.NotCompiled;
       bool _bCache = false;
@@ -682,8 +687,10 @@ namespace PirateCraft
          return false;
       }
 
-      public Texture compile()
+      public CompiledTextures compile()
       {
+         Img32 master_albedo = null, master_normal = null;
+
          //Images should be loaded here with loadImages()
          //This is required because we use images sizes when constructing the gui
          _eState = MegaTexCompileState.Compiling;
@@ -781,10 +788,10 @@ namespace PirateCraft
             Gu.Log.Debug("MegaTex - Successful. Tex size=" + iImageSize + ".. Creating Bitmap..");
 
             //Compose Master Image
-            _pMaster = new Img32();
+            master_albedo = new Img32();
             int datSiz = iImageSize * iImageSize * 4;
             Byte[] pData = Enumerable.Repeat((byte)0, datSiz).ToArray();//memset,0
-            _pMaster.init(iImageSize, iImageSize, pData);
+            master_albedo.init(iImageSize, iImageSize, pData);
             //delete[] pData;
 
             float imgW = (float)iImageSize;
@@ -793,7 +800,7 @@ namespace PirateCraft
             Gu.Log.Debug("MegaTex - Copying Sub-Images..");
             foreach (MtTex texx in vecTexs)
             {
-               _pMaster.copySubImageFrom(texx.node()._b2Rect._min, new ivec2(0, 0), new ivec2(texx.getWidth(), texx.getHeight()), texx.img());
+               master_albedo.copySubImageFrom(texx.node()._b2Rect._min, new ivec2(0, 0), new ivec2(texx.getWidth(), texx.getHeight()), texx.img());
                Gpu.CheckGpuErrorsDbg();
 
                //New Tex coords
@@ -807,9 +814,8 @@ namespace PirateCraft
             }
             if (_bCache)
             {
-               string imgName = System.IO.Path.Combine(Gu.LocalCachePath,"ui_master.png");
-               Gu.Log.Debug("MegaTex - Caching - Saving '" + imgName + "' to disk...");
-               Gu.SaveImage(imgName, _pMaster);
+               string imgName = System.IO.Path.Combine(Gu.LocalCachePath, "ui_master.png");
+               Gu.SaveImage(imgName, master_albedo);
             }
             else
             {
@@ -817,16 +823,22 @@ namespace PirateCraft
             }
          }
 
-         Texture tex = new Texture(_pMaster);
+         CompiledTextures output = new CompiledTextures();
+         if (master_albedo != null)
+         {
+            Gu.Log.Debug("MegaTex - Creating Albedo Map.");
+            output.Albedo = new Texture2D(master_albedo, true, TexFilter.Nearest);
 
-         //Now finally create
-         Gu.Log.Debug("MegaTex - Creating GPU Texture.");
-         //   create(TextureFormat::Image4ub, _pMaster.getData().ptr(), iImageSize, iImageSize, false, false, false);
-         //  setFilter(TexFilter::Nearest);
+            Gu.Log.Debug("MegaTex - Creating Normal Map.");
+            master_normal = master_albedo.createNormalMap();
+            string nmapname_dbg = System.IO.Path.Combine(Gu.LocalCachePath, "ui_master_nm.png");
+            Gu.SaveImage(nmapname_dbg, master_normal);
+            output.Normal = new Texture2D(master_normal, true, TexFilter.Nearest);
+         }
 
          _eState = MegaTexCompileState.Compiled;
 
-         return tex;
+         return output;
       }
 
       void update()

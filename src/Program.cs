@@ -13,8 +13,6 @@ namespace PirateCraft
       Camera3D _camera = null;
       WorldObject _boxMeshThing = null;
 
-      double rot = 0;
-
       vec2 last = new vec2(0, 0);
       bool lastSet = false;
       int meshIdx = 0;
@@ -46,37 +44,37 @@ namespace PirateCraft
             Gu.World.player = _camera;
 
             //Textures
-            Texture noise = Noise3D.TestNoise();
-            Texture peron = new Texture(new FileLoc("main char.png", FileStorage.Embedded));
-            Texture grass = new Texture(new FileLoc("grass_base.png", FileStorage.Embedded));
-            Texture mclovin = new Texture(new FileLoc("mclovin.jpg", FileStorage.Embedded));
-            Texture usopp = new Texture(new FileLoc("usopp.jpg", FileStorage.Embedded));
-            Texture hogback = new Texture(new FileLoc("hogback.jpg", FileStorage.Embedded));
+            Texture2D noise = Noise3D.TestNoise();
+            Texture2D peron = new Texture2D(new FileLoc("main char.png", FileStorage.Embedded), true, TexFilter.Bilinear);
+            Texture2D grass = new Texture2D(new FileLoc("grass_base.png", FileStorage.Embedded), true, TexFilter.Bilinear);
+            Texture2D mclovin = new Texture2D(new FileLoc("mclovin.jpg", FileStorage.Embedded), true, TexFilter.Nearest);
+            Texture2D usopp = new Texture2D(new FileLoc("usopp.jpg", FileStorage.Embedded), true, TexFilter.Bilinear);
+            Texture2D hogback = new Texture2D(new FileLoc("hogback.jpg", FileStorage.Embedded), true, TexFilter.Trilinear);
 
             //Objects
             //Integrity test of GPU memory.
             for (int i = 0; i < 100; ++i)
             {
-               Gu.World.CreateObject("BoxMesh", MeshData.GenBox(1, 1, 1), new Material(noise, Shader.DefaultDiffuse()));
+               Gu.World.CreateObject("BoxMesh", MeshData.GenBox(1, 1, 1), new Material(Shader.DefaultDiffuse(), noise));
             }
             for (int i = 1; i < 100; ++i)
             {
                Gu.World.DestroyObject("BoxMesh-" + i.ToString());
             }
-            Gu.World.CreateObject("TextureFront",MeshData.GenTextureFront(_camera, 0, 0, Width, Height), new Material(peron, Shader.DefaultDiffuse()));
-            Gu.World.CreateObject("Plane.",MeshData.GenPlane(10, 10), new Material(grass, Shader.DefaultDiffuse()));
+            Gu.World.CreateObject("TextureFront", MeshData.GenTextureFront(_camera, 0, 0, Width, Height), new Material(Shader.DefaultDiffuse(), peron));
+            Gu.World.CreateObject("Plane.", MeshData.GenPlane(10, 10), new Material(Shader.DefaultDiffuse(), grass));
             _boxMeshThing = Gu.World.FindObject("BoxMesh");
             _boxMeshThing.Position = new vec3(0, _boxMeshThing.BoundBox.Height() * 0.5f, 0);
 
-            Sphere_Rotate_Quat_Test = Gu.World.CreateObject("Sphere_Rotate_Quat_Test", MeshData.GenSphere(), new Material(mclovin, Shader.DefaultDiffuse()));
-            Sphere_Rotate_Quat_Test2 = Gu.World.CreateObject("Sphere_Rotate_Quat_Test2", MeshData.GenSphere(), new Material(usopp, Shader.DefaultDiffuse()));
-            Sphere_Rotate_Quat_Test3 = Gu.World.CreateObject("Sphere_Rotate_Quat_Test3", MeshData.GenSphere(), new Material(hogback, Shader.DefaultDiffuse()));
+            Sphere_Rotate_Quat_Test = Gu.World.CreateObject("Sphere_Rotate_Quat_Test", MeshData.GenSphere(), new Material(Shader.DefaultDiffuse(), mclovin));
+            Sphere_Rotate_Quat_Test2 = Gu.World.CreateObject("Sphere_Rotate_Quat_Test2", MeshData.GenSphere(), new Material(Shader.DefaultDiffuse(), usopp));
+            Sphere_Rotate_Quat_Test3 = Gu.World.CreateObject("Sphere_Rotate_Quat_Test3", MeshData.GenSphere(), new Material(Shader.DefaultDiffuse(), hogback));
 
 
             //Animation test
             var cmp = new AnimationComponent();
             vec3 raxis = new vec3(0, 1, 0);
-            cmp.KeyFrames.Add(new Keyframe(0, mat3.getRotation(raxis,0).toQuat(), KeyframeInterpolation.Slerp, new vec3(0, 0, 0), KeyframeInterpolation.Ease));
+            cmp.KeyFrames.Add(new Keyframe(0, mat3.getRotation(raxis, 0).toQuat(), KeyframeInterpolation.Slerp, new vec3(0, 0, 0), KeyframeInterpolation.Ease));
             cmp.KeyFrames.Add(new Keyframe(1, mat3.getRotation(raxis, (float)(MathUtils.M_PI_2 * 0.5 - 0.001)).toQuat(), KeyframeInterpolation.Slerp, new vec3(0, 1, 0), KeyframeInterpolation.Ease));
             cmp.KeyFrames.Add(new Keyframe(2, mat3.getRotation(raxis, (float)(MathUtils.M_PI_2 - 0.002)).toQuat(), KeyframeInterpolation.Slerp, new vec3(1, 1, 0), KeyframeInterpolation.Ease)); ;
             cmp.KeyFrames.Add(new Keyframe(3, mat3.getRotation(raxis, (float)(MathUtils.M_PI_2 + MathUtils.M_PI_2 * 0.5 - 0.004)).toQuat(), KeyframeInterpolation.Slerp, new vec3(1, 0, 0), KeyframeInterpolation.Ease)); ;
@@ -122,12 +120,12 @@ namespace PirateCraft
             Console.WriteLine(ex.ToString());
          }
       }
-      
+
       protected override void OnUpdateFrame(FrameEventArgs e)
       {
          float chary = this._camera.Position.y;
          Title = $"(CharY = {chary}) (Vsync: {VSync}) FPS: {1f / e.Time:0} Globs: {Gu.World.NumGlobs} Render: {Gu.World.NumRenderGlobs}";
-         
+
          Gu.CurrentWindowContext.Update();
 
          //_boxMeshThing.Rotation = quaternion.FromAxisAngle(new vec3(0, 1, 0), (float)rot);
@@ -137,16 +135,17 @@ namespace PirateCraft
 
          //checks out
          Sphere_Rotate_Quat_Test.Position = new vec3(0, 3, 0);
-         Sphere_Rotate_Quat_Test.Rotation = quat.fromAxisAngle(new vec3(1, 1, 1), (float)Gu.RotationPerSecond(10));
-         
+         Sphere_Rotate_Quat_Test.Rotation = quat.fromAxisAngle(new vec3(1, 1, 1).normalized(), (float)Gu.RotationPerSecond(10));
+
          Sphere_Rotate_Quat_Test2.Position = new vec3(-3, 3, 0);
-         Sphere_Rotate_Quat_Test2.Rotation = mat4.getRotation(new vec3(-1,-1, -1), (float)Gu.RotationPerSecond(10)).toQuat();
-        
+         Sphere_Rotate_Quat_Test2.Rotation = mat4.getRotation(new vec3(-1, -1, -1).normalized(), (float)Gu.RotationPerSecond(10)).toQuat();
+
          Sphere_Rotate_Quat_Test3.Position = new vec3(3, 3, 0);
-         Sphere_Rotate_Quat_Test3.Rotation = quat.fromAxisAngle(new vec3(1, 1, 1), (float)Gu.RotationPerSecond(3));
+         Sphere_Rotate_Quat_Test3.Rotation = quat.fromAxisAngle(new vec3(1, 1, 1).normalized(), (float)Gu.RotationPerSecond(3));
 
          UpdateInput();
       }
+
       private void UpdateInput()
       {
          float coordMul = (Gu.CoordinateSystem == CoordinateSystem.Lhs ? -1 : 1);
@@ -163,44 +162,50 @@ namespace PirateCraft
             // _boxMeshThing.Mesh.EndEdit();
          }
          float speed = 10.7f;
-         if (Gu.CurrentWindowContext.PCKeyboard.AnyKeysPressedOrHeld(new List<Key>() { Key.Q }))
+         var kb = Gu.CurrentWindowContext.PCKeyboard;
+         if (kb.KeyPressOrDown(Key.Number6))
+         {
+            _boxMeshThing.Material.Shader.nmap += 0.01f;
+            _boxMeshThing.Material.Shader.nmap = _boxMeshThing.Material.Shader.nmap % 1;
+         }
+
+         if (kb.AnyKeysPressedOrHeld(new List<Key>() { Key.Q }))
          {
             _camera.Position += _camera.BasisY * speed * (float)Gu.CurrentWindowContext.Delta;
          }
-         if (Gu.CurrentWindowContext.PCKeyboard.AnyKeysPressedOrHeld(new List<Key>() { Key.E }))
+         if (kb.AnyKeysPressedOrHeld(new List<Key>() { Key.E }))
          {
             _camera.Position -= _camera.BasisY * speed * (float)Gu.CurrentWindowContext.Delta;
          }
-
-         if (Gu.CurrentWindowContext.PCKeyboard.AnyKeysPressedOrHeld(new List<Key>() { Key.Up, Key.W }))
+         if (kb.AnyKeysPressedOrHeld(new List<Key>() { Key.Up, Key.W }))
          {
             _camera.Position += _camera.BasisZ * speed * (float)Gu.CurrentWindowContext.Delta;
          }
-         if (Gu.CurrentWindowContext.PCKeyboard.AnyKeysPressedOrHeld(new List<Key>() { Key.Down, Key.S }))
+         if (kb.AnyKeysPressedOrHeld(new List<Key>() { Key.Down, Key.S }))
          {
             _camera.Position -= _camera.BasisZ * speed * (float)Gu.CurrentWindowContext.Delta;
          }
-         if (Gu.CurrentWindowContext.PCKeyboard.AnyKeysPressedOrHeld(new List<Key>() { Key.Right, Key.D }))
-         {
-            _camera.Position -= _camera.BasisX * speed * coordMul * (float)Gu.CurrentWindowContext.Delta;
-         }
-         if (Gu.CurrentWindowContext.PCKeyboard.AnyKeysPressedOrHeld(new List<Key>() { Key.Left, Key.A }))
+         if (kb.AnyKeysPressedOrHeld(new List<Key>() { Key.Right, Key.D }))
          {
             _camera.Position += _camera.BasisX * speed * coordMul * (float)Gu.CurrentWindowContext.Delta;
          }
-         if (Gu.CurrentWindowContext.PCKeyboard.KeyPress(Key.Number1))
+         if (kb.AnyKeysPressedOrHeld(new List<Key>() { Key.Left, Key.A }))
          {
-            _boxMeshThing.Material.Shader.lightingModel = ((_boxMeshThing.Material.Shader.lightingModel + 1) % 5);
+            _camera.Position -= _camera.BasisX * speed * coordMul * (float)Gu.CurrentWindowContext.Delta;
          }
-         if (Gu.CurrentWindowContext.PCKeyboard.KeyPressOrDown(Key.Number2))
+         if (kb.KeyPress(Key.Number1))
+         {
+            _boxMeshThing.Material.Shader.lightingModel = ((_boxMeshThing.Material.Shader.lightingModel + 1) % 3);
+         }
+         if (kb.KeyPressOrDown(Key.Number2))
          {
             _boxMeshThing.Material.Shader.GGX_X = (_boxMeshThing.Material.Shader.GGX_X + 0.01f) % 3.0f;
          }
-         if (Gu.CurrentWindowContext.PCKeyboard.KeyPressOrDown(Key.Number3))
+         if (kb.KeyPressOrDown(Key.Number3))
          {
             _boxMeshThing.Material.Shader.GGX_Y = (_boxMeshThing.Material.Shader.GGX_Y + 0.01f) % 3.0f;
          }
-         if (Gu.CurrentWindowContext.PCKeyboard.KeyPress(Key.Number4))
+         if (kb.KeyPress(Key.Number4))
          {
             meshIdx = (meshIdx + 1) % 3;
             if (meshIdx == 0)
@@ -231,35 +236,28 @@ namespace PirateCraft
 
             float rot_speed = 0.001f;
 
-            rotX += Math.PI * mx * -rot_speed * coordMul;
+            rotX += Math.PI * mx * rot_speed * coordMul;
             if (rotX > Math.PI * 2.0f)
             {
                rotX = (float)(rotX % (Math.PI * 2.0f));
             }
-            if (rotX < Math.PI * 2.0f)
+            if (rotX < 0)
             {
                rotX = (float)(rotX % (Math.PI * 2.0f));
             }
-            rotY += Math.PI * my * -rot_speed * coordMul;
+            rotY += Math.PI * my * rot_speed * coordMul;
             if (rotY > Math.PI * 2.0f)
             {
                rotY = (float)(rotY % (Math.PI * 2.0f));
             }
-            if (rotY < Math.PI * 2.0f)
+            if (rotY < 0)
             {
                rotY = (float)(rotY % (Math.PI * 2.0f));
             }
-            //_camera.Rotation *= quat.FromAxisAngle(new vec3(0, 1, 0), rotX) *
-            //quat.FromAxisAngle(_camera.BasisX, rotY);
-            _camera.Rotation = quat.fromAxisAngle(new vec3(0, 1, 0), (float)rotX) *
-            quat.fromAxisAngle(_camera.BasisX, (float)rotY);
+            quat qx = quat.fromAxisAngle(new vec3(0, 1, 0), (float)rotX).normalized();
+            quat qy = quat.fromAxisAngle(new vec3(1, 0, 0), (float)rotY).normalized();
 
-            //_camera.Rotation = quat.FromAxisAngle(new vec3(0, 1, 0), (float)rotX) *
-            //quat.FromAxisAngle(_camera.BasisX, (float)rotY);
-            Console.WriteLine("x=" + _camera.BasisX.x + " " + _camera.BasisX.y + " " + _camera.BasisX.z);
-            Console.WriteLine("y=" + _camera.BasisY.x + " " + _camera.BasisY.y + " " + _camera.BasisY.z);
-            Console.WriteLine("ry=" + rotY);
-            Console.WriteLine("rx=" + rotX);
+            _camera.Rotation = qx * qy;
          }
          last.x = (float)mouseState.X;
          last.y = (float)mouseState.Y;
@@ -270,7 +268,6 @@ namespace PirateCraft
       {
          Renderer.BeginRender(this, new vec4(1, 1, 1, 1));
          Gu.World.Render(Gu.CurrentWindowContext.Delta, _camera);
-
          Renderer.EndRender();
          //This is big.
          //GC.Collect();

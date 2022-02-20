@@ -72,7 +72,7 @@ namespace PirateCraft
    {
       private static Dictionary<WindowContext, List<Action<WindowContext>>> OpenGLCleanupActions = new Dictionary<WindowContext, List<Action<WindowContext>>>();
       private int _maxTextureSize = 1;
-      public GpuRenderState GpuRenderState { get; set; } = new GpuRenderState();
+    //  public GpuRenderState GpuRenderState { get; set; } = new GpuRenderState();
 
       public Gpu()
       {
@@ -84,6 +84,11 @@ namespace PirateCraft
       public int GetMaxTextureSize()
       {
          return _maxTextureSize;
+      }
+      public static GpuDataPtr GetGpuDataPtr(object data)
+      {
+         GpuDataPtr p = new GpuDataPtr(data);
+         return p;
       }
       public static GpuDataArray SerializeGPUData<T>(T[] data) where T : struct
       {
@@ -99,13 +104,14 @@ namespace PirateCraft
          // GpuDataArray arr1 = new GpuDataArray(size, data.Length, stream.ToArray());
          //return arr1;
          //
+
+         //This probably isn't necessary. We could just use GCHandle.alloc / addrOfPinnedObject
          var bytes = new byte[size * data.Length];
          var ptr = Marshal.AllocHGlobal(size);
          for (int di = 0; di < data.Length; di++)
          {
             Marshal.StructureToPtr(data[di], ptr, false);
             Marshal.Copy(ptr, bytes, di * size, size);
-            //Marshal.DestroyStructure(ptr);
          }
          Marshal.FreeHGlobal(ptr);
          GpuDataArray arr = new GpuDataArray(size, data.Length, bytes);

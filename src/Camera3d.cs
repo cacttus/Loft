@@ -57,7 +57,7 @@ namespace PirateCraft
       //   ProjectionMatrix = mat4.CreatePerspectiveFieldOfView(FOV, Viewport_Width / Viewport_Height, Near, Far);
       //  ViewMatrix = mat4.LookAt(Position, Position + BasisZ.Normalized(), new vec3(0, 1, 0));
          ProjectionMatrix = mat4.projection(FOV, Viewport_Width, Viewport_Height, Near, Far);
-         ViewMatrix = mat4.getLookAt(new vec3(Position), new vec3(Position+BasisZ.normalized()), new vec3(0, 1, 0));
+         ViewMatrix = mat4.getLookAt(new vec3(Position), new vec3(Position+BasisZ), new vec3(0, 1, 0));
 
          //Frustum
          float tanfov2 = MathUtils.tanf(FOV / 2.0f);

@@ -42,7 +42,22 @@ namespace PirateCraft
          string stackTrace = Environment.StackTrace;
 
          LogString("[" + LogLineStr() + "][" + TimeStr() + "][E]: " + s + "\n" + stackTrace, ConsoleColor.Red);
-
+      }
+      public void ErrorCycle(string s)
+      {
+         int md = (int)Gu.CurrentWindowContext.FrameStamp % 60;
+         if (md == 0)
+         {
+            Error(s);
+         }
+      }
+      public void WarnCycle(string s)
+      {
+         int md = (int)Gu.CurrentWindowContext.FrameStamp % 60;
+         if (md == 0)
+         {
+            Warn(s);
+         }
       }
       private string TimeStr()
       {

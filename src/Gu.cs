@@ -124,22 +124,20 @@ namespace PirateCraft
       }
       public static Bitmap CreateBitmapARGB(int width, int height, byte[] pixels)
       {
+         Gu.Assert(pixels != null);
+         if(width*height*4 != pixels.Length)
+         {
+            Gu.BRThrowException("Created bitmap w/h will not match input pixel bytes at 32bpp");
+         }
+
          Bitmap b = new Bitmap(width, width, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
          BitmapData bmpData = b.LockBits(new Rectangle(0, 0, width, width),
                                          ImageLockMode.WriteOnly,
                                          b.PixelFormat);
-
          IntPtr ptr = bmpData.Scan0;
-
          int bytes = bmpData.Stride * b.Height;
-         var rgbValues = new byte[bytes];
-
-         rgbValues[0] = 255;
-         rgbValues[1] = 255;
-         rgbValues[2] = 255;
-         rgbValues[3] = 255;
-
-         Marshal.Copy(rgbValues, 0, ptr, bytes);
+         Gu.Assert(bytes == pixels.Length); // Sanity check
+         Marshal.Copy(pixels, 0, ptr, bytes);
          b.UnlockBits(bmpData);
          return b;
       }

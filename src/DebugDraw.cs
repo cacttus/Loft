@@ -66,7 +66,7 @@ namespace PirateCraft
          End(d);
 
          wo.Mesh = d;
-         wo.Material = new Material(null, Shader.DefaultFlatColorShader());
+         wo.Material = new Material(Shader.DefaultFlatColorShader());
 
          return wo;
 

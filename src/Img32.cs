@@ -21,8 +21,20 @@ namespace PirateCraft
       public byte[] Data { get; private set; }
       public int BytesPerPixel { get { return 4; } private set { } }//Always 4BPP in our system.
 
+      public Img32 Clone()
+      {
+         Img32 m = new Img32();
+         m.Width = Width;
+         m.Height = Height;
+         m.BytesPerPixel = BytesPerPixel;
+         m.Data = new byte[Data.Length];
+         Buffer.BlockCopy(Data, 0, m.Data, 0, Data.Length);
+         return m;
+      }
+
       public Img32()
       {
+
       }
       public Bitmap ToBitmap()
       {
@@ -154,6 +166,130 @@ namespace PirateCraft
       {
          return (col * items_per_row + row);
       }
+
+      public Img32 createNormalMap()
+      {
+         if (Data == null)
+         {
+            return null;
+         }
+         Img32 ret = this.Clone();
+
+
+         for (int j = 0; j < ret.Height; ++j)
+         {
+            for (int i = 0; i < ret.Width; ++i)
+            {
+               ret.setPixel32(i, j, normalizePixel32(i, j));
+            }
+         }
+
+         return ret;
+      }
+      byte toGray(Pixel4ub pix)
+      {
+         return (byte)((11 * pix.r + 16 * pix.g + 5 * pix.b) / 32);
+      }
+      Pixel4ub getPixel32(int x, int y)
+      {
+         Pixel4ub pix;
+
+         int off = vofftos(x, y, Width) * BytesPerPixel;  //StaticBufffer is a char array so we must scale the size
+         pix.r = Data[off + 0];
+         pix.g = Data[off + 1];
+         pix.b = Data[off + 2];
+         pix.a = Data[off + 3];
+
+         return pix;
+      }
+      void setPixel32(int x, int y, Pixel4ub pix)
+      {
+         int off = vofftos(x, y, Width) * BytesPerPixel;  //StaticBufffer is a char array so we must scale the size
+         Data[off + 0] = pix.r;
+         Data[off + 1] = pix.g;
+         Data[off + 2] = pix.b;
+         Data[off + 3] = pix.a;
+      }
+      int hwrap(int off)
+      {
+         int ret = off % Width;
+         if (ret < 0)
+            ret += Width;
+         return ret;
+      }
+      int vwrap(int off)
+      {
+         int ret = off % Height;
+         if (ret < 0)
+            ret += Height;
+         return ret;
+      }
+      Pixel4ub normalizePixel32(int x, int y)
+      {
+         Gu.Assert(Data != null);
+
+         Pixel4ub pix;
+         int Gh = 0, Gv = 0, i;
+         float len;
+         int[] mat = {
+            toGray(getPixel32(hwrap(x - 1), vwrap(y - 1))), toGray(getPixel32(hwrap(x - 0), vwrap(y - 1))), toGray(getPixel32(hwrap(x + 1), vwrap(y - 1))),
+            toGray(getPixel32(hwrap(x - 1), vwrap(y + 0))), toGray(getPixel32(hwrap(x - 0), vwrap(y + 0))), toGray(getPixel32(hwrap(x + 1), vwrap(y + 0))),
+            toGray(getPixel32(hwrap(x - 1), vwrap(y + 1))), toGray(getPixel32(hwrap(x - 0), vwrap(y + 1))), toGray(getPixel32(hwrap(x + 1), vwrap(y + 1)))};
+         int[] sobel_v = {
+            -1, -2, -1,
+
+            0, 0, 0,
+
+            1, 2, 1};
+         int[] sobel_h = {
+            1, 0, -1,
+
+            2, 0, -2,
+
+            1, 0, -1};
+         for (i = 0; i < 9; ++i)
+            Gh += mat[i] * sobel_h[i];
+         for (i = 0; i < 9; ++i)
+            Gv += mat[i] * sobel_v[i];
+
+         //Max value of a sobel kernel with char bytes is 255 * +-4 = [-1020,1020] mapped [-1,1]=>[0,1]
+         float Fh = (float)(Gh + 1020.0f) / 2040.0f;
+         float Fv = (float)(Gv + 1020.0f) / 2040.0f;
+
+         //To get a full hemisphere of values.
+         //Partial depth can be blended with surface normal if less bump is needed.
+         float depth = ((2 - Fh - Fv) + 1.0f) / 2.0f;
+
+         len = (float)Math.Sqrt((Fh * Fh) + (Fv * Fv) + depth * depth);
+         if (len > 0)
+         {
+            Fh /= len;
+            Fv /= len;
+            depth /= len;
+         }
+         else
+         {
+            Fh = Fv = depth = 0;
+         }
+
+         pix.r = (byte)(Math.Floor(Fh * 255.0f));
+         pix.g = (byte)(Math.Floor(depth * 255.0f));
+         pix.b = (byte)(Math.Floor(Fv * 255.0f));
+         pix.a = 255;
+
+         //This format must match the Texutre.default normal map
+         if (Texture2D.NormalMapFormat == NormalMapFormat.Zup)
+         {
+            byte tmp = pix.g;
+            pix.g = pix.b;
+            pix.b = tmp;
+         }
+
+         return pix;
+      }
+
+
+
 
    }
 }

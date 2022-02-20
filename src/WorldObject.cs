@@ -318,13 +318,23 @@ namespace PirateCraft
             _name = value;
          }
       }
+      //Debug purpose only
+      //private mat4 _worldLast;
+      //private quat _rotationLast = new quat(0, 0, 0, 1); //Axis-Angle xyz,ang
+      //private vec3 _scaleLast = new vec3(1, 1, 1);
+      //private vec3 _positionLast = new vec3(0, 0, 0);
 
       private quat _rotation = new quat(0, 0, 0, 1); //Axis-Angle xyz,ang
       private vec3 _scale = new vec3(1, 1, 1);
       private vec3 _position = new vec3(0, 0, 0);
+      private quat _animatedRotation = quat.identity();
+      private vec3 _animatedScale = new vec3(1, 1, 1);
+      private vec3 _animatedPosition = new vec3(0, 0, 0);
       private WorldObject _parent = null;
       private mat4 _world = mat4.identity();
-
+      private vec3 _basisX = new vec3(1, 0, 0);
+      private vec3 _basisY = new vec3(0, 1, 0);
+      private vec3 _basisZ = new vec3(0, 0, 1);
       public vec4 Color { get; set; } = new vec4(1, 1, 1, 1); // Mesh color if no material
       public bool TransformChanged { get; private set; } = false;
       public bool Hidden { get; set; } = false;
@@ -347,9 +357,14 @@ namespace PirateCraft
          child.Parent = null;
       }
 
+      public vec3 Position { get { return _position; } set { _position = value; SetTransformChanged(); } }
       public quat Rotation { get { return _rotation; } set { _rotation = value; SetTransformChanged(); } }//xyz,angle
       public vec3 Scale { get { return _scale; } set { _scale = value; SetTransformChanged(); } }
-      public vec3 Position { get { return _position; } set { _position = value; SetTransformChanged(); } }
+
+      public vec3 AnimatedPosition { get { return _animatedPosition; } set { _animatedPosition = value; SetTransformChanged(); } }
+      public quat AnimatedRotation { get { return _animatedRotation; } set { _animatedRotation = value; SetTransformChanged(); } }
+      public vec3 AnimatedScale { get { return _animatedScale; } set { _animatedScale = value; SetTransformChanged(); } }
+
       public mat4 Bind { get; private set; } = mat4.identity(); // Skinned Bind matrix
       public mat4 InverseBind { get; private set; } = mat4.identity(); // Skinned Inverse Bind
       public mat4 Local { get; private set; } = mat4.identity();
@@ -358,14 +373,9 @@ namespace PirateCraft
       public List<Component> Components { get; private set; } = new List<Component>();
       public List<Constraint> Constraints { get; private set; } = new List<Constraint>();// *This is an ordered list they come in order
 
-      //TODO: make this part of animation component / apply animation in the component update.
-      public quat AnimatedRotation { get; set; } = quat.identity();
-      public vec3 AnimatedScale { get; set; } = new vec3(1, 1, 1);
-      public vec3 AnimatedPosition { get; set; } = new vec3(0, 0, 0);
-
-      public vec3 BasisX { get { return (World * new vec4(1, 0, 0, 0)).xyz().normalized(); } private set { } }
-      public vec3 BasisY { get { return (World * new vec4(0, 1, 0, 0)).xyz().normalized(); } private set { } }
-      public vec3 BasisZ { get { return (World * new vec4(0, 0, 1, 0)).xyz().normalized(); } private set { } }
+      public vec3 BasisX { get { return _basisX; } }
+      public vec3 BasisY { get { return _basisY; } }
+      public vec3 BasisZ { get { return _basisZ; } }
 
       public MeshData Mesh = null;
       public Material Material = null;
@@ -378,10 +388,15 @@ namespace PirateCraft
       }
       public WorldObject()
       {
-         Color = Random.NextVec4(new vec4(0.3f,0.3f,0.3f,1), new vec4(1,1,1,1));
+         Color = Random.NextVec4(new vec4(0.3f, 0.3f, 0.3f, 1), new vec4(1, 1, 1, 1));
       }
       public void SetTransformChanged()
       {
+         if (GetType() == typeof(Camera3D))
+         {
+            int n = 0;
+            n++;
+         }
          TransformChanged = true;
       }
       public void ApplyConstraints()
@@ -397,10 +412,28 @@ namespace PirateCraft
          {
             return;
          }
+         if (GetType() == typeof(Camera3D))
+         {
+            int n = 0;
+            n++;
+         }
+
          UpdateComponents(dt);
          ApplyConstraints();
          CompileLocalMatrix();
          ApplyParentMatrix();
+
+         if (GetType() == typeof(Camera3D))
+         {
+            int n = 0;
+            n++;
+         }
+
+         //Basis calculuation must come after the world is computed
+         _basisX = (World * new vec4(1, 0, 0, 0)).xyz().normalized();
+         _basisY = (World * new vec4(0, 1, 0, 0)).xyz().normalized();
+         _basisZ = (World * new vec4(0, 0, 1, 0)).xyz().normalized();
+
          foreach (var child in this.Children)
          {
             child.Update(dt);

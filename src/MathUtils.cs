@@ -999,6 +999,14 @@ namespace PirateCraft
       {
          return (a.x != b.x) || (a.y != b.y) || (a.z != b.z);
       }
+      public override int GetHashCode()
+      {
+         return base.GetHashCode();
+      }
+      public override bool Equals(object obj)
+      {
+         return base.Equals(obj);
+      }
       public class ivec3EqualityComparer : IEqualityComparer<ivec3>
       {
          public bool Equals(ivec3 a, ivec3 b)
@@ -1937,7 +1945,7 @@ namespace PirateCraft
       public quat toQuat()
       {
          quat q = new quat();
-         mat3 m =   this.transposed();//Testing to see if this is thr problem..it is -- fix this
+         mat3 m = this.transposed();//Testing to see if this is thr problem..it is -- fix this
 
          float tr = m._m11 + m._m22 + m._m33;
 
@@ -2215,7 +2223,7 @@ namespace PirateCraft
       }
       public static mat4 getRotation(in vec3 axis, in float angle)
       {
-         var m = mat3.getRotation(axis,angle);
+         var m = mat3.getRotation(axis, angle);
          mat4 Temp = new mat4(m);
          return Temp;
       }
@@ -2684,6 +2692,14 @@ namespace PirateCraft
       {
          return !(lhs == rhs);
       }
+      public override int GetHashCode()
+      {
+         return base.GetHashCode();
+      }
+      public override bool Equals(object obj)
+      {
+         return base.Equals(obj);
+      }
       public vec3 extractTranslation()
       {
          vec3 ret = new vec3();
@@ -2792,7 +2808,7 @@ namespace PirateCraft
 
 
    }//mat4
-   
+
    [StructLayout(LayoutKind.Sequential)]
    public struct quat
    {
@@ -2828,12 +2844,12 @@ namespace PirateCraft
          if (len != 0)
          {
 
-         ret = new quat(
-            this.x / len,
-            this.y / len,
-            this.z / len,
-            this.w / len
-            );
+            ret = new quat(
+               this.x / len,
+               this.y / len,
+               this.z / len,
+               this.w / len
+               );
          }
          else
          {
@@ -2853,8 +2869,19 @@ namespace PirateCraft
       }
       public static quat operator *(in quat lhs, in quat rhs)
       {
-         quat ret;
 
+         // This is a more intuitive quat multiplication. It's the same result as below (tested).
+         //quat ret2;
+         //vec3 pv = new vec3(lhs.x, lhs.y,lhs.z);
+         //vec3 qv = new vec3(rhs.x, rhs.y, rhs.z);
+         //float ps = lhs.w;
+         //float qs = rhs.w;
+         //vec3 pqv = qv * ps + pv * qs + pv.cross(qv);
+         //float pqs = ps * qs - pv.dot(qv);
+         //ret2 = new quat(pqv.x, pqv.y, pqv.z, pqs);
+
+
+         quat ret;
          //Normal quaternion multiplication
          //Q(w,v) = w=w1w2 - v1 dot v2, v= w1v2 + w2v1 + v2 cross v1.
 
@@ -2935,12 +2962,14 @@ namespace PirateCraft
       }
       public static quat fromAxisAngle(in vec3 axis, float angle)
       {
-         vec3 an = axis.normalized();
+         //**NOTE: Axis must be normalized.
          quat q = new quat();
-         q.x = an.x * MathUtils.sinf(angle * 0.5f);
-         q.y = an.y * MathUtils.sinf(angle * 0.5f);
-         q.z = an.z * MathUtils.sinf(angle * 0.5f);
+         float sina2 = MathUtils.sinf(angle * 0.5f);
+         q.x = axis.x * sina2;
+         q.y = axis.y * sina2;
+         q.z = axis.z * sina2;
          q.w = MathUtils.cosf(angle * 0.5f);
+
          return q;
       }
       public vec4 toAxisAngle()
