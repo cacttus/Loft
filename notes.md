@@ -1,13 +1,12 @@
-﻿WO - PVS for objects and globs
-     textures for glob meshs.
-     destroy globs.
+﻿initial generation of world (like minecraft)
+destroy globs.
+sky
     
     
 * Roadmap
     * Goal is minecraft looking thing - must have
         * voxel world with textures
         * grass, trees, top bot textures
-        * infinite render distance
         * islands
         * water
         * be able to move around, jump (physics)
@@ -19,14 +18,14 @@
         WorldObject    
 
     * World generation
-        * Glob grid. 
-        * Voxel generator
-        * Voxel struct { Uint16 value; } - packed
-        * Draw voxels as individual meshes
+        * x Glob grid. 
+        * x Voxel generator
+        * x Voxel struct { Uint16 value; } - packed
+        * x Draw voxels as individual meshes
             * Optimization, some kind of mesh pool.
     * Textures
-        * Load small textures into a megatexture Pack them with the dist.
-        * Use them as textures, top, bot, side.
+        * x Load small textures into a megatexture Pack them with the dist.
+        * x Use them as textures, top, bot, side.
             * Voxel shader (top / bot / side) with mega tex.
     * Sky
         * Render just as background thingymajig

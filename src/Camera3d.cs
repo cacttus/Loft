@@ -70,10 +70,7 @@ namespace PirateCraft
             NearTopLeft = NearCenter - cam.BasisX * _widthNear + cam.BasisY * _heightNear;
             FarTopLeft = FarCenter - cam.BasisX * _widthFar + cam.BasisY * _heightFar;
 
-            float vpw_2 = cam.Viewport_Width * 0.5f;
-            float vph_2 = cam.Viewport_Height * 0.5f;
-
-            ConstructPointsAndPlanes(FarCenter, NearCenter, cam.BasisY, cam.BasisX, vpw_2, vph_2, vpw_2, vph_2);
+            ConstructPointsAndPlanes(FarCenter, NearCenter, cam.BasisY, cam.BasisX, _widthNear, _widthFar, _heightNear, _heightFar);
          }
       }
       private void ConstructPointsAndPlanes(vec3 farCenter, vec3 nearCenter,

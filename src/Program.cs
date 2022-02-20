@@ -161,37 +161,41 @@ namespace PirateCraft
             // MeshVert v= _boxMeshThing.Mesh.EditVert(0);
             // _boxMeshThing.Mesh.EndEdit();
          }
-         float speed = 10.7f;
+         float speed = 20.7f;
          var kb = Gu.CurrentWindowContext.PCKeyboard;
          if (kb.KeyPressOrDown(Key.Number6))
          {
             _boxMeshThing.Material.Shader.nmap += 0.01f;
             _boxMeshThing.Material.Shader.nmap = _boxMeshThing.Material.Shader.nmap % 1;
          }
-
+         float speedMul = 1;
+         if(kb.KeyPressOrDown(Key.ControlLeft)|| kb.KeyPressOrDown(Key.ControlRight ))
+         {
+            speedMul = 3;
+         }
          if (kb.AnyKeysPressedOrHeld(new List<Key>() { Key.Q }))
          {
-            _camera.Position += _camera.BasisY * speed * (float)Gu.CurrentWindowContext.Delta;
+            _camera.Position += _camera.BasisY * speed * (float)Gu.CurrentWindowContext.Delta * speedMul;
          }
          if (kb.AnyKeysPressedOrHeld(new List<Key>() { Key.E }))
          {
-            _camera.Position -= _camera.BasisY * speed * (float)Gu.CurrentWindowContext.Delta;
+            _camera.Position -= _camera.BasisY * speed * (float)Gu.CurrentWindowContext.Delta * speedMul;
          }
          if (kb.AnyKeysPressedOrHeld(new List<Key>() { Key.Up, Key.W }))
          {
-            _camera.Position += _camera.BasisZ * speed * (float)Gu.CurrentWindowContext.Delta;
+            _camera.Position += _camera.BasisZ * speed * (float)Gu.CurrentWindowContext.Delta * speedMul;
          }
          if (kb.AnyKeysPressedOrHeld(new List<Key>() { Key.Down, Key.S }))
          {
-            _camera.Position -= _camera.BasisZ * speed * (float)Gu.CurrentWindowContext.Delta;
+            _camera.Position -= _camera.BasisZ * speed * (float)Gu.CurrentWindowContext.Delta * speedMul;
          }
          if (kb.AnyKeysPressedOrHeld(new List<Key>() { Key.Right, Key.D }))
          {
-            _camera.Position += _camera.BasisX * speed * coordMul * (float)Gu.CurrentWindowContext.Delta;
+            _camera.Position += _camera.BasisX * speed * coordMul * (float)Gu.CurrentWindowContext.Delta * speedMul;
          }
          if (kb.AnyKeysPressedOrHeld(new List<Key>() { Key.Left, Key.A }))
          {
-            _camera.Position -= _camera.BasisX * speed * coordMul * (float)Gu.CurrentWindowContext.Delta;
+            _camera.Position -= _camera.BasisX * speed * coordMul * (float)Gu.CurrentWindowContext.Delta * speedMul;
          }
          if (kb.KeyPress(Key.Number1))
          {
