@@ -5,12 +5,16 @@
 
 # How to Run
 
-1. MonoDevelop
-Go to MonoDevelop.com and follow the steps to install it. 
+1. Visual Studio
+	Open Solution and F5!
 
-The package manager in MonoDevelop should detect the correct OpenTK packages. The newest versions of OpenTK aren't compatible, probably due to .NET version. I selected v3.1.
+2. MonoDevelop
 
-2. VSCode + OmniSharp
+* Go to MonoDevelop.com and follow the steps to install it. 
+
+* The package manager in MonoDevelop should detect the correct OpenTK packages. The newest versions of OpenTK aren't compatible, probably due to .NET version. I selected v3.1.
+
+3. VSCode + OmniSharp
 This is for OmniSharp. There is also an extension that lets you debug with Mono on a server. 
 
 * Install Mono
