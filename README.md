@@ -1,7 +1,7 @@
 
 # A Minecraft Clone in OpenTK and C#
 
-![Preview](./screenshot.png)
+![Preview](./screenshot.jpg)
 
 # How to Run
 
