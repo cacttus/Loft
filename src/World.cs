@@ -199,21 +199,23 @@ namespace PirateCraft
    {
       private Dictionary<string, WorldObject> Objects { get; set; } = new Dictionary<string, WorldObject>();
 
-      public const float RenderRadiusShell = 50.0f;
-      public const float RenderRadiusMax = 50.0f;
-      public const float MaxTotalGlobs = 4096 * 2 * 2;
+      public const float MaxTotalGlobs = 4096 * 2 * 2 * 2;
       public const float MaxRenderGlobs = 4096;
       public int MaxGlobsToGeneratePerFrameShell = 10;
 
-      public const float BlockSizeX = 1.0f;
-      public const float BlockSizeY = 1.0f;
-      public const float BlockSizeZ = 1.0f;
+      public const float BlockSizeX = 4.0f;
+      public const float BlockSizeY = 4.0f;
+      public const float BlockSizeZ = 4.0f;
       public const int GlobBlocksX = 16;
       public const int GlobBlocksY = 16;
       public const int GlobBlocksZ = 16;
       public const float GlobWidthX = GlobBlocksX * BlockSizeX;
       public const float GlobWidthY = GlobBlocksY * BlockSizeY;
       public const float GlobWidthZ = GlobBlocksZ * BlockSizeZ;
+      public const int MaxGenerationShells = 20;
+      public readonly float GlobDiameter = (float)Math.Sqrt(GlobWidthX * GlobWidthX + GlobWidthY * GlobWidthY + GlobWidthZ * GlobWidthZ);
+      public float RenderRadiusShell { get { return GlobDiameter; } }
+      public float MaxRenderDistance { get { return GlobDiameter * 5; } } //Render all the nodes we can see.
 
       private bool _firstGeneration = true; //Whether this is the initial generation, where we would need to generate everything around the player.
       private int _currentShell = 1;
@@ -221,9 +223,11 @@ namespace PirateCraft
 
       public int NumGlobs { get { return _globs.Count; } }
       public int NumRenderGlobs { get { return _renderGlobs.Count; } }
+      public int NumVisibleRenderGlobs { get { return _visibleRenderGlobs.Count; } }
 
       Dictionary<ivec3, Glob> _globs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //All globs
       Dictionary<ivec3, Glob> _renderGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
+      Dictionary<ivec3, Glob> _visibleRenderGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
 
       //TODO:players
       public WorldObject player = null;
@@ -231,7 +235,7 @@ namespace PirateCraft
       //Thread GlobGenerator;
       //object GlobMutex;
 
-      Material _worldMaterial= null;
+      Material _worldMaterial = null;
       //Texture2D _worldTexture = null;
       //Texture2D _worldBump = null;
       MegaTex _worldMegatex = new MegaTex("tex", true);
@@ -375,8 +379,7 @@ namespace PirateCraft
       }
       public void DestroyObject(string name)
       {
-         WorldObject wo = null;
-         if (Objects.TryGetValue(name, out wo))
+         if (Objects.TryGetValue(name, out WorldObject wo))
          {
             Objects.Remove(name);
          }
@@ -385,10 +388,35 @@ namespace PirateCraft
             Gu.Log.Error("Object '" + name + "' was not found.");
          }
       }
-      public void Update(double dt)
+      public void Update(double dt, Camera3D cam)
       {
          BuildWorld();
          UpdateObjects(dt);
+
+         //Honestly, this isn't too slow. We usually have maybe 500 globs visible at a time.
+         _visibleRenderGlobs.Clear();
+         foreach(var g in _renderGlobs)
+         {
+            if (cam.Frustum.HasBox(GetNodeBoxForGridPos(g.Key)))
+            {
+               _visibleRenderGlobs.Add(g.Key,g.Value);
+            }
+         }
+
+         //Get All Grids
+         //Well this is broken. Fix it later.
+         //SweepGridFrustum((ivec3 node_ipos, Box3f node_box) =>
+         //{
+         //   var glob = GetGlobAtPos(node_ipos);
+         //   if (glob != null)
+         //   {
+         //      Frustum frust = cam.Frustum;
+         //      if (cam.Frustum.HasBox(node_box))
+         //      {
+         //         _visibleRenderGlobs.Add(node_ipos, glob);
+         //      }
+         //   }
+         //}, cam.Frustum, MaxRenderDistance);
       }
       private void UpdateObjects(double dt)
       {
@@ -412,7 +440,7 @@ namespace PirateCraft
             //PVS for globs
             List<MeshData> visible_op = new List<MeshData>();
             List<MeshData> visible_tp = new List<MeshData>();
-            foreach (var g in _renderGlobs)
+            foreach (var g in _visibleRenderGlobs)
             {
                //No PVS, render all at first
                if (g.Value.Opaque != null)
@@ -428,7 +456,7 @@ namespace PirateCraft
             WorldObject dummy = new WorldObject();
 
             _worldMaterial.BeginRender(Delta, camera, dummy);
-            foreach(var md in visible_op)
+            foreach (var md in visible_op)
             {
                md.Draw();
             }
@@ -489,7 +517,7 @@ namespace PirateCraft
                _currentShell = 1;
                playerLastGlob = newPlayerGlob;
             }
-            else if (newGlobs.Count == 0)
+            else if (newGlobs.Count == 0 && _currentShell < MaxGenerationShells)
             {
                //Only increase shell if we're done generating for this particular shell.
                _currentShell++;
@@ -546,6 +574,7 @@ namespace PirateCraft
          //Build a grid of globs in the volume specified by origin/radius
          List<Glob> newGlobs = new List<Glob>();
 
+         
          //TODO: we use a cube here, we should check against an actual sphere below. It looks nicer.
          vec3 awareness = new vec3(awareness_radius, awareness_radius, awareness_radius);
          Box3f bf = new Box3f(origin - awareness, origin + awareness);
@@ -553,6 +582,15 @@ namespace PirateCraft
          Box3i ibox;
          ibox._min = new ivec3((int)(bf._min.x / GlobWidthX), (int)(bf._min.y / GlobWidthY), (int)(bf._min.z / GlobWidthZ));
          ibox._max = new ivec3((int)(bf._max.x / GlobWidthX), (int)(bf._max.y / GlobWidthY), (int)(bf._max.z / GlobWidthZ));
+
+         //Limit Y axis ..  DEBUG ONLY
+         Gu.Log.WarnCycle("Limiting debug Y axis for testing");
+         int ylimit = 3;
+         if(ibox._min.y > ylimit) {  ibox._min.y = ylimit; }
+         if(ibox._min.y < -ylimit) {  ibox._min.y = -ylimit; }
+         if (ibox._max.y > ylimit) { ibox._max.y = ylimit; }
+         if (ibox._max.y < -ylimit) { ibox._max.y = -ylimit; }
+         if(ibox._min.y > ibox._max.y) { ibox._min.y = ibox._max.y; }
 
          for (int z = ibox._min.z; z <= ibox._max.z; z++)
          {
@@ -604,8 +642,8 @@ namespace PirateCraft
                {
                   //Computing density from block center instead of corner
                   vec3 block_world = globOriginR3 + new vec3(
-                     x * BlockSizeX + BlockSizeX * 0.5f, 
-                     y * BlockSizeY + BlockSizeY * 0.5f, 
+                     x * BlockSizeX + BlockSizeX * 0.5f,
+                     y * BlockSizeY + BlockSizeY * 0.5f,
                      z * BlockSizeZ + BlockSizeZ * 0.5f);
                   var block = new Block(Density(block_world));
                   if (block.IsSolidBlockNotTransparent())
@@ -640,6 +678,11 @@ namespace PirateCraft
             g.Blocks = null;
          }
 
+         return g;
+      }
+      private Glob GetGlobAtPos(ivec3 pos)
+      {
+         _globs.TryGetValue(pos, out var g);
          return g;
       }
       private Glob GetNeighborGlob(Glob g, int i)
@@ -732,7 +775,7 @@ namespace PirateCraft
                      {
                         //We are same glob - globs may not be added to the list yet.
                         ivec3 bpos = R3toI3BlockLocal(block_pos_abs_R3_Center_Neighbor);
-                        b_n = g.GetBlock(bpos.x, bpos.y, bpos.z);
+                           b_n = g.GetBlock(bpos.x, bpos.y, bpos.z);
                      }
                      else
                      {
@@ -800,7 +843,7 @@ namespace PirateCraft
                            {
                               _v = UnitBoxMeshData.bx_verts_face[face, vi]._v + block_pos_abs_R3,
                               _n = UnitBoxMeshData.bx_verts_face[face, vi]._n,
-                              _x = texs[vi],
+                              _x = texs[vi], 
                            });
                         }
 
@@ -847,38 +890,36 @@ namespace PirateCraft
 
          return b;
       }
-      ivec3 R3toI3BlockLocal(vec3 R3)
+      private float R3toI3BlockComp(float R3, float BlocksAxis, float BlockWidth)
       {
-         vec3 bpos = new vec3();
-         if (R3.x < 0)
+         float bpos;
+         if (R3 < 0)
          {
-            bpos.x = (float)((Math.Floor(R3.x / World.BlockSizeX) % World.GlobWidthX + World.GlobWidthX) % World.GlobWidthX);
+            bpos = (float)Math.Floor((R3 % BlocksAxis + BlocksAxis)/BlockWidth);
          }
          else
          {
-            bpos.x = (float)(Math.Floor(R3.x / World.BlockSizeX) % 16);
+            bpos = (float) Math.Floor((R3 % BlocksAxis)/BlockWidth);
          }
-         if (R3.y < 0)
+         return bpos;
+      }
+      private ivec3 R3toI3BlockLocal(vec3 R3)
+      {
+         vec3 bpos = new vec3(
+            R3toI3BlockComp(R3.x, GlobWidthX, BlockSizeX),
+            R3toI3BlockComp(R3.y, GlobWidthY, BlockSizeY),
+            R3toI3BlockComp(R3.z, GlobWidthZ, BlockSizeZ) );
+
+         if (bpos.x < 0 || bpos.y < 0 || bpos.z < 0 ||bpos.x >= World.GlobBlocksX || bpos.y >= World.GlobBlocksY || bpos.z >= World.GlobBlocksZ)
          {
-            bpos.y = (float)((Math.Floor(R3.y / World.BlockSizeY) % World.GlobWidthY + World.GlobWidthY) % World.GlobWidthY);
-         }
-         else
-         {
-            bpos.y = (float)(Math.Floor(R3.y / World.BlockSizeY) % 16);
-         }
-         if (R3.z < 0)
-         {
-            bpos.z = (float)((Math.Floor(R3.z / World.BlockSizeZ) % World.GlobWidthZ + World.GlobWidthZ) % World.GlobWidthZ);
-         }
-         else
-         {
-            bpos.z = (float)(Math.Floor(R3.z / World.BlockSizeZ) % 16);
+            Gu.DebugBreak();
          }
 
          return new ivec3((int)bpos.x, (int)bpos.y, (int)bpos.z);
       }
-      ivec3 R3toI3Glob(vec3 R3)
+      private ivec3 R3toI3Glob(vec3 R3)
       {
+         //v3toi3Node
          ivec3 gpos = new ivec3(
             (int)Math.Floor(R3.x / World.GlobWidthX),
             (int)Math.Floor(R3.y / World.GlobWidthY),
@@ -889,12 +930,7 @@ namespace PirateCraft
       {
          ivec3 gpos = R3toI3Glob(R3_pos);
 
-         Glob g = null;
-         if (_globs.TryGetValue(gpos, out g))
-         {
-            return g;
-         }
-         return null;
+         return GetGlobAtPos(gpos);
       }
       private UInt16 Density(vec3 world_pos)
       {
@@ -908,7 +944,7 @@ namespace PirateCraft
 
             float sign = ia % 2 == 0 ? -1 : 1;//prevent huge hils
 
-            d = d + (sign) * MathUtils.cosf(world_pos.x * 0.1f * f) * 3 * a + (sign) * MathUtils.sinf(world_pos.z * 0.1f * f) * 3 * a;
+            d = d + (sign) * MathUtils.cosf(world_pos.x/World.BlockSizeX * 0.1f * f) * 3 * a + (sign) * MathUtils.sinf(world_pos.z / World.BlockSizeZ * 0.1f * f) * 3 * a * BlockSizeY;
          }
 
          ushort item = BlockItemCode.Empty;
@@ -935,6 +971,94 @@ namespace PirateCraft
          }
 
          return item;
+      }
+      private void SweepGridFrustum(Action<ivec3, Box3f> func, Frustum pf, float fMaxDist)
+      {
+         vec3 cp = pf.NearCenter;
+         int iDebugSweepCount = 0;
+         List<ivec3> toCheck = new List<ivec3>();
+         HashSet<ivec3> dchecked = new HashSet<ivec3>();
+
+         int nPotentialGlobs = (int)((fMaxDist / GlobWidthX) * (fMaxDist / GlobWidthY) * (fMaxDist / GlobWidthZ));
+         int nMaxPotentialGlobs = 5000;
+         if (nPotentialGlobs > nMaxPotentialGlobs)
+         {
+            //This is technically an error, but we may also just hard limit the sweep routine if we weant.
+            Gu.Log.WarnCycle("Warning: potential number of globs " + nPotentialGlobs + " exceeds " + nMaxPotentialGlobs);
+            Gu.DebugBreak();
+         }
+
+         float fMaxDist2 = fMaxDist * fMaxDist;
+
+         //Seed
+         toCheck.Add(R3toI3Glob(cp));
+
+         while (toCheck.Count > 0)
+         {
+            ivec3 vi = toCheck[0];
+            toCheck.RemoveAt(0);// erase(toCheck.begin() + 0);
+            iDebugSweepCount++;
+
+            if (!dchecked.Contains(vi))
+            {
+               //TODO: fix this because we're getting stack overflows
+               dchecked.Add(new ivec3(vi.x, vi.y, vi.z));
+
+               // if the grid right here intersects the frustum
+               Box3f box = GetNodeBoxForGridPos(vi);
+
+               vec3 node_center = box.center();
+
+               float fDist2 = (pf.NearCenter - node_center).length2();
+
+               if (fDist2 < fMaxDist2)
+               {
+                  if (pf.HasBox(box))
+                  {
+                     func(vi, box);
+
+                     //Sweep Neighbors
+                     vec3[] n = new vec3[6];
+                     n[0] = node_center + new vec3(-World.GlobWidthX, 0, 0);
+                     n[1] = node_center + new vec3(World.GlobWidthX, 0, 0);
+                     n[2] = node_center + new vec3(0, -World.GlobWidthY, 0);
+                     n[3] = node_center + new vec3(0, World.GlobWidthY, 0);
+                     n[4] = node_center + new vec3(0, 0, -World.GlobWidthZ);
+                     n[5] = node_center + new vec3(0, 0, World.GlobWidthZ);
+                     toCheck.Add(R3toI3Glob(n[0]));
+                     toCheck.Add(R3toI3Glob(n[1]));
+                     toCheck.Add(R3toI3Glob(n[2]));
+                     toCheck.Add(R3toI3Glob(n[3]));
+                     toCheck.Add(R3toI3Glob(n[4]));
+                     toCheck.Add(R3toI3Glob(n[5]));
+                  }
+                  else
+                  {
+                     int nnn = 0;
+                     nnn++;
+                  }
+               }
+               else
+               {
+                  int nnn = 0;
+                  nnn++;
+               }
+            }
+         }
+
+         dchecked.Clear();
+
+      }
+      private Box3f GetNodeBoxForGridPos(ivec3 pt)
+      {
+         Box3f box = new Box3f();
+         box._min.x = (float)(pt.x + 0) * GlobWidthX;
+         box._min.y = (float)(pt.y + 0) * GlobWidthY;
+         box._min.z = (float)(pt.z + 0) * GlobWidthZ;
+         box._max.x = (float)(pt.x + 1) * GlobWidthX;
+         box._max.y = (float)(pt.y + 1) * GlobWidthY;
+         box._max.z = (float)(pt.z + 1) * GlobWidthZ;
+         return box;
       }
 
       #endregion

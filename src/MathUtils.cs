@@ -4,14 +4,11 @@ using System.Drawing;
 using System.Runtime.InteropServices;
 //using Microsoft.xna.Framework;
 
-//Copied this stuff from legend of \kevin
-
+//This is a very simple and useful math class in just one file
+//Copied this stuff from legend of kevin
+//Copied from VulkanGame
 namespace PirateCraft
 {
-
-
-   #region MathUtils
-
    public class MathUtils
    {
       public const float M_PI = (float)(Math.PI);
@@ -173,49 +170,183 @@ namespace PirateCraft
          return new float?(num);
       }
    }
+   public struct RaycastHit
+   {
+      public bool _bHit;    // Whether the ray intersected the box.
+      public bool _p1Contained;
+      public bool _p2Contained;
+      public float _t; // - Time to hit [0,1]
+                       //  public void* _pPickData; // picked object (BvhObject3*)
+      public vec2 _vNormal; //The normal of the plane the raycast hit.
+                            //Do not include ray data for optimization.
 
-   #endregion
-   //public class Plane2f
-   //{
-   //    public Plane2f() { }
-   //    public float D;
-   //    public Vec2f N;
-   //    public Plane2f(Vec2f n, Vec2f pt)
-   //    {
-   //        D = -n.Dot(pt);
-   //        N = n;
-   //    }
-   //    public float IntersectLine(Vec2f p1, Vec2f p2)
-   //    {
-   //        float t = -(N.Dot(p1) + D) / ((p2 - p1).Dot(N));
-   //        return t;
-   //    }
-   //}
-   //public class Vec2fEqualityComparer : IEqualityComparer<Vec2f>
-   //{
-   //    public bool Equals(Vec2f x, Vec2f y)
-   //    {
-   //        return x.x == y.x && x.y == y.y;
-   //    }
+      //public RaycastHit()
+      //{
+      //    reset();
+      //}
+      public bool trySetClosestHit(ref float closest_t)
+      {
+         //Easy way of iterating a closest hit.
+         if (_bHit && (_t < closest_t))
+         {
+            closest_t = _t;
+            return true;
+         }
+         return false;
+      }
+      public void reset()
+      {
+         _bHit = false;
+         _p1Contained = false;
+         _p2Contained = false;
+         _t = float.MaxValue;
+         //  _pPickData = NULL;
+      }
+      public void copyFrom(RaycastHit bh)
+      {
+         _bHit = bh._bHit;
+         _p1Contained = bh._p1Contained;
+         _p2Contained = bh._p2Contained;
+         _t = bh._t;
+      }
+   }
+   public struct ProjectedRay
+   {
+      public vec2 Origin;
+      public vec2 Dir;
+      public float _t;
+      public vec2 _vNormal;
 
-   //    public int GetHashCode(Vec2f x)
-   //    {
-   //        return x.x.GetHashCode() + x.y.GetHashCode();
-   //    }
-   //}
+      // Found the following two cool optimizations on WIlliams et. al (U. Utah)
+      public vec2 InvDir;
+      public int[] Sign;
 
-   //public class iVec2fEqualityComparer : IEqualityComparer<iVec2f>
-   //{
-   //    public bool Equals(iVec2f x, iVec2f y)
-   //    {
-   //        return x.x == y.x && x.y == y.y;
-   //    }
+      public bool IsOpt { get; private set; }    // - return true if  we optimized this
 
-   //    public int GetHashCode(iVec2f x)
-   //    {
-   //        return x.x.GetHashCode() + x.y.GetHashCode();
-   //    }
-   //}
+      public float Length;// Max length
+
+      public vec2 Begin() { return Origin; }
+      public vec2 End() { return Origin + Dir; }
+
+      public ProjectedRay(vec2 origin, vec2 dir)
+      {
+         Sign = new int[2];
+         Origin = origin;
+         Dir = dir;
+
+         IsOpt = false;
+         Length = float.MaxValue;//Must be maxvalue
+         _t = float.MaxValue;
+         _vNormal = new vec2(0, 0);
+
+         //opt()
+         //            //**New - optimization
+         //http://people.csail.mit.edu/amy/papers/box-jgt.pdf
+         //Don't set to zero. We need infinity (or large value) here.
+         InvDir.x = 1.0f / Dir.x;
+         InvDir.y = 1.0f / Dir.y;
+
+         Sign[0] = (InvDir.x < 0) ? 1 : 0;
+         Sign[1] = (InvDir.y < 0) ? 1 : 0;
+
+         IsOpt = true;
+      }
+      //public void opt()
+      //{
+
+
+
+      //}
+      public bool isHit()
+      {
+         return _t >= 0.0f && _t <= 1.0f;
+      }
+      public vec2 HitPoint()
+      {
+         vec2 ret = Begin() + (End() - Begin()) * _t;
+         return ret;
+      }
+   }
+   public class BoxAAHit
+   {
+      public bool _bHit;  // Whether the ray intersected the box.
+      public bool _p1Contained;
+      public bool _p2Contained;
+      public float _t; // - Time to hit [0,1]
+   };
+   public class PickRay
+   {
+      public vec3 Origin;
+      public vec3 Dir;
+      public float _length;
+      public bool _isOpt;
+      public vec3 InvDir;
+      public int[] Sign = new int[3];
+
+      public void Opt()
+      {
+         //**New - optimization
+         //http://people.csail.mit.edu/amy/papers/box-jgt.pdf
+         // if (Dir.x != 0.0f)
+         InvDir.x = 1.0f / Dir.x;
+         //   else
+         //       InvDir.x = 0.0f;
+         //   if (Dir.y != 0.0f)
+         InvDir.y = 1.0f / Dir.y;
+         //      else
+         //         InvDir.y = 0.0f;
+         //     if (Dir.z != 0.0f)
+         InvDir.z = 1.0f / Dir.z;
+         //     else
+         //         InvDir.z = 0.0f;
+
+         Sign[0] = Convert.ToInt32(InvDir.x < 0);
+         Sign[1] = Convert.ToInt32(InvDir.y < 0);
+         Sign[2] = Convert.ToInt32(InvDir.z < 0);
+
+         _isOpt = true;
+      }
+   }
+   [StructLayout(LayoutKind.Sequential)]
+   public class Plane3f
+   {
+      public Plane3f() { }
+      public float d;
+      public vec3 n;
+      public Plane3f(vec3 dn, vec3 dpt)
+      {
+         d = -n.dot(dpt);
+         n = dn;
+      }
+      public Plane3f(vec3 tri_p1, vec3 tri_p2, vec3 tri_p3, vec3 tri_p4)
+      {
+         //The TBN is not needed for this - copied from VulkanGame::PlaneEx3
+         float u = 1.0f;
+         vec3 origin = tri_p1;
+
+         vec3 t = (tri_p2 - tri_p1);
+         vec3 b = (tri_p3 - tri_p1);
+
+         t /= u;
+         t.normalize();
+         n = b.cross(t);  //20161129 - NOTE: CHANGED THIS FOR THE RHS COORDINATES
+
+         n.normalize();
+         b = n.cross(t);
+
+         d = -n.dot(origin);
+      }
+      public float IntersectLine(vec3 p1, vec3 p2)
+      {
+         float t = -(n.dot(p1) + d) / ((p2 - p1).dot(n));
+         return t;
+      }
+      public float dist(vec3 p)
+      {
+         return (float)(n.dot(p) + d);
+      }
+
+   }
    [StructLayout(LayoutKind.Sequential)]
    public struct Line2f
    {
@@ -335,702 +466,6 @@ namespace PirateCraft
          return ret;
       }
 
-   }
-   [StructLayout(LayoutKind.Sequential)]
-   public struct ivec2
-   {
-      public ivec2(int dx, int dy) { x = dx; y = dy; }
-      public Int32 x { get; set; }
-      public Int32 y { get; set; }
-      static public implicit operator ivec2(int f)
-      {
-         return new ivec2(f, f);
-      }
-      public static ivec2 operator -(ivec2 d)
-      {
-         return new ivec2(-d.x, -d.y);
-      }
-      public static ivec2 operator +(ivec2 a, ivec2 b)
-      {
-         return new ivec2(a.x + b.x, a.y + b.y);
-      }
-      public static ivec2 operator -(ivec2 a, ivec2 b)
-      {
-         return new ivec2(a.x - b.x, a.y - b.y);
-      }
-      public static ivec2 operator *(ivec2 a, int b)
-      {
-         return new ivec2(a.x * b, a.y * b);
-      }
-      public static ivec2 operator *(ivec2 a, ivec2 b)
-      {
-         return new ivec2(a.x * b.x, a.y * b.y);
-      }
-      public static ivec2 operator /(ivec2 a, int b)
-      {
-         return new ivec2(a.x / b, a.y / b);
-      }
-      public static ivec2 operator -(ivec2 a, int f)
-      {
-         return new ivec2(a.x - f, a.y - f);
-      }
-   }
-   [StructLayout(LayoutKind.Sequential)]
-   public struct uVec2f
-   {
-      public uVec2f(int dx, int dy) { x = dx; y = dy; }
-      public Int32 x { get; set; }
-      public Int32 y { get; set; }
-      static public implicit operator uVec2f(int f)
-      {
-         return new uVec2f(f, f);
-      }
-      public static uVec2f operator -(uVec2f d)
-      {
-         return new uVec2f(-d.x, -d.y);
-      }
-      public static uVec2f operator +(uVec2f a, uVec2f b)
-      {
-         return new uVec2f(a.x + b.x, a.y + b.y);
-      }
-      public static uVec2f operator -(uVec2f a, uVec2f b)
-      {
-         return new uVec2f(a.x - b.x, a.y - b.y);
-      }
-      public static uVec2f operator *(uVec2f a, int b)
-      {
-         return new uVec2f(a.x * b, a.y * b);
-      }
-      public static uVec2f operator *(uVec2f a, uVec2f b)
-      {
-         return new uVec2f(a.x * b.x, a.y * b.y);
-      }
-      public static uVec2f operator /(uVec2f a, int b)
-      {
-         return new uVec2f(a.x / b, a.y / b);
-      }
-      public static uVec2f operator -(uVec2f a, int f)
-      {
-         return new uVec2f(a.x - f, a.y - f);
-      }
-   }
-   public struct RaycastHit
-   {
-      public bool _bHit;    // Whether the ray intersected the box.
-      public bool _p1Contained;
-      public bool _p2Contained;
-      public float _t; // - Time to hit [0,1]
-                       //  public void* _pPickData; // picked object (BvhObject3*)
-      public vec2 _vNormal; //The normal of the plane the raycast hit.
-                            //Do not include ray data for optimization.
-
-      //public RaycastHit()
-      //{
-      //    reset();
-      //}
-      public bool trySetClosestHit(ref float closest_t)
-      {
-         //Easy way of iterating a closest hit.
-         if (_bHit && (_t < closest_t))
-         {
-            closest_t = _t;
-            return true;
-         }
-         return false;
-      }
-      public void reset()
-      {
-         _bHit = false;
-         _p1Contained = false;
-         _p2Contained = false;
-         _t = float.MaxValue;
-         //  _pPickData = NULL;
-      }
-      public void copyFrom(RaycastHit bh)
-      {
-         _bHit = bh._bHit;
-         _p1Contained = bh._p1Contained;
-         _p2Contained = bh._p2Contained;
-         _t = bh._t;
-      }
-   }
-   public struct ProjectedRay
-   {
-      public vec2 Origin;
-      public vec2 Dir;
-      public float _t;
-      public vec2 _vNormal;
-
-      // Found the following two cool optimizations on WIlliams et. al (U. Utah)
-      public vec2 InvDir;
-      public int[] Sign;
-
-      public bool IsOpt { get; private set; }    // - return true if  we optimized this
-
-      public float Length;// Max length
-
-      public vec2 Begin() { return Origin; }
-      public vec2 End() { return Origin + Dir; }
-
-      public ProjectedRay(vec2 origin, vec2 dir)
-      {
-         Sign = new int[2];
-         Origin = origin;
-         Dir = dir;
-
-         IsOpt = false;
-         Length = float.MaxValue;//Must be maxvalue
-         _t = float.MaxValue;
-         _vNormal = new vec2(0, 0);
-
-         //opt()
-         //            //**New - optimization
-         //http://people.csail.mit.edu/amy/papers/box-jgt.pdf
-         //Don't set to zero. We need infinity (or large value) here.
-         InvDir.x = 1.0f / Dir.x;
-         InvDir.y = 1.0f / Dir.y;
-
-         Sign[0] = (InvDir.x < 0) ? 1 : 0;
-         Sign[1] = (InvDir.y < 0) ? 1 : 0;
-
-         IsOpt = true;
-      }
-      //public void opt()
-      //{
-
-
-
-      //}
-      public bool isHit()
-      {
-         return _t >= 0.0f && _t <= 1.0f;
-      }
-      public vec2 HitPoint()
-      {
-         vec2 ret = Begin() + (End() - Begin()) * _t;
-         return ret;
-      }
-   }
-   [StructLayout(LayoutKind.Sequential)]
-   public struct Box2f
-   {
-      public vec2 Min;
-      public vec2 Max;
-
-      public float Width() { return Max.x - Min.x; }
-      public float Height() { return Max.y - Min.y; }
-
-      public vec2 TopRight() { return new vec2(Max.x, Min.y); }
-      public vec2 BotRight() { return new vec2(Max.x, Max.y); }
-      public vec2 BotLeft() { return new vec2(Min.x, Max.y); }
-      public vec2 TopLeft() { return new vec2(Min.x, Min.y); }
-
-      public void Construct(vec2 min, vec2 max)
-      {
-         Min = min; Max = max;
-      }
-      public Box2f(float x, float y, float w, float h)
-      {
-         Min = new vec2(x, y);
-         Max = new vec2(w, h) + Min;
-      }
-      public Box2f(vec2 min, vec2 max)
-      {
-         Min = min;
-         Max = max;
-      }
-      public vec2 Center()
-      {
-         return Min + (Max - Min) * 0.5f;
-      }
-      public static Box2f FlipBoxH(Box2f b, float w)
-      {
-         //Flip the box inside of a larger box (w)
-         Box2f ret = new Box2f();
-         ret.Min.x = w - b.Max.x;
-         ret.Max.x = w - b.Min.x;
-
-         ret.Min.y = b.Min.y;
-         ret.Max.y = b.Max.y;
-         return ret;
-      }
-      public static Box2f FlipBoxV(Box2f b, float h)
-      {
-         //Flip the box inside of a larger box (h)
-         Box2f ret = new Box2f();
-         ret.Min.y = h - b.Max.y;
-         ret.Max.y = h - b.Min.y;
-
-         ret.Min.x = b.Min.x;
-         ret.Max.x = b.Max.x;
-         return ret;
-      }
-      public Rectangle ToXNARect()
-      {
-         Rectangle r = new Rectangle();
-
-         r.X = (int)(Min.x);
-         r.Y = (int)(Min.y);
-         r.Width = (int)(Max.x - Min.x);
-         r.Height = (int)(Max.y - Min.y);
-
-         return r;
-      }
-
-      public static Box2f GetIntersectionBox_Inclusive(Box2f a, Box2f b)
-      {
-         Box2f ret = new Box2f();
-
-         ret.Min.x = Single.MaxValue;
-         ret.Min.y = Single.MaxValue;
-         ret.Max.x = -Single.MaxValue;
-         ret.Max.y = -Single.MaxValue;
-
-
-         if (a.Min.x >= b.Min.x && a.Min.x <= b.Max.x)
-         {
-            ret.Min.x = Math.Min(ret.Min.x, a.Min.x);
-         }
-         if (a.Max.x <= b.Max.x && a.Max.x >= b.Min.x)
-         {
-            ret.Max.x = Math.Max(ret.Max.x, a.Max.x);
-         }
-         if (a.Min.y >= b.Min.y && a.Min.y <= b.Max.y)
-         {
-            ret.Min.y = Math.Min(ret.Min.y, a.Min.y);
-         }
-         if (a.Max.y <= b.Max.y && a.Max.y >= b.Min.y)
-         {
-            ret.Max.y = Math.Max(ret.Max.y, a.Max.y);
-         }
-
-         if (b.Min.x >= a.Min.x && b.Min.x <= a.Max.x)
-         {
-            ret.Min.x = Math.Min(ret.Min.x, b.Min.x);
-         }
-         if (b.Max.x <= a.Max.x && b.Max.x >= a.Min.x)
-         {
-            ret.Max.x = Math.Max(ret.Max.x, b.Max.x);
-         }
-         if (b.Min.y >= a.Min.y && b.Min.y <= a.Max.y)
-         {
-            ret.Min.y = Math.Min(ret.Min.y, b.Min.y);
-         }
-         if (b.Max.y <= a.Max.y && b.Max.y >= a.Min.y)
-         {
-            ret.Max.y = Math.Max(ret.Max.y, b.Max.y);
-         }
-         return ret;
-      }
-
-      public void GenResetExtents()
-      {
-         Min = new vec2(Single.MaxValue, Single.MaxValue);
-         Max = new vec2(-Single.MaxValue, -Single.MaxValue);
-      }
-      public void ExpandByPoint(vec2 v)
-      {
-         Min = vec2.Minv(Min, v);// Vec2f.ComponentMin(Min, v);// Vec2f.Minv(Min, v);
-         Max = vec2.Maxv(Max, v); //Vec2f.ComponentMax(Max, v);// Vec2f.Maxv(Max, v);
-      }
-      public bool BoxIntersect_EasyOut_Inclusive(Box2f cc)
-      {
-         return cc.Min.x <= Max.x && cc.Min.y <= Max.y && Min.x <= cc.Max.x && Min.y <= cc.Max.y;
-      }
-      public bool ContainsPointInclusive(vec2 point)
-      {
-         if (point.x < Min.x)
-         {
-            return false;
-         }
-         if (point.y < Min.y)
-         {
-            return false;
-         }
-         if (point.x > Max.x)
-         {
-            return false;
-         }
-         if (point.y > Max.y)
-         {
-            return false;
-         }
-         return true;
-      }
-      private vec2 bounds(int x)
-      {
-         if (x == 0)
-         {
-            return Min;
-         }
-         return Max;
-      }
-      public bool RayIntersect(ProjectedRay ray, ref RaycastHit bh)
-      {
-         if (ray.IsOpt == false)
-         {
-            //Error.
-            System.Diagnostics.Debugger.Break();
-         }
-
-         float txmin, txmax, tymin, tymax;
-         bool bHit;
-
-         txmin = (bounds(ray.Sign[0]).x - ray.Origin.x) * ray.InvDir.x;
-         txmax = (bounds(1 - ray.Sign[0]).x - ray.Origin.x) * ray.InvDir.x;
-
-         tymin = (bounds(ray.Sign[1]).y - ray.Origin.y) * ray.InvDir.y;
-         tymax = (bounds(1 - ray.Sign[1]).y - ray.Origin.y) * ray.InvDir.y;
-
-         if ((txmin > tymax) || (tymin > txmax))
-         {
-            // if (bh != null)
-            // {
-            bh._bHit = false;
-            // }
-            return false;
-         }
-         if (tymin > txmin)
-         {
-            txmin = tymin;
-         }
-         if (tymax < txmax)
-         {
-            txmax = tymax;
-         }
-
-         bHit = ((txmin >= 0.0f) && (txmax <= ray.Length));
-
-         //**Note changed 20151105 - this is not [0,1] this is the lenth along the line in which 
-         // the ray enters and exits the cube, so any value less than the maximum is valid
-
-         // if (bh != null)
-         // {
-         bh._bHit = bHit;
-         bh._t = txmin;
-         // }
-
-         return bHit;
-      }
-   }
-   public class BoxAAHit
-   {
-      public bool _bHit;  // Whether the ray intersected the box.
-      public bool _p1Contained;
-      public bool _p2Contained;
-      public float _t; // - Time to hit [0,1]
-   };
-   public class PickRay
-   {
-      public vec3 Origin;
-      public vec3 Dir;
-      public float _length;
-      public bool _isOpt;
-      public vec3 InvDir;
-      public int[] Sign = new int[3];
-
-      public void Opt()
-      {
-         //**New - optimization
-         //http://people.csail.mit.edu/amy/papers/box-jgt.pdf
-         // if (Dir.x != 0.0f)
-         InvDir.x = 1.0f / Dir.x;
-         //   else
-         //       InvDir.x = 0.0f;
-         //   if (Dir.y != 0.0f)
-         InvDir.y = 1.0f / Dir.y;
-         //      else
-         //         InvDir.y = 0.0f;
-         //     if (Dir.z != 0.0f)
-         InvDir.z = 1.0f / Dir.z;
-         //     else
-         //         InvDir.z = 0.0f;
-
-         Sign[0] = Convert.ToInt32(InvDir.x < 0);
-         Sign[1] = Convert.ToInt32(InvDir.y < 0);
-         Sign[2] = Convert.ToInt32(InvDir.z < 0);
-
-         _isOpt = true;
-      }
-   }
-   [StructLayout(LayoutKind.Sequential)]
-   public struct Box2i
-   {
-      public ivec2 _min;
-      public ivec2 _max;
-      public Box2i(in ivec2 min, in ivec2 max)
-      {
-         _min = min;
-         _max = max;
-      }
-      public int left() { return _min.x; }
-      public int top() { return _min.y; }
-      public int right() { return _max.x; }
-      public int bottom() { return _max.y; }
-
-      public int Width()
-      {
-         return _max.x - _min.x;
-      }
-      public int Height()
-      {
-         return _max.y - _min.y;
-      }
-      public void Construct(int minx, int miny, int maxx, int maxy)
-      {
-         _min.x = minx;
-         _min.y = miny;
-         _max.x = maxx;
-         _max.y = maxy;
-      }
-   }
-   [StructLayout(LayoutKind.Sequential)]
-   public struct Box3i
-   {
-      public ivec3 _min;
-      public ivec3 _max;
-      public Box3i(in ivec3 min, in ivec3 max)
-      {
-         _min = min;
-         _max = max;
-      }
-   }
-
-   [StructLayout(LayoutKind.Sequential)]
-   public struct Box3f
-   {
-      public vec3 _min;
-      public vec3 _max;
-      public Box3f(in vec3 min, in vec3 max)
-      {
-         _min = min;
-         _max = max;
-      }
-      public float Height()
-      {
-         return _max.y - _min.y;
-      }
-      public float Width()
-      {
-         return _max.x - _min.x;
-      }
-      public float Depth()
-      {
-         return _max.z - _min.z;
-      }
-      public void Validate()
-      {
-         if (_max.x < _min.x)
-         {
-            throw new Exception("Bound box X was invalid.");
-         }
-         if (_max.y < _min.y)
-         {
-            throw new Exception("Bound box Y was invalid.");
-         }
-         if (_max.z < _min.z)
-         {
-            throw new Exception("Bound box Z was invalid.");
-         }
-      }
-      /**
-      *   @fn RayIntersect
-      *   @brief Returns true if the given ray intersects this Axis aligned
-      *   cube volume.
-      *   @param bh - Reference to a BoxHit structure.
-      *   @prarm ray - The ray to test against the box.
-      *   @return true if ray intersects, false otherwise.
-      */
-      public bool LineOrRayIntersectInclusive_EasyOut(PickRay ray, ref BoxAAHit bh)
-      {
-         if (RayIntersect(ray, ref bh))
-            return true;
-         // - otherwise check for points contained.
-         if (containsInclusive(ray.Origin))
-         {
-            bh._p1Contained = true;
-            bh._bHit = true;
-            return true;
-         }
-
-         if (containsInclusive(ray.Origin + ray.Dir))
-         {
-            bh._p2Contained = true;
-            bh._bHit = true;
-            return true;
-         }
-
-         return false;
-      }
-      private vec3 bounds(int in__)
-      {
-         if (in__ == 0)
-         {
-            return _min;
-         }
-         else
-         {
-            return _max;
-         }
-      }
-      private bool RayIntersect(PickRay ray, ref BoxAAHit bh)
-      {
-         if (!ray._isOpt)
-            throw new Exception("Projected ray was not optimized");
-
-         float txmin, txmax, tymin, tymax, tzmin, tzmax;
-
-         txmin = (bounds(ray.Sign[0]).x - ray.Origin.x) * ray.InvDir.x;
-         txmax = (bounds(1 - ray.Sign[0]).x - ray.Origin.x) * ray.InvDir.x;
-
-         tymin = (bounds(ray.Sign[1]).y - ray.Origin.y) * ray.InvDir.y;
-         tymax = (bounds(1 - ray.Sign[1]).y - ray.Origin.y) * ray.InvDir.y;
-
-         if ((txmin > tymax) || (tymin > txmax))
-         {
-            bh._bHit = false;
-            return false;
-         }
-         if (tymin > txmin)
-            txmin = tymin;
-         if (tymax < txmax)
-            txmax = tymax;
-
-         tzmin = (bounds(ray.Sign[2]).z - ray.Origin.z) * ray.InvDir.z;
-         tzmax = (bounds(1 - ray.Sign[2]).z - ray.Origin.z) * ray.InvDir.z;
-
-         if ((txmin > tzmax) || (tzmin > txmax))
-         {
-            bh._bHit = false;
-            return false;
-         }
-         if (tzmin > txmin)
-            txmin = tzmin;
-         if (tzmax < txmax)
-            txmax = tzmax;
-
-         bh._bHit = ((txmin > 0.0f) && (txmax <= ray._length));
-         bh._t = txmin;
-
-         return bh._bHit;
-      }
-
-      private bool containsInclusive(vec3 v)
-      {
-         return (
-             (v.x >= _min.x) && (v.x <= _max.x) &&
-             (v.y >= _min.y) && (v.y <= _max.y) &&
-             (v.z >= _min.z) && (v.z <= _max.z)
-             );
-      }
-      public void genResetLimits()
-      {
-         _min = new vec3(float.MaxValue, float.MaxValue, float.MaxValue);
-         _max = new vec3(float.MinValue, float.MinValue, float.MinValue);
-      }
-      public void genExpandByPoint(in vec3 pt)
-      {
-         _min = vec3.minv(_min, pt);// Vec3f.ComponentMin(_min, pt);
-         _max = vec3.maxv(_max, pt);// Vec3f.ComponentMax(_max, pt);
-      }
-      public void genExpandByBox(in Box3f pc)
-      {
-         genExpandByPoint(pc._min);
-         genExpandByPoint(pc._max);
-      }
-      public bool getHasVolume(float epsilon)
-      {
-         if (getVolumePositiveOnly() == 0.0)
-         {
-            return false;
-         }
-         return true;
-      }
-      private float getVolumePositiveOnly()
-      {
-         float ax = (_max.x - _min.x);
-         float ay = (_max.y - _min.y);
-         float az = (_max.z - _min.z);
-         if (ax < 0.0f) ax = 0.0f;
-         if (ay < 0.0f) ay = 0.0f;
-         if (az < 0.0f) az = 0.0f;
-         return ax * ay * az;
-      }
-      private float getVolumeArbitrary()
-      {
-         return (_max.x - _min.x) * (_max.y - _min.y) * (_max.z - _min.z);
-      }
-   }
-   [StructLayout(LayoutKind.Sequential)]
-   public struct ivec3
-   {
-      public Int32 x;
-      public Int32 y;
-      public Int32 z;
-      public ivec3(Int32 dx, Int32 dy, Int32 dz)
-      {
-         x = dx; y = dy; z = dz;
-      }
-      public static ivec3 operator -(in ivec3 d)
-      {
-         return new ivec3(-d.x, -d.y, -d.z);
-      }
-      public static ivec3 operator +(in ivec3 a, in ivec3 b)
-      {
-         return new ivec3(a.x + b.x, a.y + b.y, a.z + b.z);
-      }
-      public static ivec3 operator -(in ivec3 a, in ivec3 b)
-      {
-         return new ivec3(a.x - b.x, a.y - b.y, a.z - b.z);
-      }
-      public static ivec3 operator *(in ivec3 a, in ivec3 b)
-      {
-         return new ivec3(a.x * b.x, a.y * b.y, a.z * b.z);
-      }
-      public static ivec3 operator /(in ivec3 a, in ivec3 b)
-      {
-         return new ivec3(a.x / b.x, a.y / b.y, a.z / b.z);
-      }
-      public static bool operator ==(in ivec3 a, in ivec3 b)
-      {
-         return (a.x == b.x) && (a.y == b.y) && (a.z == b.z);
-      }
-      public static bool operator !=(in ivec3 a, in ivec3 b)
-      {
-         return (a.x != b.x) || (a.y != b.y) || (a.z != b.z);
-      }
-      public override int GetHashCode()
-      {
-         return base.GetHashCode();
-      }
-      public override bool Equals(object obj)
-      {
-         return base.Equals(obj);
-      }
-      public class ivec3EqualityComparer : IEqualityComparer<ivec3>
-      {
-         public bool Equals(ivec3 a, ivec3 b)
-         {
-            return a.x == b.x && a.y == b.y && a.z == b.z;
-         }
-
-         public int GetHashCode(ivec3 a)
-         {
-            return a.GetHashCode();//.x.GetHashCode() + a.y.GetHashCode() + a.z.GetHashCode();
-         }
-      }
-   }
-   [StructLayout(LayoutKind.Sequential)]
-   public struct ivec4
-   {
-      public Int32 x;
-      public Int32 y;
-      public Int32 z;
-      public Int32 w;
-      public ivec4(Int32 dx, Int32 dy, Int32 dz, Int32 dw)
-      {
-         x = dx; y = dy; z = dz; w = dw;
-      }
    }
    [StructLayout(LayoutKind.Sequential)]
    public struct vec3
@@ -1690,7 +1125,156 @@ namespace PirateCraft
       {
          return new vec3(x, y, z);
       }
-   }//vec4
+   }
+   [StructLayout(LayoutKind.Sequential)]
+   public struct ivec2
+   {
+      public ivec2(int dx, int dy) { x = dx; y = dy; }
+      public Int32 x { get; set; }
+      public Int32 y { get; set; }
+      static public implicit operator ivec2(int f)
+      {
+         return new ivec2(f, f);
+      }
+      public static ivec2 operator -(ivec2 d)
+      {
+         return new ivec2(-d.x, -d.y);
+      }
+      public static ivec2 operator +(ivec2 a, ivec2 b)
+      {
+         return new ivec2(a.x + b.x, a.y + b.y);
+      }
+      public static ivec2 operator -(ivec2 a, ivec2 b)
+      {
+         return new ivec2(a.x - b.x, a.y - b.y);
+      }
+      public static ivec2 operator *(ivec2 a, int b)
+      {
+         return new ivec2(a.x * b, a.y * b);
+      }
+      public static ivec2 operator *(ivec2 a, ivec2 b)
+      {
+         return new ivec2(a.x * b.x, a.y * b.y);
+      }
+      public static ivec2 operator /(ivec2 a, int b)
+      {
+         return new ivec2(a.x / b, a.y / b);
+      }
+      public static ivec2 operator -(ivec2 a, int f)
+      {
+         return new ivec2(a.x - f, a.y - f);
+      }
+   }
+   [StructLayout(LayoutKind.Sequential)]
+   public struct uvec2
+   {
+      public uvec2(int dx, int dy) { x = dx; y = dy; }
+      public Int32 x { get; set; }
+      public Int32 y { get; set; }
+      static public implicit operator uvec2(int f)
+      {
+         return new uvec2(f, f);
+      }
+      public static uvec2 operator -(uvec2 d)
+      {
+         return new uvec2(-d.x, -d.y);
+      }
+      public static uvec2 operator +(uvec2 a, uvec2 b)
+      {
+         return new uvec2(a.x + b.x, a.y + b.y);
+      }
+      public static uvec2 operator -(uvec2 a, uvec2 b)
+      {
+         return new uvec2(a.x - b.x, a.y - b.y);
+      }
+      public static uvec2 operator *(uvec2 a, int b)
+      {
+         return new uvec2(a.x * b, a.y * b);
+      }
+      public static uvec2 operator *(uvec2 a, uvec2 b)
+      {
+         return new uvec2(a.x * b.x, a.y * b.y);
+      }
+      public static uvec2 operator /(uvec2 a, int b)
+      {
+         return new uvec2(a.x / b, a.y / b);
+      }
+      public static uvec2 operator -(uvec2 a, int f)
+      {
+         return new uvec2(a.x - f, a.y - f);
+      }
+   }
+   [StructLayout(LayoutKind.Sequential)]
+   public struct ivec3
+   {
+      public Int32 x;
+      public Int32 y;
+      public Int32 z;
+      public ivec3(Int32 dx, Int32 dy, Int32 dz)
+      {
+         x = dx; y = dy; z = dz;
+      }
+      public static ivec3 operator -(in ivec3 d)
+      {
+         return new ivec3(-d.x, -d.y, -d.z);
+      }
+      public static ivec3 operator +(in ivec3 a, in ivec3 b)
+      {
+         return new ivec3(a.x + b.x, a.y + b.y, a.z + b.z);
+      }
+      public static ivec3 operator -(in ivec3 a, in ivec3 b)
+      {
+         return new ivec3(a.x - b.x, a.y - b.y, a.z - b.z);
+      }
+      public static ivec3 operator *(in ivec3 a, in ivec3 b)
+      {
+         return new ivec3(a.x * b.x, a.y * b.y, a.z * b.z);
+      }
+      public static ivec3 operator /(in ivec3 a, in ivec3 b)
+      {
+         return new ivec3(a.x / b.x, a.y / b.y, a.z / b.z);
+      }
+      public static bool operator ==(in ivec3 a, in ivec3 b)
+      {
+         return (a.x == b.x) && (a.y == b.y) && (a.z == b.z);
+      }
+      public static bool operator !=(in ivec3 a, in ivec3 b)
+      {
+         return (a.x != b.x) || (a.y != b.y) || (a.z != b.z);
+      }
+      public override int GetHashCode()
+      {
+         return base.GetHashCode();
+      }
+      public override bool Equals(object obj)
+      {
+         return base.Equals(obj);
+      }
+      public class ivec3EqualityComparer : IEqualityComparer<ivec3>
+      {
+         public bool Equals(ivec3 a, ivec3 b)
+         {
+            return a.x == b.x && a.y == b.y && a.z == b.z;
+         }
+
+         public int GetHashCode(ivec3 a)
+         {
+            return a.GetHashCode();//.x.GetHashCode() + a.y.GetHashCode() + a.z.GetHashCode();
+         }
+      }
+   }
+   [StructLayout(LayoutKind.Sequential)]
+   public struct ivec4
+   {
+      public Int32 x;
+      public Int32 y;
+      public Int32 z;
+      public Int32 w;
+      public ivec4(Int32 dx, Int32 dy, Int32 dz, Int32 dw)
+      {
+         x = dx; y = dy; z = dz; w = dw;
+      }
+   }
    [StructLayout(LayoutKind.Sequential)]
    public struct mat2
    {
@@ -2041,7 +1625,7 @@ namespace PirateCraft
          return q;
       }
 
-   }//mat3
+   }
    [StructLayout(LayoutKind.Sequential)]
    public struct mat4
    {
@@ -2807,8 +2391,7 @@ namespace PirateCraft
       // }
 
 
-   }//mat4
-
+   }
    [StructLayout(LayoutKind.Sequential)]
    public struct quat
    {
@@ -3017,7 +2600,419 @@ namespace PirateCraft
       {
          return new quat(0, 0, 0, 1);
       }
-   }//Quaternion
+   }
+   [StructLayout(LayoutKind.Sequential)]
+   public struct Box2f
+   {
+      public vec2 Min;
+      public vec2 Max;
+
+      public float Width() { return Max.x - Min.x; }
+      public float Height() { return Max.y - Min.y; }
+
+      public vec2 TopRight() { return new vec2(Max.x, Min.y); }
+      public vec2 BotRight() { return new vec2(Max.x, Max.y); }
+      public vec2 BotLeft() { return new vec2(Min.x, Max.y); }
+      public vec2 TopLeft() { return new vec2(Min.x, Min.y); }
+
+      public void Construct(vec2 min, vec2 max)
+      {
+         Min = min; Max = max;
+      }
+      public Box2f(float x, float y, float w, float h)
+      {
+         Min = new vec2(x, y);
+         Max = new vec2(w, h) + Min;
+      }
+      public Box2f(vec2 min, vec2 max)
+      {
+         Min = min;
+         Max = max;
+      }
+      public vec2 Center()
+      {
+         return Min + (Max - Min) * 0.5f;
+      }
+      public static Box2f FlipBoxH(Box2f b, float w)
+      {
+         //Flip the box inside of a larger box (w)
+         Box2f ret = new Box2f();
+         ret.Min.x = w - b.Max.x;
+         ret.Max.x = w - b.Min.x;
+
+         ret.Min.y = b.Min.y;
+         ret.Max.y = b.Max.y;
+         return ret;
+      }
+      public static Box2f FlipBoxV(Box2f b, float h)
+      {
+         //Flip the box inside of a larger box (h)
+         Box2f ret = new Box2f();
+         ret.Min.y = h - b.Max.y;
+         ret.Max.y = h - b.Min.y;
+
+         ret.Min.x = b.Min.x;
+         ret.Max.x = b.Max.x;
+         return ret;
+      }
+      public Rectangle ToXNARect()
+      {
+         Rectangle r = new Rectangle();
+
+         r.X = (int)(Min.x);
+         r.Y = (int)(Min.y);
+         r.Width = (int)(Max.x - Min.x);
+         r.Height = (int)(Max.y - Min.y);
+
+         return r;
+      }
+
+      public static Box2f GetIntersectionBox_Inclusive(Box2f a, Box2f b)
+      {
+         Box2f ret = new Box2f();
+
+         ret.Min.x = Single.MaxValue;
+         ret.Min.y = Single.MaxValue;
+         ret.Max.x = -Single.MaxValue;
+         ret.Max.y = -Single.MaxValue;
 
 
+         if (a.Min.x >= b.Min.x && a.Min.x <= b.Max.x)
+         {
+            ret.Min.x = Math.Min(ret.Min.x, a.Min.x);
+         }
+         if (a.Max.x <= b.Max.x && a.Max.x >= b.Min.x)
+         {
+            ret.Max.x = Math.Max(ret.Max.x, a.Max.x);
+         }
+         if (a.Min.y >= b.Min.y && a.Min.y <= b.Max.y)
+         {
+            ret.Min.y = Math.Min(ret.Min.y, a.Min.y);
+         }
+         if (a.Max.y <= b.Max.y && a.Max.y >= b.Min.y)
+         {
+            ret.Max.y = Math.Max(ret.Max.y, a.Max.y);
+         }
+
+         if (b.Min.x >= a.Min.x && b.Min.x <= a.Max.x)
+         {
+            ret.Min.x = Math.Min(ret.Min.x, b.Min.x);
+         }
+         if (b.Max.x <= a.Max.x && b.Max.x >= a.Min.x)
+         {
+            ret.Max.x = Math.Max(ret.Max.x, b.Max.x);
+         }
+         if (b.Min.y >= a.Min.y && b.Min.y <= a.Max.y)
+         {
+            ret.Min.y = Math.Min(ret.Min.y, b.Min.y);
+         }
+         if (b.Max.y <= a.Max.y && b.Max.y >= a.Min.y)
+         {
+            ret.Max.y = Math.Max(ret.Max.y, b.Max.y);
+         }
+         return ret;
+      }
+
+      public void GenResetExtents()
+      {
+         Min = new vec2(Single.MaxValue, Single.MaxValue);
+         Max = new vec2(-Single.MaxValue, -Single.MaxValue);
+      }
+      public void ExpandByPoint(vec2 v)
+      {
+         Min = vec2.Minv(Min, v);// Vec2f.ComponentMin(Min, v);// Vec2f.Minv(Min, v);
+         Max = vec2.Maxv(Max, v); //Vec2f.ComponentMax(Max, v);// Vec2f.Maxv(Max, v);
+      }
+      public bool BoxIntersect_EasyOut_Inclusive(Box2f cc)
+      {
+         return cc.Min.x <= Max.x && cc.Min.y <= Max.y && Min.x <= cc.Max.x && Min.y <= cc.Max.y;
+      }
+      public bool ContainsPointInclusive(vec2 point)
+      {
+         if (point.x < Min.x)
+         {
+            return false;
+         }
+         if (point.y < Min.y)
+         {
+            return false;
+         }
+         if (point.x > Max.x)
+         {
+            return false;
+         }
+         if (point.y > Max.y)
+         {
+            return false;
+         }
+         return true;
+      }
+      private vec2 bounds(int x)
+      {
+         if (x == 0)
+         {
+            return Min;
+         }
+         return Max;
+      }
+      public bool RayIntersect(ProjectedRay ray, ref RaycastHit bh)
+      {
+         if (ray.IsOpt == false)
+         {
+            //Error.
+            System.Diagnostics.Debugger.Break();
+         }
+
+         float txmin, txmax, tymin, tymax;
+         bool bHit;
+
+         txmin = (bounds(ray.Sign[0]).x - ray.Origin.x) * ray.InvDir.x;
+         txmax = (bounds(1 - ray.Sign[0]).x - ray.Origin.x) * ray.InvDir.x;
+
+         tymin = (bounds(ray.Sign[1]).y - ray.Origin.y) * ray.InvDir.y;
+         tymax = (bounds(1 - ray.Sign[1]).y - ray.Origin.y) * ray.InvDir.y;
+
+         if ((txmin > tymax) || (tymin > txmax))
+         {
+            // if (bh != null)
+            // {
+            bh._bHit = false;
+            // }
+            return false;
+         }
+         if (tymin > txmin)
+         {
+            txmin = tymin;
+         }
+         if (tymax < txmax)
+         {
+            txmax = tymax;
+         }
+
+         bHit = ((txmin >= 0.0f) && (txmax <= ray.Length));
+
+         //**Note changed 20151105 - this is not [0,1] this is the lenth along the line in which 
+         // the ray enters and exits the cube, so any value less than the maximum is valid
+
+         // if (bh != null)
+         // {
+         bh._bHit = bHit;
+         bh._t = txmin;
+         // }
+
+         return bHit;
+      }
+   }
+   [StructLayout(LayoutKind.Sequential)]
+   public struct Box2i
+   {
+      public ivec2 _min;
+      public ivec2 _max;
+      public Box2i(in ivec2 min, in ivec2 max)
+      {
+         _min = min;
+         _max = max;
+      }
+      public int left() { return _min.x; }
+      public int top() { return _min.y; }
+      public int right() { return _max.x; }
+      public int bottom() { return _max.y; }
+
+      public int Width()
+      {
+         return _max.x - _min.x;
+      }
+      public int Height()
+      {
+         return _max.y - _min.y;
+      }
+      public void Construct(int minx, int miny, int maxx, int maxy)
+      {
+         _min.x = minx;
+         _min.y = miny;
+         _max.x = maxx;
+         _max.y = maxy;
+      }
+   }
+   [StructLayout(LayoutKind.Sequential)]
+   public struct Box3i
+   {
+      public ivec3 _min;
+      public ivec3 _max;
+      public Box3i(in ivec3 min, in ivec3 max)
+      {
+         _min = min;
+         _max = max;
+      }
+   }
+   [StructLayout(LayoutKind.Sequential)]
+   public struct Box3f
+   {
+      public vec3 _min;
+      public vec3 _max;
+      public Box3f(in vec3 min, in vec3 max)
+      {
+         _min = min;
+         _max = max;
+      }
+      public vec3 center()
+      {
+         vec3 v = _min + (_max - _min) * 0.5f;
+         return v;
+      }
+      public float Height()
+      {
+         return _max.y - _min.y;
+      }
+      public float Width()
+      {
+         return _max.x - _min.x;
+      }
+      public float Depth()
+      {
+         return _max.z - _min.z;
+      }
+      public void Validate()
+      {
+         if (_max.x < _min.x)
+         {
+            throw new Exception("Bound box X was invalid.");
+         }
+         if (_max.y < _min.y)
+         {
+            throw new Exception("Bound box Y was invalid.");
+         }
+         if (_max.z < _min.z)
+         {
+            throw new Exception("Bound box Z was invalid.");
+         }
+      }
+      /**
+      *   @fn RayIntersect
+      *   @brief Returns true if the given ray intersects this Axis aligned
+      *   cube volume.
+      *   @param bh - Reference to a BoxHit structure.
+      *   @prarm ray - The ray to test against the box.
+      *   @return true if ray intersects, false otherwise.
+      */
+      public bool LineOrRayIntersectInclusive_EasyOut(PickRay ray, ref BoxAAHit bh)
+      {
+         if (RayIntersect(ray, ref bh))
+            return true;
+         // - otherwise check for points contained.
+         if (containsInclusive(ray.Origin))
+         {
+            bh._p1Contained = true;
+            bh._bHit = true;
+            return true;
+         }
+
+         if (containsInclusive(ray.Origin + ray.Dir))
+         {
+            bh._p2Contained = true;
+            bh._bHit = true;
+            return true;
+         }
+
+         return false;
+      }
+      private vec3 bounds(int in__)
+      {
+         if (in__ == 0)
+         {
+            return _min;
+         }
+         else
+         {
+            return _max;
+         }
+      }
+      private bool RayIntersect(PickRay ray, ref BoxAAHit bh)
+      {
+         if (!ray._isOpt)
+            throw new Exception("Projected ray was not optimized");
+
+         float txmin, txmax, tymin, tymax, tzmin, tzmax;
+
+         txmin = (bounds(ray.Sign[0]).x - ray.Origin.x) * ray.InvDir.x;
+         txmax = (bounds(1 - ray.Sign[0]).x - ray.Origin.x) * ray.InvDir.x;
+
+         tymin = (bounds(ray.Sign[1]).y - ray.Origin.y) * ray.InvDir.y;
+         tymax = (bounds(1 - ray.Sign[1]).y - ray.Origin.y) * ray.InvDir.y;
+
+         if ((txmin > tymax) || (tymin > txmax))
+         {
+            bh._bHit = false;
+            return false;
+         }
+         if (tymin > txmin)
+            txmin = tymin;
+         if (tymax < txmax)
+            txmax = tymax;
+
+         tzmin = (bounds(ray.Sign[2]).z - ray.Origin.z) * ray.InvDir.z;
+         tzmax = (bounds(1 - ray.Sign[2]).z - ray.Origin.z) * ray.InvDir.z;
+
+         if ((txmin > tzmax) || (tzmin > txmax))
+         {
+            bh._bHit = false;
+            return false;
+         }
+         if (tzmin > txmin)
+            txmin = tzmin;
+         if (tzmax < txmax)
+            txmax = tzmax;
+
+         bh._bHit = ((txmin > 0.0f) && (txmax <= ray._length));
+         bh._t = txmin;
+
+         return bh._bHit;
+      }
+
+      private bool containsInclusive(vec3 v)
+      {
+         return (
+             (v.x >= _min.x) && (v.x <= _max.x) &&
+             (v.y >= _min.y) && (v.y <= _max.y) &&
+             (v.z >= _min.z) && (v.z <= _max.z)
+             );
+      }
+      public void genResetLimits()
+      {
+         _min = new vec3(float.MaxValue, float.MaxValue, float.MaxValue);
+         _max = new vec3(float.MinValue, float.MinValue, float.MinValue);
+      }
+      public void genExpandByPoint(in vec3 pt)
+      {
+         _min = vec3.minv(_min, pt);// Vec3f.ComponentMin(_min, pt);
+         _max = vec3.maxv(_max, pt);// Vec3f.ComponentMax(_max, pt);
+      }
+      public void genExpandByBox(in Box3f pc)
+      {
+         genExpandByPoint(pc._min);
+         genExpandByPoint(pc._max);
+      }
+      public bool getHasVolume(float epsilon)
+      {
+         if (getVolumePositiveOnly() == 0.0)
+         {
+            return false;
+         }
+         return true;
+      }
+      private float getVolumePositiveOnly()
+      {
+         float ax = (_max.x - _min.x);
+         float ay = (_max.y - _min.y);
+         float az = (_max.z - _min.z);
+         if (ax < 0.0f) ax = 0.0f;
+         if (ay < 0.0f) ay = 0.0f;
+         if (az < 0.0f) az = 0.0f;
+         return ax * ay * az;
+      }
+      private float getVolumeArbitrary()
+      {
+         return (_max.x - _min.x) * (_max.y - _min.y) * (_max.z - _min.z);
+      }
+   }
 }

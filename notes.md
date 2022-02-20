@@ -1,13 +1,4 @@
-﻿
-* Use normal map we got from texturecollection in megatex
-* bind this to the shader
-* careate default normal map texture in case there is no normal map (technically, this is very easy as we already did this with white texture.)
-
-Multiple material textures, purposeful, given the material
-Renderer::render m.texture.bind
-
-
-WO - PVS for objects and globs
+﻿WO - PVS for objects and globs
      textures for glob meshs.
      destroy globs.
     

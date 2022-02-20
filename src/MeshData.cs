@@ -350,10 +350,10 @@ namespace PirateCraft
       {
          //Let's do the UI from bottom left like OpenGL
          v_v3n3x2[] verts = new v_v3n3x2[4];
-         verts[0]._v = c.ProjectPoint(new vec2(x, y), TransformSpace.Local, 0.01f).p0;
-         verts[1]._v = c.ProjectPoint(new vec2(x + w, y), TransformSpace.Local, 0.01f).p0;
-         verts[2]._v = c.ProjectPoint(new vec2(x, y + h), TransformSpace.Local, 0.01f).p0;
-         verts[3]._v = c.ProjectPoint(new vec2(x + w, y + h), TransformSpace.Local, 0.01f).p0;
+         verts[0]._v = c.Frustum.ProjectPoint(new vec2(x, y), TransformSpace.Local, 0.01f).p0;
+         verts[1]._v = c.Frustum.ProjectPoint(new vec2(x + w, y), TransformSpace.Local, 0.01f).p0;
+         verts[2]._v = c.Frustum.ProjectPoint(new vec2(x, y + h), TransformSpace.Local, 0.01f).p0;
+         verts[3]._v = c.Frustum.ProjectPoint(new vec2(x + w, y + h), TransformSpace.Local, 0.01f).p0;
 
          verts[0]._x = new vec2(1, 0);
          verts[1]._x = new vec2(1, 1);

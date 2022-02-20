@@ -124,14 +124,14 @@ namespace PirateCraft
       protected override void OnUpdateFrame(FrameEventArgs e)
       {
          float chary = this._camera.Position.y;
-         Title = $"(CharY = {chary}) (Vsync: {VSync}) FPS: {1f / e.Time:0} Globs: {Gu.World.NumGlobs} Render: {Gu.World.NumRenderGlobs}";
+         Title = $"(CharY = {chary}) (Vsync: {VSync}) FPS: {1f / e.Time:0} AllGlobs: {Gu.World.NumGlobs} Render: {Gu.World.NumRenderGlobs} Visible: {Gu.World.NumVisibleRenderGlobs}";
 
          Gu.CurrentWindowContext.Update();
 
          //_boxMeshThing.Rotation = quaternion.FromAxisAngle(new vec3(0, 1, 0), (float)rot);
          //rot += Math.PI * 2.0f * Gu.CurrentWindowContext.Delta * 0.0125f;
 
-         Gu.World.Update(Gu.CurrentWindowContext.Delta);
+         Gu.World.Update(Gu.CurrentWindowContext.Delta, _camera);
 
          //checks out
          Sphere_Rotate_Quat_Test.Position = new vec3(0, 3, 0);
