@@ -1,7 +1,7 @@
 
-# OpenGL + C# On Linux via OpenTK
+# A Minecraft Clone in OpenTK and C#
 
-This is a minecraft clone using OpenTK with C#.
+![Preview](./screenshot.png)
 
 # How to Run
 

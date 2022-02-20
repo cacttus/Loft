@@ -154,6 +154,10 @@ namespace PirateCraft
       }
       private void UpdateInput()
       {
+         if (!this.Focused)
+         {
+            return;
+         }
          float coordMul = (Gu.CoordinateSystem == CoordinateSystem.Lhs ? -1 : 1);
          var keyState = Keyboard.GetState();
 
