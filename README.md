@@ -7,7 +7,7 @@
 
 1. Visual Studio
 	
-* Open Solution and F5!
+	* Open Solution (.sln), F5.
 
 2. MonoDevelop
 
