@@ -23,8 +23,12 @@ namespace PirateCraft
       private bool _locked = false;
       private GCHandle pinnedArray;
       object _pt;
-      public GpuDataPtr(object pt)
+      public int ItemSizeBytes { get; private set; } = 0;
+      public int Count { get; private set; } = 0;
+      public GpuDataPtr(int itemSize, int count, object pt)
       {
+         ItemSizeBytes = itemSize;
+         Count = count;
          _pt = pt;
       }
       public IntPtr Lock()

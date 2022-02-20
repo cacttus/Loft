@@ -85,25 +85,19 @@ namespace PirateCraft
       {
          return _maxTextureSize;
       }
-      public static GpuDataPtr GetGpuDataPtr(object data)
+      public static GpuDataPtr GetGpuDataPtr<T>(T[] data)
       {
-         GpuDataPtr p = new GpuDataPtr(data);
+         var size = Marshal.SizeOf(data[0]);
+         GpuDataPtr p = new GpuDataPtr(size, data.Length, data);
          return p;
       }
       public static GpuDataArray SerializeGPUData<T>(T[] data) where T : struct
       {
-         //This method is not to be called at runtime. Loops over all the data sequentially.
+         //This method is not to be called at runtime. Loops over all the data sequentially and copies it into a byte buffer.
          //There may be a faster way, but it works for now.
          //This is essentially meant to be used just for sending vertex and Index data to GpuBuffer data one time.
+         //It's not necessary, as the data can be pinned to a GC handle. Maybe from receiving data though...
          var size = Marshal.SizeOf(data[0]);
-
-         //The serializer method messes up the data.
-         //var formatter = new BinaryFormatter();
-         // var stream = new MemoryStream();
-         // formatter.Serialize(stream, data);
-         // GpuDataArray arr1 = new GpuDataArray(size, data.Length, stream.ToArray());
-         //return arr1;
-         //
 
          //This probably isn't necessary. We could just use GCHandle.alloc / addrOfPinnedObject
          var bytes = new byte[size * data.Length];

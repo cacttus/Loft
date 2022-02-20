@@ -84,7 +84,7 @@ namespace PirateCraft
             Gu.BRThrowNotImplementedException();
          }
       }
-      public MeshData(string name, PrimitiveType pt, VertexFormat fmt, GpuDataArray verts, IndexFormatType ifmt = IndexFormatType.None, GpuDataArray indexes = null) : this(name, pt, fmt, ifmt)
+      public MeshData(string name, PrimitiveType pt, VertexFormat fmt, GpuDataPtr verts, IndexFormatType ifmt = IndexFormatType.None, GpuDataPtr indexes = null) : this(name, pt, fmt, ifmt)
       {
          PrimitiveType = pt;
          if (verts == null || indexes == null)
@@ -123,7 +123,7 @@ namespace PirateCraft
          _vao.Unbind();
 
       }
-      public void CreateBuffers(GpuDataArray verts, GpuDataArray indexes = null)
+      public void CreateBuffers(GpuDataPtr verts, GpuDataPtr indexes = null)
       {
          Gpu.CheckGpuErrorsDbg();
          _vao = new VertexArrayObject();
@@ -224,10 +224,10 @@ namespace PirateCraft
             Gu.Log.Warn("Could not compute bound box for mesh " + this.Name + " No default position data supplied.");
          }
       }
-      public static GpuDataArray GenerateQuadIndicesArray(int numQuads, bool flip = false)
+      public static GpuDataPtr GenerateQuadIndicesArray(int numQuads, bool flip = false)
       {
          uint[] uu = GenerateQuadIndices(numQuads, flip);
-         var ret = Gpu.SerializeGPUData(uu);
+         var ret = Gpu.GetGpuDataPtr(uu);
          return ret;
       }
       public static uint[] GenerateQuadIndices(int numQuads, bool flip = false)
@@ -275,7 +275,7 @@ namespace PirateCraft
          verts[0 * 4 + 3] = new v_v3n3x2() { _v = box[3], _n = norms[0], _x = texs[3] };
 
          var indsBoxed = GenerateQuadIndicesArray(verts.Length / 4);
-         var vertsBoxed = Gpu.SerializeGPUData(verts);
+         var vertsBoxed = Gpu.GetGpuDataPtr(verts);
          return new MeshData("Plane", PrimitiveType.Triangles, v_v3n3x2.VertexFormat, vertsBoxed, IndexFormatType.Uint32, indsBoxed);
       }
 
@@ -343,7 +343,7 @@ namespace PirateCraft
          verts[5 * 4 + 3] = new v_v3n3x2() { _v = box[6], _n = norms[5], _x = texs[3] };
 
          var indsBoxed = GenerateQuadIndicesArray(verts.Length / 4);
-         var vertsBoxed = Gpu.SerializeGPUData(verts);
+         var vertsBoxed = Gpu.GetGpuDataPtr(verts);
          return new MeshData("box", PrimitiveType.Triangles, v_v3n3x2.VertexFormat, vertsBoxed, IndexFormatType.Uint32, indsBoxed);
       }
       public static MeshData GenTextureFront(Camera3D c, float x, float y, float w, float h)
@@ -366,7 +366,7 @@ namespace PirateCraft
          verts[3]._n = new vec3(0, 0, -1);
 
          var indsBoxed = GenerateQuadIndicesArray(verts.Length / 4);
-         var vertsBoxed = Gpu.SerializeGPUData(verts);
+         var vertsBoxed = Gpu.GetGpuDataPtr(verts);
 
          return new MeshData("texturefrtont", PrimitiveType.Triangles, v_v3n3x2.VertexFormat, vertsBoxed, IndexFormatType.Uint32, indsBoxed);
       }
@@ -432,7 +432,7 @@ namespace PirateCraft
          }
 
          var indsBoxed = GenerateQuadIndicesArray(verts.Length / 4, true);
-         var vertsBoxed = Gpu.SerializeGPUData(verts);
+         var vertsBoxed = Gpu.GetGpuDataPtr(verts);
 
          return new MeshData("sphere", PrimitiveType.Triangles, v_v3n3x2.VertexFormat, vertsBoxed, IndexFormatType.Uint32, indsBoxed);
       }

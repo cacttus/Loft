@@ -25,7 +25,7 @@ namespace PirateCraft
       }
       public static void End(MeshData d)
       {
-         d.CreateBuffers(Gpu.SerializeGPUData(_inlineVerts.ToArray()), Gpu.SerializeGPUData(_inlineInds.ToArray()));
+         d.CreateBuffers(Gpu.GetGpuDataPtr(_inlineVerts.ToArray()), Gpu.GetGpuDataPtr(_inlineInds.ToArray()));
 
          _inlineVerts = null;
          _inlineInds= null;

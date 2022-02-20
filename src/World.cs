@@ -819,8 +819,8 @@ namespace PirateCraft
          if (inds.Count > 0)
          {
             g.Opaque = new MeshData("", OpenTK.Graphics.OpenGL4.PrimitiveType.Triangles,
-               v_v3n3x2.VertexFormat, Gpu.SerializeGPUData(verts.ToArray()),
-               IndexFormatType.Uint32, Gpu.SerializeGPUData(inds.ToArray())
+               v_v3n3x2.VertexFormat, Gpu.GetGpuDataPtr(verts.ToArray()),
+               IndexFormatType.Uint32, Gpu.GetGpuDataPtr(inds.ToArray())
                );
          }
 

@@ -24,7 +24,7 @@ namespace PirateCraft
       public int ItemCount { get { return _itemCount; } }
       public int ItemSize { get { return _itemSize; } }
 
-      public GPUBuffer(BufferTarget t, GpuDataArray items)
+      public GPUBuffer(BufferTarget t, GpuDataPtr items)
       {
          BufferTarget = t;
          _glId = GL.GenBuffer();
@@ -71,7 +71,7 @@ namespace PirateCraft
       //{
       //    Free();
       //}
-      void Allocate(GpuDataArray items)
+      void Allocate(GpuDataPtr items)
       {
          _itemCount = items.Count;
          _itemSize = items.ItemSizeBytes;
