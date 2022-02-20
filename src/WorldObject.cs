@@ -254,6 +254,34 @@ namespace PirateCraft
    {
       //Stuff drive input.
    }
+   public class FollowConstraint : Constraint
+   {
+      public enum FollowMode
+      {
+         Snap,
+         Drift
+      }
+      public WeakReference<WorldObject> FollowObj { get; set; } = null;
+      public float DriftSpeed { get; set; } = 0;//meters per second
+      public FollowMode Mode { get; set; } = FollowConstraint.FollowMode.Snap;
+      public FollowConstraint(WorldObject followob, FollowMode mode, float drift = 0)
+      {
+         FollowObj = new WeakReference<WorldObject>(followob);
+         Mode = mode;
+         DriftSpeed = drift;
+      }
+      public override void Apply(WorldObject ob)
+      {
+         if(FollowObj!=null && FollowObj.TryGetTarget(out WorldObject obj))
+         {
+            ob.Position = obj.World.extractTranslation();
+         }
+         else
+         {
+            Gu.Log.Error("'"+ob.Name+"' - Follow constraint - object not found.");
+         }
+      }
+   }
    public class TrackToConstraint : Constraint
    {
       //*This does not work correctly.

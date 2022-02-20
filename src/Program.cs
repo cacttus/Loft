@@ -18,6 +18,8 @@ namespace PirateCraft
       int meshIdx = 0;
       const float scale = 0.5f;
 
+      WorldObject _sky;
+
       public MainWindow() : base((int)(1920 * scale), (int)(1080 * scale),
       GraphicsMode.Default, "Test", GameWindowFlags.Default, DisplayDevice.Default, 4, 0, GraphicsContextFlags.ForwardCompatible)
       {
@@ -49,6 +51,7 @@ namespace PirateCraft
             Texture2D mclovin = new Texture2D(new FileLoc("mclovin.jpg", FileStorage.Embedded), true, TexFilter.Nearest);
             Texture2D usopp = new Texture2D(new FileLoc("usopp.jpg", FileStorage.Embedded), true, TexFilter.Bilinear);
             Texture2D hogback = new Texture2D(new FileLoc("hogback.jpg", FileStorage.Embedded), true, TexFilter.Trilinear);
+            Texture2D sky1 = new Texture2D(new FileLoc("hdri_sky2.jpg", FileStorage.Embedded), true, TexFilter.Trilinear);
 
             //Objects
             //Integrity test of GPU memory.
@@ -69,6 +72,11 @@ namespace PirateCraft
             Sphere_Rotate_Quat_Test2 = Gu.World.CreateObject("Sphere_Rotate_Quat_Test2", MeshData.GenSphere(), new Material(Shader.DefaultDiffuse(), usopp));
             Sphere_Rotate_Quat_Test3 = Gu.World.CreateObject("Sphere_Rotate_Quat_Test3", MeshData.GenSphere(), new Material(Shader.DefaultDiffuse(), hogback));
 
+            //TODO: sky shader. 
+            Material sky_mat = new Material(Shader.DefaultDiffuse(), sky1);
+            sky_mat.GpuRenderState.DepthTest = false;//Disable depth test.
+            _sky = Gu.World.CreateObject("sky", MeshData.GenSphere(128,128,400,true,true), sky_mat);
+            _sky.Constraints.Add(new FollowConstraint(_camera, FollowConstraint.FollowMode.Snap));
 
             //Animation test
             var cmp = new AnimationComponent();

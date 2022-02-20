@@ -370,7 +370,7 @@ namespace PirateCraft
 
          return new MeshData("texturefrtont", PrimitiveType.Triangles, v_v3n3x2.VertexFormat, vertsBoxed, IndexFormatType.Uint32, indsBoxed);
       }
-      public static MeshData GenSphere(int slices = 128, int stacks = 128, float radius = 1, bool smooth = false)
+      public static MeshData GenSphere(int slices = 128, int stacks = 128, float radius = 1, bool smooth = false, bool flip_tris = false)
       {
          int vcount = slices * stacks * 4;
          v_v3n3x2[] verts = new v_v3n3x2[vcount];
@@ -431,7 +431,7 @@ namespace PirateCraft
             }
          }
 
-         var indsBoxed = GenerateQuadIndicesArray(verts.Length / 4, true);
+         var indsBoxed = GenerateQuadIndicesArray(verts.Length / 4, !flip_tris);
          var vertsBoxed = Gpu.GetGpuDataPtr(verts);
 
          return new MeshData("sphere", PrimitiveType.Triangles, v_v3n3x2.VertexFormat, vertsBoxed, IndexFormatType.Uint32, indsBoxed);
