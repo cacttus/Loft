@@ -123,5 +123,8 @@
     <EmbeddedResource Include="data\tx64_gravel.png" />
     <EmbeddedResource Include="data\tx64_sand.png" />
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="data\tx64_grass_side.png" />
+  </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
 </Project>

@@ -230,7 +230,7 @@ namespace PirateCraft
       Dictionary<ivec3, Glob> _visibleRenderGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
 
       //TODO:players
-      public WorldObject player = null;
+      public WorldObject Player = null;
 
       //Thread GlobGenerator;
       //object GlobMutex;
@@ -250,6 +250,7 @@ namespace PirateCraft
       Dictionary<ushort, List<MtTex>> _tileUVs;
       Dictionary<TileImage, FileLoc> _tile_resources = new Dictionary<TileImage, FileLoc>() {
             { TileImage.Grass, new FileLoc("tx64_grass.png", FileStorage.Embedded) },
+            { TileImage.GrassSide, new FileLoc("tx64_grass_side.png", FileStorage.Embedded) },
             { TileImage.Dirt, new FileLoc("tx64_dirt.png", FileStorage.Embedded) },
             { TileImage.Plank, new FileLoc("tx64_plank.png", FileStorage.Embedded) },
             { TileImage.Brick, new FileLoc("tx64_brick.png", FileStorage.Embedded) },
@@ -259,7 +260,7 @@ namespace PirateCraft
          };
       private enum TileImage
       {
-         Grass, Dirt, Plank, Brick, Brick2, Gravel, Sand
+         Grass, GrassSide, Dirt, Plank, Brick, Brick2, Gravel, Sand
       }
       private class BlockUVSide
       {
@@ -273,14 +274,15 @@ namespace PirateCraft
          Gu.Assert(loc != null);
          return loc;
       }
-      public void Initialize()
+      public void Initialize(WorldObject player)
       {
+         Player = player;
          //_blockTiles - Manual array that specifies which tiles go on the top, side, bottom
          //The tiles are specified by FileLoc structure which must be a class type.
          //This is used to index into the megatex to find the generated UV coordinates.
          _blockTiles = new Dictionary<ushort, List<FileLoc>>()
          {
-            { BlockItemCode.Grass, new List<FileLoc>(){ GetTileFile(TileImage.Grass), GetTileFile(TileImage.Dirt), GetTileFile(TileImage.Dirt) } },
+            { BlockItemCode.Grass, new List<FileLoc>(){ GetTileFile(TileImage.Grass), GetTileFile(TileImage.GrassSide), GetTileFile(TileImage.Dirt) } },
             { BlockItemCode.Dirt, new List<FileLoc>(){ GetTileFile(TileImage.Dirt), GetTileFile(TileImage.Dirt), GetTileFile(TileImage.Dirt) } },
             { BlockItemCode.Brick, new List<FileLoc>(){ GetTileFile(TileImage.Brick), GetTileFile(TileImage.Brick), GetTileFile(TileImage.Brick) } },
             { BlockItemCode.Brick2, new List<FileLoc>(){ GetTileFile(TileImage.Brick2), GetTileFile(TileImage.Brick2), GetTileFile(TileImage.Brick2) } },
@@ -330,7 +332,7 @@ namespace PirateCraft
 
          }
          _worldMegatex.loadImages();
-         var maps = _worldMegatex.compile();
+         var maps = _worldMegatex.compile(true);
          _worldMaterial = new Material(Shader.DefaultDiffuse(), maps.Albedo, maps.Normal);
 
          //Generate the mesh data we use to create cubess
@@ -339,6 +341,9 @@ namespace PirateCraft
          //Asynchronous generator .. (TODO)
          // Task.Factory.StartNew(() => {
          //});
+
+         Gu.Log.Info("Building initail grid");
+         BuildGlobGridAndTopologize(player.World.extractTranslation(), RenderRadiusShell * 5, true);
       }
 
       public WorldObject FindObject(string name)
@@ -490,7 +495,7 @@ namespace PirateCraft
 
       private void BuildWorld()
       {
-         Gu.Assert(player != null);
+         Gu.Assert(Player != null);
 
          if (_globs.Count >= MaxTotalGlobs || _renderGlobs.Count >= MaxRenderGlobs)
          {
@@ -499,18 +504,18 @@ namespace PirateCraft
 
          if (_firstGeneration)
          {
-            playerLastGlob = R3toI3Glob(player.Position);
+            playerLastGlob = R3toI3Glob(Player.Position);
          }
 
          if (Gu.CurrentWindowContext.FrameStamp % 3 == 0)
          {
             //Quick-n-dirty "don't kill me"
-            ivec3 newPlayerGlob = R3toI3Glob(player.Position);
+            ivec3 newPlayerGlob = R3toI3Glob(Player.Position);
 
             float awareness_radius = RenderRadiusShell * _currentShell;
 
-            vec3 ppos = player.World.extractTranslation();
-            List<Glob> newGlobs = BuildGlobGrid(ppos, awareness_radius);
+            vec3 ppos = Player.World.extractTranslation();
+            List<Glob> newGlobs = BuildGlobGridAndTopologize(ppos, awareness_radius);
 
             if ((newPlayerGlob != playerLastGlob))
             {
@@ -523,20 +528,6 @@ namespace PirateCraft
                _currentShell++;
             }
 
-            //Prevent unnecessary stitching.
-            foreach (Glob g in newGlobs)
-            {
-               if (g.GlobDensityState != GlobDensityState.Empty_AndNoData)
-               {
-                  //The block is empty, the inside of the block has no topology.
-                  TopologizeGlob(g);
-               }
-               if (g.GlobDensityState != GlobDensityState.SolidBlocksOnly)
-               {
-                  //No neighboring blocks would be visible, so stitchin gisn't needed
-                  StitchGlob(g);
-               }
-            }
 
          }
 
@@ -569,7 +560,7 @@ namespace PirateCraft
          //}
 
       }
-      private List<Glob> BuildGlobGrid(vec3 origin, float awareness_radius)
+      private List<Glob> BuildGlobGrid(vec3 origin, float awareness_radius, bool logprogress=false)
       {
          //Build a grid of globs in the volume specified by origin/radius
          List<Glob> newGlobs = new List<Glob>();
@@ -592,12 +583,33 @@ namespace PirateCraft
          if (ibox._max.y < -ylimit) { ibox._max.y = -ylimit; }
          if(ibox._min.y > ibox._max.y) { ibox._min.y = ibox._max.y; }
 
+         int dbg_totalCount = 0;
          for (int z = ibox._min.z; z <= ibox._max.z; z++)
          {
             for (int y = ibox._min.y; y <= ibox._max.y; y++)
             {
                for (int x = ibox._min.x; x <= ibox._max.x; x++)
                {
+                  dbg_totalCount++;
+               }
+            }
+         }
+
+         int dbg_current = 0;
+         for (int z = ibox._min.z; z <= ibox._max.z; z++)
+         {
+            for (int y = ibox._min.y; y <= ibox._max.y; y++)
+            {
+               for (int x = ibox._min.x; x <= ibox._max.x; x++)
+               {
+                  dbg_current++;
+                  if (logprogress)
+                  {
+                     if (dbg_current % 100 == 0)
+                     {
+                        Gu.Log.Info("" + dbg_current + "/" + dbg_totalCount);
+                     }
+                  }
                   if (_renderGlobs.Count >= MaxRenderGlobs)
                   {
                      return newGlobs;
@@ -620,6 +632,30 @@ namespace PirateCraft
                   }
 
                }
+            }
+         }
+         return newGlobs;
+      }
+      private List<Glob> BuildGlobGridAndTopologize(vec3 origin, float awareness_radius, bool logprogress = false)
+      {
+         List<Glob> newGlobs = BuildGlobGrid(origin, awareness_radius, logprogress);
+
+         if (logprogress)
+         {
+            Gu.Log.Info("Topologizing " + newGlobs.Count);
+         }
+         //Prevent unnecessary stitching.
+         foreach (Glob g in newGlobs)
+         {
+            if (g.GlobDensityState != GlobDensityState.Empty_AndNoData)
+            {
+               //The block is empty, the inside of the block has no topology.
+               TopologizeGlob(g);
+            }
+            if (g.GlobDensityState != GlobDensityState.SolidBlocksOnly)
+            {
+               //No neighboring blocks would be visible, so stitchin gisn't needed
+               StitchGlob(g);
             }
          }
          return newGlobs;

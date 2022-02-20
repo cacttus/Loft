@@ -687,7 +687,7 @@ namespace PirateCraft
          return false;
       }
 
-      public CompiledTextures compile()
+      public CompiledTextures compile(bool flip_y_texture_coords = false)
       {
          Img32 master_albedo = null, master_normal = null;
 
@@ -797,17 +797,27 @@ namespace PirateCraft
             float imgW = (float)iImageSize;
             float imgH = (float)iImageSize;
 
-            Gu.Log.Debug("MegaTex - Copying Sub-Images..");
+            Gu.Log.Debug("MegaTex - Copying Sub-Images..and calculating tex coords");
             foreach (MtTex texx in vecTexs)
             {
                master_albedo.copySubImageFrom(texx.node()._b2Rect._min, new ivec2(0, 0), new ivec2(texx.getWidth(), texx.getHeight()), texx.img());
                Gpu.CheckGpuErrorsDbg();
 
                //New Tex coords
-               texx.uv0 = new vec2((float)texx.node()._b2Rect._min.x / imgW,
-                (float)texx.node()._b2Rect._max.y / imgH);
-               texx.uv1 = new vec2((float)texx.node()._b2Rect._max.x / imgW,
-                (float)texx.node()._b2Rect._min.y / imgH);  //*Note the Y flop - OpenGL
+               if (flip_y_texture_coords)
+               {
+                  texx.uv0 = new vec2((float)texx.node()._b2Rect._min.x / imgW,
+                   (float)texx.node()._b2Rect._min.y / imgH);
+                  texx.uv1 = new vec2((float)texx.node()._b2Rect._max.x / imgW,
+                   (float)texx.node()._b2Rect._max.y / imgH); 
+               }
+               else
+               {
+                  texx.uv0 = new vec2((float)texx.node()._b2Rect._min.x / imgW,
+                     (float)texx.node()._b2Rect._max.y / imgH);
+                  texx.uv1 = new vec2((float)texx.node()._b2Rect._max.x / imgW,
+                   (float)texx.node()._b2Rect._min.y / imgH);  //*Note the Y flop - OpenGL
+               }
 
                //Free the image and node, we don't need it
                texx.freeTmp();

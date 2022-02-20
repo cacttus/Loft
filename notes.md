@@ -1,6 +1,8 @@
 ﻿initial generation of world (like minecraft)
 destroy globs.
 sky
+grass/flowr
+tres
     
     
 * Roadmap

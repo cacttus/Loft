@@ -40,8 +40,7 @@ namespace PirateCraft
             //Cameras
             _camera = Gu.World.CreateCamera("Camera-001", Width, Height, new vec3(0, 20, -10));
 
-            Gu.World.Initialize();
-            Gu.World.player = _camera;
+            Gu.World.Initialize(_camera);
 
             //Textures
             Texture2D noise = Noise3D.TestNoise();
@@ -145,7 +144,6 @@ namespace PirateCraft
 
          UpdateInput();
       }
-
       private void UpdateInput()
       {
          float coordMul = (Gu.CoordinateSystem == CoordinateSystem.Lhs ? -1 : 1);
