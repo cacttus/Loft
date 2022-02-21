@@ -5,7 +5,7 @@ using System;
 
 namespace PirateCraft
 {
-   public class GpuRenderState 
+   public class GpuRenderState
    {
       //State switches to prevent unnecessary gpu context changes.
       private bool _depthTestEnabledLast = false;
@@ -72,7 +72,7 @@ namespace PirateCraft
    {
       private static Dictionary<WindowContext, List<Action<WindowContext>>> OpenGLCleanupActions = new Dictionary<WindowContext, List<Action<WindowContext>>>();
       private int _maxTextureSize = 1;
-    //  public GpuRenderState GpuRenderState { get; set; } = new GpuRenderState();
+      //  public GpuRenderState GpuRenderState { get; set; } = new GpuRenderState();
 
       public Gpu()
       {
@@ -91,15 +91,17 @@ namespace PirateCraft
          GpuDataPtr p = new GpuDataPtr(size, data.Length, data);
          return p;
       }
-      public static GpuDataArray SerializeGPUData<T>(T[] data) where T : struct
+      public static unsafe T ByteArrayToStructure<T>(byte[] bytes) where T : struct
       {
-         //This method is not to be called at runtime. Loops over all the data sequentially and copies it into a byte buffer.
-         //There may be a faster way, but it works for now.
-         //This is essentially meant to be used just for sending vertex and Index data to GpuBuffer data one time.
-         //It's not necessary, as the data can be pinned to a GC handle. Maybe from receiving data though...
+         fixed (byte* ptr = &bytes[0])
+         {
+            return (T)Marshal.PtrToStructure((IntPtr)ptr, typeof(T));
+         }
+      }
+      public static GpuDataArray SerializeGpuData<T>(T[] data) where T : struct
+      {
          var size = Marshal.SizeOf(data[0]);
 
-         //This probably isn't necessary. We could just use GCHandle.alloc / addrOfPinnedObject
          var bytes = new byte[size * data.Length];
          var ptr = Marshal.AllocHGlobal(size);
          for (int di = 0; di < data.Length; di++)
@@ -112,6 +114,7 @@ namespace PirateCraft
 
          return arr;
       }
+
       private static object _freeingGPUMemory = new object();
       public static void RegisterFreeGPUMemory(WindowContext wc, Action<WindowContext> a)
       {

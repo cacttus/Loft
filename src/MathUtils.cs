@@ -3015,4 +3015,204 @@ namespace PirateCraft
          return (_max.x - _min.x) * (_max.y - _min.y) * (_max.z - _min.z);
       }
    }
+   public static class BinaryWriterExtensions
+   {
+      public static void Write(this System.IO.BinaryWriter writer, vec2 v)
+      {
+         writer.Write((float)v.x);
+         writer.Write((float)v.y);
+      }
+      public static void Write(this System.IO.BinaryWriter writer, vec3 v)
+      {
+         writer.Write((float)v.x);
+         writer.Write((float)v.y);
+         writer.Write((float)v.z);
+      }
+      public static void Write(this System.IO.BinaryWriter writer, vec4 v)
+      {
+         writer.Write((float)v.x);
+         writer.Write((float)v.y);
+         writer.Write((float)v.z);
+         writer.Write((float)v.w);
+      }
+      public static void Write(this System.IO.BinaryWriter writer, ivec2 v)
+      {
+         writer.Write((Int32)v.x);
+         writer.Write((Int32)v.y);
+      }
+      public static void Write(this System.IO.BinaryWriter writer, ivec3 v)
+      {
+         writer.Write((Int32)v.x);
+         writer.Write((Int32)v.y);
+         writer.Write((Int32)v.z);
+      }
+      public static void Write(this System.IO.BinaryWriter writer, ivec4 v)
+      {
+         writer.Write((Int32)v.x);
+         writer.Write((Int32)v.y);
+         writer.Write((Int32)v.z);
+         writer.Write((Int32)v.w);
+      }
+      public static void Write(this System.IO.BinaryWriter writer, mat3 v)
+      {
+         writer.Write((float)v._m11);
+         writer.Write((float)v._m12);
+         writer.Write((float)v._m13);
+
+         writer.Write((float)v._m21);
+         writer.Write((float)v._m22);
+         writer.Write((float)v._m23);
+
+         writer.Write((float)v._m31);
+         writer.Write((float)v._m32);
+         writer.Write((float)v._m33);
+      }
+      public static void Write(this System.IO.BinaryWriter writer, mat4 v)
+      {
+         writer.Write((float)v._m11);
+         writer.Write((float)v._m12);
+         writer.Write((float)v._m13);
+         writer.Write((float)v._m14);
+
+         writer.Write((float)v._m21);
+         writer.Write((float)v._m22);
+         writer.Write((float)v._m23);
+         writer.Write((float)v._m24);
+
+         writer.Write((float)v._m31);
+         writer.Write((float)v._m32);
+         writer.Write((float)v._m33);
+         writer.Write((float)v._m34);
+
+         writer.Write((float)v._m41);
+         writer.Write((float)v._m42);
+         writer.Write((float)v._m43);
+         writer.Write((float)v._m44);
+      }
+      public static void Write(this System.IO.BinaryWriter writer, quat v)
+      {
+         writer.Write((float)v.x);
+         writer.Write((float)v.y);
+         writer.Write((float)v.z);
+         writer.Write((float)v.w);
+      }
+      public static void Write(this System.IO.BinaryWriter writer, Box3f box)
+      {
+         writer.Write((vec3)box._min);
+         writer.Write((vec3)box._max);
+      }
+      public static void Write(this System.IO.BinaryWriter writer, Box2f box)
+      {
+         writer.Write((vec2)box.Min);
+         writer.Write((vec2)box.Max);
+      }
+
+      public static vec2 ReadVec2(this System.IO.BinaryReader reader)
+      {
+         vec2 ret = new vec2();
+         ret.x = reader.ReadSingle();
+         ret.y = reader.ReadSingle();
+         return ret;
+      }
+      public static vec3 ReadVec3(this System.IO.BinaryReader reader)
+      {
+         vec3 ret = new vec3();
+         ret.x = reader.ReadSingle();
+         ret.y = reader.ReadSingle();
+         ret.z = reader.ReadSingle();
+         return ret;
+      }
+      public static vec4 ReadVec4(this System.IO.BinaryReader reader)
+      {
+         vec4 v = new vec4();
+         v.x = reader.ReadSingle();
+         v.y = reader.ReadSingle();
+         v.z = reader.ReadSingle();
+         v.w = reader.ReadSingle();
+         return v;
+      }
+      public static ivec2 ReadIVec2(this System.IO.BinaryReader reader)
+      {
+         ivec2 v = new ivec2();
+         v.x = reader.ReadInt32();
+         v.y = reader.ReadInt32();
+         return v;
+      }
+      public static ivec3 ReadIVec3(this System.IO.BinaryReader reader)
+      {
+         ivec3 v = new ivec3();
+         v.x = reader.ReadInt32();
+         v.y = reader.ReadInt32();
+         v.z = reader.ReadInt32();
+         return v;
+      }
+      public static ivec4 ReadIVec4(this System.IO.BinaryReader reader)
+      {
+         ivec4 v = new ivec4();
+         v.x = reader.ReadInt32();
+         v.y = reader.ReadInt32();
+         v.z = reader.ReadInt32();
+         v.w = reader.ReadInt32();
+         return v;
+      }
+      public static mat3 ReadMat3(this System.IO.BinaryReader reader)
+      {
+         mat3 ret = new mat3();
+         ret._m11 = reader.ReadSingle();
+         ret._m12 = reader.ReadSingle();
+         ret._m13 = reader.ReadSingle();
+         ret._m21 = reader.ReadSingle();
+         ret._m22 = reader.ReadSingle();
+         ret._m23 = reader.ReadSingle();
+         ret._m31 = reader.ReadSingle();
+         ret._m32 = reader.ReadSingle();
+         ret._m33 = reader.ReadSingle();
+         return ret;
+      }
+      public static mat4 ReadMat4(this System.IO.BinaryReader reader)
+      {
+         mat4 ret = new mat4();
+         ret._m11 = reader.ReadSingle();
+         ret._m12 = reader.ReadSingle();
+         ret._m13 = reader.ReadSingle();
+         ret._m14 = reader.ReadSingle();
+         ret._m21 = reader.ReadSingle();
+         ret._m22 = reader.ReadSingle();
+         ret._m23 = reader.ReadSingle();
+         ret._m24 = reader.ReadSingle();
+         ret._m31 = reader.ReadSingle();
+         ret._m32 = reader.ReadSingle();
+         ret._m33 = reader.ReadSingle();
+         ret._m34 = reader.ReadSingle();
+         ret._m41 = reader.ReadSingle();
+         ret._m42 = reader.ReadSingle();
+         ret._m43 = reader.ReadSingle();
+         ret._m44 = reader.ReadSingle();
+         return ret;
+      }
+      public static quat ReadQuat(this System.IO.BinaryReader reader)
+      {
+         quat v = new quat();
+         v.x = reader.ReadSingle();
+         v.y = reader.ReadSingle();
+         v.z = reader.ReadSingle();
+         v.w = reader.ReadSingle();
+         return v;
+      }
+      public static Box2f ReadBox2f(this System.IO.BinaryReader reader)
+      {
+         Box2f box = new Box2f();
+         box.Min = reader.ReadVec2();
+         box.Max = reader.ReadVec2();
+         return box;
+      }
+      public static Box3f ReadBox3f(this System.IO.BinaryReader reader)
+      {
+         Box3f box = new Box3f();
+         box._min = reader.ReadVec3();
+         box._max = reader.ReadVec3();
+         return box;
+      }
+
+   }
 }

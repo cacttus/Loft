@@ -206,7 +206,7 @@ namespace PirateCraft
             if (input == Shader.TextureInput.Albedo)
             {
                //White albedo
-               Bitmap b = Gu.CreateBitmapARGB(1, 1, new byte[] { 255, 255, 255, 255 });
+               Bitmap b = Img32.CreateBitmapARGB(1, 1, new byte[] { 255, 255, 255, 255 });
                tex = new Texture2D(b, false, TexFilter.Nearest);
             }
             else if (input == Shader.TextureInput.Normal)
@@ -226,7 +226,7 @@ namespace PirateCraft
                   Gu.BRThrowNotImplementedException();
                }
 
-               Bitmap b = Gu.CreateBitmapARGB(1, 1, dat);//Note this must match the Img32 normalizeImage format
+               Bitmap b = Img32.CreateBitmapARGB(1, 1, dat);//Note this must match the Img32 normalizeImage format
                tex = new Texture2D(b, false, TexFilter.Nearest);
             }
             else

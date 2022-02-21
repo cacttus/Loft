@@ -42,7 +42,7 @@ namespace PirateCraft
             //Cameras
             _camera = Gu.World.CreateCamera("Camera-001", Width, Height, new vec3(0, 20, -10));
 
-            Gu.World.Initialize(_camera);
+            Gu.World.Initialize(_camera, "Boogerton");
 
             //Textures
             Texture2D noise = Noise3D.TestNoise();

@@ -1,8 +1,13 @@
 ﻿initial generation of world (like minecraft)
+game/world
+save/load glob
 destroy globs.
+world material + shader
+    test using geometry shader + dens to create cubes instad of atulal meshs
 sky
 grass/flowr
 tres
+async generation
     
     
 * Roadmap

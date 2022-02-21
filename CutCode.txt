@@ -1,0 +1,147 @@
+﻿
+//FastFile ff = new FastFile(globfn, System.IO.FileAccess.Read);
+//ff.WriteInt32((Int32)g.GlobDensityState);
+//ff.WriteInt32(g.Pos.x);
+//ff.WriteInt32(g.Pos.y);
+//ff.WriteInt32(g.Pos.z);
+//if (g.Blocks == null)
+//{
+//   ff.WriteInt32(0);
+//}
+//else
+//{
+//   byte[] data = Gu.Serialize(g.Blocks);
+//   ff.WriteInt32(g.Blocks.Length);
+//   ff.WriteBlocks(g.Blocks);
+//}
+//ff.Close();
+
+
+//unsafe
+//{
+//   int GlobMaxFileSize = sizeof(Int32) * 4 + sizeof(Int32) + sizeof(Block) * GlobBlocksX * GlobBlocksY * GlobBlocksZ;
+
+
+//   using (var filestream = System.IO.File.OpenWrite(globfn))
+//   using (MemoryMappedFile mmf = MemoryMappedFile.CreateFromFile(filestream, "test", GlobMaxFileSize, MemoryMappedFileAccess.ReadWrite, 
+//      new MemoryMappedFileSecurity(), HandleInheritability.Inheritable, true))
+//   using (MemoryMappedViewStream stream = mmf.CreateViewStream())
+//   using(BinaryWriter writer = new BinaryWriter(stream))
+//   {
+//      writer.Write((Int32)g.GlobDensityState);
+//      writer.Write((Int32)g.Pos.x);
+//      writer.Write((Int32)g.Pos.y);
+//      writer.Write((Int32)g.Pos.z);
+//      if (g.Blocks == null)
+//      {
+//         writer.Write((Int32)0);
+//      }
+//      else
+//      {
+//         byte[] data = Gu.Serialize(g.Blocks);
+//         writer.Write(g.Blocks.Length);
+//         stream.Write(
+//         writer.Write((byte*)g.Blocks);
+//      }
+
+//      System.IO.File.WriteAllBytes(stream.);
+//   }
+//}
+
+//FastFile ff = new FastFile(globfn, System.IO.FileAccess.Write);
+//ff.WriteInt32((Int32)g.GlobDensityState);
+//ff.WriteInt32(g.Pos.x);
+//ff.WriteInt32(g.Pos.y);
+//ff.WriteInt32(g.Pos.z);
+//if (g.Blocks == null)
+//{
+//   ff.WriteInt32(0);
+//}
+//else
+//{
+//   byte[] data = Gu.Serialize(g.Blocks);
+//   ff.WriteInt32(g.Blocks.Length);
+//   ff.WriteBlocks(g.Blocks);
+//}
+//ff.Close();
+
+//using System;
+//using System.Collections.Generic;
+//using System.Linq;
+//using System.Text;
+//using System.Threading.Tasks;
+//using System.IO;
+//using System.Runtime.InteropServices;
+
+//namespace PirateCraft
+//{
+//   public class FastFile_InMemory
+//   {
+//      FileStream fileStream;
+//      //UnmanagedMemoryStream unmanagedStream;
+//      FileAccess fileAccess;
+//      SafeBuffer safeBuffer;
+
+//      System.IO.MemoryMappedFiles.MemoryMappedViewStream stream;
+
+//      public FastFile_InMemory(string path, FileAccess access)
+//      {
+//         if(access == FileAccess.Read)
+//         {
+//            byte[] bytes = File.ReadAllBytes(path);
+//            safeBuffer = new SafeBuffer(bytes.Length, sizeof(byte));
+//         }
+//         fileStream = new FileStream(path, FileMode.OpenOrCreate, access);
+//         fileAccess = access; 
+//      }
+//      public unsafe void WriteInt32(Int32 n)
+//      {
+//         Gu.Assert(fileAccess == FileAccess.Write);
+
+//         byte* b = (byte*)&n;
+//         using (var us = new UnmanagedMemoryStream(b, Marshal.SizeOf(default(Int32)))) 
+//            us.CopyTo(fileStream);
+//      }
+//      public unsafe void WriteBlocks(Block[] n) 
+//      {
+//         Gu.Assert(fileAccess == FileAccess.Write);
+
+//         GCHandle h = GCHandle.Alloc(n, GCHandleType.Pinned);
+//         IntPtr p = h.AddrOfPinnedObject();
+
+//         byte* b = (byte*)&p;
+//         using (var us = new UnmanagedMemoryStream(b, Marshal.SizeOf(default(Int32))))
+//            us.CopyTo(fileStream);
+
+//         h.Free();
+//      }
+//      public unsafe Int32 ReadInt32()
+//      {
+//         Gu.Assert(fileAccess == FileAccess.Read);
+
+//         Int32 ret;
+//         fileStream.Read()
+//         byte* b = (byte*)&n;
+//         using (var us = new UnmanagedMemoryStream(b, Marshal.SizeOf(default(Int32))))
+//            us.Read(fileStream);
+//      }
+//      public unsafe Block[] ReadBlocks()
+//      {
+//         Gu.Assert(fileAccess == FileAccess.Read);
+
+//         GCHandle h = GCHandle.Alloc(n, GCHandleType.Pinned);
+//         IntPtr p = h.AddrOfPinnedObject();
+
+//         byte* b = (byte*)&p;
+//         using (var us = new UnmanagedMemoryStream(b, Marshal.SizeOf(default(Int32))))
+//            us.CopyTo(fileStream);
+
+//         h.Free();
+//      }
+//      public void Close()
+//      {
+//         fileStream.Dispose();
+//         fileStream.Close();
+//      }
+//   }
+//}

@@ -1,25 +1,14 @@
 ﻿using System;
 using System.Runtime.InteropServices;
 using System.Collections.Generic;
-
+using System.IO.MemoryMappedFiles;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text;
+using System.IO;
 
 namespace PirateCraft
 {
-   public class BlockItemCode
-   {
-      //Blocks
-      public const ushort Empty = 0x00;
-      public const ushort Grass = 0x01;
-      public const ushort Dirt = 0x02;
-      public const ushort Brick = 0x03;
-      public const ushort Brick2 = 0x04;
-      public const ushort Gravel = 0x05;
-      public const ushort Sand = 0x06;
-      //Items
-      //...
-   }
    //The effigious block
    [StructLayout(LayoutKind.Sequential)]
    public struct Block
@@ -44,9 +33,43 @@ namespace PirateCraft
          return HasDensity();
       }
    }
-   //Unit box for creating mesh cubes
-   class UnitBoxMeshData
+   public class BlockItemCode
    {
+      //Blocks
+      public const ushort Empty = 0x00;
+      public const ushort Grass = 0x01;
+      public const ushort Dirt = 0x02;
+      public const ushort Brick = 0x03;
+      public const ushort Brick2 = 0x04;
+      public const ushort Gravel = 0x05;
+      public const ushort Sand = 0x06;
+      //Items
+      //...
+   }
+   public enum TileImage
+   {
+      Grass, GrassSide, Dirt, Plank, Brick, Brick2, Gravel, Sand
+   }
+   public class BlockTileUVSide
+   {
+      public const int Top = 0;
+      public const int Side = 1;
+      public const int Bottom = 2;
+   }
+   //Unit box for creating mesh cubes, Tiles, Material
+   public class WorldStaticData
+   {
+      public static Dictionary<TileImage, FileLoc> TileResources = new Dictionary<TileImage, FileLoc>() {
+            { TileImage.Grass, new FileLoc("tx64_grass.png", FileStorage.Embedded) },
+            { TileImage.GrassSide, new FileLoc("tx64_grass_side.png", FileStorage.Embedded) },
+            { TileImage.Dirt, new FileLoc("tx64_dirt.png", FileStorage.Embedded) },
+            { TileImage.Plank, new FileLoc("tx64_plank.png", FileStorage.Embedded) },
+            { TileImage.Brick, new FileLoc("tx64_brick.png", FileStorage.Embedded) },
+            { TileImage.Brick2, new FileLoc("tx64_brick2.png", FileStorage.Embedded) },
+            { TileImage.Gravel, new FileLoc("tx64_gravel.png", FileStorage.Embedded) },
+            { TileImage.Sand, new FileLoc("tx64_sand.png", FileStorage.Embedded) },
+         };
+
       private static vec3[] bx_box = new vec3[8];
       private static vec3[] bx_norms = new vec3[6];//lrbtaf
       private static vec2[] bx_texs = new vec2[4];
@@ -125,29 +148,21 @@ namespace PirateCraft
 
       }
    }
-   //   GlobCompressor 
-   //{
-   //    //Waaaay later. This should be easy enough thugh.
-   //    public UInt64[] CompressGlob(Uint64[] data
-   //    {
-   //      //Huffman
-   //      //build tree
-   //      //walk.
-   //      //done.
-   //   }
-   //}
-   public enum GlobDensityState
-   {
-      Partial, SolidBlocksOnly, SolidItems, Empty_AndNoData//Partial = renderable, Solid = fully solid, Empty = empty
-   }
+   //Main glob that holds blocks
    public class Glob
    {
+      public enum GlobDensityState
+      {
+         Partial, SolidBlocksOnly, SolidItems, Empty_AndNoData//Partial = renderable, Solid = fully solid, Empty = empty
+      }
+
       public UInt64 GeneratedFrameStamp { get; private set; } = 0;
       public MeshData Transparent = null;
       public MeshData Opaque = null;
       public Block[] Blocks = null;
-      public ivec3 Pos { get; private set; }
-      public GlobDensityState GlobDensityState = GlobDensityState.Partial;
+      public ivec3 Pos = new ivec3(0, 0, 0);
+      public Glob.GlobDensityState DensityState = Glob.GlobDensityState.Partial;
+      void Save(string fileLoc) { }
       private void AllocateBlocksIfEmpty()
       {
          if (Blocks == null)
@@ -172,7 +187,7 @@ namespace PirateCraft
       public void SetBlock(int x, int y, int z, Block b)
       {
          //We may be empty, in which case we need to reallocate our data. If the block is empty, though, then setting it to empty does nothing, as we are already empty.
-         if (!b.HasDensity() && GlobDensityState == GlobDensityState.Empty_AndNoData)
+         if (!b.HasDensity() && DensityState == GlobDensityState.Empty_AndNoData)
          {
             return;
          }
@@ -182,7 +197,7 @@ namespace PirateCraft
       public Block GetBlock(int x, int y, int z)
       {
          //If we are empty, then we have deleted our Block[] data to save space. Return an empty block
-         if (this.GlobDensityState == GlobDensityState.Empty_AndNoData)
+         if (this.DensityState == GlobDensityState.Empty_AndNoData)
          {
             return new Block(BlockItemCode.Empty);
          }
@@ -239,104 +254,34 @@ namespace PirateCraft
       //Texture2D _worldTexture = null;
       //Texture2D _worldBump = null;
       MegaTex _worldMegatex = new MegaTex("tex", true);
-
+      public string WorldSavePath = "";
+      public string WorldName = "";
+      private const string SaveWorldVersion = "0.01";
+      private const string SaveWorldHeader = "WorldFilev" + SaveWorldVersion;
+      private const int GlobFileVersion = 1;
+      private double AutoSaveTimeoutSeconds = 5;//
+      private double AutoSaveTimeout = 0;
       public World()
       {
       }
 
-      #region Objects
-
-      Dictionary<ushort, List<FileLoc>> _blockTiles;
-      Dictionary<ushort, List<MtTex>> _tileUVs;
-      Dictionary<TileImage, FileLoc> _tile_resources = new Dictionary<TileImage, FileLoc>() {
-            { TileImage.Grass, new FileLoc("tx64_grass.png", FileStorage.Embedded) },
-            { TileImage.GrassSide, new FileLoc("tx64_grass_side.png", FileStorage.Embedded) },
-            { TileImage.Dirt, new FileLoc("tx64_dirt.png", FileStorage.Embedded) },
-            { TileImage.Plank, new FileLoc("tx64_plank.png", FileStorage.Embedded) },
-            { TileImage.Brick, new FileLoc("tx64_brick.png", FileStorage.Embedded) },
-            { TileImage.Brick2, new FileLoc("tx64_brick2.png", FileStorage.Embedded) },
-            { TileImage.Gravel, new FileLoc("tx64_gravel.png", FileStorage.Embedded) },
-            { TileImage.Sand, new FileLoc("tx64_sand.png", FileStorage.Embedded) },
-         };
-      private enum TileImage
-      {
-         Grass, GrassSide, Dirt, Plank, Brick, Brick2, Gravel, Sand
-      }
-      private class BlockUVSide
-      {
-         public const int Top = 0;
-         public const int Side = 1;
-         public const int Bottom = 2;
-      }
       private FileLoc GetTileFile(TileImage img)
       {
-         _tile_resources.TryGetValue(img, out var loc);
+         WorldStaticData.TileResources.TryGetValue(img, out var loc);
          Gu.Assert(loc != null);
          return loc;
       }
-      public void Initialize(WorldObject player)
+      public void Initialize(WorldObject player, string worldName)
       {
          Player = player;
-         //_blockTiles - Manual array that specifies which tiles go on the top, side, bottom
-         //The tiles are specified by FileLoc structure which must be a class type.
-         //This is used to index into the megatex to find the generated UV coordinates.
-         _blockTiles = new Dictionary<ushort, List<FileLoc>>()
-         {
-            { BlockItemCode.Grass, new List<FileLoc>(){ GetTileFile(TileImage.Grass), GetTileFile(TileImage.GrassSide), GetTileFile(TileImage.Dirt) } },
-            { BlockItemCode.Dirt, new List<FileLoc>(){ GetTileFile(TileImage.Dirt), GetTileFile(TileImage.Dirt), GetTileFile(TileImage.Dirt) } },
-            { BlockItemCode.Brick, new List<FileLoc>(){ GetTileFile(TileImage.Brick), GetTileFile(TileImage.Brick), GetTileFile(TileImage.Brick) } },
-            { BlockItemCode.Brick2, new List<FileLoc>(){ GetTileFile(TileImage.Brick2), GetTileFile(TileImage.Brick2), GetTileFile(TileImage.Brick2) } },
-            { BlockItemCode.Gravel, new List<FileLoc>(){ GetTileFile(TileImage.Gravel), GetTileFile(TileImage.Gravel), GetTileFile(TileImage.Gravel) } },
-            { BlockItemCode.Sand, new List<FileLoc>(){ GetTileFile(TileImage.Sand), GetTileFile(TileImage.Sand), GetTileFile(TileImage.Sand) } },
-         };
+         WorldName = worldName;
 
-         //Create empty array that matches BlockTiles for the tile UVs
-         _tileUVs = new Dictionary<ushort, List<MtTex>>();
-         foreach (var block in _blockTiles)
-         {
-            List<MtTex> texs = new List<MtTex>();
-            _tileUVs.Add(block.Key, texs);
-            foreach (var floc in block.Value)
-            {
-               texs.Add(null);
-            }
-            //Count must be 3 for all sides of the block.
-            Gu.Assert(texs.Count == 3);
-         }
-
-         //Create the atlas.
-         //Must be called after context is set.
-         foreach (var resource in _tile_resources)
-         {
-            MtTexPatch p = _worldMegatex.getTex(resource.Value);
-            if (p.getTexs().Count > 0)
-            {
-               MtTex mtt = p.getTexs()[0];
-               foreach (var block in _blockTiles)
-               {
-                  //It's late.
-                  for (int ifloc = 0; ifloc < block.Value.Count; ifloc++)
-                  {
-                     if (block.Value[ifloc] == resource.Value)
-                     {
-                        _tileUVs[block.Key][ifloc] = mtt;
-                     }
-                  }
-               }
-            }
-            else
-            {
-               Gu.Log.Warn("Megatex resource generated no textures.");
-               Gu.DebugBreak();
-            }
-
-         }
-         _worldMegatex.loadImages();
-         var maps = _worldMegatex.compile(true);
-         _worldMaterial = new Material(Shader.DefaultDiffuse(), maps.Albedo, maps.Normal);
+         CreateWorldMaterial();
 
          //Generate the mesh data we use to create cubess
-         UnitBoxMeshData.Generate();
+         WorldStaticData.Generate();
+
+         InitWorldDiskFile();
 
          //Asynchronous generator .. (TODO)
          // Task.Factory.StartNew(() => {
@@ -345,6 +290,45 @@ namespace PirateCraft
          Gu.Log.Info("Building initail grid");
          BuildGlobGridAndTopologize(player.World.extractTranslation(), RenderRadiusShell * 5, true);
       }
+      public void Update(double dt, Camera3D cam)
+      {
+         BuildWorld();
+         UpdateObjects(dt);
+
+         //Honestly, this isn't too slow. We usually have maybe 500 globs visible at a time.
+         _visibleRenderGlobs.Clear();
+         foreach (var g in _renderGlobs)
+         {
+            if (cam.Frustum.HasBox(GetNodeBoxForGridPos(g.Key)))
+            {
+               _visibleRenderGlobs.Add(g.Key, g.Value);
+            }
+         }
+
+         AutoSaveTimeout += dt;
+         if(AutoSaveTimeout > AutoSaveTimeoutSeconds)
+         {
+            AutoSaveTimeout = 0;
+            SaveWorld();
+         }
+
+         //Get All Grids
+         //Well this is broken. Fix it later.
+         //SweepGridFrustum((ivec3 node_ipos, Box3f node_box) =>
+         //{
+         //   var glob = GetGlobAtPos(node_ipos);
+         //   if (glob != null)
+         //   {
+         //      Frustum frust = cam.Frustum;
+         //      if (cam.Frustum.HasBox(node_box))
+         //      {
+         //         _visibleRenderGlobs.Add(node_ipos, glob);
+         //      }
+         //   }
+         //}, cam.Frustum, MaxRenderDistance);
+      }
+      
+      #region Objects
 
       public WorldObject FindObject(string name)
       {
@@ -359,19 +343,6 @@ namespace PirateCraft
          c.Update(0);
          Objects.Add(name, c);
          return c;
-      }
-      private void AddObject(string name, WorldObject ob)
-      {
-         //Use a suffix if there is a duplicate object
-         int suffix = 0;
-         string name_suffix = name;
-         while (FindObject(name_suffix) != null)
-         {
-            suffix++;
-            name_suffix = name + "-" + suffix.ToString();
-         }
-         ob.Name = name_suffix;
-         Objects.Add(name_suffix, ob);
       }
       public WorldObject CreateObject(string name, MeshData mesh, Material material, vec3 pos = default(vec3))
       {
@@ -393,35 +364,18 @@ namespace PirateCraft
             Gu.Log.Error("Object '" + name + "' was not found.");
          }
       }
-      public void Update(double dt, Camera3D cam)
+      private void AddObject(string name, WorldObject ob)
       {
-         BuildWorld();
-         UpdateObjects(dt);
-
-         //Honestly, this isn't too slow. We usually have maybe 500 globs visible at a time.
-         _visibleRenderGlobs.Clear();
-         foreach(var g in _renderGlobs)
+         //Use a suffix if there is a duplicate object
+         int suffix = 0;
+         string name_suffix = name;
+         while (FindObject(name_suffix) != null)
          {
-            if (cam.Frustum.HasBox(GetNodeBoxForGridPos(g.Key)))
-            {
-               _visibleRenderGlobs.Add(g.Key,g.Value);
-            }
+            suffix++;
+            name_suffix = name + "-" + suffix.ToString();
          }
-
-         //Get All Grids
-         //Well this is broken. Fix it later.
-         //SweepGridFrustum((ivec3 node_ipos, Box3f node_box) =>
-         //{
-         //   var glob = GetGlobAtPos(node_ipos);
-         //   if (glob != null)
-         //   {
-         //      Frustum frust = cam.Frustum;
-         //      if (cam.Frustum.HasBox(node_box))
-         //      {
-         //         _visibleRenderGlobs.Add(node_ipos, glob);
-         //      }
-         //   }
-         //}, cam.Frustum, MaxRenderDistance);
+         ob.Name = name_suffix;
+         Objects.Add(name_suffix, ob);
       }
       private void UpdateObjects(double dt)
       {
@@ -430,6 +384,11 @@ namespace PirateCraft
             ob.Update(dt);
          }
       }
+      
+      #endregion
+
+      #region Rendering
+
       public void Render(double Delta, Camera3D camera)
       {
          //Render to this camera.
@@ -488,10 +447,72 @@ namespace PirateCraft
             DrawOb(c, Delta, camera);
          }
       }
+      private Dictionary<ushort, List<FileLoc>> _blockTiles;
+      private Dictionary<ushort, List<MtTex>> _tileUVs;
+      private void CreateWorldMaterial()
+      {
+         //_blockTiles - Manual array that specifies which tiles go on the top, side, bottom
+         //The tiles are specified by FileLoc structure which must be a class type.
+         //This is used to index into the megatex to find the generated UV coordinates.
+         _blockTiles = new Dictionary<ushort, List<FileLoc>>()
+         {
+            { BlockItemCode.Grass, new List<FileLoc>(){ GetTileFile(TileImage.Grass), GetTileFile(TileImage.GrassSide), GetTileFile(TileImage.Dirt) } },
+            { BlockItemCode.Dirt, new List<FileLoc>(){ GetTileFile(TileImage.Dirt), GetTileFile(TileImage.Dirt), GetTileFile(TileImage.Dirt) } },
+            { BlockItemCode.Brick, new List<FileLoc>(){ GetTileFile(TileImage.Brick), GetTileFile(TileImage.Brick), GetTileFile(TileImage.Brick) } },
+            { BlockItemCode.Brick2, new List<FileLoc>(){ GetTileFile(TileImage.Brick2), GetTileFile(TileImage.Brick2), GetTileFile(TileImage.Brick2) } },
+            { BlockItemCode.Gravel, new List<FileLoc>(){ GetTileFile(TileImage.Gravel), GetTileFile(TileImage.Gravel), GetTileFile(TileImage.Gravel) } },
+            { BlockItemCode.Sand, new List<FileLoc>(){ GetTileFile(TileImage.Sand), GetTileFile(TileImage.Sand), GetTileFile(TileImage.Sand) } },
+         };
+
+         //Create empty array that matches BlockTiles for the tile UVs
+         _tileUVs = new Dictionary<ushort, List<MtTex>>();
+         foreach (var block in _blockTiles)
+         {
+            List<MtTex> texs = new List<MtTex>();
+            _tileUVs.Add(block.Key, texs);
+            foreach (var floc in block.Value)
+            {
+               texs.Add(null);
+            }
+            //Count must be 3 for all sides of the block.
+            Gu.Assert(texs.Count == 3);
+         }
+
+         //Create the atlas.
+         //Must be called after context is set.
+         foreach (var resource in WorldStaticData.TileResources)
+         {
+            MtTexPatch p = _worldMegatex.getTex(resource.Value);
+            if (p.getTexs().Count > 0)
+            {
+               MtTex mtt = p.getTexs()[0];
+               foreach (var block in _blockTiles)
+               {
+                  //It's late.
+                  for (int ifloc = 0; ifloc < block.Value.Count; ifloc++)
+                  {
+                     if (block.Value[ifloc] == resource.Value)
+                     {
+                        _tileUVs[block.Key][ifloc] = mtt;
+                     }
+                  }
+               }
+            }
+            else
+            {
+               Gu.Log.Warn("Megatex resource generated no textures.");
+               Gu.DebugBreak();
+            }
+
+         }
+         _worldMegatex.loadImages();
+         var maps = _worldMegatex.compile(true);
+         _worldMaterial = new Material(Shader.DefaultDiffuse(), maps.Albedo, maps.Normal);
+      }
 
       #endregion
 
-      #region Globs
+      #region Private: Globs
 
       private void BuildWorld()
       {
@@ -528,7 +549,6 @@ namespace PirateCraft
                _currentShell++;
             }
 
-
          }
 
          //We are no longer initially generating the world.
@@ -560,12 +580,12 @@ namespace PirateCraft
          //}
 
       }
-      private List<Glob> BuildGlobGrid(vec3 origin, float awareness_radius, bool logprogress=false)
+      private List<Glob> BuildGlobGrid(vec3 origin, float awareness_radius, bool logprogress = false)
       {
          //Build a grid of globs in the volume specified by origin/radius
          List<Glob> newGlobs = new List<Glob>();
 
-         
+
          //TODO: we use a cube here, we should check against an actual sphere below. It looks nicer.
          vec3 awareness = new vec3(awareness_radius, awareness_radius, awareness_radius);
          Box3f bf = new Box3f(origin - awareness, origin + awareness);
@@ -577,11 +597,11 @@ namespace PirateCraft
          //Limit Y axis ..  DEBUG ONLY
          Gu.Log.WarnCycle("Limiting debug Y axis for testing");
          int ylimit = 3;
-         if(ibox._min.y > ylimit) {  ibox._min.y = ylimit; }
-         if(ibox._min.y < -ylimit) {  ibox._min.y = -ylimit; }
+         if (ibox._min.y > ylimit) { ibox._min.y = ylimit; }
+         if (ibox._min.y < -ylimit) { ibox._min.y = -ylimit; }
          if (ibox._max.y > ylimit) { ibox._max.y = ylimit; }
          if (ibox._max.y < -ylimit) { ibox._max.y = -ylimit; }
-         if(ibox._min.y > ibox._max.y) { ibox._min.y = ibox._max.y; }
+         if (ibox._min.y > ibox._max.y) { ibox._min.y = ibox._max.y; }
 
          int dbg_totalCount = 0;
          for (int z = ibox._min.z; z <= ibox._max.z; z++)
@@ -626,7 +646,7 @@ namespace PirateCraft
                   ivec3 gpos = new ivec3(x, y, z);
                   if (!_globs.ContainsKey(gpos))
                   {
-                     Glob g = GenerateGlob(gpos);
+                     Glob g = GenerateAndSaveOrLoadGlob(gpos);
                      _globs.Add(gpos, g);
                      newGlobs.Add(g);
                   }
@@ -647,12 +667,12 @@ namespace PirateCraft
          //Prevent unnecessary stitching.
          foreach (Glob g in newGlobs)
          {
-            if (g.GlobDensityState != GlobDensityState.Empty_AndNoData)
+            if (g.DensityState != Glob.GlobDensityState.Empty_AndNoData)
             {
                //The block is empty, the inside of the block has no topology.
                TopologizeGlob(g);
             }
-            if (g.GlobDensityState != GlobDensityState.SolidBlocksOnly)
+            if (g.DensityState != Glob.GlobDensityState.SolidBlocksOnly)
             {
                //No neighboring blocks would be visible, so stitchin gisn't needed
                StitchGlob(g);
@@ -660,6 +680,32 @@ namespace PirateCraft
          }
          return newGlobs;
       }
+      private Glob GenerateAndSaveOrLoadGlob(ivec3 gpos)
+      {
+         Glob g = TryLoadGlob(gpos);
+         if (g == null)
+         {
+            g = GenerateGlob(gpos);
+            SaveGlob(g);
+         }
+         return g;
+      }
+      private string GetGlobFileName(ivec3 gpos)
+      {
+         //[8][8][8]
+         Gu.Assert(System.IO.Directory.Exists(WorldSavePath));
+         string sx = (gpos.x < 0 ? "" : "+") + gpos.x.ToString("D8");
+         string sy = (gpos.y < 0 ? "" : "+") + gpos.y.ToString("D8");
+         string sz = (gpos.z < 0 ? "" : "+") + gpos.z.ToString("D8");
+         return System.IO.Path.Combine(WorldSavePath, sx + sy + sz + ".g");
+      }
+      private string GetWorldFileName()
+      {
+         Gu.Assert(System.IO.Directory.Exists(WorldSavePath));
+         string worldfile = WorldName + ".world";
+         return System.IO.Path.Combine(WorldSavePath, worldfile);
+      }
+
       private Glob GenerateGlob(ivec3 gpos)
       {
          //Density and all that.
@@ -701,16 +747,16 @@ namespace PirateCraft
 
          if (hasSolid && hasEmpty)
          {
-            g.GlobDensityState = GlobDensityState.Partial;
+            g.DensityState = Glob.GlobDensityState.Partial;
          }
          else if (hasSolid)
          {
-            g.GlobDensityState = GlobDensityState.SolidBlocksOnly;
+            g.DensityState = Glob.GlobDensityState.SolidBlocksOnly;
          }
          else if (hasEmpty)
          {
             //Delete block data to save space for empty globs.
-            g.GlobDensityState = GlobDensityState.Empty_AndNoData;
+            g.DensityState = Glob.GlobDensityState.Empty_AndNoData;
             g.Blocks = null;
          }
 
@@ -811,7 +857,7 @@ namespace PirateCraft
                      {
                         //We are same glob - globs may not be added to the list yet.
                         ivec3 bpos = R3toI3BlockLocal(block_pos_abs_R3_Center_Neighbor);
-                           b_n = g.GetBlock(bpos.x, bpos.y, bpos.z);
+                        b_n = g.GetBlock(bpos.x, bpos.y, bpos.z);
                      }
                      else
                      {
@@ -839,36 +885,36 @@ namespace PirateCraft
                            if ((face == 0) || (face == 1) || (face == 4) || (face == 5))
                            {
                               //LRAF
-                              texs[0] = new vec2(patches[BlockUVSide.Side].uv0.x, patches[BlockUVSide.Side].uv0.y);
-                              texs[1] = new vec2(patches[BlockUVSide.Side].uv1.x, patches[BlockUVSide.Side].uv0.y);
-                              texs[2] = new vec2(patches[BlockUVSide.Side].uv0.x, patches[BlockUVSide.Side].uv1.y);
-                              texs[3] = new vec2(patches[BlockUVSide.Side].uv1.x, patches[BlockUVSide.Side].uv1.y);
+                              texs[0] = new vec2(patches[BlockTileUVSide.Side].uv0.x, patches[BlockTileUVSide.Side].uv0.y);
+                              texs[1] = new vec2(patches[BlockTileUVSide.Side].uv1.x, patches[BlockTileUVSide.Side].uv0.y);
+                              texs[2] = new vec2(patches[BlockTileUVSide.Side].uv0.x, patches[BlockTileUVSide.Side].uv1.y);
+                              texs[3] = new vec2(patches[BlockTileUVSide.Side].uv1.x, patches[BlockTileUVSide.Side].uv1.y);
                            }
                            else if (face == 2)
                            {
                               //B
-                              texs[0] = new vec2(patches[BlockUVSide.Bottom].uv0.x, patches[BlockUVSide.Bottom].uv0.y);
-                              texs[1] = new vec2(patches[BlockUVSide.Bottom].uv1.x, patches[BlockUVSide.Bottom].uv0.y);
-                              texs[2] = new vec2(patches[BlockUVSide.Bottom].uv0.x, patches[BlockUVSide.Bottom].uv1.y);
-                              texs[3] = new vec2(patches[BlockUVSide.Bottom].uv1.x, patches[BlockUVSide.Bottom].uv1.y);
+                              texs[0] = new vec2(patches[BlockTileUVSide.Bottom].uv0.x, patches[BlockTileUVSide.Bottom].uv0.y);
+                              texs[1] = new vec2(patches[BlockTileUVSide.Bottom].uv1.x, patches[BlockTileUVSide.Bottom].uv0.y);
+                              texs[2] = new vec2(patches[BlockTileUVSide.Bottom].uv0.x, patches[BlockTileUVSide.Bottom].uv1.y);
+                              texs[3] = new vec2(patches[BlockTileUVSide.Bottom].uv1.x, patches[BlockTileUVSide.Bottom].uv1.y);
                            }
                            else if (face == 3)
                            {
                               //T
-                              texs[0] = new vec2(patches[BlockUVSide.Top].uv0.x, patches[BlockUVSide.Top].uv0.y);
-                              texs[1] = new vec2(patches[BlockUVSide.Top].uv1.x, patches[BlockUVSide.Top].uv0.y);
-                              texs[2] = new vec2(patches[BlockUVSide.Top].uv0.x, patches[BlockUVSide.Top].uv1.y);
-                              texs[3] = new vec2(patches[BlockUVSide.Top].uv1.x, patches[BlockUVSide.Top].uv1.y);
+                              texs[0] = new vec2(patches[BlockTileUVSide.Top].uv0.x, patches[BlockTileUVSide.Top].uv0.y);
+                              texs[1] = new vec2(patches[BlockTileUVSide.Top].uv1.x, patches[BlockTileUVSide.Top].uv0.y);
+                              texs[2] = new vec2(patches[BlockTileUVSide.Top].uv0.x, patches[BlockTileUVSide.Top].uv1.y);
+                              texs[3] = new vec2(patches[BlockTileUVSide.Top].uv1.x, patches[BlockTileUVSide.Top].uv1.y);
                            }
 
                         }
                         else
                         {
                            //The Top/Side/Bot tile images could not be found (were not created) - default to the whole megatexture [0,1]
-                           texs[0] = UnitBoxMeshData.bx_verts_face[face, 0]._x;
-                           texs[1] = UnitBoxMeshData.bx_verts_face[face, 1]._x;
-                           texs[2] = UnitBoxMeshData.bx_verts_face[face, 2]._x;
-                           texs[3] = UnitBoxMeshData.bx_verts_face[face, 3]._x;
+                           texs[0] = WorldStaticData.bx_verts_face[face, 0]._x;
+                           texs[1] = WorldStaticData.bx_verts_face[face, 1]._x;
+                           texs[2] = WorldStaticData.bx_verts_face[face, 2]._x;
+                           texs[3] = WorldStaticData.bx_verts_face[face, 3]._x;
                         }
 
                         //Verts + Indexes
@@ -877,15 +923,15 @@ namespace PirateCraft
                         {
                            verts.Add(new v_v3n3x2()
                            {
-                              _v = UnitBoxMeshData.bx_verts_face[face, vi]._v + block_pos_abs_R3,
-                              _n = UnitBoxMeshData.bx_verts_face[face, vi]._n,
-                              _x = texs[vi], 
+                              _v = WorldStaticData.bx_verts_face[face, vi]._v + block_pos_abs_R3,
+                              _n = WorldStaticData.bx_verts_face[face, vi]._n,
+                              _x = texs[vi],
                            });
                         }
 
                         for (int ii = 0; ii < 6; ++ii)
                         {
-                           inds.Add(foff + UnitBoxMeshData.bx_face_inds[ii]);
+                           inds.Add(foff + WorldStaticData.bx_face_inds[ii]);
                         }
 
                      }
@@ -931,11 +977,11 @@ namespace PirateCraft
          float bpos;
          if (R3 < 0)
          {
-            bpos = (float)Math.Floor((R3 % BlocksAxis + BlocksAxis)/BlockWidth);
+            bpos = (float)Math.Floor((R3 % BlocksAxis + BlocksAxis) / BlockWidth);
          }
          else
          {
-            bpos = (float) Math.Floor((R3 % BlocksAxis)/BlockWidth);
+            bpos = (float)Math.Floor((R3 % BlocksAxis) / BlockWidth);
          }
          return bpos;
       }
@@ -944,9 +990,9 @@ namespace PirateCraft
          vec3 bpos = new vec3(
             R3toI3BlockComp(R3.x, GlobWidthX, BlockSizeX),
             R3toI3BlockComp(R3.y, GlobWidthY, BlockSizeY),
-            R3toI3BlockComp(R3.z, GlobWidthZ, BlockSizeZ) );
+            R3toI3BlockComp(R3.z, GlobWidthZ, BlockSizeZ));
 
-         if (bpos.x < 0 || bpos.y < 0 || bpos.z < 0 ||bpos.x >= World.GlobBlocksX || bpos.y >= World.GlobBlocksY || bpos.z >= World.GlobBlocksZ)
+         if (bpos.x < 0 || bpos.y < 0 || bpos.z < 0 || bpos.x >= World.GlobBlocksX || bpos.y >= World.GlobBlocksY || bpos.z >= World.GlobBlocksZ)
          {
             Gu.DebugBreak();
          }
@@ -980,7 +1026,7 @@ namespace PirateCraft
 
             float sign = ia % 2 == 0 ? -1 : 1;//prevent huge hils
 
-            d = d + (sign) * MathUtils.cosf(world_pos.x/World.BlockSizeX * 0.1f * f) * 3 * a + (sign) * MathUtils.sinf(world_pos.z / World.BlockSizeZ * 0.1f * f) * 3 * a * BlockSizeY;
+            d = d + (sign) * MathUtils.cosf(world_pos.x / World.BlockSizeX * 0.1f * f) * 3 * a + (sign) * MathUtils.sinf(world_pos.z / World.BlockSizeZ * 0.1f * f) * 3 * a * BlockSizeY;
          }
 
          ushort item = BlockItemCode.Empty;
@@ -1098,6 +1144,171 @@ namespace PirateCraft
       }
 
       #endregion
+
+      #region Private: Files
+
+      private void InitWorldDiskFile()
+      {
+         WorldSavePath = System.IO.Path.Combine(Gu.SavePath, WorldName);
+         Gu.Log.Info("Creating world save directory " + WorldSavePath);
+         if (!System.IO.Directory.Exists(WorldSavePath))
+         {
+            System.IO.Directory.CreateDirectory(WorldSavePath);
+         }
+         if (!TryLoadWorld())
+         {
+            SaveWorld();
+         }
+      }
+      public void SaveWorld()
+      {
+         //We can call this if the player moves or something.
+         if (Player == null)
+         {
+            Gu.BRThrowException("Player must not be null when creating world.");
+         }
+
+         string worldfn = GetWorldFileName();
+         var enc = Encoding.GetEncoding("iso-8859-1");
+         using (var fs = System.IO.File.OpenWrite(worldfn))
+         using (var br = new System.IO.BinaryWriter(fs, enc))
+         {
+            br.Write((string)SaveWorldHeader);
+            br.Write(Player.Position);
+            br.Write(Player.Rotation);
+         }
+      }
+      private bool TryLoadWorld()
+      {
+         if (Player == null)
+         {
+            Gu.BRThrowException("Player must not be null when creating world.");
+         }
+
+         string worldfn = GetWorldFileName();
+         var enc = Encoding.GetEncoding("iso-8859-1");
+         if (!System.IO.File.Exists(worldfn))
+         {
+            return false;
+         }
+
+         using (var fs = System.IO.File.OpenRead(worldfn))
+         using (var br = new System.IO.BinaryReader(fs, enc))
+         {
+            string h = br.ReadString();
+            if (h != SaveWorldHeader)
+            {
+               Gu.BRThrowException("World header '" + h + "' does not match current header version '" + SaveWorldHeader + "'");
+            }
+            Player.Position = br.ReadVec3();
+            Player.Rotation = br.ReadQuat();
+         }
+         return true;
+      }
+      private void SaveGlob(Glob g)
+      {
+         string globfn = GetGlobFileName(g.Pos);
+         var enc = Encoding.GetEncoding("iso-8859-1");
+         bool append = false;
+         if (System.IO.File.Exists(globfn))
+         {
+            append = true;
+         }
+
+         try
+         {
+
+            using (var fs = System.IO.File.OpenWrite(globfn))
+            using (var br = new System.IO.BinaryWriter(fs, enc))
+            {
+               br.Write((Int32)GlobFileVersion);
+               br.Write((Int32)g.DensityState);
+               br.Write((Int32)g.Pos.x);
+               br.Write((Int32)g.Pos.y);
+               br.Write((Int32)g.Pos.z);
+               if (g.Blocks == null)
+               {
+                  br.Write((Int32)0);
+               }
+               else
+               {
+
+                  var bigAssByteArray = new byte[Marshal.SizeOf(typeof(Block)) * g.Blocks.Length];
+                  var pinnedHandle = GCHandle.Alloc(g.Blocks, GCHandleType.Pinned);
+                  Marshal.Copy(pinnedHandle.AddrOfPinnedObject(), bigAssByteArray, 0, bigAssByteArray.Length);
+                  pinnedHandle.Free();
+
+                  br.Write((Int32)bigAssByteArray.Length);
+                  br.Write(bigAssByteArray);
+               }
+            }
+
+         }
+         catch (Exception ex)
+         {
+            //Delete corrupt files if we created corrupt one.
+            if (append == false)
+            {
+               if (File.Exists(globfn))
+               {
+                  File.Delete(globfn);
+               }
+            }
+            throw ex;
+         }
+      }
+      private Glob TryLoadGlob(ivec3 gpos)
+      {
+         //Return null if no glob file was found.
+         string globfn = GetGlobFileName(gpos);
+         Glob g = null;
+         try
+         {
+            if (File.Exists(globfn))
+            {
+               g = new Glob(new ivec3(0, 0, 0), 0);
+
+               var enc = Encoding.GetEncoding("iso-8859-1");
+
+               using (var fs = File.OpenRead(globfn))
+               using (var br = new System.IO.BinaryReader(fs, enc))
+               {
+                  Int32 version = br.ReadInt32();
+                  if(version!= GlobFileVersion)
+                  {
+                     Gu.BRThrowException("Glob file verison '"+ version + "' does not match required version '"+ GlobFileVersion + "'.");
+                  }
+                  g.DensityState = (Glob.GlobDensityState)br.ReadInt32();
+                  g.Pos.x = br.ReadInt32();
+                  g.Pos.y = br.ReadInt32();
+                  g.Pos.z = br.ReadInt32();
+                  int btecount = br.ReadInt32();
+                  if (btecount == 0)
+                  {
+                     g.Blocks = null;
+                  }
+                  else
+                  {
+                     var readBytes = br.ReadBytes(btecount);// File.ReadAllBytes(@"c:\temp\vectors.out");
+                     var numStructs = readBytes.Length / Marshal.SizeOf(typeof(Block));
+                     g.Blocks = new Block[numStructs];
+                     var pinnedHandle = GCHandle.Alloc(g.Blocks, GCHandleType.Pinned);
+                     Marshal.Copy(readBytes, 0, pinnedHandle.AddrOfPinnedObject(), readBytes.Length);
+                     pinnedHandle.Free();
+                  }
+               }
+            }
+         }
+         catch (Exception ex)
+         {
+            Gu.Log.Error("Glob " + globfn + " had an error loading. " + ex.ToString());
+            return null;
+         }
+         return g;
+      }
+
+      #endregion
+
 
    }
 }

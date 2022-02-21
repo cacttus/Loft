@@ -98,12 +98,8 @@ namespace PirateCraft
       public static World World = new World();
 
       public static string LocalCachePath = "./data/cache";
-      public static double RotationPerSecond(double seconds)
-      {
-         var f = (CurrentWindowContext.UpTime % seconds) / seconds;
-         f*= Math.PI * 2;
-         return f;
-      }
+      public static string SavePath = "./save";
+
       public static void Init(GameWindow g)
       {
          //Create cache
@@ -122,25 +118,6 @@ namespace PirateCraft
          RegisterContext(g);
          SetContext(g);
       }
-      public static Bitmap CreateBitmapARGB(int width, int height, byte[] pixels)
-      {
-         Gu.Assert(pixels != null);
-         if(width*height*4 != pixels.Length)
-         {
-            Gu.BRThrowException("Created bitmap w/h will not match input pixel bytes at 32bpp");
-         }
-
-         Bitmap b = new Bitmap(width, width, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-         BitmapData bmpData = b.LockBits(new Rectangle(0, 0, width, width),
-                                         ImageLockMode.WriteOnly,
-                                         b.PixelFormat);
-         IntPtr ptr = bmpData.Scan0;
-         int bytes = bmpData.Stride * b.Height;
-         Gu.Assert(bytes == pixels.Length); // Sanity check
-         Marshal.Copy(pixels, 0, ptr, bytes);
-         b.UnlockBits(bmpData);
-         return b;
-      }
       private static void RegisterContext(GameWindow g)
       {
          Contexts.Add(g, new WindowContext(g));
@@ -157,6 +134,22 @@ namespace PirateCraft
             Gu.BRThrowException("Context for game window " + g.Title + " not found.");
          }
       }
+      public static Int64 Nanoseconds()
+      {
+         return DateTime.UtcNow.Ticks * 100;
+      }
+      public static Int64 Microseconds()
+      {
+         return Nanoseconds() / 1000;
+      }
+      public static double RotationPerSecond(double seconds)
+      {
+         var f = (CurrentWindowContext.UpTime % seconds) / seconds;
+         f *= Math.PI * 2;
+         return f;
+      }
+      #region Debugging
+
       public static void BRThrowException(string msg)
       {
          throw new Exception("Error: " + msg);
@@ -165,6 +158,22 @@ namespace PirateCraft
       {
          throw new NotImplementedException();
       }
+      public static void Assert(bool x, [CallerLineNumber] int lineNumber = 0, [CallerMemberName] string caller = null)
+      {
+         if (!x)
+         {
+            throw new Exception("Assertion failed: " + caller + ":" + lineNumber.ToString());
+         }
+      }
+      public static void DebugBreak()
+      {
+         Debugger.Break();
+      }
+
+      #endregion
+
+      #region FileOps
+
       public static string ReadTextFile(FileLoc loc)
       {
          //Returns empty string when failSilently is true.
@@ -181,7 +190,7 @@ namespace PirateCraft
                }
             }
          }
-         else if(loc.FileStorage == FileStorage.Disk)
+         else if (loc.FileStorage == FileStorage.Disk)
          {
             if (!System.IO.File.Exists(loc.RawPath))
             {
@@ -223,7 +232,7 @@ namespace PirateCraft
          Bitmap b = null;
 
          loc.AssertExists();
-         
+
          if (loc.FileStorage == FileStorage.Embedded)
          {
             using (var fs = Assembly.GetExecutingAssembly().GetManifestResourceStream(loc.QualifiedPath))
@@ -234,7 +243,7 @@ namespace PirateCraft
                }
             }
          }
-         else if(loc.FileStorage == FileStorage.Disk)
+         else if (loc.FileStorage == FileStorage.Disk)
          {
             b = new Bitmap(loc.QualifiedPath);
          }
@@ -248,34 +257,44 @@ namespace PirateCraft
          }
          return b;
       }
-      public static Int64 Nanoseconds()
+      public static unsafe byte[] Serialize<T>(T[] data) where T : struct
       {
-         return DateTime.UtcNow.Ticks * 100;
-      }
-      public static Int64 Microseconds()
-      {
-         return Nanoseconds() / 1000;
-      }
-      public static void Assert(bool x, [CallerLineNumber] int lineNumber = 0, [CallerMemberName] string caller = null)
-      {
-         if (!x)
+         //This is .. terrible.
+         var size = Marshal.SizeOf(data[0]);
+         var bytes = new byte[size * data.Length];
+         for (int di = 0; di < data.Length; di++)
          {
-            throw new Exception("Assertion failed: " + caller + ":" + lineNumber.ToString());
+            var ptr = Marshal.AllocHGlobal(size);
+            Marshal.StructureToPtr(data[di], ptr, true);
+            Marshal.Copy(ptr, bytes, di * size, size);
+            Marshal.FreeHGlobal(ptr);
          }
+
+         return bytes;
       }
-      public static void DebugBreak()
+      public static T[] Deserialize<T>(byte[] data) where T : struct
       {
-         Debugger.Break();
-      }
-      public static T GetRef<T>(WeakReference<T> v) where T : class
-      {
-         if (v == null)
+         var tsize = Marshal.SizeOf(default(T));
+
+         //Must be a multiple of the struct.
+         Gu.Assert(data.Length % tsize == 0);
+
+         var count = data.Length / tsize;
+         T[] ret = new T[count];
+
+         for (int di = 0; di < data.Length; di+=tsize)
          {
-            return null;
+            var ptr_struct = Marshal.AllocHGlobal(tsize);
+            Marshal.StructureToPtr(data[di], ptr_struct, true);
+            ret[di / tsize] = (T)Marshal.PtrToStructure(ptr_struct, typeof(T));
+            Marshal.FreeHGlobal(ptr_struct);
          }
-         T wr = default(T);
-         v.TryGetTarget(out wr);
-         return wr;
+
+         return ret;
       }
+
+
    }
+
+   #endregion
 }
