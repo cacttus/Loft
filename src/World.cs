@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Text;
 using System.IO;
+using System.Collections;
 
 namespace PirateCraft
 {
@@ -13,11 +14,13 @@ namespace PirateCraft
    [StructLayout(LayoutKind.Sequential)]
    public struct Block
    {
+      public static Block Empty = new Block(0);
       public Block(UInt16 val) { Value = val; }
       public UInt16 Value;
-      public bool HasDensity()
+      public bool IsEmpty()
       {
-         return Value != 0;
+         //Nothing but air
+         return Value == 0;
       }
       public bool IsItem()
       {
@@ -26,11 +29,11 @@ namespace PirateCraft
       }
       public bool IsSolidBlockNotTransparent()
       {
-         //This should return whether the block is a solid (non-item) non-transparent block. 
+         //This should return whether the block is a *solid (non-item) *non-transparent *block (6 solid sides). 
          // Used for face culling.
          //Technically it should index into a LUT to see whether this block-item is solid or not.
          //For now - we are just rendering blocks so we can return HasDensity for this.
-         return HasDensity();
+         return !IsEmpty();
       }
    }
    public class BlockItemCode
@@ -43,12 +46,15 @@ namespace PirateCraft
       public const ushort Brick2 = 0x04;
       public const ushort Gravel = 0x05;
       public const ushort Sand = 0x06;
+      public const ushort Cedar = 0x07;
+      public const ushort Cedar_Needles = 0x08;
+      public const ushort Feldspar = 0x09;
       //Items
       //...
    }
    public enum TileImage
    {
-      Grass, GrassSide, Dirt, Plank, Brick, Brick2, Gravel, Sand
+      Grass, GrassSide, Dirt, Plank, Brick, Brick2, Gravel, Sand, Cedar, Cedar_Needles, Cedar_Top, Feldspar
    }
    public class BlockTileUVSide
    {
@@ -59,7 +65,26 @@ namespace PirateCraft
    //Unit box for creating mesh cubes, Tiles, Material
    public class WorldStaticData
    {
-      public static Dictionary<TileImage, FileLoc> TileResources = new Dictionary<TileImage, FileLoc>() {
+      public static vec3[] GlobNeighborOffsets = new vec3[6]
+      {
+         new vec3(-World.GlobWidthX, 0, 0),
+         new vec3(World.GlobWidthX, 0, 0),
+         new vec3(0, -World.GlobWidthY, 0),
+         new vec3(0, World.GlobWidthY, 0),
+         new vec3(0, 0, -World.GlobWidthZ),
+         new vec3(0, 0, World.GlobWidthZ),
+      };
+      public static vec3[] BlockNeighborOffsets = new vec3[6]
+      {
+         new vec3(-World.BlockSizeX, 0, 0),
+         new vec3(World.BlockSizeX, 0, 0),
+         new vec3(0, -World.BlockSizeY, 0),
+         new vec3(0, World.BlockSizeY, 0),
+         new vec3(0, 0, -World.BlockSizeZ),
+         new vec3(0, 0, World.BlockSizeZ),
+      };
+
+      public static Dictionary<TileImage, FileLoc> TileImages = new Dictionary<TileImage, FileLoc>() {
             { TileImage.Grass, new FileLoc("tx64_grass.png", FileStorage.Embedded) },
             { TileImage.GrassSide, new FileLoc("tx64_grass_side.png", FileStorage.Embedded) },
             { TileImage.Dirt, new FileLoc("tx64_dirt.png", FileStorage.Embedded) },
@@ -68,6 +93,10 @@ namespace PirateCraft
             { TileImage.Brick2, new FileLoc("tx64_brick2.png", FileStorage.Embedded) },
             { TileImage.Gravel, new FileLoc("tx64_gravel.png", FileStorage.Embedded) },
             { TileImage.Sand, new FileLoc("tx64_sand.png", FileStorage.Embedded) },
+            { TileImage.Cedar, new FileLoc("tx64_cedar.png", FileStorage.Embedded) },
+            { TileImage.Cedar_Needles, new FileLoc("tx64_cedar_needles.png", FileStorage.Embedded) },
+            { TileImage.Cedar_Top, new FileLoc("tx64_cedar_top.png", FileStorage.Embedded) },
+            { TileImage.Feldspar, new FileLoc("tx64_plagioclase_feldspar.png", FileStorage.Embedded) },
          };
 
       private static vec3[] bx_box = new vec3[8];
@@ -148,28 +177,29 @@ namespace PirateCraft
 
       }
    }
+
+
    //Main glob that holds blocks
    public class Glob
    {
+      public enum GlobState
+      {
+         None, Loaded, Topologized
+      }
       public enum GlobDensityState
       {
          Partial, SolidBlocksOnly, SolidItems, Empty_AndNoData//Partial = renderable, Solid = fully solid, Empty = empty
       }
-
-      public UInt64 GeneratedFrameStamp { get; private set; } = 0;
+      public Int64 GeneratedFrameStamp { get; private set; } = 0;
       public MeshData Transparent = null;
       public MeshData Opaque = null;
       public Block[] Blocks = null;
       public ivec3 Pos = new ivec3(0, 0, 0);
-      public Glob.GlobDensityState DensityState = Glob.GlobDensityState.Partial;
-      void Save(string fileLoc) { }
-      private void AllocateBlocksIfEmpty()
-      {
-         if (Blocks == null)
-         {
-            Blocks = new Block[World.GlobBlocksX * World.GlobBlocksY * World.GlobBlocksZ];
-         }
-      }
+      public GlobDensityState DensityState = GlobDensityState.Partial;
+      public GlobState State = GlobState.None;
+      public int Solid = 0;
+      public int Empty = 0;
+      public int Items = 0;
       public vec3 OriginR3
       {
          get
@@ -178,35 +208,10 @@ namespace PirateCraft
             return r;
          }
       }
-      public Glob(ivec3 pos, UInt64 genframeStamp)
+      public Glob(ivec3 pos, Int64 genframeStamp)
       {
          Pos = pos;
          GeneratedFrameStamp = genframeStamp;
-      }
-
-      public void SetBlock(int x, int y, int z, Block b)
-      {
-         //We may be empty, in which case we need to reallocate our data. If the block is empty, though, then setting it to empty does nothing, as we are already empty.
-         if (!b.HasDensity() && DensityState == GlobDensityState.Empty_AndNoData)
-         {
-            return;
-         }
-         AllocateBlocksIfEmpty();
-         Blocks[z * World.GlobBlocksX * World.GlobBlocksY + y * World.GlobBlocksX + x] = b;
-      }
-      public Block GetBlock(int x, int y, int z)
-      {
-         //If we are empty, then we have deleted our Block[] data to save space. Return an empty block
-         if (this.DensityState == GlobDensityState.Empty_AndNoData)
-         {
-            return new Block(BlockItemCode.Empty);
-         }
-
-         return Blocks[z * World.GlobBlocksX * World.GlobBlocksY + y * World.GlobBlocksX + x];
-      }
-
-      public void Update()
-      {
       }
    }
    //GlobWorld
@@ -228,9 +233,11 @@ namespace PirateCraft
       public const float GlobWidthY = GlobBlocksY * BlockSizeY;
       public const float GlobWidthZ = GlobBlocksZ * BlockSizeZ;
       public const int MaxGenerationShells = 20;
-      public readonly float GlobDiameter = (float)Math.Sqrt(GlobWidthX * GlobWidthX + GlobWidthY * GlobWidthY + GlobWidthZ * GlobWidthZ);
-      public float RenderRadiusShell { get { return GlobDiameter; } }
-      public float MaxRenderDistance { get { return GlobDiameter * 5; } } //Render all the nodes we can see.
+      public readonly vec3 BlockRadiusR3 = new vec3(BlockSizeX * 0.5f, BlockSizeY * 0.5f, BlockSizeZ * 0.5f);//Radius from center of glob to the corner.
+      public readonly vec3 GlobRadiusR3 = new vec3(GlobWidthX * 0.5f, GlobWidthY * 0.5f, GlobWidthZ * 0.5f);//Radius from center of glob to the corner.
+      public vec3 GlobDiameterR3 { get { return GlobRadiusR3 * 2; } }
+      public vec3 RenderRadiusShell { get { return GlobDiameterR3; } }
+      //  public float MaxRenderDistance { get { return GlobDiameterR3 * 5; } } //Render all the nodes we can see.
 
       private bool _firstGeneration = true; //Whether this is the initial generation, where we would need to generate everything around the player.
       private int _currentShell = 1;
@@ -240,9 +247,15 @@ namespace PirateCraft
       public int NumRenderGlobs { get { return _renderGlobs.Count; } }
       public int NumVisibleRenderGlobs { get { return _visibleRenderGlobs.Count; } }
 
+      public enum GlobCollection
+      {
+         All, Render, VisibleRender
+      }
       Dictionary<ivec3, Glob> _globs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //All globs
       Dictionary<ivec3, Glob> _renderGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
       Dictionary<ivec3, Glob> _visibleRenderGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
+      Dictionary<ivec3, Glob> _globsToTopologize = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
+
 
       //TODO:players
       public WorldObject Player = null;
@@ -267,21 +280,27 @@ namespace PirateCraft
 
       private FileLoc GetTileFile(TileImage img)
       {
-         WorldStaticData.TileResources.TryGetValue(img, out var loc);
+         WorldStaticData.TileImages.TryGetValue(img, out var loc);
          Gu.Assert(loc != null);
          return loc;
       }
-      public void Initialize(WorldObject player, string worldName)
+      public void Initialize(WorldObject player, string worldName, bool delete_world_start_fresh)
       {
          Player = player;
          WorldName = worldName;
+
+         if (!MathUtils.IsPowerOfTwo(GlobBlocksX) || !MathUtils.IsPowerOfTwo(GlobBlocksY) || !MathUtils.IsPowerOfTwo(GlobBlocksZ))
+         {
+            Gu.BRThrowException("Glob blocks x,y,z must be a power of 2.");
+         }
+
 
          CreateWorldMaterial();
 
          //Generate the mesh data we use to create cubess
          WorldStaticData.Generate();
 
-         InitWorldDiskFile();
+         InitWorldDiskFile(delete_world_start_fresh);
 
          //Asynchronous generator .. (TODO)
          // Task.Factory.StartNew(() => {
@@ -299,14 +318,14 @@ namespace PirateCraft
          _visibleRenderGlobs.Clear();
          foreach (var g in _renderGlobs)
          {
-            if (cam.Frustum.HasBox(GetNodeBoxForGridPos(g.Key)))
+            if (cam.Frustum.HasBox(GetGlobBoxGlobalI3(g.Key)))
             {
                _visibleRenderGlobs.Add(g.Key, g.Value);
             }
          }
 
          AutoSaveTimeout += dt;
-         if(AutoSaveTimeout > AutoSaveTimeoutSeconds)
+         if (AutoSaveTimeout > AutoSaveTimeoutSeconds)
          {
             AutoSaveTimeout = 0;
             SaveWorld();
@@ -327,7 +346,7 @@ namespace PirateCraft
          //   }
          //}, cam.Frustum, MaxRenderDistance);
       }
-      
+
       #region Objects
 
       public WorldObject FindObject(string name)
@@ -384,7 +403,7 @@ namespace PirateCraft
             ob.Update(dt);
          }
       }
-      
+
       #endregion
 
       #region Rendering
@@ -447,6 +466,7 @@ namespace PirateCraft
             DrawOb(c, Delta, camera);
          }
       }
+
       private Dictionary<ushort, List<FileLoc>> _blockTiles;
       private Dictionary<ushort, List<MtTex>> _tileUVs;
       private void CreateWorldMaterial()
@@ -462,8 +482,11 @@ namespace PirateCraft
             { BlockItemCode.Brick2, new List<FileLoc>(){ GetTileFile(TileImage.Brick2), GetTileFile(TileImage.Brick2), GetTileFile(TileImage.Brick2) } },
             { BlockItemCode.Gravel, new List<FileLoc>(){ GetTileFile(TileImage.Gravel), GetTileFile(TileImage.Gravel), GetTileFile(TileImage.Gravel) } },
             { BlockItemCode.Sand, new List<FileLoc>(){ GetTileFile(TileImage.Sand), GetTileFile(TileImage.Sand), GetTileFile(TileImage.Sand) } },
+            { BlockItemCode.Cedar_Needles, new List<FileLoc>(){ GetTileFile(TileImage.Cedar_Needles), GetTileFile(TileImage.Cedar_Needles), GetTileFile(TileImage.Cedar_Needles) } },
+            { BlockItemCode.Cedar, new List<FileLoc>(){ GetTileFile(TileImage.Cedar_Top), GetTileFile(TileImage.Cedar), GetTileFile(TileImage.Cedar_Top) } },
+            { BlockItemCode.Feldspar, new List<FileLoc>(){ GetTileFile(TileImage.Feldspar), GetTileFile(TileImage.Feldspar), GetTileFile(TileImage.Feldspar) } },
          };
-
+         
          //Create empty array that matches BlockTiles for the tile UVs
          _tileUVs = new Dictionary<ushort, List<MtTex>>();
          foreach (var block in _blockTiles)
@@ -480,7 +503,7 @@ namespace PirateCraft
 
          //Create the atlas.
          //Must be called after context is set.
-         foreach (var resource in WorldStaticData.TileResources)
+         foreach (var resource in WorldStaticData.TileImages)
          {
             MtTexPatch p = _worldMegatex.getTex(resource.Value);
             if (p.getTexs().Count > 0)
@@ -533,7 +556,7 @@ namespace PirateCraft
             //Quick-n-dirty "don't kill me"
             ivec3 newPlayerGlob = R3toI3Glob(Player.Position);
 
-            float awareness_radius = RenderRadiusShell * _currentShell;
+            vec3 awareness_radius = RenderRadiusShell * _currentShell;
 
             vec3 ppos = Player.World.extractTranslation();
             List<Glob> newGlobs = BuildGlobGridAndTopologize(ppos, awareness_radius);
@@ -580,15 +603,13 @@ namespace PirateCraft
          //}
 
       }
-      private List<Glob> BuildGlobGrid(vec3 origin, float awareness_radius, bool logprogress = false)
+      private List<Glob> BuildGlobGrid(vec3 origin, vec3 awareness_radius, bool logprogress = false)
       {
          //Build a grid of globs in the volume specified by origin/radius
          List<Glob> newGlobs = new List<Glob>();
 
-
          //TODO: we use a cube here, we should check against an actual sphere below. It looks nicer.
-         vec3 awareness = new vec3(awareness_radius, awareness_radius, awareness_radius);
-         Box3f bf = new Box3f(origin - awareness, origin + awareness);
+         Box3f bf = new Box3f(origin - awareness_radius, origin + awareness_radius);
 
          Box3i ibox;
          ibox._min = new ivec3((int)(bf._min.x / GlobWidthX), (int)(bf._min.y / GlobWidthY), (int)(bf._min.z / GlobWidthZ));
@@ -649,6 +670,7 @@ namespace PirateCraft
                      Glob g = GenerateAndSaveOrLoadGlob(gpos);
                      _globs.Add(gpos, g);
                      newGlobs.Add(g);
+                     _globsToTopologize.Add(gpos, g);
                   }
 
                }
@@ -656,7 +678,7 @@ namespace PirateCraft
          }
          return newGlobs;
       }
-      private List<Glob> BuildGlobGridAndTopologize(vec3 origin, float awareness_radius, bool logprogress = false)
+      private List<Glob> BuildGlobGridAndTopologize(vec3 origin, vec3 awareness_radius, bool logprogress = false)
       {
          List<Glob> newGlobs = BuildGlobGrid(origin, awareness_radius, logprogress);
 
@@ -664,13 +686,20 @@ namespace PirateCraft
          {
             Gu.Log.Info("Topologizing " + newGlobs.Count);
          }
-         //Prevent unnecessary stitching.
-         foreach (Glob g in newGlobs)
+
+         foreach (Glob g in _globsToTopologize.Values)
          {
+          //  g.Opaque = null;
+          //  g.Transparent = null;
+
             if (g.DensityState != Glob.GlobDensityState.Empty_AndNoData)
             {
-               //The block is empty, the inside of the block has no topology.
                TopologizeGlob(g);
+            }
+            else
+            {
+               //The block is empty, the inside of the block has no topology. No data.
+               g.Blocks = null;
             }
             if (g.DensityState != Glob.GlobDensityState.SolidBlocksOnly)
             {
@@ -678,6 +707,8 @@ namespace PirateCraft
                StitchGlob(g);
             }
          }
+         _globsToTopologize.Clear();
+
          return newGlobs;
       }
       private Glob GenerateAndSaveOrLoadGlob(ivec3 gpos)
@@ -688,6 +719,7 @@ namespace PirateCraft
             g = GenerateGlob(gpos);
             SaveGlob(g);
          }
+         g.State = Glob.GlobState.Loaded;
          return g;
       }
       private string GetGlobFileName(ivec3 gpos)
@@ -705,17 +737,14 @@ namespace PirateCraft
          string worldfile = WorldName + ".world";
          return System.IO.Path.Combine(WorldSavePath, worldfile);
       }
-
       private Glob GenerateGlob(ivec3 gpos)
       {
          //Density and all that.
          Glob g = new Glob(gpos, Gu.CurrentWindowContext.FrameStamp);
          vec3 globOriginR3 = new vec3(GlobWidthX * gpos.x, GlobWidthY * gpos.y, GlobWidthZ * gpos.z);
 
-         bool hasSolid = false;
-         bool hasEmpty = false;
-         bool hasItems = false;//Item blocks would cull based on which sides are culled. This is a special case.
-
+         g.Solid = g.Empty = g.Items = 0;
+         
          for (int z = 0; z < GlobBlocksZ; z++)
          {
             for (int y = 0; y < GlobBlocksY; y++)
@@ -728,46 +757,36 @@ namespace PirateCraft
                      y * BlockSizeY + BlockSizeY * 0.5f,
                      z * BlockSizeZ + BlockSizeZ * 0.5f);
                   var block = new Block(Density(block_world));
-                  if (block.IsSolidBlockNotTransparent())
-                  {
-                     hasSolid = true;
-                  }
-                  else if (block.IsItem())
-                  {
-                     hasItems = true;
-                  }
-                  else
-                  {
-                     hasEmpty = true;
-                  }
-                  g.SetBlock(x, y, z, block);
+                  SetBlock(g, new ivec3(x, y, z), block);
                }
             }
          }
 
-         if (hasSolid && hasEmpty)
-         {
-            g.DensityState = Glob.GlobDensityState.Partial;
-         }
-         else if (hasSolid)
-         {
-            g.DensityState = Glob.GlobDensityState.SolidBlocksOnly;
-         }
-         else if (hasEmpty)
-         {
-            //Delete block data to save space for empty globs.
-            g.DensityState = Glob.GlobDensityState.Empty_AndNoData;
-            g.Blocks = null;
-         }
 
          return g;
       }
-      private Glob GetGlobAtPos(ivec3 pos)
+      private Glob FindGlobI3(ivec3 pos, GlobCollection c)
       {
-         _globs.TryGetValue(pos, out var g);
+         Glob g = null;
+         if (c == GlobCollection.All)
+         {
+            _globs.TryGetValue(pos, out g);
+         }
+         else if (c == GlobCollection.Render)
+         {
+            _renderGlobs.TryGetValue(pos, out g);
+         }
+         else if (c == GlobCollection.VisibleRender)
+         {
+            _visibleRenderGlobs.TryGetValue(pos, out g);
+         }
+         else
+         {
+            Gu.BRThrowNotImplementedException();
+         }
          return g;
       }
-      private Glob GetNeighborGlob(Glob g, int i)
+      private Glob GetNeighborGlob(Glob g, int i, GlobCollection c)
       {
          //Gets neighbor i=left,right,bottom,top,back,front
          vec3[] glob_offs = new vec3[] {
@@ -780,14 +799,14 @@ namespace PirateCraft
          };
          vec3 glob_center_R3 = g.OriginR3 + new vec3(World.GlobWidthX * 0.5f, World.GlobWidthY * 0.5f, World.GlobWidthZ * 0.5f);
          vec3 neighbor_center_R3 = glob_center_R3 + glob_offs[i];
-         Glob ret = FindGlobR3(neighbor_center_R3);
+         Glob ret = FindGlobR3(neighbor_center_R3, c);
          return ret;
       }
       private void StitchGlob(Glob g)
       {
          for (int ni = 0; ni < 6; ++ni)
          {
-            Glob gn = GetNeighborGlob(g, ni);
+            Glob gn = GetNeighborGlob(g, ni, GlobCollection.All);
             if (gn != null)
             {
                if (gn.GeneratedFrameStamp == g.GeneratedFrameStamp)
@@ -833,8 +852,8 @@ namespace PirateCraft
             {
                for (int x = 0; x < GlobBlocksX; x++)
                {
-                  b = g.GetBlock(x, y, z);
-                  if (!b.HasDensity())
+                  b = GetBlock(g, new ivec3(x, y, z));
+                  if (b.IsEmpty())
                   {
                      continue;
                   }
@@ -857,7 +876,7 @@ namespace PirateCraft
                      {
                         //We are same glob - globs may not be added to the list yet.
                         ivec3 bpos = R3toI3BlockLocal(block_pos_abs_R3_Center_Neighbor);
-                        b_n = g.GetBlock(bpos.x, bpos.y, bpos.z);
+                        b_n = GetBlock(g, bpos);
                      }
                      else
                      {
@@ -959,60 +978,8 @@ namespace PirateCraft
          {
             _renderGlobs.Add(g.Pos, g);
          }
-      }
-      private Block? GrabBlockR3(vec3 R3_pos)
-      {
-         Glob g = FindGlobR3(R3_pos);
-         if (g == null)
-         {
-            return null;
-         }
-         ivec3 bpos = R3toI3BlockLocal(R3_pos);
-         Block b = g.GetBlock(bpos.x, bpos.y, bpos.z);
 
-         return b;
-      }
-      private float R3toI3BlockComp(float R3, float BlocksAxis, float BlockWidth)
-      {
-         float bpos;
-         if (R3 < 0)
-         {
-            bpos = (float)Math.Floor((R3 % BlocksAxis + BlocksAxis) / BlockWidth);
-         }
-         else
-         {
-            bpos = (float)Math.Floor((R3 % BlocksAxis) / BlockWidth);
-         }
-         return bpos;
-      }
-      private ivec3 R3toI3BlockLocal(vec3 R3)
-      {
-         vec3 bpos = new vec3(
-            R3toI3BlockComp(R3.x, GlobWidthX, BlockSizeX),
-            R3toI3BlockComp(R3.y, GlobWidthY, BlockSizeY),
-            R3toI3BlockComp(R3.z, GlobWidthZ, BlockSizeZ));
-
-         if (bpos.x < 0 || bpos.y < 0 || bpos.z < 0 || bpos.x >= World.GlobBlocksX || bpos.y >= World.GlobBlocksY || bpos.z >= World.GlobBlocksZ)
-         {
-            Gu.DebugBreak();
-         }
-
-         return new ivec3((int)bpos.x, (int)bpos.y, (int)bpos.z);
-      }
-      private ivec3 R3toI3Glob(vec3 R3)
-      {
-         //v3toi3Node
-         ivec3 gpos = new ivec3(
-            (int)Math.Floor(R3.x / World.GlobWidthX),
-            (int)Math.Floor(R3.y / World.GlobWidthY),
-            (int)Math.Floor(R3.z / World.GlobWidthZ));
-         return gpos;
-      }
-      private Glob FindGlobR3(vec3 R3_pos)
-      {
-         ivec3 gpos = R3toI3Glob(R3_pos);
-
-         return GetGlobAtPos(gpos);
+         g.State = Glob.GlobState.Topologized;
       }
       private UInt16 Density(vec3 world_pos)
       {
@@ -1034,10 +1001,13 @@ namespace PirateCraft
          {
             //Testing..
             //We have stuff. Default to grassy grass.
-            if (world_pos.y < BlockSizeY * -4)
+            if (world_pos.y < BlockSizeY * -10)
+            {
+               item = BlockItemCode.Feldspar;
+            }
+            else if (world_pos.y < BlockSizeY * -4)
             {
                item = BlockItemCode.Gravel;
-
             }
             else if (world_pos.y < 0)
             {
@@ -1087,7 +1057,7 @@ namespace PirateCraft
                dchecked.Add(new ivec3(vi.x, vi.y, vi.z));
 
                // if the grid right here intersects the frustum
-               Box3f box = GetNodeBoxForGridPos(vi);
+               Box3f box = GetGlobBoxGlobalI3(vi);
 
                vec3 node_center = box.center();
 
@@ -1101,12 +1071,12 @@ namespace PirateCraft
 
                      //Sweep Neighbors
                      vec3[] n = new vec3[6];
-                     n[0] = node_center + new vec3(-World.GlobWidthX, 0, 0);
-                     n[1] = node_center + new vec3(World.GlobWidthX, 0, 0);
-                     n[2] = node_center + new vec3(0, -World.GlobWidthY, 0);
-                     n[3] = node_center + new vec3(0, World.GlobWidthY, 0);
-                     n[4] = node_center + new vec3(0, 0, -World.GlobWidthZ);
-                     n[5] = node_center + new vec3(0, 0, World.GlobWidthZ);
+                     for (int ni = 0; ni < 6; ++ni)
+                     {
+                        n[ni] = node_center + WorldStaticData.GlobNeighborOffsets[ni];
+
+                     }
+
                      toCheck.Add(R3toI3Glob(n[0]));
                      toCheck.Add(R3toI3Glob(n[1]));
                      toCheck.Add(R3toI3Glob(n[2]));
@@ -1131,8 +1101,158 @@ namespace PirateCraft
          dchecked.Clear();
 
       }
-      private Box3f GetNodeBoxForGridPos(ivec3 pt)
+      private int BlockDataOffset(ivec3 local_pos)
       {
+         int ret = local_pos.z * World.GlobBlocksX * World.GlobBlocksY + local_pos.y * World.GlobBlocksX + local_pos.x;
+         return ret;
+      }
+      public void SetBlock(Glob g, ivec3 local_pos, Block block)
+      {
+         //We may be empty, in which case we need to reallocate our data. If the block is empty, though, then setting it to empty does nothing, as we are already empty.
+         if (block.IsEmpty() && g.DensityState == Glob.GlobDensityState.Empty_AndNoData)
+         {
+            return;
+         }
+         if (g.Blocks == null)
+         {
+            //We cull blocks from empty globs to save memory.
+            g.Blocks = new Block[World.GlobBlocksX * World.GlobBlocksY * World.GlobBlocksZ];
+         }
+
+         Block old = GetBlock(g, local_pos);
+         g.Blocks[BlockDataOffset(local_pos)] = block;
+
+         if (old.IsSolidBlockNotTransparent())
+         {
+            if (!block.IsSolidBlockNotTransparent())
+            {
+               g.Empty++;
+               g.Solid--;
+            }
+         }
+         else
+         {
+            if (block.IsSolidBlockNotTransparent())
+            {
+               g.Solid ++;
+               g.Empty--;
+            }
+         }
+
+         if (old.IsItem())
+         {
+            if (!block.IsItem())
+            {
+               g.Items--;
+            }
+         }
+         else {
+            if (block.IsItem())
+            {
+               g.Items++;
+            }
+         }
+
+
+         //Update the state
+         if (g.Solid > 0 && g.Empty>0)
+         {
+            g.DensityState = Glob.GlobDensityState.Partial;
+         }
+         else if (g.Empty==0)
+         {
+            g.DensityState = Glob.GlobDensityState.SolidBlocksOnly;
+         }
+         else if (g.Solid==0)
+         {
+            //Later we delete block data to save space for empty globs.
+            g.DensityState = Glob.GlobDensityState.Empty_AndNoData;
+         }
+         
+         if (g.State == Glob.GlobState.Topologized)
+         {
+            //We could add this with each set, but avoid it if wer'e setting lots of density values.
+            _globsToTopologize.Add(local_pos, g);
+         }
+      }
+      public Block GetBlock(Glob g, ivec3 local_pos)
+      {
+         //If we are empty, then we have deleted our Block[] data to save space. Return an empty block
+         if (g.DensityState == Glob.GlobDensityState.Empty_AndNoData)
+         {
+            return new Block(BlockItemCode.Empty);
+         }
+
+         return g.Blocks[BlockDataOffset(local_pos)];
+      }
+
+      #region Index Functions
+      private ivec3 R3ToI3BlockGlobal(vec3 pt)
+      {
+         //Return trhe integer location of a block in block units
+         ivec3 v;
+         v.x = (int)Math.Floor(pt.x / BlockSizeX);
+         v.y = (int)Math.Floor(pt.y / BlockSizeY);
+         v.z = (int)Math.Floor(pt.z / BlockSizeZ);
+         return v;
+      }
+      private Block? GrabBlockR3(vec3 R3_pos)
+      {
+         Glob g = FindGlobR3(R3_pos, GlobCollection.All);
+         if (g == null)
+         {
+            return null;
+         }
+         ivec3 bpos = R3toI3BlockLocal(R3_pos);
+         Block b = GetBlock(g, bpos);
+
+         return b;
+      }
+      private float R3toI3BlockComp(float R3, float BlocksAxis, float BlockWidth)
+      {
+         float bpos;
+         if (R3 < 0)
+         {
+            bpos = (float)Math.Floor((R3 % BlocksAxis + BlocksAxis) / BlockWidth);
+         }
+         else
+         {
+            bpos = (float)Math.Floor((R3 % BlocksAxis) / BlockWidth);
+         }
+         return bpos;
+      }
+      private ivec3 R3toI3BlockLocal(vec3 R3)
+      {
+         vec3 bpos = new vec3(
+            R3toI3BlockComp(R3.x, GlobWidthX, BlockSizeX),
+            R3toI3BlockComp(R3.y, GlobWidthY, BlockSizeY),
+            R3toI3BlockComp(R3.z, GlobWidthZ, BlockSizeZ));
+
+         if (bpos.x < 0 || bpos.y < 0 || bpos.z < 0 || bpos.x >= World.GlobBlocksX || bpos.y >= World.GlobBlocksY || bpos.z >= World.GlobBlocksZ)
+         {
+            Gu.DebugBreak();
+         }
+
+         return new ivec3((int)bpos.x, (int)bpos.y, (int)bpos.z);
+      }
+      private ivec3 R3toI3Glob(vec3 R3)
+      {
+         //v3toi3Node
+         ivec3 gpos = new ivec3(
+            (int)Math.Floor(R3.x / World.GlobWidthX),
+            (int)Math.Floor(R3.y / World.GlobWidthY),
+            (int)Math.Floor(R3.z / World.GlobWidthZ));
+         return gpos;
+      }
+      private Glob FindGlobR3(vec3 R3_pos, GlobCollection c)
+      {
+         ivec3 gpos = R3toI3Glob(R3_pos);
+
+         return FindGlobI3(gpos, c);
+      }
+      private Box3f GetGlobBoxGlobalI3(ivec3 pt)
+      {
+         //Return the bound box for the glob at the integer glob grid position
          Box3f box = new Box3f();
          box._min.x = (float)(pt.x + 0) * GlobWidthX;
          box._min.y = (float)(pt.y + 0) * GlobWidthY;
@@ -1142,14 +1262,141 @@ namespace PirateCraft
          box._max.z = (float)(pt.z + 1) * GlobWidthZ;
          return box;
       }
+      private Box3f GetBlockBoxGlobalR3(vec3 pt)
+      {
+         //tests
+         //var est_a = GetBlockBoxGlobalR3(new vec3(4, 4, 4));//should be 4,8
+         //var est_b = GetBlockBoxGlobalR3(new vec3(-4, -4, -4));//should be -4, 0
+         //var est_c = GetBlockBoxGlobalR3(new vec3(6.44f, 6.44f, 6.44f));//should be 4,8
+         //var est_d = GetBlockBoxGlobalR3(new vec3(-6.44f, -6.44f, -6.44f));//should be -8,-4
+
+         //Snap the point pt to the block grid, and return the bound box of that block
+         Box3f box = new Box3f();
+         box._min = R3ToI3BlockGlobal(pt).toVec3() * new vec3(BlockSizeX, BlockSizeY, BlockSizeZ);
+         box._max.x = box._min.x + BlockSizeX;
+         box._max.y = box._min.y + BlockSizeY;
+         box._max.z = box._min.z + BlockSizeZ;
+         return box;
+      }
+
+      #endregion
+
+      public class PickedBlock
+      {
+         public Glob Glob;
+         public Block Block;
+         public ivec3 BlockPosLocal;
+         public vec3 HitPos;
+      }
+      public PickedBlock RaycastBlock(PickRay3D pr, GlobCollection collection = GlobCollection.VisibleRender)
+      {
+         //TODO: much faster if we marched the globs first, then the blocks. We do only blocks
+         PickedBlock pb = new PickedBlock();
+         //Snap point to block center
+         vec3 center = R3ToI3BlockGlobal(pr.Origin).toVec3() *
+            new vec3(BlockSizeX, BlockSizeY, BlockSizeZ) +
+            new vec3(BlockSizeX * 0.5f, BlockSizeY * 0.5f, BlockSizeZ * 0.5f);
+         List<vec3> toCheck = new List<vec3>() { center };
+         Glob cur_glob = null;
+         ivec3 icur_glob = default(ivec3);
+         int dbg_count_loop = 0;
+         BoxAAHit bh = new BoxAAHit();
+         bool already_checked_glob = false;
+         int dbg_nglobcheck = 0;
+         int dbg_nblockcheck = 0;
+         int dbg_checkarrmaxsiz = 0;
+
+         while (toCheck.Count > 0)
+         {
+            if (toCheck.Count > dbg_checkarrmaxsiz)
+            {
+               dbg_checkarrmaxsiz = toCheck.Count;
+            }
+
+            vec3 cpos = toCheck[0]; //position of block
+            toCheck.RemoveAt(0);
+            if ((pr.Project(cpos) - pr.Origin).length2() > (pr.Length * pr.Length))
+            {
+               //We are beyond the ray.
+               break;
+            }
+
+            ivec3 iglob = R3toI3Glob(cpos);
+            if ((cur_glob == null && already_checked_glob == false) || (icur_glob != iglob))
+            {
+               cur_glob = FindGlobI3(iglob, collection);
+               icur_glob = iglob;
+               already_checked_glob = true;
+               dbg_nglobcheck++;
+            }
+
+            if ((cur_glob != null) && (cur_glob.Blocks != null) && (cur_glob.DensityState != Glob.GlobDensityState.Empty_AndNoData))
+            {
+               dbg_nblockcheck++;
+               ivec3 b3i = R3toI3BlockLocal(cpos);
+               Block b = GetBlock(cur_glob, b3i);
+               if (!b.IsEmpty())
+               {
+                  pb.Glob = cur_glob;
+                  pb.Block = b;
+                  pb.BlockPosLocal = b3i;
+                  var blockbox = GetBlockBoxGlobalR3(cpos);
+                  if (blockbox.LineOrRayIntersectInclusive_EasyOut(pr, ref bh))
+                  {
+                     pb.HitPos = pr.Origin + pr.Dir * bh._t;
+                     break;
+                  }
+                  else
+                  {
+                     //Error - we did in fact collilde with this block but the box says otherwise
+                     Gu.DebugBreak();
+                  }
+               }
+            }
+
+            Action<bool, vec3> recur_neighbor_by_dir = (dir_test, n_offset) =>
+            {
+               if (dir_test)
+               {
+                  vec3 n_pos = cpos + n_offset;
+                  Box3f b = GetBlockBoxGlobalR3(n_pos);
+                  if (b.LineOrRayIntersectInclusive_EasyOut(pr, ref bh))
+                  {
+                     toCheck.Add(n_pos);
+                  }
+               }
+            };
+
+            recur_neighbor_by_dir(pr.Dir.x < 0, WorldStaticData.BlockNeighborOffsets[0]);
+            recur_neighbor_by_dir(pr.Dir.x > 0, WorldStaticData.BlockNeighborOffsets[1]);
+            recur_neighbor_by_dir(pr.Dir.y < 0, WorldStaticData.BlockNeighborOffsets[2]);
+            recur_neighbor_by_dir(pr.Dir.y > 0, WorldStaticData.BlockNeighborOffsets[3]);
+            recur_neighbor_by_dir(pr.Dir.z < 0, WorldStaticData.BlockNeighborOffsets[4]);
+            recur_neighbor_by_dir(pr.Dir.z > 0, WorldStaticData.BlockNeighborOffsets[5]);
+
+            dbg_count_loop++;
+
+         }
+
+         return pb;
+      }
 
       #endregion
 
       #region Private: Files
 
-      private void InitWorldDiskFile()
+      private void InitWorldDiskFile(bool delete_world_start_fresh)
       {
          WorldSavePath = System.IO.Path.Combine(Gu.SavePath, WorldName);
+
+         if (delete_world_start_fresh)
+         {
+            if (System.IO.Directory.Exists(WorldSavePath))
+            {
+               Gu.Log.Info("Starting Fresh - Deleting " + WorldSavePath);
+               Directory.Delete(WorldSavePath, true);
+            }
+         }
          Gu.Log.Info("Creating world save directory " + WorldSavePath);
          if (!System.IO.Directory.Exists(WorldSavePath))
          {
@@ -1226,6 +1473,9 @@ namespace PirateCraft
                br.Write((Int32)g.Pos.x);
                br.Write((Int32)g.Pos.y);
                br.Write((Int32)g.Pos.z);
+               br.Write((Int32)g.Solid);
+               br.Write((Int32)g.Empty);
+               br.Write((Int32)g.Items);
                if (g.Blocks == null)
                {
                   br.Write((Int32)0);
@@ -1266,7 +1516,7 @@ namespace PirateCraft
          {
             if (File.Exists(globfn))
             {
-               g = new Glob(new ivec3(0, 0, 0), 0);
+               g = new Glob(new ivec3(0, 0, 0), Gu.CurrentWindowContext.FrameStamp);
 
                var enc = Encoding.GetEncoding("iso-8859-1");
 
@@ -1274,14 +1524,18 @@ namespace PirateCraft
                using (var br = new System.IO.BinaryReader(fs, enc))
                {
                   Int32 version = br.ReadInt32();
-                  if(version!= GlobFileVersion)
+                  if (version != GlobFileVersion)
                   {
-                     Gu.BRThrowException("Glob file verison '"+ version + "' does not match required version '"+ GlobFileVersion + "'.");
+                     Gu.BRThrowException("Glob file verison '" + version + "' does not match required version '" + GlobFileVersion + "'.");
                   }
+
                   g.DensityState = (Glob.GlobDensityState)br.ReadInt32();
                   g.Pos.x = br.ReadInt32();
                   g.Pos.y = br.ReadInt32();
                   g.Pos.z = br.ReadInt32();
+                  g.Solid = br.ReadInt32();
+                  g.Empty = br.ReadInt32();
+                  g.Items = br.ReadInt32();
                   int btecount = br.ReadInt32();
                   if (btecount == 0)
                   {

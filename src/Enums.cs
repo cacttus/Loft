@@ -25,7 +25,6 @@ namespace PirateCraft
       World,
       Local
    }
-
    public enum ConstraintType
    {
       LookAt

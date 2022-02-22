@@ -6,7 +6,7 @@
     <OutputType>Exe</OutputType>
     <RootNamespace>PirateCraft</RootNamespace>
     <AssemblyName>OpenTK_Test_Linux</AssemblyName>
-    <TargetFrameworkVersion>v4.7</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <TargetFrameworkProfile />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x86' ">
@@ -20,7 +20,6 @@
     <WarningLevel>4</WarningLevel>
     <ExternalConsole>true</ExternalConsole>
     <LangVersion>7.3</LangVersion>
-    <LangVersion>7.2</LangVersion>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x86' ">
@@ -36,11 +35,11 @@
     <NoStdLib>false</NoStdLib>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="System" />
-    <Reference Include="System.Drawing" />
-    <Reference Include="OpenTK">
+    <Reference Include="OpenTK, Version=3.1.0.0, Culture=neutral, PublicKeyToken=bad199fe84eb3df4, processorArchitecture=MSIL">
       <HintPath>packages\OpenTK.3.1.0\lib\net20\OpenTK.dll</HintPath>
     </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Drawing" />
     <Reference Include="SharpFont">
       <HintPath>packages\SharpFont.1.0.2\lib\SharpFont.dll</HintPath>
     </Reference>
@@ -84,6 +83,11 @@
     <Compile Include="src\World.cs" />
     <Compile Include="src\PCKeyboard.cs" />
     <Compile Include="src\GPUBuffer.cs" />
+    <EmbeddedResource Include="data\tx64_plagioclase_feldspar.png" />
+    <EmbeddedResource Include="data\tx64_cedar_top.png" />
+    <EmbeddedResource Include="data\tx64_cedar.png" />
+    <EmbeddedResource Include="data\tx64_cedar2.png" />
+    <EmbeddedResource Include="data\tx64_cedar_needles.png" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="data\v_v3.fs.glsl" />

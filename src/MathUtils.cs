@@ -112,62 +112,9 @@ namespace PirateCraft
          return res;
       }
       //http://xboxforums.create.msdn.com/forums/t/34356.aspx
-      public static float? RayIntersect(Box2f box, ProjectedRay ray)
+      public static bool IsPowerOfTwo(ulong x)
       {
-         float num = 0f;
-         float maxValue = float.MaxValue;
-         if (Math.Abs(ray.Dir.x) < 1E-06f)
-         {
-            if ((ray.Origin.x < box.Min.x) || (ray.Origin.x > box.Max.x))
-            {
-               return null;
-            }
-         }
-         else
-         {
-            float num11 = 1f / ray.Dir.x;
-            float num8 = (box.Min.x - ray.Origin.x) * num11;
-            float num7 = (box.Max.x - ray.Origin.x) * num11;
-            if (num8 > num7)
-            {
-               float num14 = num8;
-               num8 = num7;
-               num7 = num14;
-            }
-            num = Math.Max(num8, num);
-            maxValue = Math.Min(num7, maxValue);
-            if (num > maxValue)
-            {
-               return null;
-            }
-         }
-         if (Math.Abs(ray.Dir.y) < 1E-06f)
-         {
-            if ((ray.Origin.y < box.Min.y) || (ray.Origin.y > box.Max.y))
-            {
-               return null;
-            }
-         }
-         else
-         {
-            float num10 = 1f / ray.Dir.y;
-            float num6 = (box.Min.y - ray.Origin.y) * num10;
-            float num5 = (box.Max.y - ray.Origin.y) * num10;
-            if (num6 > num5)
-            {
-               float num13 = num6;
-               num6 = num5;
-               num5 = num13;
-            }
-            num = Math.Max(num6, num);
-            maxValue = Math.Min(num5, maxValue);
-            if (num > maxValue)
-            {
-               return null;
-            }
-         }
-
-         return new float?(num);
+         return (x & (x - 1)) == 0;
       }
    }
    public struct RaycastHit
@@ -210,62 +157,29 @@ namespace PirateCraft
          _t = bh._t;
       }
    }
-   public struct ProjectedRay
+   public class PickRay2D
    {
       public vec2 Origin;
       public vec2 Dir;
-      public float _t;
-      public vec2 _vNormal;
+      public float Length = float.MaxValue;// Length of the ray NOT the maximum length of the pick ray
+      public float _t = float.MaxValue;
+      public vec2 InvDir;// Found the following two cool optimizations on WIlliams et. al (U. Utah)
+      public int[] Sign = new int[2];
 
-      // Found the following two cool optimizations on WIlliams et. al (U. Utah)
-      public vec2 InvDir;
-      public int[] Sign;
+      public bool DidHit { get { return _t >= 0 && _t <= 1; } }
+      public vec2 PickedPoint { get { return Origin + Dir * _t; } }
 
-      public bool IsOpt { get; private set; }    // - return true if  we optimized this
-
-      public float Length;// Max length
-
-      public vec2 Begin() { return Origin; }
-      public vec2 End() { return Origin + Dir; }
-
-      public ProjectedRay(vec2 origin, vec2 dir)
+      public PickRay2D(vec2 origin, vec2 dir, float length)
       {
-         Sign = new int[2];
          Origin = origin;
          Dir = dir;
-
-         IsOpt = false;
-         Length = float.MaxValue;//Must be maxvalue
-         _t = float.MaxValue;
-         _vNormal = new vec2(0, 0);
-
-         //opt()
-         //            //**New - optimization
-         //http://people.csail.mit.edu/amy/papers/box-jgt.pdf
-         //Don't set to zero. We need infinity (or large value) here.
+         Length = length;
          InvDir.x = 1.0f / Dir.x;
          InvDir.y = 1.0f / Dir.y;
-
          Sign[0] = (InvDir.x < 0) ? 1 : 0;
          Sign[1] = (InvDir.y < 0) ? 1 : 0;
-
-         IsOpt = true;
       }
-      //public void opt()
-      //{
 
-
-
-      //}
-      public bool isHit()
-      {
-         return _t >= 0.0f && _t <= 1.0f;
-      }
-      public vec2 HitPoint()
-      {
-         vec2 ret = Begin() + (End() - Begin()) * _t;
-         return ret;
-      }
    }
    public class BoxAAHit
    {
@@ -274,37 +188,46 @@ namespace PirateCraft
       public bool _p2Contained;
       public float _t; // - Time to hit [0,1]
    };
-   public class PickRay
+   public class PickRay3D
    {
       public vec3 Origin;
-      public vec3 Dir;
-      public float _length;
-      public bool _isOpt;
+      public vec3 Dir; //Ray direction
+      public float Length = float.MaxValue;
+      public float _t = float.MaxValue;
       public vec3 InvDir;
       public int[] Sign = new int[3];
 
-      public void Opt()
-      {
-         //**New - optimization
-         //http://people.csail.mit.edu/amy/papers/box-jgt.pdf
-         // if (Dir.x != 0.0f)
-         InvDir.x = 1.0f / Dir.x;
-         //   else
-         //       InvDir.x = 0.0f;
-         //   if (Dir.y != 0.0f)
-         InvDir.y = 1.0f / Dir.y;
-         //      else
-         //         InvDir.y = 0.0f;
-         //     if (Dir.z != 0.0f)
-         InvDir.z = 1.0f / Dir.z;
-         //     else
-         //         InvDir.z = 0.0f;
+      public bool DidHit { get { return _t >= 0 && _t <= 1; } }
+      public vec3 PickedPoint { get { return Origin + Dir * _t; } }
 
+      public vec3 Project(vec3 p)
+      {
+         //Project p onto ray returning projected point
+         vec3 ret;
+         vec3 p2 = Origin + Dir * Length;
+         ret = Origin + Dir * Length * Line3f.pointOnLine_t(Origin, p2, p);
+         return ret;
+      }
+
+      public PickRay3D(Line3f line)
+      {
+         Init(line.p0, (line.p1 - line.p0).normalized(), (line.p1 - line.p0).length());
+      }
+      public PickRay3D(vec3 origin, vec3 dir, float length)
+      {
+         Init(origin, dir, length);
+      }
+      private void Init(vec3 origin, vec3 dir, float length)
+      {
+         Origin = origin;
+         Dir = dir;
+         Length = length;
+         InvDir.x = 1.0f / Dir.x;
+         InvDir.y = 1.0f / Dir.y;
+         InvDir.z = 1.0f / Dir.z;
          Sign[0] = Convert.ToInt32(InvDir.x < 0);
          Sign[1] = Convert.ToInt32(InvDir.y < 0);
          Sign[2] = Convert.ToInt32(InvDir.z < 0);
-
-         _isOpt = true;
       }
    }
    [StructLayout(LayoutKind.Sequential)]
@@ -358,6 +281,29 @@ namespace PirateCraft
    {
       public vec3 p0;
       public vec3 p1;
+
+      public static float pointOnLine_t(vec3 p0, vec3 p1, vec3 pt)
+      {
+         //Returns closest point on this line.
+         vec3 dP = pt - p0;
+         vec3 dL = p1 - p0;
+         float dPdL = dP.dot(dL);
+         float dLdL = dL.dot(dL);
+         float t = dPdL / dLdL;
+
+         return t;
+      }
+      public static float pointOnRay_t(vec3 ray, vec3 pt)
+      {
+         //Returns the point on ray between [0,1] of the ray.
+         vec3 AP = pt - ray;
+         vec3 AB = ray * -1.0f;
+         float ab2 = AB.x * AB.x + AB.y * AB.y + AB.z * AB.z;
+         float ap_ab = AP.x * AB.x + AP.y * AB.y + AP.z * AB.z;
+         float t = ap_ab / ab2;
+         return t;
+      }
+
    }
    [StructLayout(LayoutKind.Sequential)]
    public struct vec2
@@ -1262,6 +1208,7 @@ namespace PirateCraft
             return a.GetHashCode();//.x.GetHashCode() + a.y.GetHashCode() + a.z.GetHashCode();
          }
       }
+      public vec3 toVec3() { return new vec3((float)x, (float)y, (float)z); }
    }
    [StructLayout(LayoutKind.Sequential)]
    public struct ivec4
@@ -2755,14 +2702,8 @@ namespace PirateCraft
          }
          return Max;
       }
-      public bool RayIntersect(ProjectedRay ray, ref RaycastHit bh)
+      public bool RayIntersect(PickRay2D ray, ref RaycastHit bh)
       {
-         if (ray.IsOpt == false)
-         {
-            //Error.
-            System.Diagnostics.Debugger.Break();
-         }
-
          float txmin, txmax, tymin, tymax;
          bool bHit;
 
@@ -2895,7 +2836,7 @@ namespace PirateCraft
       *   @prarm ray - The ray to test against the box.
       *   @return true if ray intersects, false otherwise.
       */
-      public bool LineOrRayIntersectInclusive_EasyOut(PickRay ray, ref BoxAAHit bh)
+      public bool LineOrRayIntersectInclusive_EasyOut(in PickRay3D ray, ref BoxAAHit bh)
       {
          if (RayIntersect(ray, ref bh))
             return true;
@@ -2927,11 +2868,8 @@ namespace PirateCraft
             return _max;
          }
       }
-      private bool RayIntersect(PickRay ray, ref BoxAAHit bh)
+      private bool RayIntersect(PickRay3D ray, ref BoxAAHit bh)
       {
-         if (!ray._isOpt)
-            throw new Exception("Projected ray was not optimized");
-
          float txmin, txmax, tymin, tymax, tzmin, tzmax;
 
          txmin = (bounds(ray.Sign[0]).x - ray.Origin.x) * ray.InvDir.x;
@@ -2963,19 +2901,27 @@ namespace PirateCraft
          if (tzmax < txmax)
             txmax = tzmax;
 
-         bh._bHit = ((txmin > 0.0f) && (txmax <= ray._length));
+         bh._bHit = ((txmin > 0.0f) && (txmax <= ray.Length));
          bh._t = txmin;
 
          return bh._bHit;
       }
 
-      private bool containsInclusive(vec3 v)
+      public bool containsInclusive(vec3 v)
       {
          return (
              (v.x >= _min.x) && (v.x <= _max.x) &&
              (v.y >= _min.y) && (v.y <= _max.y) &&
              (v.z >= _min.z) && (v.z <= _max.z)
              );
+      }
+      public bool containsBottomLeftInclusive(in vec3 v)
+      {
+         return (
+           (v.x >= _min.x) && (v.x < _max.x) &&
+           (v.y >= _min.y) && (v.y < _max.y) &&
+           (v.z >= _min.z) && (v.z < _max.z)
+           );
       }
       public void genResetLimits()
       {

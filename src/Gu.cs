@@ -96,6 +96,8 @@ namespace PirateCraft
       public static WindowContext CurrentWindowContext { get; private set; }
       public static readonly string EmbeddedDataPath = "PirateCraft.data.";
       public static World World = new World();
+      public static PCMouse Mouse { get { return CurrentWindowContext.PCMouse; } }
+      public static PCKeyboard Keyboard { get { return CurrentWindowContext.PCKeyboard; } }
 
       public static string LocalCachePath = "./data/cache";
       public static string SavePath = "./save";

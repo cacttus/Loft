@@ -1,14 +1,24 @@
-﻿initial generation of world (like minecraft)
-game/world
-save/load glob
-destroy globs.
+﻿
+simple edit blocks, create, destroy
+    raycast world -> block node ->block
+    render crosshair
+    render player hands.
+physics - collide w/ground
+    player height
+destroy /unload globs
 world material + shader
     test using geometry shader + dens to create cubes instad of atulal meshs
-sky
+actual sky 
+    sky material for sphere object. 
+    clouds
 grass/flowr
 tres
 async generation
-    
+
+done
+x initial generation of world (like minecraft)
+x game/world
+x save/load glob
     
 * Roadmap
     * Goal is minecraft looking thing - must have
@@ -33,12 +43,12 @@ async generation
     * Textures
         * x Load small textures into a megatexture Pack them with the dist.
         * x Use them as textures, top, bot, side.
-            * Voxel shader (top / bot / side) with mega tex.
+            * x Voxel shader (top / bot / side) with mega tex.
     * Sky
-        * Render just as background thingymajig
-        * Sky dome no background
+        * x Render just as background thingymajig
+        * x Sky dome no background
         * Environment Map
-        * Equirectangular HDRI
+        * x Equirectangular HDRI
     * Water
         * 2nd mesh.
         * Topology algorithm.

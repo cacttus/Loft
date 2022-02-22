@@ -11,7 +11,8 @@ namespace PirateCraft
       public Gpu Gpu { get; private set; } = null;
       public GameWindow GameWindow { get; set; } = null;
       public PCKeyboard PCKeyboard = new PCKeyboard();
-      public UInt64 FrameStamp { get; private set; }
+      public PCMouse PCMouse = new PCMouse();
+      public Int64 FrameStamp { get; private set; }
       public double UpTime { get; private set; } = 0; //Time since engine started.
       private DateTime _startTime = DateTime.Now;
       public double Fps { get; private set; } = 60;
@@ -38,6 +39,7 @@ namespace PirateCraft
          UpTime = (DateTime.Now - _startTime).TotalSeconds; 
 
          PCKeyboard.Update();
+         PCMouse.Update();
       }
    }
 }

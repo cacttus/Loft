@@ -8,15 +8,21 @@ using OpenTK.Input;
 
 namespace PirateCraft
 {
+   public enum InputState
+   {
+      World, //User is moving inw orld.
+      Inventory //User has inventory window open.
+   }
+
    public class MainWindow : OpenTK.GameWindow
    {
+
+      bool DELETE_WORLD_START_FRESH = true;// 
       Camera3D _camera = null;
       WorldObject _boxMeshThing = null;
-
-      vec2 last = new vec2(0, 0);
-      bool lastSet = false;
       int meshIdx = 0;
       const float scale = 0.5f;
+      InputState InputState = InputState.World;
 
       WorldObject _sky;
 
@@ -30,9 +36,16 @@ namespace PirateCraft
          _camera.Viewport_Width = Width;
          _camera.Viewport_Height = Height;
       }
+      protected override void OnMouseMove(MouseMoveEventArgs e)
+      {
+         base.OnMouseMove(e);
+         Gu.Mouse.UpdatePosition(new vec2(e.Position.X, e.Position.Y));
+      }
       WorldObject Sphere_Rotate_Quat_Test = null;
       WorldObject Sphere_Rotate_Quat_Test2 = null;
       WorldObject Sphere_Rotate_Quat_Test3 = null;
+
+
       protected override void OnLoad(EventArgs e)
       {
          try
@@ -40,9 +53,15 @@ namespace PirateCraft
             Gu.Init(this);
 
             //Cameras
-            _camera = Gu.World.CreateCamera("Camera-001", Width, Height, new vec3(0, 20, -10));
+            _camera = Gu.World.CreateCamera("Camera-001", Width, Height,
+               //Put player exactly in center.
+               new vec3(
+               World.BlockSizeX * World.GlobBlocksX * .5f,
+               World.BlockSizeY * World.GlobBlocksY * .5f,
+               World.BlockSizeZ * World.GlobBlocksZ * .5f
+               ));
 
-            Gu.World.Initialize(_camera, "Boogerton");
+            Gu.World.Initialize(_camera, "Boogerton", DELETE_WORLD_START_FRESH);
 
             //Textures
             Texture2D noise = Noise3D.TestNoise();
@@ -75,7 +94,7 @@ namespace PirateCraft
             //TODO: sky shader. 
             Material sky_mat = new Material(Shader.DefaultDiffuse(), sky1);
             sky_mat.GpuRenderState.DepthTest = false;//Disable depth test.
-            _sky = Gu.World.CreateObject("sky", MeshData.GenSphere(128,128,400,true,true), sky_mat);
+            _sky = Gu.World.CreateObject("sky", MeshData.GenSphere(128, 128, 400, true, true), sky_mat);
             _sky.Constraints.Add(new FollowConstraint(_camera, FollowConstraint.FollowMode.Snap));
 
             //Animation test
@@ -93,7 +112,8 @@ namespace PirateCraft
             db.Color = new vec4(1, 0, 0, 1);
             _boxMeshThing.AddChild(db);
 
-            CursorVisible = true;
+            Gu.Mouse.EnableCenterCursor(true);
+            Gu.Mouse.ShowCursor(true);
          }
          catch (Exception ex)
          {
@@ -165,61 +185,74 @@ namespace PirateCraft
          {
             Exit();
          }
-         if (Gu.CurrentWindowContext.PCKeyboard.KeyPress(Key.Number1))
+         if (Gu.CurrentWindowContext.PCKeyboard.Press(Key.Number1))
          {
             // _boxMeshThing.Mesh.BeginEdit(0, 1);
             // MeshVert v= _boxMeshThing.Mesh.EditVert(0);
             // _boxMeshThing.Mesh.EndEdit();
          }
          float speed = 20.7f;
-         var kb = Gu.CurrentWindowContext.PCKeyboard;
-         if (kb.KeyPressOrDown(Key.Number6))
+         if (Gu.Keyboard.PressOrDown(Key.Number6))
          {
             _boxMeshThing.Material.Shader.nmap += 0.01f;
             _boxMeshThing.Material.Shader.nmap = _boxMeshThing.Material.Shader.nmap % 1;
          }
          float speedMul = 1;
-         if(kb.KeyPressOrDown(Key.ControlLeft)|| kb.KeyPressOrDown(Key.ControlRight ))
+         if (Gu.Keyboard.PressOrDown(Key.ControlLeft) || Gu.Keyboard.PressOrDown(Key.ControlRight))
          {
             speedMul = 3;
          }
-         if (kb.AnyKeysPressedOrHeld(new List<Key>() { Key.Q }))
+         if (Gu.Keyboard.PressOrDown(new List<Key>() { Key.Q }))
          {
             _camera.Position += _camera.BasisY * speed * (float)Gu.CurrentWindowContext.Delta * speedMul;
          }
-         if (kb.AnyKeysPressedOrHeld(new List<Key>() { Key.E }))
+         if (Gu.Keyboard.PressOrDown(new List<Key>() { Key.E }))
          {
             _camera.Position -= _camera.BasisY * speed * (float)Gu.CurrentWindowContext.Delta * speedMul;
          }
-         if (kb.AnyKeysPressedOrHeld(new List<Key>() { Key.Up, Key.W }))
+         if (Gu.Keyboard.PressOrDown(new List<Key>() { Key.Up, Key.W }))
          {
             _camera.Position += _camera.BasisZ * speed * (float)Gu.CurrentWindowContext.Delta * speedMul;
          }
-         if (kb.AnyKeysPressedOrHeld(new List<Key>() { Key.Down, Key.S }))
+         if (Gu.Keyboard.PressOrDown(new List<Key>() { Key.Down, Key.S }))
          {
             _camera.Position -= _camera.BasisZ * speed * (float)Gu.CurrentWindowContext.Delta * speedMul;
          }
-         if (kb.AnyKeysPressedOrHeld(new List<Key>() { Key.Right, Key.D }))
+         if (Gu.Keyboard.PressOrDown(new List<Key>() { Key.Right, Key.D }))
          {
             _camera.Position += _camera.BasisX * speed * coordMul * (float)Gu.CurrentWindowContext.Delta * speedMul;
          }
-         if (kb.AnyKeysPressedOrHeld(new List<Key>() { Key.Left, Key.A }))
+         if (Gu.Keyboard.PressOrDown(new List<Key>() { Key.Left, Key.A }))
          {
             _camera.Position -= _camera.BasisX * speed * coordMul * (float)Gu.CurrentWindowContext.Delta * speedMul;
          }
-         if (kb.KeyPress(Key.Number1))
+         if (Gu.Keyboard.Press(Key.I))
+         {
+            if (InputState == InputState.World)
+            {
+               InputState = InputState.Inventory;
+               Gu.Mouse.EnableCenterCursor(false);
+            }
+            else if (InputState == InputState.Inventory)
+            {
+               InputState = InputState.World;
+               Gu.Mouse.EnableCenterCursor(true);
+
+            }
+         }
+         if (Gu.Keyboard.Press(Key.Number1))
          {
             _boxMeshThing.Material.Shader.lightingModel = ((_boxMeshThing.Material.Shader.lightingModel + 1) % 3);
          }
-         if (kb.KeyPressOrDown(Key.Number2))
+         if (Gu.Keyboard.PressOrDown(Key.Number2))
          {
             _boxMeshThing.Material.Shader.GGX_X = (_boxMeshThing.Material.Shader.GGX_X + 0.01f) % 3.0f;
          }
-         if (kb.KeyPressOrDown(Key.Number3))
+         if (Gu.Keyboard.PressOrDown(Key.Number3))
          {
             _boxMeshThing.Material.Shader.GGX_Y = (_boxMeshThing.Material.Shader.GGX_Y + 0.01f) % 3.0f;
          }
-         if (kb.KeyPress(Key.Number4))
+         if (Gu.Keyboard.Press(Key.Number4))
          {
             meshIdx = (meshIdx + 1) % 3;
             if (meshIdx == 0)
@@ -235,18 +268,25 @@ namespace PirateCraft
                _boxMeshThing.Mesh = MeshData.GenSphere(32, 32, 1, false);
             }
          }
+         if (Gu.Mouse.PressOrDown(MouseButton.Left))
+         {
+            //Test
+            Line3f ret = _camera.Frustum.ProjectPoint(Gu.Mouse.Pos, TransformSpace.World, 0.001f);
+            var b = Gu.World.RaycastBlock(new PickRay3D(ret));
 
-         var mouseState = Mouse.GetState();
-         if (lastSet == false)
-         {
-            last.x = (float)mouseState.X;
-            last.y = (float)mouseState.Y;
-            lastSet = true;
+            if (b != null)
+            {
+               if (b.Glob != null)
+               {
+                  Gu.World.SetBlock(b.Glob, b.BlockPosLocal, Block.Empty);
+               }
+            }
          }
-         if (mouseState.IsButtonDown(MouseButton.Left))
+         if (InputState == InputState.World)
          {
-            float mx = (float)mouseState.X - last.x;
-            float my = (float)mouseState.Y - last.y;
+            //Rotate Camera
+            float mx = Gu.Mouse.Pos.x - Gu.Mouse.Last.x;
+            float my = Gu.Mouse.Pos.y - Gu.Mouse.Last.y;
 
             float rot_speed = 0.001f;
 
@@ -273,8 +313,15 @@ namespace PirateCraft
 
             _camera.Rotation = qx * qy;
          }
-         last.x = (float)mouseState.X;
-         last.y = (float)mouseState.Y;
+         else if(InputState == InputState.Inventory)
+         {
+            //do inventory
+         }
+         else
+         {
+            Gu.BRThrowNotImplementedException();
+         }
+         
       }
       private double rotX = 0;
       private double rotY = 0;

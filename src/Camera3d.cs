@@ -53,7 +53,7 @@ namespace PirateCraft
          {
             //Frustum
             float tanfov2 = MathUtils.tanf(cam.FOV / 2.0f);
-            float ar = cam.Viewport_Width / cam.Viewport_Height;
+            float ar =  (float)cam.Viewport_Width / (float)cam.Viewport_Height;
 
             //tan(fov2) = w2/near
             //tan(fov2) * near = w2
@@ -67,8 +67,9 @@ namespace PirateCraft
 
             NearCenter = cam.Position + cam.BasisZ * cam.Near;
             FarCenter = cam.Position + cam.BasisZ * cam.Far;
-            NearTopLeft = NearCenter - cam.BasisX * _widthNear + cam.BasisY * _heightNear;
-            FarTopLeft = FarCenter - cam.BasisX * _widthFar + cam.BasisY * _heightFar;
+            //X is right in RHS
+            NearTopLeft = NearCenter - cam.BasisX * _widthNear*0.5f + cam.BasisY * _heightNear*0.5f;
+            FarTopLeft = FarCenter - cam.BasisX * _widthFar*0.5f + cam.BasisY * _heightFar*0.5f;
 
             ConstructPointsAndPlanes(FarCenter, NearCenter, cam.BasisY, cam.BasisX, _widthNear, _widthFar, _heightNear, _heightFar);
          }
@@ -116,15 +117,15 @@ namespace PirateCraft
          _planes[fp_top] = new Plane3f(_points[fpt_ntr], _points[fpt_ntl], _points[fpt_ftr], _points[fpt_ftl]);
          _planes[fp_bottom] = new Plane3f(_points[fpt_fbr], _points[fpt_fbl], _points[fpt_nbr], _points[fpt_nbl]);
       }
-      public Line3f ProjectPoint(vec2 point_on_screen, TransformSpace space = TransformSpace.World, float additionalZDepthNear = 0)
+      public Line3f ProjectPoint(vec2 point_on_screen_topleftorigin, TransformSpace space = TransformSpace.World, float additionalZDepthNear = 0)
       {
          //Note: we were using PickRay before because that's used to pick OOBs. We don't need that right now but we will in the future.
          Line3f pt = new Line3f();
 
          if (_camera.TryGetTarget(out Camera3D cam))
          {
-            float left_pct = point_on_screen.x / (float)cam.Viewport_Width;
-            float top_pct = (point_on_screen.y) / (float)cam.Viewport_Height;
+            float left_pct = (float)point_on_screen_topleftorigin.x / (float)cam.Viewport_Width;
+            float top_pct = (float)point_on_screen_topleftorigin.y / (float)cam.Viewport_Height;
 
             if (space == TransformSpace.Local)
             {
@@ -142,8 +143,8 @@ namespace PirateCraft
             }
             else
             {
-               pt.p0 = NearTopLeft + cam.BasisX * _widthNear * left_pct + cam.BasisY * _heightNear * top_pct;
-               pt.p1 = FarTopLeft + cam.BasisX * _widthFar * left_pct + cam.BasisY * _heightFar * top_pct;
+               pt.p0 = NearTopLeft + cam.BasisX * _widthNear * left_pct - cam.BasisY * _heightNear * top_pct;
+               pt.p1 = FarTopLeft + cam.BasisX * _widthFar * left_pct - cam.BasisY * _heightFar * top_pct;
                pt.p0 += cam.BasisZ * additionalZDepthNear;
             }
          }
