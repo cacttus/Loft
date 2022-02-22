@@ -140,15 +140,17 @@ namespace PirateCraft
       public vec2 Last { get { return _last; } }
       public vec2 Pos { get { return _pos; } } //Position relative to Top Left corner of window client area (excluding borders and titlebar)
 
-      public bool CenterCursor { get; private set; } = false;
-
-      public void EnableCenterCursor(bool enable)
+      public bool CenterCursor { get; set; } = false;
+      public bool ShowCursor
       {
-         CenterCursor = enable;
-      }
-      public void ShowCursor(bool show)
-      {
-         Gu.CurrentWindowContext.GameWindow.CursorVisible = show;
+         get
+         {
+            return Gu.CurrentWindowContext.GameWindow.CursorVisible;
+         }
+         set
+         {
+            Gu.CurrentWindowContext.GameWindow.CursorVisible = value;
+         }
       }
       public void UpdatePosition(vec2 v)
       {
@@ -167,22 +169,24 @@ namespace PirateCraft
       {
          base.Update();
          var w = Gu.CurrentWindowContext.GameWindow;
-         if(w != null)
+         if (w != null)
          {
-
-         if ( CenterCursor)
-         {
-            OpenTK.Input.Mouse.SetPosition(w.X + w.Width / 2, w.Y + w.Height / 2);
-         }
+            if (CenterCursor)
+            {
+               if (w.Focused)
+               {
+                  OpenTK.Input.Mouse.SetPosition(w.X + w.Width / 2, w.Y + w.Height / 2);
+               }
+            }
          }
          else
          {
             Gu.Log.Error("Mouse Input: Window was null...");
          }
          //OpenTK mouse - not working.
-         // _last = _pos;
-         // _pos.x = (float)_deviceState.X;
-         // _pos.y = (float)_deviceState.Y;
+         _last = _pos;
+         _pos.x = (float)_deviceState.X;
+         _pos.y = (float)_deviceState.Y;
       }
    }
 

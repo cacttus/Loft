@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using OpenTK;
 using OpenTK.Graphics;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Input;
@@ -16,8 +15,7 @@ namespace PirateCraft
 
    public class MainWindow : OpenTK.GameWindow
    {
-
-      bool DELETE_WORLD_START_FRESH = true;// 
+      bool DELETE_WORLD_START_FRESH = true;
       Camera3D _camera = null;
       WorldObject _boxMeshThing = null;
       int meshIdx = 0;
@@ -27,7 +25,8 @@ namespace PirateCraft
       WorldObject _sky;
 
       public MainWindow() : base((int)(1920 * scale), (int)(1080 * scale),
-      GraphicsMode.Default, "Test", GameWindowFlags.Default, DisplayDevice.Default, 4, 0, GraphicsContextFlags.ForwardCompatible)
+      GraphicsMode.Default, "Test", OpenTK.GameWindowFlags.Default,
+      OpenTK.DisplayDevice.Default, 4, 0, GraphicsContextFlags.ForwardCompatible)
       {
          Title += ": OpenGL Version: " + GL.GetString(StringName.Version);
       }
@@ -39,13 +38,15 @@ namespace PirateCraft
       protected override void OnMouseMove(MouseMoveEventArgs e)
       {
          base.OnMouseMove(e);
-         Gu.Mouse.UpdatePosition(new vec2(e.Position.X, e.Position.Y));
+         //Gu.Mouse.UpdatePosition(new vec2(e.Position.X, e.Position.Y));
+      }
+      protected override void OnFocusedChanged(EventArgs e)
+      {
+         base.OnFocusedChanged(e);
       }
       WorldObject Sphere_Rotate_Quat_Test = null;
       WorldObject Sphere_Rotate_Quat_Test2 = null;
       WorldObject Sphere_Rotate_Quat_Test3 = null;
-
-
       protected override void OnLoad(EventArgs e)
       {
          try
@@ -112,8 +113,8 @@ namespace PirateCraft
             db.Color = new vec4(1, 0, 0, 1);
             _boxMeshThing.AddChild(db);
 
-            Gu.Mouse.EnableCenterCursor(true);
-            Gu.Mouse.ShowCursor(true);
+            Gu.Mouse.CenterCursor = true;
+            Gu.Mouse.ShowCursor = true;
          }
          catch (Exception ex)
          {
@@ -148,7 +149,7 @@ namespace PirateCraft
          }
       }
 
-      protected override void OnUpdateFrame(FrameEventArgs e)
+      protected override void OnUpdateFrame(OpenTK.FrameEventArgs e)
       {
          float chary = this._camera.Position.y;
          Title = $"(CharY = {chary}) (Vsync: {VSync}) FPS: {1f / e.Time:0} AllGlobs: {Gu.World.NumGlobs} Render: {Gu.World.NumRenderGlobs} Visible: {Gu.World.NumVisibleRenderGlobs}";
@@ -174,7 +175,7 @@ namespace PirateCraft
       }
       private void UpdateInput()
       {
-         if (!this.Focused)
+         if (!Focused)
          {
             return;
          }
@@ -231,13 +232,12 @@ namespace PirateCraft
             if (InputState == InputState.World)
             {
                InputState = InputState.Inventory;
-               Gu.Mouse.EnableCenterCursor(false);
+               Gu.Mouse.CenterCursor = false;
             }
             else if (InputState == InputState.Inventory)
             {
                InputState = InputState.World;
-               Gu.Mouse.EnableCenterCursor(true);
-
+               Gu.Mouse.CenterCursor = true;
             }
          }
          if (Gu.Keyboard.Press(Key.Number1))
@@ -288,9 +288,11 @@ namespace PirateCraft
             float mx = Gu.Mouse.Pos.x - Gu.Mouse.Last.x;
             float my = Gu.Mouse.Pos.y - Gu.Mouse.Last.y;
 
-            float rot_speed = 0.001f;
+            float width = _camera.Viewport_Width;
+            float height = _camera.Viewport_Height;
+            float rotations_per_width = 0.5f;
 
-            rotX += Math.PI * mx * rot_speed * coordMul;
+            rotX += Math.PI*2 * (mx/width) * rotations_per_width * coordMul;
             if (rotX > Math.PI * 2.0f)
             {
                rotX = (float)(rotX % (Math.PI * 2.0f));
@@ -299,7 +301,7 @@ namespace PirateCraft
             {
                rotX = (float)(rotX % (Math.PI * 2.0f));
             }
-            rotY += Math.PI * my * rot_speed * coordMul;
+            rotY += Math.PI * 2 * (my / height) * rotations_per_width * coordMul;
             if (rotY > Math.PI * 2.0f)
             {
                rotY = (float)(rotY % (Math.PI * 2.0f));
@@ -313,7 +315,7 @@ namespace PirateCraft
 
             _camera.Rotation = qx * qy;
          }
-         else if(InputState == InputState.Inventory)
+         else if (InputState == InputState.Inventory)
          {
             //do inventory
          }
@@ -321,11 +323,11 @@ namespace PirateCraft
          {
             Gu.BRThrowNotImplementedException();
          }
-         
+
       }
       private double rotX = 0;
       private double rotY = 0;
-      protected override void OnRenderFrame(FrameEventArgs e)
+      protected override void OnRenderFrame(OpenTK.FrameEventArgs e)
       {
          Renderer.BeginRender(this, new vec4(1, 1, 1, 1));
          Gu.World.Render(Gu.CurrentWindowContext.Delta, _camera);
