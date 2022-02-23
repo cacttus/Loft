@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using OpenTK.Graphics;
 using OpenTK.Graphics.OpenGL4;
-using OpenTK.Input;
-
-
+using OpenTK.Windowing.Common;
+using OpenTK.Windowing.Desktop;
+using OpenTK.Windowing.GraphicsLibraryFramework;
 namespace PirateCraft
 {
    public enum InputState
@@ -12,8 +12,48 @@ namespace PirateCraft
       World, //User is moving inw orld.
       Inventory //User has inventory window open.
    }
+   public class FirstPersonMouseRotator {
+      private double rotX = 0;
+      private double rotY = 0;
 
-   public class MainWindow : OpenTK.GameWindow
+      public void DoRotate(Camera3D cam)
+      {
+         //Rotate Camera
+         float mx = Gu.Mouse.Pos.x - Gu.Mouse.Last.x;
+         float my = Gu.Mouse.Pos.y - Gu.Mouse.Last.y;
+
+         float width = cam.Viewport_Width;
+         float height = cam.Viewport_Height;
+         float rotations_per_width = 0.5f;
+
+         rotX += Math.PI * 2 * (mx / width) * rotations_per_width * Gu.CoordinateSystemMultiplier;
+         if (rotX > Math.PI * 2.0f)
+         {
+            rotX = (float)(rotX % (Math.PI * 2.0f));
+         }
+         if (rotX < 0)
+         {
+            rotX = (float)(rotX % (Math.PI * 2.0f));
+         }
+         rotY += Math.PI * 2 * (my / height) * rotations_per_width * Gu.CoordinateSystemMultiplier;
+         if (rotY > Math.PI * 2.0f)
+         {
+            rotY = (float)(rotY % (Math.PI * 2.0f));
+         }
+         if (rotY < 0)
+         {
+            rotY = (float)(rotY % (Math.PI * 2.0f));
+         }
+         quat qx = quat.fromAxisAngle(new vec3(0, 1, 0), (float)rotX).normalized();
+         quat qy = quat.fromAxisAngle(new vec3(1, 0, 0), (float)rotY).normalized();
+
+         cam.Rotation = qx * qy;
+
+         //Gu.WarpMouse
+      }
+
+   }
+   public class MainWindow : GameWindow
    {
       bool DELETE_WORLD_START_FRESH = true;
       Camera3D _camera = null;
@@ -21,40 +61,70 @@ namespace PirateCraft
       int meshIdx = 0;
       const float scale = 0.5f;
       InputState InputState = InputState.World;
-
-      WorldObject _sky;
-
-      public MainWindow() : base((int)(1920 * scale), (int)(1080 * scale),
-      GraphicsMode.Default, "Test", OpenTK.GameWindowFlags.Default,
+      FirstPersonMouseRotator _FPSRotator = new FirstPersonMouseRotator();
+      private NativeWindowSettings _ns = NativeWindowSettings.Default;
+      /*
+       * base((int)(1920 * scale), (int)(1080 * scale),
+      GraphicsMode.Default, "Test", GameWindowFlags.Default,
       OpenTK.DisplayDevice.Default, 4, 0, GraphicsContextFlags.ForwardCompatible)
+       * */
+      public MainWindow() : base(
+         new GameWindowSettings()
+         {
+            IsMultiThreaded = false,
+            RenderFrequency = 0,
+            UpdateFrequency = 0
+         }
+      , new NativeWindowSettings()
+      {
+         Profile = ContextProfile.Core,
+         Flags = ContextFlags.ForwardCompatible,
+         AutoLoadBindings = true,
+         APIVersion = new Version(4, 6),
+         Title = "PirateCraft",
+         StartFocused = true,
+         StartVisible = true,
+         WindowState = WindowState.Normal,
+         WindowBorder = WindowBorder.Resizable,
+         Location = new OpenTK.Mathematics.Vector2i(200, 200),
+         Size = new OpenTK.Mathematics.Vector2i((int)(1920 * scale), (int)(1080 * scale)),
+         NumberOfSamples = 0, //TODO:
+         StencilBits = 8,
+         DepthBits = 24,
+         RedBits = 8,
+         GreenBits = 8,
+         BlueBits = 8,
+         AlphaBits = 8
+      }
+
+      )
       {
          Title += ": OpenGL Version: " + GL.GetString(StringName.Version);
       }
-      protected override void OnResize(EventArgs e)
+      protected override void OnResize(ResizeEventArgs e)
       {
-         _camera.Viewport_Width = Width;
-         _camera.Viewport_Height = Height;
+         _camera.Viewport_Width = e.Width;
+         _camera.Viewport_Height = e.Height;
       }
       protected override void OnMouseMove(MouseMoveEventArgs e)
       {
          base.OnMouseMove(e);
-         //Gu.Mouse.UpdatePosition(new vec2(e.Position.X, e.Position.Y));
       }
-      protected override void OnFocusedChanged(EventArgs e)
+      protected override void OnFocusedChanged(FocusedChangedEventArgs e)
       {
          base.OnFocusedChanged(e);
       }
       WorldObject Sphere_Rotate_Quat_Test = null;
       WorldObject Sphere_Rotate_Quat_Test2 = null;
       WorldObject Sphere_Rotate_Quat_Test3 = null;
-      protected override void OnLoad(EventArgs e)
+      protected override void OnLoad()
       {
          try
          {
             Gu.Init(this);
 
             //Cameras
-            _camera = Gu.World.CreateCamera("Camera-001", Width, Height,
+            _camera = Gu.World.CreateCamera("Camera-001", this.Size.X, this.Size.Y,
                //Put player exactly in center.
                new vec3(
                World.BlockSizeX * World.GlobBlocksX * .5f,
@@ -77,26 +147,26 @@ namespace PirateCraft
             //Integrity test of GPU memory.
             for (int i = 0; i < 100; ++i)
             {
-               Gu.World.CreateObject("BoxMesh", MeshData.GenBox(1, 1, 1), new Material(Shader.DefaultDiffuse(), noise));
+               Gu.World.CreateAndAddObject("BoxMesh", MeshData.GenBox(1, 1, 1), new Material(Shader.DefaultDiffuse(), noise));
             }
             for (int i = 1; i < 100; ++i)
             {
-               Gu.World.DestroyObject("BoxMesh-" + i.ToString());
+               Gu.World.RemoveObject("BoxMesh-" + i.ToString());
             }
-            Gu.World.CreateObject("TextureFront", MeshData.GenTextureFront(_camera, 0, 0, Width, Height), new Material(Shader.DefaultDiffuse(), peron));
-            Gu.World.CreateObject("Plane.", MeshData.GenPlane(10, 10), new Material(Shader.DefaultDiffuse(), grass));
+            Gu.World.CreateAndAddObject("TextureFront", MeshData.GenTextureFront(_camera, 0, 0, this.Size.X, this.Size.Y), new Material(Shader.DefaultDiffuse(), peron));
+            Gu.World.CreateAndAddObject("Plane.", MeshData.GenPlane(10, 10), new Material(Shader.DefaultDiffuse(), grass));
             _boxMeshThing = Gu.World.FindObject("BoxMesh");
-            _boxMeshThing.Position = new vec3(0, _boxMeshThing.BoundBox.Height() * 0.5f, 0);
+            _boxMeshThing.Position = new vec3(0, _boxMeshThing.BoundBoxMeshBind.Height() * 0.5f, 0);
 
-            Sphere_Rotate_Quat_Test = Gu.World.CreateObject("Sphere_Rotate_Quat_Test", MeshData.GenSphere(), new Material(Shader.DefaultDiffuse(), mclovin));
-            Sphere_Rotate_Quat_Test2 = Gu.World.CreateObject("Sphere_Rotate_Quat_Test2", MeshData.GenSphere(), new Material(Shader.DefaultDiffuse(), usopp));
-            Sphere_Rotate_Quat_Test3 = Gu.World.CreateObject("Sphere_Rotate_Quat_Test3", MeshData.GenSphere(), new Material(Shader.DefaultDiffuse(), hogback));
+            Sphere_Rotate_Quat_Test = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test", MeshData.GenSphere(), new Material(Shader.DefaultDiffuse(), mclovin));
+            Sphere_Rotate_Quat_Test2 = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test2", MeshData.GenSphere(), new Material(Shader.DefaultDiffuse(), usopp));
+            Sphere_Rotate_Quat_Test3 = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test3", MeshData.GenSphere(), new Material(Shader.DefaultDiffuse(), hogback));
 
             //TODO: sky shader. 
             Material sky_mat = new Material(Shader.DefaultDiffuse(), sky1);
             sky_mat.GpuRenderState.DepthTest = false;//Disable depth test.
-            _sky = Gu.World.CreateObject("sky", MeshData.GenSphere(128, 128, 400, true, true), sky_mat);
-            _sky.Constraints.Add(new FollowConstraint(_camera, FollowConstraint.FollowMode.Snap));
+            Gu.World.Sky = Gu.World.CreateObject("sky", MeshData.GenSphere(128, 128, 400, true, true), sky_mat);
+            Gu.World.Sky.Constraints.Add(new FollowConstraint(_camera, FollowConstraint.FollowMode.Snap));
 
             //Animation test
             var cmp = new AnimationComponent();
@@ -109,9 +179,13 @@ namespace PirateCraft
             cmp.Start();
             _boxMeshThing.Components.Add(cmp);
 
-            var db = DebugDraw.CreateBoxLines(new vec3(.5f, .5f, .5f), new vec3(1, 1, 1), new vec4(.2f, .2f, .2f, 1));
-            db.Color = new vec4(1, 0, 0, 1);
-            _boxMeshThing.AddChild(db);
+            Sphere_Rotate_Quat_Test.AddChild(Sphere_Rotate_Quat_Test2.AddChild(Sphere_Rotate_Quat_Test3.AddChild(_boxMeshThing)));
+
+
+           // var db = Gu.DebugCreateBoxLines(new vec3(.5f, .5f, .5f), new vec3(1, 1, 1), new vec4(.2f, .2f, .2f, 1));
+           // db.Color = new vec4(1, 0, 0, 1);
+           //  _boxMeshThing.AddChild(db);
+
 
             Gu.Mouse.CenterCursor = true;
             Gu.Mouse.ShowCursor = true;
@@ -149,17 +223,20 @@ namespace PirateCraft
          }
       }
 
-      protected override void OnUpdateFrame(OpenTK.FrameEventArgs e)
+      protected override void OnUpdateFrame(FrameEventArgs e)
       {
          float chary = this._camera.Position.y;
-         Title = $"(CharY = {chary}) (Vsync: {VSync}) FPS: {1f / e.Time:0} AllGlobs: {Gu.World.NumGlobs} Render: {Gu.World.NumRenderGlobs} Visible: {Gu.World.NumVisibleRenderGlobs}";
+         Title = $"(CharY = {chary}) (Vsync: {VSync}) FPS: {1f / e.Time:0} " +
+            $"AllGlobs: {Gu.World.NumGlobs} Render: {Gu.World.NumRenderGlobs} Visible: {Gu.World.NumVisibleRenderGlobs} " +
+            $"Elements_Frame:{MeshData.dbg_numDrawElements_Frame} Arrays_Frame: {MeshData.dbg_numDrawArrays_Frame}" +
+            $"OBs culled:{Gu.World.Dbg_N_OB_Culled}";
 
-         Gu.CurrentWindowContext.Update();
+         Gu.Context.Update();
 
          //_boxMeshThing.Rotation = quaternion.FromAxisAngle(new vec3(0, 1, 0), (float)rot);
          //rot += Math.PI * 2.0f * Gu.CurrentWindowContext.Delta * 0.0125f;
 
-         Gu.World.Update(Gu.CurrentWindowContext.Delta, _camera);
+         Gu.World.Update(Gu.Context.Delta, _camera);
 
          //checks out
          Sphere_Rotate_Quat_Test.Position = new vec3(0, 3, 0);
@@ -175,59 +252,53 @@ namespace PirateCraft
       }
       private void UpdateInput()
       {
-         if (!Focused)
+         if (!IsFocused)
          {
             return;
          }
-         float coordMul = (Gu.CoordinateSystem == CoordinateSystem.Lhs ? -1 : 1);
-         var keyState = Keyboard.GetState();
-
-         if (keyState.IsKeyDown(Key.Escape))
-         {
-            Exit();
-         }
-         if (Gu.CurrentWindowContext.PCKeyboard.Press(Key.Number1))
+  
+         if (Gu.Context.PCKeyboard.Press(Keys.D1))
          {
             // _boxMeshThing.Mesh.BeginEdit(0, 1);
             // MeshVert v= _boxMeshThing.Mesh.EditVert(0);
             // _boxMeshThing.Mesh.EndEdit();
          }
-         float speed = 20.7f;
-         if (Gu.Keyboard.PressOrDown(Key.Number6))
+         if (Gu.Keyboard.PressOrDown(Keys.Escape))
          {
-            _boxMeshThing.Material.Shader.nmap += 0.01f;
-            _boxMeshThing.Material.Shader.nmap = _boxMeshThing.Material.Shader.nmap % 1;
+            Close();
          }
+         float speed = 20.7f;
+
          float speedMul = 1;
-         if (Gu.Keyboard.PressOrDown(Key.ControlLeft) || Gu.Keyboard.PressOrDown(Key.ControlRight))
+         if (Gu.Keyboard.PressOrDown(Keys.LeftControl) || Gu.Keyboard.PressOrDown(Keys.RightControl))
          {
             speedMul = 3;
          }
-         if (Gu.Keyboard.PressOrDown(new List<Key>() { Key.Q }))
+         if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.Q }))
          {
-            _camera.Position += _camera.BasisY * speed * (float)Gu.CurrentWindowContext.Delta * speedMul;
+            _camera.Position += _camera.BasisY * speed * (float)Gu.Context.Delta * speedMul;
          }
-         if (Gu.Keyboard.PressOrDown(new List<Key>() { Key.E }))
+         if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.E }))
          {
-            _camera.Position -= _camera.BasisY * speed * (float)Gu.CurrentWindowContext.Delta * speedMul;
+            _camera.Position -= _camera.BasisY * speed * (float)Gu.Context.Delta * speedMul;
          }
-         if (Gu.Keyboard.PressOrDown(new List<Key>() { Key.Up, Key.W }))
+         if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.Up, Keys.W }))
          {
-            _camera.Position += _camera.BasisZ * speed * (float)Gu.CurrentWindowContext.Delta * speedMul;
+            _camera.Position += _camera.BasisZ * speed * (float)Gu.Context.Delta * speedMul;
          }
-         if (Gu.Keyboard.PressOrDown(new List<Key>() { Key.Down, Key.S }))
+         if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.Down, Keys.S }))
          {
-            _camera.Position -= _camera.BasisZ * speed * (float)Gu.CurrentWindowContext.Delta * speedMul;
+            _camera.Position -= _camera.BasisZ * speed * (float)Gu.Context.Delta * speedMul;
          }
-         if (Gu.Keyboard.PressOrDown(new List<Key>() { Key.Right, Key.D }))
+         if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.Right, Keys.D }))
          {
-            _camera.Position += _camera.BasisX * speed * coordMul * (float)Gu.CurrentWindowContext.Delta * speedMul;
+            _camera.Position += _camera.BasisX * speed * Gu.CoordinateSystemMultiplier * (float)Gu.Context.Delta * speedMul;
          }
-         if (Gu.Keyboard.PressOrDown(new List<Key>() { Key.Left, Key.A }))
+         if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.Left, Keys.A }))
          {
-            _camera.Position -= _camera.BasisX * speed * coordMul * (float)Gu.CurrentWindowContext.Delta * speedMul;
+            _camera.Position -= _camera.BasisX * speed * Gu.CoordinateSystemMultiplier * (float)Gu.Context.Delta * speedMul;
          }
-         if (Gu.Keyboard.Press(Key.I))
+         if (Gu.Keyboard.Press(Keys.I))
          {
             if (InputState == InputState.World)
             {
@@ -240,19 +311,19 @@ namespace PirateCraft
                Gu.Mouse.CenterCursor = true;
             }
          }
-         if (Gu.Keyboard.Press(Key.Number1))
+         if (Gu.Keyboard.Press(Keys.D1))
          {
             _boxMeshThing.Material.Shader.lightingModel = ((_boxMeshThing.Material.Shader.lightingModel + 1) % 3);
          }
-         if (Gu.Keyboard.PressOrDown(Key.Number2))
+         if (Gu.Keyboard.PressOrDown(Keys.D2))
          {
             _boxMeshThing.Material.Shader.GGX_X = (_boxMeshThing.Material.Shader.GGX_X + 0.01f) % 3.0f;
          }
-         if (Gu.Keyboard.PressOrDown(Key.Number3))
+         if (Gu.Keyboard.PressOrDown(Keys.D3))
          {
             _boxMeshThing.Material.Shader.GGX_Y = (_boxMeshThing.Material.Shader.GGX_Y + 0.01f) % 3.0f;
          }
-         if (Gu.Keyboard.Press(Key.Number4))
+         if (Gu.Keyboard.Press(Keys.D4))
          {
             meshIdx = (meshIdx + 1) % 3;
             if (meshIdx == 0)
@@ -268,6 +339,11 @@ namespace PirateCraft
                _boxMeshThing.Mesh = MeshData.GenSphere(32, 32, 1, false);
             }
          }
+         if (Gu.Keyboard.PressOrDown(Keys.D6))
+         {
+            _boxMeshThing.Material.Shader.nmap += 0.01f;
+            _boxMeshThing.Material.Shader.nmap = _boxMeshThing.Material.Shader.nmap % 1;
+         }
          if (Gu.Mouse.PressOrDown(MouseButton.Left))
          {
             //Test
@@ -278,42 +354,13 @@ namespace PirateCraft
             {
                if (b.Glob != null)
                {
-                  Gu.World.SetBlock(b.Glob, b.BlockPosLocal, Block.Empty);
+                  Gu.World.SetBlock(b.Glob, b.BlockPosLocal, Block.Empty, true);
                }
             }
          }
          if (InputState == InputState.World)
          {
-            //Rotate Camera
-            float mx = Gu.Mouse.Pos.x - Gu.Mouse.Last.x;
-            float my = Gu.Mouse.Pos.y - Gu.Mouse.Last.y;
-
-            float width = _camera.Viewport_Width;
-            float height = _camera.Viewport_Height;
-            float rotations_per_width = 0.5f;
-
-            rotX += Math.PI*2 * (mx/width) * rotations_per_width * coordMul;
-            if (rotX > Math.PI * 2.0f)
-            {
-               rotX = (float)(rotX % (Math.PI * 2.0f));
-            }
-            if (rotX < 0)
-            {
-               rotX = (float)(rotX % (Math.PI * 2.0f));
-            }
-            rotY += Math.PI * 2 * (my / height) * rotations_per_width * coordMul;
-            if (rotY > Math.PI * 2.0f)
-            {
-               rotY = (float)(rotY % (Math.PI * 2.0f));
-            }
-            if (rotY < 0)
-            {
-               rotY = (float)(rotY % (Math.PI * 2.0f));
-            }
-            quat qx = quat.fromAxisAngle(new vec3(0, 1, 0), (float)rotX).normalized();
-            quat qy = quat.fromAxisAngle(new vec3(1, 0, 0), (float)rotY).normalized();
-
-            _camera.Rotation = qx * qy;
+            _FPSRotator.DoRotate(_camera);
          }
          else if (InputState == InputState.Inventory)
          {
@@ -325,16 +372,17 @@ namespace PirateCraft
          }
 
       }
-      private double rotX = 0;
-      private double rotY = 0;
-      protected override void OnRenderFrame(OpenTK.FrameEventArgs e)
+
+      protected override void OnRenderFrame(FrameEventArgs e)
       {
-         Renderer.BeginRender(this, new vec4(1, 1, 1, 1));
-         Gu.World.Render(Gu.CurrentWindowContext.Delta, _camera);
-         Renderer.EndRender();
-         //This is big.
+         Gu.Context.Renderer.BeginRender(this, new vec4(1, 1, 1, 1));
+         {
+            Gu.World.Render(Gu.Context.Delta, _camera);
+            Gu.World.RenderDebug(Gu.Context.Delta, _camera);
+         }
+         Gu.Context.Renderer.EndRender();
          //GC.Collect();
-         Gpu.FreeGPUMemory(Gu.CurrentWindowContext);
+         Gpu.FreeGPUMemory(Gu.Context);
       }
    }
    class MainClass
@@ -342,7 +390,7 @@ namespace PirateCraft
       public static void Main(string[] args)
       {
          var m = new MainWindow();
-         m.VSync = OpenTK.VSyncMode.Off;
+         m.VSync = VSyncMode.Off;
          m.Run();
       }
    }

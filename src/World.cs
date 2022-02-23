@@ -1,12 +1,8 @@
 ﻿using System;
 using System.Runtime.InteropServices;
-using System.Collections.Generic;
-using System.IO.MemoryMappedFiles;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Text;
-using System.IO;
 using System.Collections;
+using OpenTK.Graphics.OpenGL4;
 
 namespace PirateCraft
 {
@@ -39,16 +35,17 @@ namespace PirateCraft
    public class BlockItemCode
    {
       //Blocks
-      public const ushort Empty = 0x00;
-      public const ushort Grass = 0x01;
-      public const ushort Dirt = 0x02;
-      public const ushort Brick = 0x03;
-      public const ushort Brick2 = 0x04;
-      public const ushort Gravel = 0x05;
-      public const ushort Sand = 0x06;
-      public const ushort Cedar = 0x07;
-      public const ushort Cedar_Needles = 0x08;
-      public const ushort Feldspar = 0x09;
+      public const ushort Empty = 0;
+      public const ushort Value = 1;
+      public const ushort Grass = 2;
+      public const ushort Dirt = 3;
+      public const ushort Brick = 4;
+      public const ushort Brick2 = 5;
+      public const ushort Gravel = 6;
+      public const ushort Sand = 7;
+      public const ushort Cedar = 8;
+      public const ushort Cedar_Needles = 9;
+      public const ushort Feldspar = 10;
       //Items
       //...
    }
@@ -184,7 +181,7 @@ namespace PirateCraft
    {
       public enum GlobState
       {
-         None, Loaded, Topologized
+         None, LoadedAndQueued, Topologized
       }
       public enum GlobDensityState
       {
@@ -242,20 +239,26 @@ namespace PirateCraft
       private bool _firstGeneration = true; //Whether this is the initial generation, where we would need to generate everything around the player.
       private int _currentShell = 1;
       private ivec3 playerLastGlob = new ivec3(0, 0, 0);
+      private WorldObject dummy = new WorldObject();
+      private WorldObject _debugDraw = null;
+      private List<WorldObject> _renderObs_Ordered = new List<WorldObject>();
+      private Dictionary<ivec3, Glob> _globs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //All globs
+      private Dictionary<ivec3, Glob> _renderGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
+      private Dictionary<ivec3, Glob> _visibleRenderGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
+      private Dictionary<ivec3, Glob> _globsToUpdate = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
 
+
+      public int Dbg_N_OB_Culled = 0;
       public int NumGlobs { get { return _globs.Count; } }
       public int NumRenderGlobs { get { return _renderGlobs.Count; } }
       public int NumVisibleRenderGlobs { get { return _visibleRenderGlobs.Count; } }
+      public WorldObject SceneRoot { get; private set; } = new WorldObject();
+      public WorldObject Sky { get; set; } = null;
 
       public enum GlobCollection
       {
          All, Render, VisibleRender
       }
-      Dictionary<ivec3, Glob> _globs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //All globs
-      Dictionary<ivec3, Glob> _renderGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
-      Dictionary<ivec3, Glob> _visibleRenderGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
-      Dictionary<ivec3, Glob> _globsToTopologize = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
-
 
       //TODO:players
       public WorldObject Player = null;
@@ -313,38 +316,9 @@ namespace PirateCraft
       {
          BuildWorld();
          UpdateObjects(dt);
-
-         //Honestly, this isn't too slow. We usually have maybe 500 globs visible at a time.
-         _visibleRenderGlobs.Clear();
-         foreach (var g in _renderGlobs)
-         {
-            if (cam.Frustum.HasBox(GetGlobBoxGlobalI3(g.Key)))
-            {
-               _visibleRenderGlobs.Add(g.Key, g.Value);
-            }
-         }
-
-         AutoSaveTimeout += dt;
-         if (AutoSaveTimeout > AutoSaveTimeoutSeconds)
-         {
-            AutoSaveTimeout = 0;
-            SaveWorld();
-         }
-
-         //Get All Grids
-         //Well this is broken. Fix it later.
-         //SweepGridFrustum((ivec3 node_ipos, Box3f node_box) =>
-         //{
-         //   var glob = GetGlobAtPos(node_ipos);
-         //   if (glob != null)
-         //   {
-         //      Frustum frust = cam.Frustum;
-         //      if (cam.Frustum.HasBox(node_box))
-         //      {
-         //         _visibleRenderGlobs.Add(node_ipos, glob);
-         //      }
-         //   }
-         //}, cam.Frustum, MaxRenderDistance);
+         CollectVisibleObjects(cam);
+         CollectVisibleGlobs(cam);
+         AutoSaveWorld(dt);
       }
 
       #region Objects
@@ -359,7 +333,8 @@ namespace PirateCraft
       {
          Camera3D c = new Camera3D(name, w, h);
          c.Position = pos;
-         c.Update(0);
+         Box3f dummy = Box3f.Zero;
+         c.Update(0, ref dummy);
          Objects.Add(name, c);
          return c;
       }
@@ -369,13 +344,17 @@ namespace PirateCraft
          ob.Name = name;
          ob.Mesh = mesh;
          ob.Material = material;
-         AddObject(name, ob);
          return ob;
       }
-      public void DestroyObject(string name)
+      public WorldObject CreateAndAddObject(string name, MeshData mesh, Material material, vec3 pos = default(vec3))
+      {
+         return AddObject(CreateObject(name, mesh, material, pos));
+      }
+      public void RemoveObject(string name)
       {
          if (Objects.TryGetValue(name, out WorldObject wo))
          {
+            SceneRoot.RemoveChild(wo);
             Objects.Remove(name);
          }
          else
@@ -383,24 +362,73 @@ namespace PirateCraft
             Gu.Log.Error("Object '" + name + "' was not found.");
          }
       }
-      private void AddObject(string name, WorldObject ob)
+      private WorldObject AddObject(WorldObject ob)
       {
          //Use a suffix if there is a duplicate object
          int suffix = 0;
-         string name_suffix = name;
+         string name_suffix = ob.Name;
          while (FindObject(name_suffix) != null)
          {
             suffix++;
-            name_suffix = name + "-" + suffix.ToString();
+            name_suffix = ob.Name + "-" + suffix.ToString();
          }
          ob.Name = name_suffix;
          Objects.Add(name_suffix, ob);
+         SceneRoot.AddChild(ob);
+         return ob;
       }
       private void UpdateObjects(double dt)
       {
+         Box3f dummy = Box3f.Zero;
+         dummy.genResetLimits();
          foreach (var ob in Objects.Values)
          {
-            ob.Update(dt);
+            ob.Update(dt, ref dummy);
+         }
+      }
+      private void CollectVisibleObjects(Camera3D camera)
+      {
+         _renderObs_Ordered.Clear();
+         Dbg_N_OB_Culled = 0;
+         //Add sky as it must come first.
+         CollectObjects(camera, Sky);
+         CollectObjects(camera, SceneRoot);
+      }
+      private void CollectVisibleGlobs(Camera3D cam)
+      {
+         //Get All Grids
+         //Well this is broken. Fix it later.
+         //SweepGridFrustum((ivec3 node_ipos, Box3f node_box) =>
+         //{
+         //   var glob = GetGlobAtPos(node_ipos);
+         //   if (glob != null)
+         //   {
+         //      Frustum frust = cam.Frustum;
+         //      if (cam.Frustum.HasBox(node_box))
+         //      {
+         //         _visibleRenderGlobs.Add(node_ipos, glob);
+         //      }
+         //   }
+         //}, cam.Frustum, MaxRenderDistance);
+
+         //Honestly, this isn't too slow. We usually have maybe 500 globs visible at a time.
+         _visibleRenderGlobs.Clear();
+         foreach (var g in _renderGlobs)
+         {
+            if (cam.Frustum.HasBox(GetGlobBoxGlobalI3(g.Key)))
+            {
+               _visibleRenderGlobs.Add(g.Key, g.Value);
+            }
+         }
+
+      }
+      private void AutoSaveWorld(double dt)
+      {
+         AutoSaveTimeout += dt;
+         if (AutoSaveTimeout > AutoSaveTimeoutSeconds)
+         {
+            AutoSaveTimeout = 0;
+            SaveWorld();
          }
       }
 
@@ -414,13 +442,12 @@ namespace PirateCraft
          camera.BeginRender();
          {
             //Objects
-            //TODO: PVS of course we're going to use a bucket collection algorithm. This is in the future.
-            foreach (var ob in Objects.Values)
+            foreach (var ob in _renderObs_Ordered)
             {
-               DrawOb(ob, Delta, camera);
+               DrawObMesh(ob,Delta,camera);
             }
 
-            //PVS for globs
+            //Globs
             List<MeshData> visible_op = new List<MeshData>();
             List<MeshData> visible_tp = new List<MeshData>();
             foreach (var g in _visibleRenderGlobs)
@@ -436,8 +463,6 @@ namespace PirateCraft
                }
             }
 
-            WorldObject dummy = new WorldObject();
-
             _worldMaterial.BeginRender(Delta, camera, dummy);
             foreach (var md in visible_op)
             {
@@ -447,23 +472,60 @@ namespace PirateCraft
          }
          camera.EndRender();
       }
-      private void DrawOb(WorldObject ob, double Delta, Camera3D camera)
+      public void RenderDebug(double Delta, Camera3D camera)
+      {
+         var frame = Gu.Context.FrameStamp;
+
+         vec4 bbcolor = new vec4(1, 0, 0, 1);
+         foreach (var ob in Objects.Values)
+         {
+            Gu.Context.Renderer.DebugDraw.Box(ob.BoundBoxMeshTransform, ob.Color);
+            Gu.Context.Renderer.DebugDraw.Box(ob.BoundBox, bbcolor);
+         }
+         if (_debugDraw == null)
+         {
+            _debugDraw = CreateAndAddObject("debug_draw", null, new Material(Shader.LoadShader("v_v3c4_debugdraw", false)));
+            RemoveObject(_debugDraw.Name);//Doesn't actually destroy it
+         }
+         if (_debugDraw.Mesh == null)
+         {
+            _debugDraw.Mesh = new MeshData("Debug", PrimitiveType.Lines, DebugDraw.VertexFormat);
+         }
+         _debugDraw.Mesh.CreateBuffers(Gpu.GetGpuDataPtr(Gu.Context.Renderer.DebugDraw.Verts.ToArray()), null, false);
+
+         DrawObMesh(_debugDraw, Delta, camera);
+      }
+      private void CollectObjects(Camera3D cam, WorldObject ob)
+      {
+         Gu.Assert(ob != null);
+         if (ob.Mesh != null)
+         {
+            if (cam.Frustum.HasBox(ob.BoundBox))
+            {
+               _renderObs_Ordered.Add(ob);
+            }
+            else
+            {
+               Dbg_N_OB_Culled++;
+            }
+         }
+
+         foreach (var c in ob.Children)
+         {
+            CollectObjects(cam, c);
+         }
+      }
+      private void DrawObMesh(WorldObject ob, double Delta, Camera3D camera)
       {
          if (ob.Mesh != null)
          {
-            //Material mat = ob.Material;
-            //if (ob.Material == null)
-            //{
-            //   mat = Material.DefaultFlatColor();
-            //}
             ob.Material.BeginRender(Delta, camera, ob);
             ob.Mesh.Draw();
-            //Renderer.Render(camera, ob, mat);
             ob.Material.EndRender();
          }
-         foreach (var c in ob.Children)
+         else
          {
-            DrawOb(c, Delta, camera);
+            //this is technically an error
          }
       }
 
@@ -486,7 +548,7 @@ namespace PirateCraft
             { BlockItemCode.Cedar, new List<FileLoc>(){ GetTileFile(TileImage.Cedar_Top), GetTileFile(TileImage.Cedar), GetTileFile(TileImage.Cedar_Top) } },
             { BlockItemCode.Feldspar, new List<FileLoc>(){ GetTileFile(TileImage.Feldspar), GetTileFile(TileImage.Feldspar), GetTileFile(TileImage.Feldspar) } },
          };
-         
+
          //Create empty array that matches BlockTiles for the tile UVs
          _tileUVs = new Dictionary<ushort, List<MtTex>>();
          foreach (var block in _blockTiles)
@@ -551,7 +613,7 @@ namespace PirateCraft
             playerLastGlob = R3toI3Glob(Player.Position);
          }
 
-         if (Gu.CurrentWindowContext.FrameStamp % 3 == 0)
+         if (Gu.Context.FrameStamp % 3 == 0)
          {
             //Quick-n-dirty "don't kill me"
             ivec3 newPlayerGlob = R3toI3Glob(Player.Position);
@@ -670,7 +732,6 @@ namespace PirateCraft
                      Glob g = GenerateAndSaveOrLoadGlob(gpos);
                      _globs.Add(gpos, g);
                      newGlobs.Add(g);
-                     _globsToTopologize.Add(gpos, g);
                   }
 
                }
@@ -678,6 +739,8 @@ namespace PirateCraft
          }
          return newGlobs;
       }
+      public int dbg_nSkippedStitch = 0;
+      public int dbg_nEmptyNoData = 0;
       private List<Glob> BuildGlobGridAndTopologize(vec3 origin, vec3 awareness_radius, bool logprogress = false)
       {
          List<Glob> newGlobs = BuildGlobGrid(origin, awareness_radius, logprogress);
@@ -687,14 +750,22 @@ namespace PirateCraft
             Gu.Log.Info("Topologizing " + newGlobs.Count);
          }
 
-         foreach (Glob g in _globsToTopologize.Values)
+         //We need to add a sufficient grow algorithm.
+
+         foreach (Glob g in _globsToUpdate.Values)
          {
-          //  g.Opaque = null;
-          //  g.Transparent = null;
+            //  g.Opaque = null;
+            //  g.Transparent = null;
+
+            if (g.State == Glob.GlobState.LoadedAndQueued)
+            {
+               CreateBlocks(g);
+            }
 
             if (g.DensityState != Glob.GlobDensityState.Empty_AndNoData)
             {
                TopologizeGlob(g);
+               dbg_nEmptyNoData++;
             }
             else
             {
@@ -704,12 +775,83 @@ namespace PirateCraft
             if (g.DensityState != Glob.GlobDensityState.SolidBlocksOnly)
             {
                //No neighboring blocks would be visible, so stitchin gisn't needed
-               StitchGlob(g);
+               StitchGlobTopology(g);
+               dbg_nSkippedStitch++;
             }
          }
-         _globsToTopologize.Clear();
+         _globsToUpdate.Clear();
 
          return newGlobs;
+      }
+      private void CreateBlocks(Glob g)
+      {
+         vec3 globOriginR3 = new vec3(GlobWidthX * (float)g.Pos.x, GlobWidthY * (float)g.Pos.y, GlobWidthZ * (float)g.Pos.z);
+
+         for (int z = 0; z < GlobBlocksZ; z++)
+         {
+            for (int y = 0; y < GlobBlocksY; y++)
+            {
+               for (int x = 0; x < GlobBlocksX; x++)
+               {
+                  ivec3 block_index = new ivec3(x, y, z);
+                  //Computing density from block center instead of corner
+                  vec3 block_world = globOriginR3 + new vec3(
+                     x * BlockSizeX + BlockSizeX * 0.5f,
+                     y * BlockSizeY + BlockSizeY * 0.5f,
+                     z * BlockSizeZ + BlockSizeZ * 0.5f);
+
+                  Block blk = GetBlock(g, block_index);
+                  UInt16 bic = CreateBlock(g, blk, block_world, block_index);
+                  blk.Value = bic;
+
+                  //Make sure this is just loaded. This function initially generates block values for new worlds.
+                  //Don't call manually.
+                  Gu.Assert(g.State == Glob.GlobState.LoadedAndQueued);
+
+                  SetBlock(g, block_index, blk, false);
+               }
+            }
+         }
+
+      }
+      private UInt16 CreateBlock(Glob g, Block blk, vec3 world_pos, ivec3 block_index)
+      {
+         //Coming in we have just value/empty blocks now generate the block type.
+         UInt16 item = blk.Value;
+         if (blk.Value != BlockItemCode.Empty)
+         {
+
+            //Testing..
+            //We have stuff. Default to grassy grass.
+            if (world_pos.y < BlockSizeY * -10)
+            {
+               item = BlockItemCode.Feldspar;
+            }
+            else if (world_pos.y < BlockSizeY * -4)
+            {
+               item = BlockItemCode.Gravel;
+            }
+            else if (world_pos.y < 0)
+            {
+               item = BlockItemCode.Sand;
+            }
+            else
+            {
+               //if (block_index.y < GlobBlocksY)
+               //{
+               //   GetBlock(g, block_index);
+               //}
+               //else
+               //{
+
+               //}
+               item = BlockItemCode.Grass;
+            }
+         }
+         //  Random.Next() > 0.3f ?
+         //BlockItemCode.Grass :
+         //(Random.Next() > 0.6f ? BlockItemCode.Brick2 : BlockItemCode.Brick);
+         return item;
       }
       private Glob GenerateAndSaveOrLoadGlob(ivec3 gpos)
       {
@@ -719,7 +861,9 @@ namespace PirateCraft
             g = GenerateGlob(gpos);
             SaveGlob(g);
          }
-         g.State = Glob.GlobState.Loaded;
+         _globsToUpdate.Add(gpos, g);
+         g.State = Glob.GlobState.LoadedAndQueued;
+
          return g;
       }
       private string GetGlobFileName(ivec3 gpos)
@@ -739,12 +883,11 @@ namespace PirateCraft
       }
       private Glob GenerateGlob(ivec3 gpos)
       {
-         //Density and all that.
-         Glob g = new Glob(gpos, Gu.CurrentWindowContext.FrameStamp);
+         Glob g = new Glob(gpos, Gu.Context.FrameStamp);
          vec3 globOriginR3 = new vec3(GlobWidthX * gpos.x, GlobWidthY * gpos.y, GlobWidthZ * gpos.z);
 
          g.Solid = g.Empty = g.Items = 0;
-         
+
          for (int z = 0; z < GlobBlocksZ; z++)
          {
             for (int y = 0; y < GlobBlocksY; y++)
@@ -756,15 +899,15 @@ namespace PirateCraft
                      x * BlockSizeX + BlockSizeX * 0.5f,
                      y * BlockSizeY + BlockSizeY * 0.5f,
                      z * BlockSizeZ + BlockSizeZ * 0.5f);
-                  var block = new Block(Density(block_world));
-                  SetBlock(g, new ivec3(x, y, z), block);
+                  var block = new Block(Density(g, block_world));
+                  SetBlock(g, new ivec3(x, y, z), block, false);
                }
             }
          }
 
-
          return g;
       }
+
       private Glob FindGlobI3(ivec3 pos, GlobCollection c)
       {
          Glob g = null;
@@ -802,7 +945,7 @@ namespace PirateCraft
          Glob ret = FindGlobR3(neighbor_center_R3, c);
          return ret;
       }
-      private void StitchGlob(Glob g)
+      private void StitchGlobTopology(Glob g)
       {
          for (int ni = 0; ni < 6; ++ni)
          {
@@ -981,7 +1124,7 @@ namespace PirateCraft
 
          g.State = Glob.GlobState.Topologized;
       }
-      private UInt16 Density(vec3 world_pos)
+      private UInt16 Density(Glob g, vec3 world_pos)
       {
          float d = -world_pos.y;
 
@@ -999,27 +1142,7 @@ namespace PirateCraft
          ushort item = BlockItemCode.Empty;
          if (d > 0)
          {
-            //Testing..
-            //We have stuff. Default to grassy grass.
-            if (world_pos.y < BlockSizeY * -10)
-            {
-               item = BlockItemCode.Feldspar;
-            }
-            else if (world_pos.y < BlockSizeY * -4)
-            {
-               item = BlockItemCode.Gravel;
-            }
-            else if (world_pos.y < 0)
-            {
-               item = BlockItemCode.Sand;
-            }
-            else
-            {
-               item = BlockItemCode.Grass;
-            }
-            //  Random.Next() > 0.3f ?
-            //BlockItemCode.Grass :
-            //(Random.Next() > 0.6f ? BlockItemCode.Brick2 : BlockItemCode.Brick);
+            item = BlockItemCode.Value;
          }
 
          return item;
@@ -1106,8 +1229,9 @@ namespace PirateCraft
          int ret = local_pos.z * World.GlobBlocksX * World.GlobBlocksY + local_pos.y * World.GlobBlocksX + local_pos.x;
          return ret;
       }
-      public void SetBlock(Glob g, ivec3 local_pos, Block block)
+      public void SetBlock(Glob g, ivec3 local_pos, Block block, bool bQueueForUpdate)
       {
+         //@DonoTretopologizeyet -- if you're setting a lot of blocks, avoid updating too many times
          //We may be empty, in which case we need to reallocate our data. If the block is empty, though, then setting it to empty does nothing, as we are already empty.
          if (block.IsEmpty() && g.DensityState == Glob.GlobDensityState.Empty_AndNoData)
          {
@@ -1134,7 +1258,7 @@ namespace PirateCraft
          {
             if (block.IsSolidBlockNotTransparent())
             {
-               g.Solid ++;
+               g.Solid++;
                g.Empty--;
             }
          }
@@ -1146,7 +1270,8 @@ namespace PirateCraft
                g.Items--;
             }
          }
-         else {
+         else
+         {
             if (block.IsItem())
             {
                g.Items++;
@@ -1155,24 +1280,31 @@ namespace PirateCraft
 
 
          //Update the state
-         if (g.Solid > 0 && g.Empty>0)
+         if (g.Solid > 0 && g.Empty > 0)
          {
             g.DensityState = Glob.GlobDensityState.Partial;
          }
-         else if (g.Empty==0)
+         else if (g.Empty == 0)
          {
             g.DensityState = Glob.GlobDensityState.SolidBlocksOnly;
          }
-         else if (g.Solid==0)
+         else if (g.Solid == 0)
          {
             //Later we delete block data to save space for empty globs.
             g.DensityState = Glob.GlobDensityState.Empty_AndNoData;
          }
-         
-         if (g.State == Glob.GlobState.Topologized)
+
+         //We could add this with each set, but avoid it if wer'e setting lots of density values.
+         if (bQueueForUpdate)
          {
-            //We could add this with each set, but avoid it if wer'e setting lots of density values.
-            _globsToTopologize.Add(local_pos, g);
+            QueueForUpdate(g);
+         }
+      }
+      public void QueueForUpdate(Glob g)
+      {
+         if (!_globsToUpdate.ContainsKey(g.Pos))
+         {
+            _globsToUpdate.Add(g.Pos, g);
          }
       }
       public Block GetBlock(Glob g, ivec3 local_pos)
@@ -1516,7 +1648,7 @@ namespace PirateCraft
          {
             if (File.Exists(globfn))
             {
-               g = new Glob(new ivec3(0, 0, 0), Gu.CurrentWindowContext.FrameStamp);
+               g = new Glob(new ivec3(0, 0, 0), Gu.Context.FrameStamp);
 
                var enc = Encoding.GetEncoding("iso-8859-1");
 

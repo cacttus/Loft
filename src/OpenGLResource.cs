@@ -16,8 +16,8 @@ namespace PirateCraft
       public OpenGLResource()
       {
          //This is .. iffy
-         Gu.Assert(Gu.CurrentWindowContext != null);
-         _context = Gu.CurrentWindowContext;
+         Gu.Assert(Gu.Context != null);
+         _context = Gu.Context;
       }
       public virtual void Dispose()
       {

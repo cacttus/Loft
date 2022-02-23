@@ -1,9 +1,7 @@
 ﻿using System;
 using System.Drawing;
-using OpenTK;
-using OpenTK.Graphics;
-using OpenTK.Graphics.OpenGL;
-
+using OpenTK.Graphics.OpenGL4;
+using OpenTK.Windowing.Desktop;
 using System.Collections.Generic;
 
 namespace PirateCraft
@@ -24,27 +22,39 @@ namespace PirateCraft
          Begin,
          End
       }
-      static RenderPipelineState RenderState = RenderPipelineState.None;
-      public static void BeginRender(GameWindow g, vec4 color)
+
+      public DebugDraw DebugDraw { get; private set; } = new DebugDraw();
+
+      public RenderPipelineState RenderState { get; private set; } = RenderPipelineState.None;
+      public Renderer()
+      {
+         DebugDraw = new DebugDraw();
+      }
+      public void BeginRender(GameWindow g, vec4 color)
       {
          //Begin global rendering, to render to all cameras that want rendering.
          Gu.Assert(RenderState == RenderPipelineState.End || RenderState == RenderPipelineState.None );
          RenderState = RenderPipelineState.Begin;
          Gu.SetContext(g);
-         GL.ClearColor(new OpenTK.Graphics.Color4(color.x, color.y, color.z, color.w));
+         GL.ClearColor(color.x, color.y, color.z, color.w);
          GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
          Gpu.CheckGpuErrorsRt();
 
-         Renderer.SetInitialGpuRenderState();
+         DebugDraw.BeginFrame();
+
+         SetInitialGpuRenderState();
       }
-      public static void EndRender()
+      public void EndRender()
       {
          Gu.Assert(RenderState == RenderPipelineState.Begin);
          RenderState = RenderPipelineState.End;
+
+         DebugDraw.EndFrame();
+
          Gpu.CheckGpuErrorsRt();
-         Gu.CurrentWindowContext.GameWindow.SwapBuffers();
+         Gu.Context.GameWindow.SwapBuffers();
       }
-      private static void SetInitialGpuRenderState()
+      private void SetInitialGpuRenderState()
       {
          Gpu.CheckGpuErrorsDbg();
          GL.Enable(EnableCap.CullFace);

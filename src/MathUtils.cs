@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Drawing;
 using System.Runtime.InteropServices;
+
 //using Microsoft.xna.Framework;
 
 //This is a very simple and useful math class in just one file
@@ -316,7 +317,7 @@ namespace PirateCraft
       public float x, y;
       public vec2 construct(float a, float b) { x = a; y = b; return this; }
       //public Vec2f() { }
-      public vec2(OpenTK.Vector2 dxy) { x = dxy.X; y = dxy.Y; }
+      public vec2(OpenTK.Mathematics.Vector2 dxy) { x = dxy.X; y = dxy.Y; }
       public vec2(vec2 dxy) { x = dxy.x; y = dxy.y; }
       public vec2(float dx, float dy) { x = dx; y = dy; }
       //  public vec2(OpenTK.Vector2 v) { x = v.x; y = v.y; }//From XNA's Vector2
@@ -349,8 +350,7 @@ namespace PirateCraft
 
       }
       public float Len2() { return Dot(this, this); }
-      public OpenTK.Vector2 toXNA() { return new OpenTK.Vector2(x, y); }
-
+      public OpenTK.Mathematics.Vector2 toXNA() { return new OpenTK.Mathematics.Vector2(x, y); }
 
       static public implicit operator vec2(float f)
       {
@@ -420,6 +420,7 @@ namespace PirateCraft
       public float y;
       public float z;
 
+      public static vec3 zero { get { return new vec3(0,0,0); } }
       public static vec3 VEC3_MIN()
       {
          return new vec3(float.MinValue, float.MinValue, float.MinValue);
@@ -429,7 +430,7 @@ namespace PirateCraft
          return new vec3(float.MaxValue, float.MaxValue, float.MaxValue);
       }
 
-      public vec3(OpenTK.Vector3 v)
+      public vec3(OpenTK.Mathematics.Vector3 v)
       {
          x = v.X;
          y = v.Y;
@@ -468,48 +469,10 @@ namespace PirateCraft
       {
          return "" + x + "," + y + "," + z;
       }
-      //    public static vec3 minv(in vec3 v_a, in vec3 v_b) {
-      //      vec3 outt = new vec3();
-
-      //      outt.x = Math.Min(v_a.x, v_b.x);
-      //      outt.y = Math.Min(v_a.y, v_b.y);
-      //      outt.z = Math.Min(v_a.z, v_b.z);
-
-      //      return outt;
-      //    }
-      //public static vec3 maxv(in vec3 v_a, in vec3 v_b)
-      //{
-      //      vec3 outt = new vec3();
-
-      //      outt.x = Math.Max(v_a.x, v_b.x);
-      //      outt.y = Math.Max(v_a.y, v_b.y);
-      //      outt.z = Math.Max(v_a.z, v_b.z);
-
-      //      return outt;
-      //}
-      // template <class Tx>
-      // vec3(const Vec2x<float>& rhs) {
-      //   x = (float)rhs.x;
-      //   y = (float)rhs.y;
-      //   z = 0;  // This isn't correct. The problem is we get auto casted when we add.
-      // }
-      // template <class Tx>
-      // vec3(const Vec2x<double>& rhs) {
-      //   x = (float)rhs.x;
-      //   y = (float)rhs.y;
-      //   z = 0;  // This isn't correct. The problem is we get auto casted when we add.
-      // }
-      // template <class Tx>
-      // vec3(const Vec4x<Tx>& rhs) {
-      //   x = (float)rhs.x;
-      //   y = (float)rhs.y;
-      //   z = (float)rhs.z;
-      // }
-
-      //////////////////////////////////////////////////////////////////////////
-      //////////////////////////////////////////////////////////////////////////
-      //////////////////////////////////////////////////////////////////////////
-
+      public vec4 toVec4(float w)
+      {
+         return new vec4(x, y, z, w);
+      }
       public static vec3 minv(in vec3 v_a, in vec3 v_b)
       {
          vec3 outv = new vec3();
@@ -553,18 +516,6 @@ namespace PirateCraft
          return new vec2(x, y);
       }
 
-
-      //vec3 VEC3X_MIN()
-      //{
-      //    return vec3(-COMP_MAX < float >::m(), -COMP_MAX < float >::m(), -COMP_MAX < float >::m());
-      //}
-
-      //vec3 VEC3X_MAX()
-      //{
-      //    return vec3(COMP_MAX < float >::m(), COMP_MAX < float >::m(), COMP_MAX < float >::m());
-      //}
-      //#define VEC3_MIN (vec3(-FLT_MAX,-FLT_MAX,-FLT_MAX))
-      //#define VEC3_MAX (vec3(FLT_MAX,FLT_MAX,FLT_MAX))
       public float length()
       {
          return (float)Math.Sqrt(x * x + y * y + z * z);
@@ -743,52 +694,6 @@ namespace PirateCraft
          return (v1.x <= v2.x && v1.y <= v2.y && v1.z <= v2.z);
       }
 
-      // template <class Tx>
-      // Vec3x<Tx> Vec3x<Tx>::operator*(const Mat3x<Tx>& m) {
-      //   Vec3x<Tx> ret;
-      //   ret.x = (Tx)(m._m11 * x + m._m21 * x + m._m31 * x);
-      //   ret.y = (Tx)(m._m12 * y + m._m22 * y + m._m32 * y);
-      //   ret.z = (Tx)(m._m13 * z + m._m23 * z + m._m33 * z);
-      //   return ret;
-      // }
-      //bool operator>(float f) {
-      //  return (x > f && y > f && z > f);
-      //}
-
-      //bool operator>=(float f) {
-      //  return (x >= f && y >= f && z >= f);
-      //}
-
-      //bool operator<(float f) {
-      //  return (x<f && y<f && z<f);
-      //}
-
-      //bool operator<=(float f) {
-      //  return (x <= f && y <= f && z <= f);
-      //}
-
-      //// Constructors
-
-      //void construct(in vec3 rhs)
-      //{
-      //    x = rhs.x;
-      //    y = rhs.y;
-      //    z = rhs.z;
-      //}
-
-      //void construct(float dx, float dy, float dz)
-      //{
-      //    x = dx;
-      //    y = dy;
-      //    z = dz;
-      //}
-
-      //vec3 zero()
-      //{
-      //    return vec3(0, 0, 0);
-      //}
-
-
       //uint32_t toUint() {
       //  uint32_t ret = (uint32_t)(
       //      ((uint32_t)0 << 16) |
@@ -841,14 +746,6 @@ namespace PirateCraft
          }
       }
 
-      ////template < class float >
-      ////vec3( const dvec3& rhs )
-      ////{
-      ////  x = (float)rhs.x;
-      ////  y = (float)rhs.y;
-      ////  z = (float)rhs.z;
-      ////}
-
       //// - Vector shorthands
       public static vec3 normalize(in vec3 v1)
       {
@@ -858,16 +755,6 @@ namespace PirateCraft
       {
          return (new vec3(v1)).cross(new vec3(v2));
       }
-      ////template < typename float >
-      ////vec3 rotate(in vec3 v1, const float& angle, in vec3 normal)
-      ////{
-      ////  //TODO: test.
-      ////  Mat3f m = Mat3f::getRotationRad(angle, normal);
-      ////  vec3 ret = v1;
-      ////  ret = ret*m;
-      ////  return ret;
-      ////}
-      //template<typename Tx>
       public static float dot(in vec3 v1, in vec3 v2)
       {
          return (new vec3(v1)).dot(new vec3(v2));
@@ -976,7 +863,7 @@ namespace PirateCraft
       public vec4(vec3 d, float dw) { x = d.x; y = d.y; z = d.z; w = dw; }
       public vec4(vec4 dxy) { x = dxy.x; y = dxy.y; z = dxy.z; w = dxy.w; }
       public vec4(float dx, float dy, float dz, float dw) { x = dx; y = dy; z = dz; w = dw; }
-      public vec4(OpenTK.Vector4 v) { x = v.X; y = v.Y; z = v.Z; w = v.W; }//From XNA's Vector2
+      public vec4(OpenTK.Mathematics.Vector4 v) { x = v.X; y = v.Y; z = v.Z; w = v.W; }//From XNA's Vector2
 
       public override string ToString() { return "(" + x + "," + y + "," + z + "," + w + ")"; }
       public vec4 construct(float dx, float dy, float dz, float dw)
@@ -988,10 +875,10 @@ namespace PirateCraft
       public static vec4 Clamp(vec4 v, float a, float b)
       {
          vec4 ret = new vec4();
-         ret.z = OpenTK.MathHelper.Clamp(v.z, a, b);
-         ret.x = OpenTK.MathHelper.Clamp(v.x, a, b);
-         ret.y = OpenTK.MathHelper.Clamp(v.y, a, b);
-         ret.w = OpenTK.MathHelper.Clamp(v.w, a, b);
+         ret.z = OpenTK.Mathematics.MathHelper.Clamp(v.z, a, b);
+         ret.x = OpenTK.Mathematics.MathHelper.Clamp(v.x, a, b);
+         ret.y = OpenTK.Mathematics.MathHelper.Clamp(v.y, a, b);
+         ret.w = OpenTK.Mathematics.MathHelper.Clamp(v.w, a, b);
          return ret;
       }
       public void Clamp(float a, float b)
@@ -1010,20 +897,15 @@ namespace PirateCraft
             x += add;
             y += add;
             z += add;
-            x = OpenTK.MathHelper.Clamp(x, 0, 1);
-            y = OpenTK.MathHelper.Clamp(y, 0, 1);
-            z = OpenTK.MathHelper.Clamp(z, 0, 1);
+            x = OpenTK.Mathematics.MathHelper.Clamp(x, 0, 1);
+            y = OpenTK.Mathematics.MathHelper.Clamp(y, 0, 1);
+            z = OpenTK.Mathematics.MathHelper.Clamp(z, 0, 1);
          }
 
       }
-      public OpenTK.Vector4 toOpenTK()
+      public OpenTK.Mathematics.Vector4 toOpenTK()
       {
-         return new OpenTK.Vector4(x, y, z, w);
-      }
-      public OpenTK.Graphics.Color4 toOpenTKColor()
-      {
-         var x = toOpenTK();
-         return new OpenTK.Graphics.Color4(x.X, x.Y, x.Z, x.W);
+         return new OpenTK.Mathematics.Vector4(x, y, z, w);
       }
       public static vec4 operator -(vec4 d)
       {
@@ -1649,11 +1531,11 @@ namespace PirateCraft
          _m43 = t14;
          _m44 = t15;
       }
-      public OpenTK.Matrix4 ToOpenTK()
+      public OpenTK.Mathematics.Matrix4 ToOpenTK()
       {
          //Note: this does not convert between row/column major. 
          //Simply allows this matrix to be used in OpenGL
-         OpenTK.Matrix4 ret = new OpenTK.Matrix4(
+         OpenTK.Mathematics.Matrix4 ret = new OpenTK.Mathematics.Matrix4(
          _m11,
          _m12,
          _m13,
@@ -2789,8 +2671,11 @@ namespace PirateCraft
    [StructLayout(LayoutKind.Sequential)]
    public struct Box3f
    {
+      //Axis aligned bound box
       public vec3 _min;
       public vec3 _max;
+      public static Box3f Default { get { return new (new vec3(0, 0, 0), new vec3(1, 1, 1)); } }//Default 1,1,1
+      public static Box3f Zero { get { return new (new vec3(0, 0, 0), new vec3(0, 0, 0)); } }//Default 1,1,1
       public Box3f(in vec3 min, in vec3 max)
       {
          _min = min;
@@ -2960,6 +2845,26 @@ namespace PirateCraft
       {
          return (_max.x - _min.x) * (_max.y - _min.y) * (_max.z - _min.z);
       }
+   }
+   [StructLayout(LayoutKind.Sequential)]
+   public struct OOBox3f
+   {
+      //Object oriented bound box
+      public const int VertexCount = 8;
+      public vec3[] Verts = new vec3[VertexCount];
+      public OOBox3f() { }
+      public OOBox3f(vec3 i/*min*/, vec3 a/*max*/)
+      {
+         Verts[0] = new vec3(i.x, i.y, i.z);
+         Verts[1] = new vec3(a.x, i.y, i.z);
+         Verts[2] = new vec3(i.x, a.y, i.z);
+         Verts[3] = new vec3(a.x, a.y, i.z);
+         Verts[4] = new vec3(i.x, i.y, a.z);
+         Verts[5] = new vec3(a.x, i.y, a.z);
+         Verts[6] = new vec3(i.x, a.y, a.z);
+         Verts[7] = new vec3(a.x, a.y, a.z);
+      }
+
    }
    public static class BinaryWriterExtensions
    {

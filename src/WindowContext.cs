@@ -1,4 +1,4 @@
-﻿using OpenTK;
+﻿using OpenTK.Windowing.Desktop;
 using System;
 
 namespace PirateCraft
@@ -17,12 +17,15 @@ namespace PirateCraft
       private DateTime _startTime = DateTime.Now;
       public double Fps { get; private set; } = 60;
       public double Delta { get; private set; } = 1 / 60;
+      public Renderer Renderer { get; private set; } = null;
 
       public WindowContext(GameWindow g)
       {
          GameWindow = g;
          Gpu = new Gpu();
+         Renderer = new Renderer(); 
       }
+      
       public void Update()
       {
          //For first frame run at a smooth time.

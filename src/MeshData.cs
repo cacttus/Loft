@@ -49,12 +49,18 @@ namespace PirateCraft
       private GPUBuffer _indexBuffer = null;
       private GPUBuffer _vertexBuffer = null;
       private VertexArrayObject _vao = null;
+      private Box3f _boundBoxExtent = new Box3f();
+      private VertexFormat _vertexFormat = null;
+      private IndexFormat _indexFormat = null;
+      private PrimitiveType _primitiveType = PrimitiveType.Triangles;
 
       //private int _intVaoId = 0;
-      public Box3f BoundBox { get; set; } = new Box3f();
-      public VertexFormat VertexFormat { get; private set; } = null;
-      public IndexFormat IndexFormat { get; private set; } = null; //If null, then there is no indexes associated with this mesh.
-      public PrimitiveType PrimitiveType { get; private set; } = PrimitiveType.Triangles;
+      public Box3f BoundBox_Extent { get { return _boundBoxExtent; } } //Bond box of mesh extenss
+      public VertexFormat VertexFormat { get { return _vertexFormat; } }
+      public IndexFormat IndexFormat { get { return _indexFormat; } } //If null, then there is no indexes associated with this mesh.
+      public PrimitiveType PrimitiveType { get { return _primitiveType; } }
+      public bool BoundBoxComputed { get; private set; } = false;
+
       public bool HasIndexes
       {
          get
@@ -65,36 +71,44 @@ namespace PirateCraft
       public MeshData(string name, PrimitiveType pt, VertexFormat fmt, IndexFormatType ifmt = IndexFormatType.None) : base(name)
       {
          Gu.Assert(fmt != null);
-         PrimitiveType = pt;
-         VertexFormat = fmt;
+         _primitiveType = pt;
+         _vertexFormat = fmt;
          if (ifmt == IndexFormatType.None)
          {
-            IndexFormat = null;
+            _indexFormat = null;
          }
          else if (ifmt == IndexFormatType.Uint32)
          {
-            IndexFormat = IndexFormat.IFMT_U32;
+            _indexFormat = IndexFormat.IFMT_U32;
          }
          else if (ifmt == IndexFormatType.Uint16)
          {
-            IndexFormat = IndexFormat.IFMT_U16;
+            _indexFormat = IndexFormat.IFMT_U16;
          }
          else
          {
             Gu.BRThrowNotImplementedException();
          }
       }
-      public MeshData(string name, PrimitiveType pt, VertexFormat fmt, GpuDataPtr verts, IndexFormatType ifmt = IndexFormatType.None, GpuDataPtr indexes = null) : this(name, pt, fmt, ifmt)
+      public MeshData(string name, PrimitiveType pt, VertexFormat fmt, GpuDataPtr verts, IndexFormatType ifmt = IndexFormatType.None, GpuDataPtr indexes = null, bool computeBoundBox = true) : this(name, pt, fmt, ifmt)
       {
-         PrimitiveType = pt;
+         _primitiveType = pt;
          if (verts == null || indexes == null)
          {
             Gu.Log.Error("Mesh(): Error: vertexes and indexes null.");
          }
-         CreateBuffers(verts, indexes);
+         CreateBuffers(verts, indexes,computeBoundBox);
       }
+      public static int dbg_numDrawElements_Frame = 0;
+      public static int dbg_numDrawArrays_Frame = 0;
+      private static long dbg_frame = 0;
       public void Draw()
       {
+         if (Gu.Context.FrameStamp != dbg_frame) {
+            dbg_frame = Gu.Context.FrameStamp;
+            dbg_numDrawArrays_Frame = 0;
+            dbg_numDrawElements_Frame = 0;
+         }
          Gpu.CheckGpuErrorsDbg();
          _vao.Bind();
 
@@ -110,24 +124,24 @@ namespace PirateCraft
                    );
                //This is the big guns
                Gpu.CheckGpuErrorsRt();
+               dbg_numDrawElements_Frame++;
             }
             else
             {
-               Gu.Log.Error("Indexes specified for mesh but index buffer was null");
+               Gu.Log.Error("Indexes specified for mesh but index buffer was null. Skipping draw.");
             }
          }
          else
          {
             GL.DrawArrays(PrimitiveType, 0, _vertexBuffer.ItemCount);
+               dbg_numDrawArrays_Frame++;
          }
          _vao.Unbind();
-
       }
-      public void CreateBuffers(GpuDataPtr verts, GpuDataPtr indexes = null)
+      public void CreateBuffers(GpuDataPtr verts, GpuDataPtr indexes, bool computeBoundBox)
       {
          Gpu.CheckGpuErrorsDbg();
          _vao = new VertexArrayObject();
-
 
          if (verts != null)
          {
@@ -156,7 +170,12 @@ namespace PirateCraft
          GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
          Gpu.CheckGpuErrorsDbg();
 
+         if (computeBoundBox)
+         {
+
          ComputeBoundBox();
+         }
+
       }
 
       //private void EditVertex(VertexComponentType comp_type, byte[] comp, byte[] verts)
@@ -167,7 +186,7 @@ namespace PirateCraft
 
       private void ComputeBoundBox()
       {
-         BoundBox.genResetLimits();
+         _boundBoxExtent.genResetLimits();
 
          int voff = VertexFormat.GetComponentOffset(VertexComponentType.v3_01);
          if (voff >= 0)
@@ -204,7 +223,7 @@ namespace PirateCraft
                               Gu.BRThrowException("Index outside range.");
                            }
                            vec3 vv = *((vec3*)(vbarr + index * vertexes.ItemSizeBytes + voff));
-                           BoundBox.genExpandByPoint(vv);
+                           _boundBoxExtent.genExpandByPoint(vv);
                         }
                      }
                   }
@@ -213,7 +232,7 @@ namespace PirateCraft
                      for (int vi = 0; vi < vertexes.Count; ++vi)
                      {
                         vec3 vv = *((vec3*)(vbarr + vi * vertexes.ItemSizeBytes + voff));
-                        BoundBox.genExpandByPoint(vv);
+                        _boundBoxExtent.genExpandByPoint(vv);
                      }
                   }//if hasindexes
                }//fixed
@@ -223,6 +242,7 @@ namespace PirateCraft
          {
             Gu.Log.Warn("Could not compute bound box for mesh " + this.Name + " No default position data supplied.");
          }
+         BoundBoxComputed = true;
       }
       public static GpuDataPtr GenerateQuadIndicesArray(int numQuads, bool flip = false)
       {

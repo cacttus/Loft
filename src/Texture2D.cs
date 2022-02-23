@@ -105,7 +105,7 @@ namespace PirateCraft
          Width = bmp.Width;
          Height = bmp.Height;
 
-         int ts = Gu.CurrentWindowContext.Gpu.GetMaxTextureSize();
+         int ts = Gu.Context.Gpu.GetMaxTextureSize();
          if (Width >= ts)
          {
             Gu.BRThrowException("Texture is too large");

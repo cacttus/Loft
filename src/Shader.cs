@@ -7,11 +7,6 @@ using OpenTK;
 using OpenTK.Graphics;
 using OpenTK.Graphics.OpenGL;
 using System.Drawing.Imaging;
-using Vec2f = OpenTK.Vector2;
-using Vec3f = OpenTK.Vector3;
-using Vec4f = OpenTK.Vector3;
-using Mat3f = OpenTK.Matrix3;
-using Mat4f = OpenTK.Matrix4;
 using System.Diagnostics;
 
 namespace PirateCraft
@@ -101,7 +96,7 @@ namespace PirateCraft
       {
          if (_defaultFlatColorShader == null)
          {
-            _defaultFlatColorShader = LoadShaderGeneric("v_v3", false);
+            _defaultFlatColorShader = LoadShader("v_v3", false);
          }
          return _defaultFlatColorShader;
       }
@@ -110,7 +105,7 @@ namespace PirateCraft
          //Returns a basic v3 n3 x2 lambert+blinn-phong shader.
          if (_defaultDiffuseShader == null)
          {
-            _defaultDiffuseShader = LoadShaderGeneric("v_v3n3x2", false);
+            _defaultDiffuseShader = LoadShader("v_v3n3x2", false);
          }
          return _defaultDiffuseShader;
       }
@@ -164,8 +159,14 @@ namespace PirateCraft
          }
          Gpu.CheckGpuErrorsDbg();
       }
-
-
+      public static Shader LoadShader(string generic_name, bool gs)
+      {
+         string vert = Gu.ReadTextFile(new FileLoc(generic_name + ".vs.glsl", FileStorage.Embedded));
+         string geom = gs ? Gu.ReadTextFile(new FileLoc(generic_name + ".gs.glsl", FileStorage.Embedded)) : "";
+         string frag = Gu.ReadTextFile(new FileLoc(generic_name + ".fs.glsl", FileStorage.Embedded));
+         Shader ret = new Shader(generic_name, vert, frag, geom);
+         return ret;
+      }
 
       public void BeginRender(double dt, Camera3D cam, WorldObject ob, Material m)
       {
@@ -197,15 +198,6 @@ namespace PirateCraft
 
       #region Private
 
-      private static Shader LoadShaderGeneric(string generic_name, bool gs)
-      {
-         Shader ret = null;
-         string vert = Gu.ReadTextFile(new FileLoc(generic_name + ".vs.glsl", FileStorage.Embedded));
-         string geom = gs ? Gu.ReadTextFile(new FileLoc(generic_name + ".gs.glsl", FileStorage.Embedded)) : "";
-         string frag = Gu.ReadTextFile(new FileLoc(generic_name + ".fs.glsl", FileStorage.Embedded));
-         ret = new Shader(generic_name, vert, frag, geom);
-         return ret;
-      }
       private void CreateShaders(string vs, string ps, string gs = "")
       {
          Gpu.CheckGpuErrorsRt();

@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 
-
-
 namespace PirateCraft
 {
    public class Component
@@ -272,13 +270,13 @@ namespace PirateCraft
       }
       public override void Apply(WorldObject ob)
       {
-         if(FollowObj!=null && FollowObj.TryGetTarget(out WorldObject obj))
+         if (FollowObj != null && FollowObj.TryGetTarget(out WorldObject obj))
          {
             ob.Position = obj.World.extractTranslation();
          }
          else
          {
-            Gu.Log.Error("'"+ob.Name+"' - Follow constraint - object not found.");
+            Gu.Log.Error("'" + ob.Name + "' - Follow constraint - object not found.");
          }
       }
    }
@@ -360,30 +358,40 @@ namespace PirateCraft
       private vec3 _animatedPosition = new vec3(0, 0, 0);
       private WorldObject _parent = null;
       private mat4 _world = mat4.identity();
+      private mat4 _local = mat4.identity();
+      private mat4 _bind = mat4.identity();
+      private mat4 _inverse_bind = mat4.identity();
       private vec3 _basisX = new vec3(1, 0, 0);
       private vec3 _basisY = new vec3(0, 1, 0);
       private vec3 _basisZ = new vec3(0, 0, 1);
-      public vec4 Color { get; set; } = new vec4(1, 1, 1, 1); // Mesh color if no material
+      private OOBox3f _boundBoxTransform = new OOBox3f(new vec3(0, 0, 0), new vec3(1, 1, 1));
+      private Box3f _boundBox = new Box3f(new vec3(0, 0, 0), new vec3(1, 1, 1));
+      private MeshData _meshData = null;
+      private Material _material = null;
+      public vec4 _color = new vec4(1, 1, 1, 1);
+
+      public vec4 Color { get { return _color; } set { _color = value; } }// Mesh color if no material
       public bool TransformChanged { get; private set; } = false;
       public bool Hidden { get; set; } = false;
-      public Box3f BoundBox { get; set; } = new Box3f(new vec3(0, 0, 0), new vec3(1, 1, 1));
+      public Box3f BoundBoxMeshBind
+      {
+         get
+         {
+            if (Mesh != null)
+            {
+               //TODO: - apply animation bind matrix
+               return Mesh.BoundBox_Extent;
+            }
+            else
+            {
+               return Box3f.Default; // No mesh, return 1,1,1
+            }
+         }
+      }
+      public OOBox3f BoundBoxMeshTransform { get { return _boundBoxTransform; } } //Transformed bound box
+      public Box3f BoundBox { get { return _boundBox; } } //Entire AABB with all meshes and children inside
       public WorldObject Parent { get { return _parent; } private set { _parent = value; SetTransformChanged(); } }
       public List<WorldObject> Children { get; private set; } = new List<WorldObject>();
-
-      public void AddChild(WorldObject child)
-      {
-         if (child.Parent != null)
-         {
-            child.Parent.RemoveChild(child);
-         }
-         Children.Add(child);
-         child.Parent = this;
-      }
-      public void RemoveChild(WorldObject child)
-      {
-         Children.Remove(child);
-         child.Parent = null;
-      }
 
       public vec3 Position { get { return _position; } set { _position = value; SetTransformChanged(); } }
       public quat Rotation { get { return _rotation; } set { _rotation = value; SetTransformChanged(); } }//xyz,angle
@@ -393,10 +401,10 @@ namespace PirateCraft
       public quat AnimatedRotation { get { return _animatedRotation; } set { _animatedRotation = value; SetTransformChanged(); } }
       public vec3 AnimatedScale { get { return _animatedScale; } set { _animatedScale = value; SetTransformChanged(); } }
 
-      public mat4 Bind { get; private set; } = mat4.identity(); // Skinned Bind matrix
-      public mat4 InverseBind { get; private set; } = mat4.identity(); // Skinned Inverse Bind
-      public mat4 Local { get; private set; } = mat4.identity();
-      public mat4 World { get { return _world; } set { _world = value; } }
+      public mat4 Bind { get { return _bind; } } // Skinned Bind matrix
+      public mat4 InverseBind { get { return _inverse_bind; } } // Skinned Inverse Bind
+      public mat4 Local { get { return _local; } }
+      public mat4 World { get { return _world; } }
       public Int64 LastUpdate { get; private set; } = 0;
       public List<Component> Components { get; private set; } = new List<Component>();
       public List<Constraint> Constraints { get; private set; } = new List<Constraint>();// *This is an ordered list they come in order
@@ -405,18 +413,48 @@ namespace PirateCraft
       public vec3 BasisY { get { return _basisY; } }
       public vec3 BasisZ { get { return _basisZ; } }
 
-      public MeshData Mesh = null;
-      public Material Material = null;
+      public MeshData Mesh { get { return _meshData; } set { _meshData = value; } }
+      public Material Material { get { return _material; } set { _material = value; } }
 
-      //TODO: Clone
-
-      public WorldObject(vec3 pos) : base()
+      public WorldObject(vec3 pos) : this()
       {
          Position = pos;
       }
-      public WorldObject()
+      public WorldObject() : base()
       {
-         Color = Random.NextVec4(new vec4(0.3f, 0.3f, 0.3f, 1), new vec4(1, 1, 1, 1));
+         //For optimization, nothing shoudl be here. WorldObject is new'd a lot each frame.
+         _color = Random.NextVec4(new vec4(0.2f, 0.2f, 0.2f, 1), new vec4(1, 1, 1, 1));
+      }
+      public virtual void Update(double dt, ref Box3f parentBoundBox)
+      {
+         if (Hidden)
+         {
+            return;
+         }
+
+         UpdateComponents(dt);
+         ApplyConstraints();
+         CompileLocalMatrix();
+         ApplyParentMatrix();
+
+         //Basis calculuation must come after the world is computed
+         _basisX = (World * new vec4(1, 0, 0, 0)).xyz().normalized();
+         _basisY = (World * new vec4(0, 1, 0, 0)).xyz().normalized();
+         _basisZ = (World * new vec4(0, 0, 1, 0)).xyz().normalized();
+
+         _boundBox.genResetLimits();
+         foreach (var child in this.Children)
+         {
+            child.Update(dt, ref _boundBox);
+         }
+         CalcBoundBox(ref parentBoundBox);
+
+         LastUpdate = Gu.Microseconds();
+      }
+      public void Clone()
+      {
+         //TODO: Clone
+         Gu.BRThrowNotImplementedException();
       }
       public void SetTransformChanged()
       {
@@ -434,42 +472,40 @@ namespace PirateCraft
             c.Apply(this);
          }
       }
-      public virtual void Update(double dt, Box3f? parentBoundBox = null)
+      public WorldObject AddChild(WorldObject child)
       {
-         if (Hidden)
+         Gu.Assert(child != Gu.World.SceneRoot);
+
+         if (child.Parent != null)
          {
-            return;
+            child.Parent.RemoveChild(child);
          }
-         if (GetType() == typeof(Camera3D))
+         
+         Children.Add(child);
+         child.Parent = this;
+         return this;
+      }
+      public void RemoveChild(WorldObject child)
+      {
+         //Note this will keep the object in memory, to delete an object call World.DestroyObject
+         Children.Remove(child);
+         child.Parent = null;
+      }
+      public void CalcBoundBox(ref Box3f parent)
+      {
+         if (Mesh != null)
          {
-            int n = 0;
-            n++;
+            _boundBoxTransform = new OOBox3f(BoundBoxMeshBind._min, BoundBoxMeshBind._max);
+            for (int vi = 0; vi < OOBox3f.VertexCount; ++vi)
+            {
+               vec4 v = World * _boundBoxTransform.Verts[vi].toVec4(1);
+               _boundBoxTransform.Verts[vi] = v.xyz();
+               _boundBox.genExpandByPoint(_boundBoxTransform.Verts[vi]);
+            }
          }
 
-         UpdateComponents(dt);
-         ApplyConstraints();
-         CompileLocalMatrix();
-         ApplyParentMatrix();
-
-         if (GetType() == typeof(Camera3D))
-         {
-            int n = 0;
-            n++;
-         }
-
-         //Basis calculuation must come after the world is computed
-         _basisX = (World * new vec4(1, 0, 0, 0)).xyz().normalized();
-         _basisY = (World * new vec4(0, 1, 0, 0)).xyz().normalized();
-         _basisZ = (World * new vec4(0, 0, 1, 0)).xyz().normalized();
-
-         foreach (var child in this.Children)
-         {
-            child.Update(dt);
-         }
-
-         // TODO: Calc bound box
-
-         LastUpdate = Gu.Microseconds();
+         parent.genExpandByPoint(_boundBox._min);
+         parent.genExpandByPoint(_boundBox._max);
       }
       public void CompileLocalMatrix()
       {
@@ -485,7 +521,7 @@ namespace PirateCraft
          mat4 mScl = mat4.getScale(Scale);
          mat4 mRot = mat4.getRotation(Rotation);
          mat4 mPos = mat4.getTranslation(Position);
-         Local = (mScl * mSclA) * (mRot * mRotA) * (mPos * mPosA);
+         _local = (mScl * mSclA) * (mRot * mRotA) * (mPos * mPosA);
       }
       public void ApplyParentMatrix()
       {
@@ -493,11 +529,11 @@ namespace PirateCraft
          //if isBoneNode
          if (Parent != null)
          {
-            World = Local * Parent.World;
+            _world = _local * Parent.World;
          }
          else
          {
-            World = Local;
+            _world = _local;
          }
       }
       public void UpdateComponents(double dt)

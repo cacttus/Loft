@@ -35,7 +35,7 @@ namespace PirateCraft
       vec3 _farCenter = new vec3(0, 0, 0);
       vec3 _nearTopLeft = new vec3(0, 0, 0);
       vec3 _farTopLeft = new vec3(0, 0, 0);
-      Box3f _boundBox = new Box3f();
+      Box3f _boundBox = new Box3f(new vec3(0,0,0), new vec3(1,1,1));
 
       public vec3 NearCenter { get { return _nearCenter; } private set { _nearCenter = value; } }
       public vec3 FarCenter { get { return _farCenter; } private set { _farCenter = value; } }
@@ -232,9 +232,9 @@ namespace PirateCraft
          _view_h = h;
          Frustum = new Frustum(this);
       }
-      public override void Update(double dt, Box3f? parentBoundBox = null)
+      public override void Update(double dt, ref Box3f parentBoundBox)
       {
-         base.Update(dt, parentBoundBox);
+         base.Update(dt, ref parentBoundBox);
          ProjectionMatrix = mat4.projection(FOV, Viewport_Width, Viewport_Height, Near, Far);
          ViewMatrix = mat4.getLookAt(new vec3(Position), new vec3(Position + BasisZ), new vec3(0, 1, 0));
          Frustum.Update();

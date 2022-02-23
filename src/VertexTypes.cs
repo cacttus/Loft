@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL4;
 
-
 namespace PirateCraft
 {
     public enum VertexComponentType
@@ -51,6 +50,7 @@ namespace PirateCraft
 
     public class VertexComponent
     {
+      
         public int SizeBytes { get; set; }
         public int ComponentCount { get; set; }
         public VertexAttribPointerType DataType { get; set; }
@@ -219,6 +219,7 @@ namespace PirateCraft
         }
         public void AddComponent(VertexComponentType eUserType, string name)
         {
+         
             VertexAttribPointerType eType; //GLenum
             int compCount;
             int size;

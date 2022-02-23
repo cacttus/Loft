@@ -1,4 +1,11 @@
-﻿
+﻿We need to sort objects since sky is getting drawn randomly.
+couple of  ideas
+1 sort objects by a DrawLayer DrawLayer.BackgroundNoDepth, DrawLyaer.DepthBuffer
+2 Separate object on World for Sky (like blender) - this is probably our best bet. yet - future sorting, .. not sure Z(what else would u need to sort)
+
+
+
+
 simple edit blocks, create, destroy
     raycast world -> block node ->block
     render crosshair

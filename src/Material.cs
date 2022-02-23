@@ -1,10 +1,5 @@
 ﻿using System;
 using OpenTK.Graphics.OpenGL4;
-using Vec2f = OpenTK.Vector2;
-using Vec3f = OpenTK.Vector3;
-using Vec4f = OpenTK.Vector4;
-using Mat3f = OpenTK.Matrix3;
-using Mat4f = OpenTK.Matrix4;
 using System.Collections.Generic;
 
 namespace PirateCraft

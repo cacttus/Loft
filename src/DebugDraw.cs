@@ -5,71 +5,77 @@ using OpenTK.Graphics.OpenGL4;
 
 namespace PirateCraft
 {
-   public class DebugDraw
+   public class DebugDraw 
    {
-      private static List<v_v3c4> _inlineVerts = null;
-      private static List<UInt16> _inlineInds = null;
-      public static void Begin()
+      public List<v_v3c4> Verts =  new List<v_v3c4>();
+      public static VertexFormat VertexFormat = v_v3c4.VertexFormat;
+      public DebugDraw()
       {
-         _inlineVerts = new List<v_v3c4>();
-         _inlineInds = new List<UInt16>();
       }
-      public static void v3c4(vec3 v, vec4 c)
+      public void BeginFrame()
       {
-         _inlineVerts.Add(new v_v3c4() { _v = v, _c = c });
+         Gu.Assert(Gu.Context.Renderer.RenderState == Renderer.RenderPipelineState.Begin);
+         Verts.Clear();
       }
-      public static void line(UInt16 i1, UInt16 i2)
+      public void point(vec3 v, vec4 c)
       {
-         _inlineInds.Add(i1);
-         _inlineInds.Add(i2);
+         Verts.Add(new v_v3c4() { _v = v, _c = c });
       }
-      public static void End(MeshData d)
+      public void line(vec3 v, vec3 v2, vec4 c)
       {
-         d.CreateBuffers(Gpu.GetGpuDataPtr(_inlineVerts.ToArray()), Gpu.GetGpuDataPtr(_inlineInds.ToArray()));
+         point(v, c);
+         point(v2, c);
+      }
+      public void EndFrame()
+      {
+         Gu.Assert(Gu.Context.Renderer.RenderState == Renderer.RenderPipelineState.End);
 
-         _inlineVerts = null;
-         _inlineInds= null;
+         Verts.Clear();
       }
-      public static WorldObject CreateBoxLines(vec3 i, vec3 a, vec4 color)
+      public void Box(Box3f b, vec4 color)
       {
-         WorldObject wo = new WorldObject();
-         MeshData d = new MeshData("Debug", PrimitiveType.Lines, v_v3c4.VertexFormat, IndexFormatType.Uint16);
-         Begin();
+         Box(b._min, b._max, color);
+      }
+      public void Box(OOBox3f b, vec4 color)
+      {
+         Box(b.Verts, color);
+      }
+      public void Box(vec3 i, vec3 a, vec4 color)
+      {
          //      6     7 a
          //   2     3
          //      4      5
          // i 0     1
-         v3c4(new vec3(i.x, i.y, i.z), color);
-         v3c4(new vec3(a.x, i.y, i.z), color);
-         v3c4(new vec3(i.x, a.y, i.z), color);
-         v3c4(new vec3(a.x, a.y, i.z), color);
-         v3c4(new vec3(i.x, i.y, a.z), color);
-         v3c4(new vec3(a.x, i.y, a.z), color);
-         v3c4(new vec3(i.x, a.y, a.z), color);
-         v3c4(new vec3(a.x, a.y, a.z), color);
-
-         line(0, 1);
-         line(1, 3);
-         line(3, 2);
-         line(2, 0);
-
-         line(5, 4);
-         line(4, 6);
-         line(6, 7);
-         line(7, 5);
-
-         line(0, 4);
-         line(1, 5);
-         line(3, 7);
-         line(2, 6);
-
-         End(d);
-
-         wo.Mesh = d;
-         wo.Material = new Material(Shader.DefaultFlatColorShader());
-
-         return wo;
-
+         vec3[] points = new vec3[8];
+         points[0] = new vec3(i.x, i.y, i.z);
+         points[1] = new vec3(a.x, i.y, i.z);
+         points[2] = new vec3(i.x, a.y, i.z);
+         points[3] = new vec3(a.x, a.y, i.z);
+         points[4] = new vec3(i.x, i.y, a.z);
+         points[5] = new vec3(a.x, i.y, a.z);
+         points[6] = new vec3(i.x, a.y, a.z);
+         points[7] = new vec3(a.x, a.y, a.z);
+         Box(points, color);
+      }
+      public void Box(vec3[] points, vec4 color)
+      {
+         Gu.Assert(points.Length == 8);
+         //      6     7 a
+         //   2     3
+         //      4      5
+         // i 0     1
+         line(points[0], points[1], color);
+         line(points[1], points[3], color);
+         line(points[3], points[2], color);
+         line(points[2], points[0], color);
+         line(points[5], points[4], color);
+         line(points[4], points[6], color);
+         line(points[6], points[7], color);
+         line(points[7], points[5], color);
+         line(points[0], points[4], color);
+         line(points[1], points[5], color);
+         line(points[3], points[7], color);
+         line(points[2], points[6], color);
       }
    }
 }

@@ -2,17 +2,10 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
-using System.Drawing.Imaging;
-using System.IO;
-using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
-using OpenTK;
-using OpenTK.Graphics;
-using OpenTK.Graphics.OpenGL;
+using OpenTK.Windowing.Desktop;
 
 namespace PirateCraft
 {
@@ -91,14 +84,15 @@ namespace PirateCraft
 
       //This will be gotten via current context if we have > 1
       public static CoordinateSystem CoordinateSystem { get; set; } = CoordinateSystem.Rhs;
+      public static float CoordinateSystemMultiplier { get { return (Gu.CoordinateSystem == CoordinateSystem.Lhs ? -1 : 1); } }
       public static EngineConfig EngineConfig { get; set; } = new EngineConfig();
       public static Log Log { get; set; } = null;
-      public static WindowContext CurrentWindowContext { get; private set; }
+      public static WindowContext Context { get; private set; }
       public static readonly string EmbeddedDataPath = "PirateCraft.data.";
       public static World World = new World();
-      public static PCMouse Mouse { get { return CurrentWindowContext.PCMouse; } }
-      public static PCKeyboard Keyboard { get { return CurrentWindowContext.PCKeyboard; } }
-
+      public static PCMouse Mouse { get { return Context.PCMouse; } }
+      public static PCKeyboard Keyboard { get { return Context.PCKeyboard; } }
+      
       public static string LocalCachePath = "./data/cache";
       public static string SavePath = "./save";
 
@@ -129,7 +123,7 @@ namespace PirateCraft
          WindowContext c = null;
          if (Contexts.TryGetValue(g, out c))
          {
-            CurrentWindowContext = c;
+            Context = c;
          }
          else
          {
@@ -146,7 +140,7 @@ namespace PirateCraft
       }
       public static double RotationPerSecond(double seconds)
       {
-         var f = (CurrentWindowContext.UpTime % seconds) / seconds;
+         var f = (Context.UpTime % seconds) / seconds;
          f *= Math.PI * 2;
          return f;
       }

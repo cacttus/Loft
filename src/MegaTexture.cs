@@ -9,31 +9,11 @@ using OpenTK.Graphics.OpenGL4;
 namespace PirateCraft
 {
    using Hash32 = Int32;
-   //public class MegaTexture
-   //{
-   //   static Texture Build(List<string> files)
-   //   {
-   //      Texture ret = null;
-
-   //      Dictionary<string, Bitmap> texs = new Dictionary<string, Bitmap>();
-   //      foreach (var file in files)
-   //      {
-   //         Bitmap bmp = Gu.LoadBitmap(file, true);
-   //         texs.Add(file, bmp);
-   //      }
-
-
-
-   //      return ret;
-   //   }
-
-   //}
    public enum MtTexType
    {
       Image,
       Font
    }
-
    /**
    *  @class MtNode
    *  @brief Node in the MegaTexture class.

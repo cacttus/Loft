@@ -45,7 +45,7 @@ namespace PirateCraft
       }
       public void ErrorCycle(string s)
       {
-         int md = (int)Gu.CurrentWindowContext.FrameStamp % 60;
+         int md = (int)Gu.Context.FrameStamp % 60;
          if (md == 0)
          {
             Error(s);
@@ -53,7 +53,7 @@ namespace PirateCraft
       }
       public void WarnCycle(string s)
       {
-         int md = (int)Gu.CurrentWindowContext.FrameStamp % 60;
+         int md = (int)Gu.Context.FrameStamp % 60;
          if (md == 0)
          {
             Warn(s);
