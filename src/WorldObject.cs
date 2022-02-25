@@ -349,6 +349,7 @@ namespace PirateCraft
       //private quat _rotationLast = new quat(0, 0, 0, 1); //Axis-Angle xyz,ang
       //private vec3 _scaleLast = new vec3(1, 1, 1);
       //private vec3 _positionLast = new vec3(0, 0, 0);
+      public object LoaderTempData = null;
 
       private quat _rotation = new quat(0, 0, 0, 1); //Axis-Angle xyz,ang
       private vec3 _scale = new vec3(1, 1, 1);

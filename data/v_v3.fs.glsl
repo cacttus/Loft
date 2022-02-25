@@ -1,4 +1,4 @@
-﻿#version 400
+﻿#include "v_glsl_version.glsl"
 
 uniform vec4 _ufWorldObject_Color;
 

@@ -1,5 +1,5 @@
-﻿#version 400
-#define M_PI 3.1415926535897932384626433832795
+﻿#include "v_glsl_version.glsl"
+
 #define PHONG 1
 //#define BLINN_PHONG 1
 //#define GGX 1
@@ -29,7 +29,7 @@ uniform int _ufLightModel_Index;
 uniform float _ufLightModel_GGX_X;
 uniform float _ufLightModel_GGX_Y;
 uniform float _ufNormalMap_Blend;
-
+uniform uint _vsPick_Color;
 
 out vec4 _psColorOut;
 

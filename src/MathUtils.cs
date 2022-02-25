@@ -320,6 +320,13 @@ namespace PirateCraft
       public vec2(OpenTK.Mathematics.Vector2 dxy) { x = dxy.X; y = dxy.Y; }
       public vec2(vec2 dxy) { x = dxy.x; y = dxy.y; }
       public vec2(float dx, float dy) { x = dx; y = dy; }
+      public vec2(float[] vals)
+      {
+         Gu.Assert(vals.Length >= 2);
+         x = vals[0];
+         y = vals[1];
+      }
+
       //  public vec2(OpenTK.Vector2 v) { x = v.x; y = v.y; }//From XNA's Vector2
       public float Len() { return (float)Math.Sqrt((x * x) + (y * y)); }
 
@@ -420,7 +427,7 @@ namespace PirateCraft
       public float y;
       public float z;
 
-      public static vec3 zero { get { return new vec3(0,0,0); } }
+      public static vec3 zero { get { return new vec3(0, 0, 0); } }
       public static vec3 VEC3_MIN()
       {
          return new vec3(float.MinValue, float.MinValue, float.MinValue);
@@ -441,6 +448,13 @@ namespace PirateCraft
          this.x = rhs.x;
          this.y = rhs.y;
          this.z = rhs.z;
+      }
+      public vec3(float[] vals)
+      {
+         Gu.Assert(vals.Length >= 3);
+         this.x = vals[0];
+         this.y = vals[1];
+         this.z = vals[2];
       }
       public vec3(float dx, float dy, float dz)
       {
@@ -864,7 +878,14 @@ namespace PirateCraft
       public vec4(vec4 dxy) { x = dxy.x; y = dxy.y; z = dxy.z; w = dxy.w; }
       public vec4(float dx, float dy, float dz, float dw) { x = dx; y = dy; z = dz; w = dw; }
       public vec4(OpenTK.Mathematics.Vector4 v) { x = v.X; y = v.Y; z = v.Z; w = v.W; }//From XNA's Vector2
-
+      public vec4(float[] vals)
+      {
+         Gu.Assert(vals.Length >= 4);
+         this.x = vals[0];
+         this.y = vals[1];
+         this.z = vals[2];
+         this.w = vals[3];
+      }
       public override string ToString() { return "(" + x + "," + y + "," + z + "," + w + ")"; }
       public vec4 construct(float dx, float dy, float dz, float dw)
       {
@@ -2674,8 +2695,8 @@ namespace PirateCraft
       //Axis aligned bound box
       public vec3 _min;
       public vec3 _max;
-      public static Box3f Default { get { return new (new vec3(0, 0, 0), new vec3(1, 1, 1)); } }//Default 1,1,1
-      public static Box3f Zero { get { return new (new vec3(0, 0, 0), new vec3(0, 0, 0)); } }//Default 1,1,1
+      public static Box3f Default { get { return new(new vec3(0, 0, 0), new vec3(1, 1, 1)); } }//Default 1,1,1
+      public static Box3f Zero { get { return new(new vec3(0, 0, 0), new vec3(0, 0, 0)); } }//Default 1,1,1
       public Box3f(in vec3 min, in vec3 max)
       {
          _min = min;

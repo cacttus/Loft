@@ -47,14 +47,13 @@ namespace PirateCraft
    }
    public class Texture2D : OpenGLResource
    {
-      //public int _intTextureId;
-      public float Width;
-      public float Height;
-
       public static NormalMapFormat NormalMapFormat { get; private set; } = NormalMapFormat.Yup;
-
       private static Dictionary<Shader.TextureInput, Texture2D> _defaults = new Dictionary<Shader.TextureInput, Texture2D>();
 
+      public float Width { get; private set; } = 0;
+      public float Height { get; private set; } = 0;
+      public TexFilter TexFilter { get; private set; } = TexFilter.Nearest;
+      public TextureWrapMode TextureWrapMode { get; private set; } = TextureWrapMode.Clamp;
 
       public System.Drawing.Imaging.PixelFormat WindowsPixelFormat
       {
@@ -104,6 +103,8 @@ namespace PirateCraft
       {
          Width = bmp.Width;
          Height = bmp.Height;
+         TexFilter = filter;
+         TextureWrapMode = TextureWrapMode;
 
          int ts = Gu.Context.Gpu.GetMaxTextureSize();
          if (Width >= ts)

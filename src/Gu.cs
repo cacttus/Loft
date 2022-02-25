@@ -14,7 +14,7 @@ namespace PirateCraft
       Disk,
       Embedded,
       Web,
-      Fake,//File does not exist (on purpose)
+      Generated,
    }
    
    /// <summary>
@@ -22,22 +22,15 @@ namespace PirateCraft
    /// </summary>
    public class FileLoc
    {
+      //The name here has to be unique or it will cause conflicts.
+      public static FileLoc Generated = new FileLoc("<generated>", FileStorage.Generated);
+      
       public FileStorage FileStorage { get; private set; } = FileStorage.Disk;
       public string RawPath { get; private set; } ="";
-      
-      public FileLoc(string path, FileStorage storage) { 
-         RawPath= path; 
-         FileStorage = storage;
-      }
-      public void AssertExists()
+
+      public string QualifiedPath
       {
-         if (!Exists)
-         {
-            throw new Exception("File " + QualifiedPath + " does not exist.");
-         }
-      }
-      public string QualifiedPath 
-      {
+         //Returns the full path with base storage location (disk/embed..)
          get
          {
             string path = RawPath;
@@ -60,7 +53,7 @@ namespace PirateCraft
       {
          get
          {
-            if (FileStorage== FileStorage.Embedded)
+            if (FileStorage == FileStorage.Embedded)
             {
                bool exist = Assembly.GetExecutingAssembly().GetManifestResourceNames().Contains(QualifiedPath);
                return exist;
@@ -74,6 +67,32 @@ namespace PirateCraft
                Gu.BRThrowNotImplementedException();
             }
             return false;
+         }
+      }
+
+      public FileLoc(string path, FileStorage storage) { 
+         RawPath= path; 
+         FileStorage = storage;
+      }
+      public override bool Equals(object? obj)
+      {
+         return base.Equals(obj);
+         FileLoc other = obj as FileLoc;
+         if (other != null)
+         {
+            return other.RawPath.Equals(RawPath) && other.FileStorage.Equals(FileStorage);
+         }
+         else
+         {
+            Gu.BRThrowNotImplementedException();
+         }
+         return false;
+      }
+      public void AssertExists()
+      {
+         if (!Exists)
+         {
+            throw new Exception("File " + QualifiedPath + " does not exist.");
          }
       }
    }
@@ -92,7 +111,8 @@ namespace PirateCraft
       public static World World = new World();
       public static PCMouse Mouse { get { return Context.PCMouse; } }
       public static PCKeyboard Keyboard { get { return Context.PCKeyboard; } }
-      
+      public static ResourceManager ResourceManager { get; private set; } = new ResourceManager();
+
       public static string LocalCachePath = "./data/cache";
       public static string SavePath = "./save";
 

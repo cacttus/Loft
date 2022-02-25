@@ -1,4 +1,4 @@
-﻿#version 400
+﻿#include "v_glsl_version.glsl"
 
 in vec4 _vsColorOut;
 

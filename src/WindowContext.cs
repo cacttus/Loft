@@ -18,6 +18,7 @@ namespace PirateCraft
       public double Fps { get; private set; } = 60;
       public double Delta { get; private set; } = 1 / 60;
       public Renderer Renderer { get; private set; } = null;
+      public DebugDraw DebugDraw { get; private set; } = new DebugDraw();
 
       public WindowContext(GameWindow g)
       {

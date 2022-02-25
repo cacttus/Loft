@@ -23,12 +23,10 @@ namespace PirateCraft
          End
       }
 
-      public DebugDraw DebugDraw { get; private set; } = new DebugDraw();
 
       public RenderPipelineState RenderState { get; private set; } = RenderPipelineState.None;
       public Renderer()
       {
-         DebugDraw = new DebugDraw();
       }
       public void BeginRender(GameWindow g, vec4 color)
       {
@@ -40,7 +38,6 @@ namespace PirateCraft
          GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
          Gpu.CheckGpuErrorsRt();
 
-         DebugDraw.BeginFrame();
 
          SetInitialGpuRenderState();
       }
@@ -48,8 +45,6 @@ namespace PirateCraft
       {
          Gu.Assert(RenderState == RenderPipelineState.Begin);
          RenderState = RenderPipelineState.End;
-
-         DebugDraw.EndFrame();
 
          Gpu.CheckGpuErrorsRt();
          Gu.Context.GameWindow.SwapBuffers();

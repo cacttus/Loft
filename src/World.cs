@@ -175,7 +175,6 @@ namespace PirateCraft
       }
    }
 
-
    //Main glob that holds blocks
    public class Glob
    {
@@ -240,7 +239,8 @@ namespace PirateCraft
       private int _currentShell = 1;
       private ivec3 playerLastGlob = new ivec3(0, 0, 0);
       private WorldObject dummy = new WorldObject();
-      private WorldObject _debugDraw = null;
+      private WorldObject _debugDrawLines = null;
+      private WorldObject _debugDrawPoints = null;
       private List<WorldObject> _renderObs_Ordered = new List<WorldObject>();
       private Dictionary<ivec3, Glob> _globs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //All globs
       private Dictionary<ivec3, Glob> _renderGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
@@ -362,7 +362,7 @@ namespace PirateCraft
             Gu.Log.Error("Object '" + name + "' was not found.");
          }
       }
-      private WorldObject AddObject(WorldObject ob)
+      public WorldObject AddObject(WorldObject ob)
       {
          //Use a suffix if there is a duplicate object
          int suffix = 0;
@@ -391,7 +391,10 @@ namespace PirateCraft
          _renderObs_Ordered.Clear();
          Dbg_N_OB_Culled = 0;
          //Add sky as it must come first.
-         CollectObjects(camera, Sky);
+         if (Sky != null)
+         {
+            CollectObjects(camera, Sky);
+         }
          CollectObjects(camera, SceneRoot);
       }
       private void CollectVisibleGlobs(Camera3D cam)
@@ -444,7 +447,7 @@ namespace PirateCraft
             //Objects
             foreach (var ob in _renderObs_Ordered)
             {
-               DrawObMesh(ob,Delta,camera);
+               DrawObMesh(ob, Delta, camera);
             }
 
             //Globs
@@ -479,21 +482,27 @@ namespace PirateCraft
          vec4 bbcolor = new vec4(1, 0, 0, 1);
          foreach (var ob in Objects.Values)
          {
-            Gu.Context.Renderer.DebugDraw.Box(ob.BoundBoxMeshTransform, ob.Color);
-            Gu.Context.Renderer.DebugDraw.Box(ob.BoundBox, bbcolor);
+            Gu.Context.DebugDraw.Box(ob.BoundBoxMeshTransform, ob.Color);
+            Gu.Context.DebugDraw.Box(ob.BoundBox, bbcolor);
          }
-         if (_debugDraw == null)
+         if (_debugDrawLines == null)
          {
-            _debugDraw = CreateAndAddObject("debug_draw", null, new Material(Shader.LoadShader("v_v3c4_debugdraw", false)));
-            RemoveObject(_debugDraw.Name);//Doesn't actually destroy it
+            _debugDrawLines = CreateAndAddObject("debug_drawloine", null, new Material(Gu.ResourceManager.LoadShader("v_v3c4_debugdraw", false)));
+            _debugDrawPoints = CreateAndAddObject("debug_drawpt", null, new Material(Gu.ResourceManager.LoadShader("v_v3c4_debugdraw", false)));
+            RemoveObject(_debugDrawLines.Name);//Doesn't actually destroy it
+            RemoveObject(_debugDrawPoints.Name);//Doesn't actually destroy it
+            _debugDrawLines.Mesh = new MeshData("Debugasfd", PrimitiveType.Lines, DebugDraw.VertexFormat);
+            _debugDrawPoints.Mesh = new MeshData("Debugds", PrimitiveType.Points, DebugDraw.VertexFormat);
          }
-         if (_debugDraw.Mesh == null)
-         {
-            _debugDraw.Mesh = new MeshData("Debug", PrimitiveType.Lines, DebugDraw.VertexFormat);
-         }
-         _debugDraw.Mesh.CreateBuffers(Gpu.GetGpuDataPtr(Gu.Context.Renderer.DebugDraw.Verts.ToArray()), null, false);
+         GL.PointSize(5);
+         Gpu.CheckGpuErrorsDbg();
+         GL.LineWidth(1.5f);
+         Gpu.CheckGpuErrorsDbg();
+         _debugDrawLines.Mesh.CreateBuffers(Gpu.GetGpuDataPtr(Gu.Context.DebugDraw.Lines.ToArray()), null, false);
+         DrawObMesh(_debugDrawLines, Delta, camera);
+         _debugDrawPoints.Mesh.CreateBuffers(Gpu.GetGpuDataPtr(Gu.Context.DebugDraw.Points.ToArray()), null, false);
 
-         DrawObMesh(_debugDraw, Delta, camera);
+         DrawObMesh(_debugDrawPoints, Delta, camera);
       }
       private void CollectObjects(Camera3D cam, WorldObject ob)
       {
@@ -1394,6 +1403,24 @@ namespace PirateCraft
          box._max.z = (float)(pt.z + 1) * GlobWidthZ;
          return box;
       }
+      public Box3f GetBlockBox(PickedBlock b, float padding)
+      {
+         return GetBlockBoxLocal(b.Glob, b.BlockPosLocal, padding);
+      }
+      private Box3f GetBlockBoxLocal(Glob g, ivec3 local, float padding)
+      {
+         //padding is an extra boundary we add to the box so it doesn't exactly coincide with the mesh geometry. Used for rendering.
+         Gu.Assert(g != null);
+         Box3f box = new Box3f();
+         box._min = g.OriginR3 + local.toVec3() * new vec3(BlockSizeX, BlockSizeY, BlockSizeZ);
+         box._max.x = box._min.x + BlockSizeX;
+         box._max.y = box._min.y + BlockSizeY;
+         box._max.z = box._min.z + BlockSizeZ;
+         box._max += padding;
+         box._min += padding;
+
+         return box;
+      }
       private Box3f GetBlockBoxGlobalR3(vec3 pt)
       {
          //tests
@@ -1415,15 +1442,18 @@ namespace PirateCraft
 
       public class PickedBlock
       {
+         public bool Hit = false;
          public Glob Glob;
          public Block Block;
          public ivec3 BlockPosLocal;
          public vec3 HitPos;
+         public vec3 HitNormal;
       }
       public PickedBlock RaycastBlock(PickRay3D pr, GlobCollection collection = GlobCollection.VisibleRender)
       {
          //TODO: much faster if we marched the globs first, then the blocks. We do only blocks
          PickedBlock pb = new PickedBlock();
+         pb.Hit = false;
          //Snap point to block center
          vec3 center = R3ToI3BlockGlobal(pr.Origin).toVec3() *
             new vec3(BlockSizeX, BlockSizeY, BlockSizeZ) +
@@ -1476,6 +1506,8 @@ namespace PirateCraft
                   if (blockbox.LineOrRayIntersectInclusive_EasyOut(pr, ref bh))
                   {
                      pb.HitPos = pr.Origin + pr.Dir * bh._t;
+                     pb.HitNormal = -pr.Dir;
+                     pb.Hit = true;
                      break;
                   }
                   else

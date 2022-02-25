@@ -87,8 +87,16 @@ namespace PirateCraft
       }
       public static GpuDataPtr GetGpuDataPtr<T>(T[] data)
       {
-         var size = Marshal.SizeOf(data[0]);
-         GpuDataPtr p = new GpuDataPtr(size, data.Length, data);
+         GpuDataPtr p=null;
+         if (data.Length == 0)
+         {
+            p = new GpuDataPtr(0, data.Length, data);
+         }
+         else
+         {
+            var size = Marshal.SizeOf(data[0]);
+            p = new GpuDataPtr(size, data.Length, data);
+         }
          return p;
       }
       public static unsafe T ByteArrayToStructure<T>(byte[] bytes) where T : struct

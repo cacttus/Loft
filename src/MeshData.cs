@@ -93,9 +93,9 @@ namespace PirateCraft
       public MeshData(string name, PrimitiveType pt, VertexFormat fmt, GpuDataPtr verts, IndexFormatType ifmt = IndexFormatType.None, GpuDataPtr indexes = null, bool computeBoundBox = true) : this(name, pt, fmt, ifmt)
       {
          _primitiveType = pt;
-         if (verts == null || indexes == null)
+         if (verts == null || (ifmt != IndexFormatType.None && indexes == null))
          {
-            Gu.Log.Error("Mesh(): Error: vertexes and indexes null.");
+            Gu.Log.Error("MeshData creation: Error: vertexes or indexes are null and were required.");
          }
          CreateBuffers(verts, indexes,computeBoundBox);
       }
@@ -133,6 +133,11 @@ namespace PirateCraft
          }
          else
          {
+            if (PrimitiveType == PrimitiveType.Triangles)
+            {
+               int n = 0;
+               n++;
+            }
             GL.DrawArrays(PrimitiveType, 0, _vertexBuffer.ItemCount);
                dbg_numDrawArrays_Frame++;
          }

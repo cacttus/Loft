@@ -1,4 +1,4 @@
-﻿#version 400
+﻿#include "v_glsl_version.glsl"
 
 //uniform Mat4f normal_matrix;            
 uniform mat4 _ufMatrix_Model;            

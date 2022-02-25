@@ -93,11 +93,19 @@ namespace PirateCraft
       }
       public Texture2D GetTextureOrDefault(Shader.TextureInput texture_input)
       {
-         Textures.TryGetValue(texture_input, out var tex);
-
-         if (tex == null)
+         Texture2D tex = null;
+         if (Textures == null)
          {
             tex = Texture2D.Default(texture_input);
+         }
+         else
+         {
+            Textures.TryGetValue(texture_input, out tex);
+
+            if (tex == null)
+            {
+               tex = Texture2D.Default(texture_input);
+            }
          }
 
          return tex;

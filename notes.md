@@ -1,10 +1,117 @@
-﻿We need to sort objects since sky is getting drawn randomly.
-couple of  ideas
-1 sort objects by a DrawLayer DrawLayer.BackgroundNoDepth, DrawLyaer.DepthBuffer
-2 Separate object on World for Sky (like blender) - this is probably our best bet. yet - future sorting, .. not sure Z(what else would u need to sort)
+﻿More things -- 
+trying to fix picking and .. get a point to show
+deferred buffers (for picking objects mainly)
+shader includes 
+d_lighting isn't needed if we're using some kind of integer lighting method.
+picking.. sort of.
+
+dir light (sun)
+poitn lights[] (visible as light boundaries)
+color
+position
+pick
 
 
 
+
+Things to do before Blobs
+* Fix picking and deleting
+* Allow for placign torches
+* Voxel Lighting
+    we have materiasl so we can' tjust blindly light them
+    Object lighting need light
+    voxel lighting vs ob light.
+    Light object - from wall, glance, 
+    glance wall.
+    Light will come from wall I guess.
+    Sun position
+    All voxels top level get sun rays I guess
+
+
+* blob (instead of globs)
+16 x 16 x 8 globs = 256 x 128 block
+1 gen blob heights
+2 structures caves/ erosion
+3 grow trees / flowers (biowalkers)
+
+noise - biome - chebyshev voronoi - later
+Just blob. - but we have a function that returns the blob per voxel
+
+GetBiome(xyz){
+    return if xyz is within blob
+    //future
+    //blend biomes chebyshev voronoi xyz
+}
+//Blocks will have their own block generators.
+nw List<Block> { .. new BlockGenerator() }
+//When we call
+class Blob {
+
+    void Update() {
+        for all blocks xyz {
+            if(block.Type.Generator!=null) {
+                block.Type.Generator.Step();
+            }
+        }
+    }
+}
+//Could be custom class..idk.
+class BlockGenerators {
+static BlockGenerator Daffodil = new BlockGenerator {..}
+static BlockGenerator SmallTree = new BlockGenerator { .. Cedar ..  }
+}
+//Block Generators need to have initial conditions, like wlakers.
+class Biome { 
+    List<BlockGenerator> Flora { 
+        daffodil, rose, tree
+    }
+    //?? Fauna {
+    //    sheep, cow .. Hmm..
+    //}
+    public Block GrassBase { grass } // Base block used for top level grass
+    List<BlockGenerator> Erosion { //Cave/gorge/plateau//etc 
+        new BlockGenerator() { min_radius, max_radius, probability, initial_spawn(0,1), }
+    }
+}
+public class Minimax<T> {
+    T Min;
+    T Max;
+    Minimax<T>(T min, T max) { Min=min, Max=max; }
+}
+BlockGenerator { 
+    Bool Create_or_Destroy (create or destroy blocks)
+    
+    SimulationStep - simulate this walker every x steps.
+
+    Block Block_To_Create 
+
+    Minimax<vec3> direction // trees - y=1, then xyz=random for leaves
+
+    Minimax<float> SpawnCount = new Minimax(1,1); //Initial number of walkers that exist at this location
+    Minimax<float> Radius_blocks = new Minimax(1,4)
+    Minimax<float> Radius_decline_per_block //Taper the ends of the cave / feature - in blocks per step
+
+    List<BlockGenerator> Spawn { TreeBranch1 } //walkers to spawn when we die (or not)
+
+    Minimax<int> Death_Radius = 4 Blocks_per_object //Biowalker parameter
+    Minimax<float> Spawn_distance //min/max distance to spawn new walkers
+}
+Blob GenBlob() {
+    Blob b = new blob (globs width x * blob_globs x .. )
+    for(xyz in blob-size){
+        BaseWorld(xyz)
+    }
+    //Erosion / Caves = CutWalkers
+    Walkers
+    //flora = Biowalkers
+    //Fauna = ?
+    for(xyz in blob-size){
+        Grow(xyz) /// advance generators
+    }
+
+
+    return b;
+}
 
 simple edit blocks, create, destroy
     raycast world -> block node ->block
@@ -18,9 +125,10 @@ world material + shader
 actual sky 
     sky material for sphere object. 
     clouds
-grass/flowr
-tres
+grass/flower/trees
 async generation
+multiple materials per mesh for multiple block / material
+index buffers per material
 
 done
 x initial generation of world (like minecraft)
@@ -34,13 +142,11 @@ x save/load glob
         * islands
         * water
         * be able to move around, jump (physics)
-
 * Steps
     * Debug Mesh Inline (to show globs)
         default debug material
         flat shaded p3 c4
         WorldObject    
-
     * World generation
         * x Glob grid. 
         * x Voxel generator
