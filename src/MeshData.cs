@@ -18,6 +18,13 @@ namespace PirateCraft
          Name = name;
       }
    }
+   public enum DrawOrder
+   {
+      First,
+      Mid,
+      Last,
+      MaxDrawOrders
+   }
    public class VertexArrayObject : OpenGLResource
    {
       public VertexArrayObject()
@@ -53,6 +60,7 @@ namespace PirateCraft
       private VertexFormat _vertexFormat = null;
       private IndexFormat _indexFormat = null;
       private PrimitiveType _primitiveType = PrimitiveType.Triangles;
+      public DrawOrder DrawOrder { get; set; } = DrawOrder.Mid; //This is a sloppy ordered draw routine to prevent depth test issues. In the future it goes away in favor of a nicer draw routine.
 
       //private int _intVaoId = 0;
       public Box3f BoundBox_Extent { get { return _boundBoxExtent; } } //Bond box of mesh extenss
@@ -134,6 +142,11 @@ namespace PirateCraft
          else
          {
             if (PrimitiveType == PrimitiveType.Triangles)
+            {
+               int n = 0;
+               n++;
+            }
+            if (PrimitiveType == PrimitiveType.Lines)
             {
                int n = 0;
                n++;

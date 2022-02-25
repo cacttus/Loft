@@ -238,10 +238,10 @@ namespace PirateCraft
       private bool _firstGeneration = true; //Whether this is the initial generation, where we would need to generate everything around the player.
       private int _currentShell = 1;
       private ivec3 playerLastGlob = new ivec3(0, 0, 0);
-      private WorldObject dummy = new WorldObject();
+      private WorldObject dummy = new WorldObject("dummy_beginrender");
       private WorldObject _debugDrawLines = null;
       private WorldObject _debugDrawPoints = null;
-      private List<WorldObject> _renderObs_Ordered = new List<WorldObject>();
+      private Dictionary<DrawOrder, List<WorldObject>> _renderObs_Ordered = null;
       private Dictionary<ivec3, Glob> _globs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //All globs
       private Dictionary<ivec3, Glob> _renderGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
       private Dictionary<ivec3, Glob> _visibleRenderGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
@@ -252,7 +252,7 @@ namespace PirateCraft
       public int NumGlobs { get { return _globs.Count; } }
       public int NumRenderGlobs { get { return _renderGlobs.Count; } }
       public int NumVisibleRenderGlobs { get { return _visibleRenderGlobs.Count; } }
-      public WorldObject SceneRoot { get; private set; } = new WorldObject();
+      public WorldObject SceneRoot { get; private set; } = new WorldObject("Scene_Root");
       public WorldObject Sky { get; set; } = null;
 
       public enum GlobCollection
@@ -297,6 +297,12 @@ namespace PirateCraft
             Gu.BRThrowException("Glob blocks x,y,z must be a power of 2.");
          }
 
+         //Init draw array.
+         _renderObs_Ordered = new Dictionary<DrawOrder, List<WorldObject>>();
+         for(int do_i = 0; do_i<(int)DrawOrder.MaxDrawOrders; do_i++)
+         {
+            _renderObs_Ordered.Add((DrawOrder)do_i, new List<WorldObject>()); 
+         }
 
          CreateWorldMaterial();
 
@@ -335,13 +341,14 @@ namespace PirateCraft
          c.Position = pos;
          Box3f dummy = Box3f.Zero;
          c.Update(0, ref dummy);
-         Objects.Add(name, c);
+         AddObject(c);
          return c;
       }
       public WorldObject CreateObject(string name, MeshData mesh, Material material, vec3 pos = default(vec3))
       {
-         WorldObject ob = new WorldObject(pos);
+         WorldObject ob = new WorldObject(name);
          ob.Name = name;
+         ob.Position = pos;
          ob.Mesh = mesh;
          ob.Material = material;
          return ob;
@@ -388,7 +395,10 @@ namespace PirateCraft
       }
       private void CollectVisibleObjects(Camera3D camera)
       {
-         _renderObs_Ordered.Clear();
+         foreach(var layer in _renderObs_Ordered)
+         {
+            layer.Value.Clear();
+         }
          Dbg_N_OB_Culled = 0;
          //Add sky as it must come first.
          if (Sky != null)
@@ -444,11 +454,22 @@ namespace PirateCraft
          //Render to this camera.
          camera.BeginRender();
          {
-            //Objects
-            foreach (var ob in _renderObs_Ordered)
+            if (_renderObs_Ordered.Keys.Contains(DrawOrder.First))
             {
-               DrawObMesh(ob, Delta, camera);
+               foreach (var ob in _renderObs_Ordered[DrawOrder.First])
+               {
+                  DrawObMesh(ob, Delta, camera);
+               }
             }
+            //Objects
+            if (_renderObs_Ordered.Keys.Contains(DrawOrder.Mid))
+            {
+               foreach (var ob in _renderObs_Ordered[DrawOrder.Mid])
+               {
+                  DrawObMesh(ob, Delta, camera);
+               }
+            }
+
 
             //Globs
             List<MeshData> visible_op = new List<MeshData>();
@@ -473,45 +494,65 @@ namespace PirateCraft
             }
             _worldMaterial.EndRender();
          }
+
+         if (_renderObs_Ordered.Keys.Contains(DrawOrder.Last))
+         {
+            foreach (var ob in _renderObs_Ordered[DrawOrder.Last])
+            {
+               DrawObMesh(ob, Delta, camera);
+            }
+         }
+
          camera.EndRender();
       }
       public void RenderDebug(double Delta, Camera3D camera)
       {
          var frame = Gu.Context.FrameStamp;
 
-         vec4 bbcolor = new vec4(1, 0, 0, 1);
-         foreach (var ob in Objects.Values)
+         if (Gu.Context.DebugDraw.DrawBoundBoxes)
          {
-            Gu.Context.DebugDraw.Box(ob.BoundBoxMeshTransform, ob.Color);
-            Gu.Context.DebugDraw.Box(ob.BoundBox, bbcolor);
+            vec4 bbcolor = new vec4(1, 0, 0, 1);
+            foreach (var ob in Objects.Values)
+            {
+               Gu.Context.DebugDraw.Box(ob.BoundBoxMeshTransform, ob.Color);
+               Gu.Context.DebugDraw.Box(ob.BoundBox, bbcolor);
+            }
          }
-         if (_debugDrawLines == null)
-         {
-            _debugDrawLines = CreateAndAddObject("debug_drawloine", null, new Material(Gu.ResourceManager.LoadShader("v_v3c4_debugdraw", false)));
-            _debugDrawPoints = CreateAndAddObject("debug_drawpt", null, new Material(Gu.ResourceManager.LoadShader("v_v3c4_debugdraw", false)));
-            RemoveObject(_debugDrawLines.Name);//Doesn't actually destroy it
-            RemoveObject(_debugDrawPoints.Name);//Doesn't actually destroy it
-            _debugDrawLines.Mesh = new MeshData("Debugasfd", PrimitiveType.Lines, DebugDraw.VertexFormat);
-            _debugDrawPoints.Mesh = new MeshData("Debugds", PrimitiveType.Points, DebugDraw.VertexFormat);
-         }
-         GL.PointSize(5);
-         Gpu.CheckGpuErrorsDbg();
-         GL.LineWidth(1.5f);
-         Gpu.CheckGpuErrorsDbg();
-         _debugDrawLines.Mesh.CreateBuffers(Gpu.GetGpuDataPtr(Gu.Context.DebugDraw.Lines.ToArray()), null, false);
-         DrawObMesh(_debugDrawLines, Delta, camera);
-         _debugDrawPoints.Mesh.CreateBuffers(Gpu.GetGpuDataPtr(Gu.Context.DebugDraw.Points.ToArray()), null, false);
 
-         DrawObMesh(_debugDrawPoints, Delta, camera);
+         if (Gu.Context.DebugDraw.Lines.Count > 0) {
+            GL.LineWidth(1.5f);
+            Gpu.CheckGpuErrorsDbg();
+            if (_debugDrawLines == null)
+            {
+               _debugDrawLines = CreateAndAddObject("debug_lines", null, new Material(Gu.ResourceManager.LoadShader("v_v3c4_debugdraw", false)));
+               RemoveObject(_debugDrawLines.Name);//Doesn't actually destroy it
+               _debugDrawLines.Mesh = new MeshData("Debugasfd", PrimitiveType.Lines, DebugDraw.VertexFormat);
+            }
+            _debugDrawLines.Mesh.CreateBuffers(Gpu.GetGpuDataPtr(Gu.Context.DebugDraw.Lines.ToArray()), null, false);
+            DrawObMesh(_debugDrawLines, Delta, camera);
+         }
+         if (Gu.Context.DebugDraw.Points.Count > 0)
+         {
+            GL.PointSize(5);
+            Gpu.CheckGpuErrorsDbg();
+            if (_debugDrawPoints == null)
+            {
+               _debugDrawPoints = CreateAndAddObject("debug_points", null, new Material(Gu.ResourceManager.LoadShader("v_v3c4_debugdraw", false)));
+               RemoveObject(_debugDrawPoints.Name);//Doesn't actually destroy it
+               _debugDrawPoints.Mesh = new MeshData("Debugds", PrimitiveType.Points, DebugDraw.VertexFormat);
+            }
+            _debugDrawPoints.Mesh.CreateBuffers(Gpu.GetGpuDataPtr(Gu.Context.DebugDraw.Points.ToArray()), null, false);
+            DrawObMesh(_debugDrawPoints, Delta, camera);
+         }
       }
       private void CollectObjects(Camera3D cam, WorldObject ob)
       {
          Gu.Assert(ob != null);
          if (ob.Mesh != null)
          {
-            if (cam.Frustum.HasBox(ob.BoundBox))
+           if (cam.Frustum.HasBox(ob.BoundBox))
             {
-               _renderObs_Ordered.Add(ob);
+               _renderObs_Ordered[ob.Mesh.DrawOrder].Add(ob);
             }
             else
             {

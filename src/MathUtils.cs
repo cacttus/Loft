@@ -1347,15 +1347,18 @@ namespace PirateCraft
          }
          return m;
       }
-      public static mat3 getRotation(in vec3 axis, in float angle)
+      public static mat3 getRotation(vec3 axis, float angle, bool normalize_axis = true)
       {
          mat3 Temp;
 
-         vec3 xyz = axis.normalized();
+         if (normalize_axis)
+         {
+            axis = axis.normalized();
+         }
 
-         float x = xyz.x;
-         float y = xyz.y;
-         float z = xyz.z;
+         float x = axis.x;
+         float y = axis.y;
+         float z = axis.z;
 
          float c = (float)Math.Cos(angle);
          float s = (float)Math.Sin(angle);
@@ -2393,8 +2396,12 @@ namespace PirateCraft
       {
          return ((inverse() * vin) * this).vectorPart();
       }
-      public static quat fromAxisAngle(in vec3 axis, float angle)
+      public static quat fromAxisAngle(vec3 axis, float angle, bool normalize = true)
       {
+         if (normalize)
+         {
+            axis = axis.normalized();
+         }
          //**NOTE: Axis must be normalized.
          quat q = new quat();
          float sina2 = MathUtils.sinf(angle * 0.5f);

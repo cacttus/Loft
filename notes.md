@@ -1,5 +1,7 @@
-﻿More things -- 
-trying to fix picking and .. get a point to show
+﻿Async gen -- this is getting annoying
+text on screen (debug)
+
+More things -- 
 deferred buffers (for picking objects mainly)
 shader includes 
 d_lighting isn't needed if we're using some kind of integer lighting method.
@@ -10,8 +12,6 @@ poitn lights[] (visible as light boundaries)
 color
 position
 pick
-
-
 
 
 Things to do before Blobs

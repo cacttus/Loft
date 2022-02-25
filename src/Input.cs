@@ -137,8 +137,8 @@ namespace PirateCraft
       private vec2 _pos = new vec2(0, 0);
       public vec2 Last { get { return _last; } }
       public vec2 Pos { get { return _pos; } } //Position relative to Top Left corner of window client area (excluding borders and titlebar)
+      public vec2 Delta { get { return _pos - _last; } }
 
-      public bool CenterCursor { get; set; } = false;
       public bool ShowCursor
       {
          get
@@ -168,18 +168,39 @@ namespace PirateCraft
       [return: MarshalAs(UnmanagedType.Bool)]
       static extern bool SetCursorPos(int x, int y);
 
-      public void WarpMouse()
+      public void WarpMouse(bool warpX, bool warpY, bool zeroDelta = true)
       {
          //Warp mouse to center of screen
+         //ZeroDelta - if true then we set last to the current position to avoid re-rotating back for First person camera movement.
          var w = Gu.Context.GameWindow;
          if (w != null)
          {
             if (w.IsFocused)
             {
-               var pt_win = w.PointToScreen(new OpenTK.Mathematics.Vector2i((int)(w.Size.X / 2), (int)(w.Size.Y / 2)));
-               SetCursorPos(pt_win.X, pt_win.Y);
-               _pos.x = (float)_deviceState.X;
-               _pos.y = (float)_deviceState.Y;
+               var pt = new OpenTK.Mathematics.Vector2i((int)(w.Size.X / 2), (int)(w.Size.Y / 2));
+               var pt_win = w.PointToScreen(pt);
+
+               if (warpX)
+               {
+                  SetCursorPos(pt_win.X, (int)_pos.y);
+                  _pos.x = (float)pt.X;
+               }
+               if (warpY)
+               {
+                  SetCursorPos((int)_pos.x, pt_win.Y);
+                  _pos.y = (float)pt.Y;
+               }
+               if (warpX && warpY)
+               {
+                  SetCursorPos(pt_win.X, pt_win.Y);
+                  _pos.x = (float)pt.X;
+                  _pos.y = (float)pt.Y;
+               }
+
+               if (zeroDelta)
+               {
+                  _last = _pos;
+               }
             }
          }
          else
@@ -191,10 +212,9 @@ namespace PirateCraft
       public override void Update()
       {
          base.Update();
-
          _last = _pos;
-         _pos.x = (float)_deviceState.X;
-         _pos.y = (float)_deviceState.Y;
+         _pos.x = (float)_deviceState.X;//
+         _pos.y = (float)_deviceState.Y;//
       }
    }
 

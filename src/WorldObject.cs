@@ -67,6 +67,7 @@ namespace PirateCraft
    {
       public AnimationState AnimationState { get; private set; } = AnimationState.Stopped;
       public double Time { get; private set; } = 0;//Seconds
+      public bool Repeat { get; set; } = false;
       public double MaxTime
       {
          //Note: Keyframes should be sorted.
@@ -96,7 +97,17 @@ namespace PirateCraft
       public override void Update(double dt, WorldObject myObj)
       {
          Time += dt;
-         Time = Time % MaxTime;
+         if(Time > MaxTime)
+         {
+            if (Repeat)
+            {
+               Time = Time % MaxTime;
+            }
+            else
+            {
+               Stop();
+            }
+         }
 
          if (AnimationState == AnimationState.Playing)
          {
@@ -126,10 +137,18 @@ namespace PirateCraft
             }
          }
       }
-      public void Start()
+      public void Play(bool repeat = false)
       {
          KeyFrames.Sort((x, y) => x.Time.CompareTo(y.Time));
          AnimationState = AnimationState.Playing;
+         Repeat = repeat;
+      }
+      public void Stop()
+      {
+         Time = 0;
+         //Call slerpFrames once more to make sure we reset the current state back to frame zero
+         SlerpFrames();
+         AnimationState = AnimationState.Stopped;
       }
       public void Pause()
       {
@@ -189,7 +208,6 @@ namespace PirateCraft
             }
 
             //Ok, now slerp it up
-            // Current.Rot = quat.Slerp(f0.Rot, f1.Rot, (float)slerpTime);
             Current.Rot = f0.Rot.slerpTo(f1.Rot, (float)slerpTime);
             Current.Pos = InterpolateV3(f1.PosInterp, f0.Pos, f1.Pos, slerpTime);
             Current.Scale = InterpolateV3(f1.SclInterp, f0.Scale, f1.Scale, slerpTime);
@@ -417,12 +435,9 @@ namespace PirateCraft
       public MeshData Mesh { get { return _meshData; } set { _meshData = value; } }
       public Material Material { get { return _material; } set { _material = value; } }
 
-      public WorldObject(vec3 pos) : this()
+      public WorldObject(string name) : base()
       {
-         Position = pos;
-      }
-      public WorldObject() : base()
-      {
+         Name = name;
          //For optimization, nothing shoudl be here. WorldObject is new'd a lot each frame.
          _color = Random.NextVec4(new vec4(0.2f, 0.2f, 0.2f, 1), new vec4(1, 1, 1, 1));
       }
@@ -456,6 +471,18 @@ namespace PirateCraft
       {
          //TODO: Clone
          Gu.BRThrowNotImplementedException();
+      }
+      public AnimationComponent GrabFirstAnimation()
+      {
+         //Test - assume tool has just one component
+         foreach (var c in Components)
+         {
+            if (c is AnimationComponent)
+            {
+               return c as AnimationComponent;
+            }
+         }
+         return null;
       }
       public void SetTransformChanged()
       {

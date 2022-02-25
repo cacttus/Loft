@@ -18,11 +18,10 @@
                   vec3 trans = new vec3(node.Translation);
                   vec4 rot = new vec4(node.Rotation);
                   vec3 scale = new vec3(node.Scale);
-                  WorldObject wo = new WorldObject();
+                  WorldObject wo = new WorldObject(node.Name);
                   wo.Position = trans;
                   wo.Rotation = new quat(rot.x, rot.y, rot.z, rot.w);
                   wo.Scale = scale;
-                  wo.Name = node.Name;
                   wo.LoaderTempData = (object)node;
                   if (parent == null)
                   {
@@ -75,17 +74,18 @@
          {
             Data = data;
          }
-         public unsafe List<vec2> ParseVec2fArray(int scalar_count, int byte_offset)
+         public unsafe List<vec2> ParseVec2fArray(int item_count, int byte_offset)
          {
             List<vec2> ret = new List<vec2>();
             fixed (byte* raw = Data)
             {
                int component_byte_size = 4;//sizeof float
                int tensor_rank = 2;// 2 sca
+               int tensor_byte_size = component_byte_size * tensor_rank;
                //***** not sure if count is number of bytes, or components
-               for (int ioff = 0; ioff < scalar_count; ioff += tensor_rank)
+               for (int ioff = 0; ioff < item_count; ioff++)
                {
-                  int offset = byte_offset + ioff * component_byte_size;
+                  int offset = byte_offset + ioff * tensor_byte_size;
                   Gu.Assert(offset < Data.Length);
                   vec2 v = *((vec2*)(raw + offset));
                   ret.Add(v);
@@ -93,17 +93,18 @@
             }
             return ret;
          }
-         public unsafe List<vec3> ParseVec3fArray(int scalar_count, int byte_offset)
+         public unsafe List<vec3> ParseVec3fArray(int item_count, int byte_offset)
          {
             List<vec3> ret = new List<vec3>();
             fixed (byte* raw = Data)
             {
                int component_byte_size = 4;//sizeof float
                int tensor_rank = 3;// 3 scalars
+               int tensor_byte_size = component_byte_size * tensor_rank;
                //***** not sure if count is number of bytes, or components
-               for (int ioff = 0; ioff < scalar_count; ioff += tensor_rank)
+               for (int ioff = 0; ioff < item_count; ioff++)
                {
-                  int offset = byte_offset + ioff * component_byte_size;
+                  int offset = byte_offset + ioff * tensor_byte_size;
                   Gu.Assert(offset < Data.Length);
                   vec3 v = *((vec3*)(raw + offset));
                   ret.Add(v);
@@ -111,17 +112,18 @@
             }
             return ret;
          }
-         public unsafe List<ushort> ParseUInt16Array(int scalar_count/*not sure*/, int byte_offset)
+         public unsafe List<ushort> ParseUInt16Array(int item_count, int byte_offset)
          {
             List<ushort> ret = new List<ushort>();
             fixed (byte* raw = Data)
             {
                int component_byte_size = 2;//sizeof ushort
                int tensor_rank = 1;// 3 scalars
+               int tensor_byte_size = component_byte_size * tensor_rank;
                //***** not sure if count is number of bytes, or components
-               for (int ioff = 0; ioff < scalar_count; ioff += tensor_rank)
+               for (int ioff = 0; ioff < item_count; ioff++)
                {
-                  int offset = byte_offset + ioff * component_byte_size;
+                  int offset = byte_offset + ioff * tensor_byte_size;
                   Gu.Assert(offset < Data.Length);
                   ushort v = *((ushort*)(raw + offset));
                   ret.Add(v);
@@ -129,17 +131,18 @@
             }
             return ret;
          }
-         public unsafe List<uint> ParseUInt32Array(int scalar_count/*not sure*/, int byte_offset)
+         public unsafe List<uint> ParseUInt32Array(int item_count/*not sure*/, int byte_offset)
          {
             List<uint> ret = new List<uint>();
             fixed (byte* raw = Data)
             {
                int component_byte_size = 4;//sizeof uint
                int tensor_rank = 1;// 3 scalars
+               int tensor_byte_size = component_byte_size * tensor_rank;
                //***** not sure if count is number of bytes, or components
-               for (int ioff = 0; ioff < scalar_count; ioff += tensor_rank)
+               for (int ioff = 0; ioff < item_count; ioff++)
                {
-                  int offset = byte_offset + ioff * component_byte_size;
+                  int offset = byte_offset + ioff * tensor_byte_size;
                   Gu.Assert(offset < Data.Length);
                   uint v = *((uint*)(raw + offset));
                   ret.Add(v);
@@ -154,10 +157,11 @@
             {
                int component_byte_size = 4;//sizeof uint
                int tensor_rank = 1;// 3 scalars
+               int tensor_byte_size = component_byte_size * tensor_rank;
                //***** not sure if count is number of bytes, or components
-               for (int ioff = 0; ioff < scalar_count; ioff += tensor_rank)
+               for (int ioff = 0; ioff < scalar_count; ioff++)
                {
-                  int offset = byte_offset + ioff * component_byte_size;
+                  int offset = byte_offset + ioff * tensor_byte_size;
                   Gu.Assert(offset < Data.Length);
                   float v = *((float*)(raw + offset));
                   floats[ioff] = v;
@@ -206,13 +210,13 @@
 
          //Hoist raw data into buffers.
          //This is slow - we could just use some raw index offsets to create v_.. but my brain is not working... later we fix this. No need for these buffers.
-         //List<vec3> positions = new List<vec3>();
-         //List<vec3> normals = new List<vec3>();
-         //List<vec2> texs_0 = new List<vec2>();
+         List<vec3> positions = new List<vec3>();
+         List<vec3> normals = new List<vec3>();
+         List<vec2> texs_0 = new List<vec2>();
 
-         float[] positions = null;
-         float[] normals = null;
-         float[] texs_0 = null;
+         //float[] positions = null;
+         //float[] normals = null;
+         //float[] texs_0 = null;
 
          foreach (var attr in prim.Attributes)
          {
@@ -245,7 +249,8 @@
                         {
                            if (attribute_accessor.Type == glTFLoader.Schema.Accessor.TypeEnum.VEC3)
                            {
-                              positions = meshRaw.ParseFloatArray(attribute_accessor.Count * 3, buffer_view.ByteOffset);// meshRaw.ParseVec3fArray(attribute_accessor.Count, buffer_view.ByteOffset);
+                              //positions = meshRaw.ParseFloatArray(attribute_accessor.Count * 3, buffer_view.ByteOffset);// meshRaw.ParseVec3fArray(attribute_accessor.Count, buffer_view.ByteOffset);
+                              positions = meshRaw.ParseVec3fArray(attribute_accessor.Count, buffer_view.ByteOffset);// meshRaw.ParseVec3fArray(attribute_accessor.Count, buffer_view.ByteOffset);
                            }
                            else
                            {
@@ -264,7 +269,8 @@
                         {
                            if (attribute_accessor.Type == glTFLoader.Schema.Accessor.TypeEnum.VEC3)
                            {
-                              normals = meshRaw.ParseFloatArray(attribute_accessor.Count * 3, buffer_view.ByteOffset);// = meshRaw.ParseVec3fArray(attribute_accessor.Count, buffer_view.ByteOffset);
+                              //normals = meshRaw.ParseFloatArray(attribute_accessor.Count * 3, buffer_view.ByteOffset);// = meshRaw.ParseVec3fArray(attribute_accessor.Count, buffer_view.ByteOffset);
+                              normals = meshRaw.ParseVec3fArray(attribute_accessor.Count, buffer_view.ByteOffset);// meshRaw.ParseVec3fArray(attribute_accessor.Count, buffer_view.ByteOffset);
                            }
                            else
                            {
@@ -282,7 +288,8 @@
                         {
                            if (attribute_accessor.Type == glTFLoader.Schema.Accessor.TypeEnum.VEC2)
                            {
-                              texs_0 = meshRaw.ParseFloatArray(attribute_accessor.Count * 2, buffer_view.ByteOffset);//= meshRaw.ParseVec2fArray(attribute_accessor.Count, buffer_view.ByteOffset);
+                              //texs_0 = meshRaw.ParseFloatArray(attribute_accessor.Count * 2, buffer_view.ByteOffset);//= meshRaw.ParseVec2fArray(attribute_accessor.Count, buffer_view.ByteOffset);
+                              texs_0 = meshRaw.ParseVec2fArray(attribute_accessor.Count, buffer_view.ByteOffset);// meshRaw.ParseVec3fArray(attribute_accessor.Count, buffer_view.ByteOffset);
                            }
                            else
                            {
@@ -368,38 +375,56 @@
          //when indices property is defined, the number of vertex indices to render is defined by count
          //of accessor referred to by indices. In either case, the number of vertex indices MUST be valid
          //for the topology type used:
-         List<v_v3n3x2> verts = new List<v_v3n3x2>();
-         for (int ind = 0; ind < indices_uint.Count; ind ++)
+         if (positions.Count != normals.Count || positions.Count != texs_0.Count)
          {
-            //** This is all incorrect. 
-            //2 - v float[2]
-            //13 n float[13]
-            //19 t float[19
-            //so each index indexes into a component in the order in which the accessors specify them.
-            //Ex if accessors are POSITION NORMAL TEXCOORD, then the indexes 1 5 0, .. .. index into each of those buffers
-            int num_attrs = prim.Attributes.Count;
+            Gu.Log.Error("Count of one or more components did not match. Position will be the only component used. This may result in invalid vetexes.");
+         }
+         List<v_v3n3x2> verts = new List<v_v3n3x2>();
+         for (int ivert = 0; ivert < positions.Count; ivert++)
+         {
             v_v3n3x2 v = new v_v3n3x2();
-            int pos_ind = (int)indices_uint[ind];
-            //int n_ind = (int)indices_uint[ind+1]/3;
-            //int t0_ind = (int)indices_uint[ind+2]/2;
-
-            //24 floats but byteLength = 288 = 72 floats = 24 verts .. ? YES this make sense. since the planes must be detached.
-            //Now the question is why there are only 36 indexes up to 23 (0-24)
-
-            //Fixed it: TODO: - make thees back into vec3/vec2 accessors
-
-            //Wait - float count 24 for the accessors, indexes must be indexing bu ALL attributes for each float.
-            v._v = new vec3(positions[indices_uint[ind]*3+0], positions[indices_uint[ind] * 3 + 1], positions[indices_uint[ind] * 3 + 2] );// positions[pos_ind];// 2 13 19, 2 19 8, 0 to 23, 36 indices - correct 1 for each of 6*2*3 triangles BUT 0-23 ? why
-            v._n = new vec3(normals[indices_uint[ind] * 3 + 0], normals[indices_uint[ind] * 3 + 1], normals[indices_uint[ind] * 3 + 2]);//normals[n_ind];//8 + 8 + 12 = 16+12 = 28,  8 16 24 = so I am assuming that we lay the buffers on the side. This is the accessor.
-            v._x = new vec2(texs_0[indices_uint[ind] * 2 + 0], texs_0[indices_uint[ind] * 2 + 1]);//texs_0[t0_ind];
+            v._v = positions[ivert];
+            v._n = normals[ivert];
+            v._x = texs_0[ivert];
             verts.Add(v);
          }
+         bool flip = true; //vertex winding is opposite in blender.
 
-         root.Mesh = new MeshData(mesh.Name, mesh_prim_type, v_v3n3x2.VertexFormat, Gpu.GetGpuDataPtr(verts.ToArray()));
+
+         if (indices_uint == null)
+         {
+            if (flip)
+            {
+               for(int vi=0; vi<verts.Count; vi += 3)
+               {
+                  v_v3n3x2 vert = verts[vi];
+                  verts[vi] = verts[vi + 1];
+                  verts[vi+1] = vert;
+               }
+            }
+
+            root.Mesh = new MeshData(mesh.Name, mesh_prim_type,
+                v_v3n3x2.VertexFormat, Gpu.GetGpuDataPtr(verts.ToArray()));
+         }
+         else
+         {
+            if (flip)
+            {
+               for (int vi = 0; vi < indices_uint.Count; vi += 3)
+               {
+                  uint idx = indices_uint[vi];
+                  indices_uint[vi] = indices_uint[vi + 1];
+                  indices_uint[vi + 1] = idx;
+               }
+            }
+            root.Mesh = new MeshData(mesh.Name, mesh_prim_type,
+               v_v3n3x2.VertexFormat, Gpu.GetGpuDataPtr(verts.ToArray()),
+               IndexFormatType.Uint32, Gpu.GetGpuDataPtr(indices_uint.ToArray()));
+         }
 
          //TODO: materials
          Gu.Log.Warn("TODO: must create materials for objects");
-         root.Material = Material.DefaultFlatColor();
+         root.Material = Material.DefaultDiffuse();
 
          if (root.LoaderTempData != null)
          {
@@ -407,9 +432,9 @@
             {
                var ind = prim.Material.Value;
                var mat = myModel.Materials[ind];
-               if(mat != null)
+               if (mat != null)
                {
-                  if(mat.PbrMetallicRoughness != null)
+                  if (mat.PbrMetallicRoughness != null)
                   {
                      root.Color = new vec4(
                         mat.PbrMetallicRoughness.BaseColorFactor[0],

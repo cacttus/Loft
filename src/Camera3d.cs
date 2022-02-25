@@ -223,11 +223,10 @@ namespace PirateCraft
       public int Viewport_Width { get { return _view_w; } set { _view_w = value; } }
       public int Viewport_Height { get { return _view_h; } set { _view_h = value; } }
 
-      public Camera3D(string name, int w, int h, float near = 1, float far = 1000)
+      public Camera3D(string name, int w, int h, float near = 1, float far = 1000) : base(name)
       {
          //Do not select camera (at least not active camera) since we wont be able to hit anything else.
          //SelectEnabled = false;
-         Name = name;
          _view_w = w;
          _view_h = h;
          Frustum = new Frustum(this);

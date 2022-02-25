@@ -4,6 +4,7 @@ using System.Collections.Generic;
 
 namespace PirateCraft
 {
+   
    //Material, input to a shader & gpu state for material FBO (blending, etc)
    public class Material
    {

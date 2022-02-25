@@ -14,6 +14,12 @@ namespace PirateCraft
       private bool _cullFaceEnabled = true;
       private bool _scissorTestEnabledLast = false;
       private bool _scissorTestEnabled = true;
+      private bool _blendEnabledLast = false;
+      private bool _blendEnabled = false;
+      private BlendEquationMode _blendFuncLast = BlendEquationMode.FuncAdd;
+      private BlendEquationMode _blendFunc = BlendEquationMode.FuncAdd;
+      private BlendingFactor _blendFactorLast = BlendingFactor.OneMinusSrcAlpha;
+      private BlendingFactor _blendFactor = BlendingFactor.OneMinusSrcAlpha;
 
       public GpuRenderState Clone()
       {
@@ -24,14 +30,45 @@ namespace PirateCraft
          clone._cullFaceEnabled = _cullFaceEnabled;
          clone._scissorTestEnabledLast = _scissorTestEnabledLast;
          clone._scissorTestEnabled = _scissorTestEnabled;
+         clone._blendEnabled = _blendEnabled;
+         clone._blendFunc = _blendFunc;
+         clone._blendFactor = _blendFactor;
          return clone;
       }
 
       public bool CullFace { get { return _cullFaceEnabled; } set { _cullFaceEnabledLast = _cullFaceEnabled; _cullFaceEnabled = value; } }
       public bool DepthTest { get { return _depthTestEnabled; } set { _depthTestEnabledLast = _depthTestEnabled; _depthTestEnabled = value; } }
       public bool ScissorTest { get { return _scissorTestEnabled; } set { _scissorTestEnabledLast = _scissorTestEnabled; _scissorTestEnabled = value; } }
+      public bool Blend { get { return _blendEnabled; } set { _blendEnabledLast = _blendEnabled;  _blendEnabled = value; } }
+      //public BlendEquationMode BlendFunc { get { return _blendFunc; } set { _blendFuncLast = _blendFunc; _blendFunc = value; } }
+      //public BlendingFactor BlendingFactor { get { return _blendFactor; } set { _blendFactorLast = _blendFactor;  _blendFactor = value; } }
+
       public void SetState()
       {
+         if (_blendEnabled != _blendEnabledLast)
+         {
+            if (_blendEnabled)
+            {
+               GL.Enable(EnableCap.Blend);
+               //Just default to basic blending for now
+               GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+            }
+            else
+            {
+               GL.Disable(EnableCap.Blend);
+            }
+         }
+         //if (_blendFunc != _blendFuncLast)
+         //{
+         //   if (_blendEnabled)
+         //   {
+         //      GL.Enable(EnableCap.Blend);
+         //   }
+         //   else
+         //   {
+         //      GL.Disable(EnableCap.Blend);
+         //   }
+         //}
          if (_depthTestEnabled != _depthTestEnabledLast)
          {
             if (_depthTestEnabled)
@@ -87,7 +124,7 @@ namespace PirateCraft
       }
       public static GpuDataPtr GetGpuDataPtr<T>(T[] data)
       {
-         GpuDataPtr p=null;
+         GpuDataPtr p = null;
          if (data.Length == 0)
          {
             p = new GpuDataPtr(0, data.Length, data);

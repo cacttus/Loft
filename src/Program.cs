@@ -17,42 +17,58 @@ namespace PirateCraft
       private double rotX = 0;
       private double rotY = 0;
 
-      public void DoRotate(Camera3D cam)
+      private double warp_boundary = 0.1f;//the distance user can move mouse in window  until we warp. Warping every frame absolutely sucks.
+
+      public void DoRotate(Camera3D cam, MainWindow gw)
       {
-         //Rotate Camera
-         float mx = Gu.Mouse.Pos.x - Gu.Mouse.Last.x;
-         float my = Gu.Mouse.Pos.y - Gu.Mouse.Last.y;
-
-         float width = cam.Viewport_Width;
-         float height = cam.Viewport_Height;
-         float rotations_per_width = 0.5f;
-
-         rotX += Math.PI * 2 * (mx / width) * rotations_per_width * Gu.CoordinateSystemMultiplier;
-         if (rotX > Math.PI * 2.0f)
+         if (gw.InputState == InputState.World)
          {
-            rotX = (float)(rotX % (Math.PI * 2.0f));
-         }
-         if (rotX < 0)
-         {
-            rotX = (float)(rotX % (Math.PI * 2.0f));
-         }
-         rotY += Math.PI * 2 * (my / height) * rotations_per_width * Gu.CoordinateSystemMultiplier;
-         if (rotY > Math.PI * 2.0f)
-         {
-            rotY = (float)(rotY % (Math.PI * 2.0f));
-         }
-         if (rotY < 0)
-         {
-            rotY = (float)(rotY % (Math.PI * 2.0f));
-         }
-         quat qx = quat.fromAxisAngle(new vec3(0, 1, 0), (float)rotX).normalized();
-         quat qy = quat.fromAxisAngle(new vec3(1, 0, 0), (float)rotY).normalized();
+            //Rotate Camera
+            float width = cam.Viewport_Width;
+            float height = cam.Viewport_Height;
+            float rotations_per_width = 3.5f; // How many times we rotate 360 degrees  if the user moves the cursor across the whole window width
+            float half_rotations_per_height = 2f; // How many times we rotate 180 degrees  if the user moves the cursor across the whole window heihgt.
 
-         cam.Rotation = qx * qy;
+            rotX += Math.PI * 2 * (Gu.Mouse.Delta.x / width) * rotations_per_width * Gu.CoordinateSystemMultiplier;
+            if (rotX >= Math.PI * 2.0f)
+            {
+               rotX = (float)(rotX % (Math.PI * 2.0f));
+            }
+            if (rotX <= 0)
+            {
+               rotX = (float)(rotX % (Math.PI * 2.0f));
+            }
 
-         //Gu.WarpMouse
+            rotY += Math.PI * 2 * (Gu.Mouse.Delta.y / height) * half_rotations_per_height * Gu.CoordinateSystemMultiplier;
+            if (rotY >= Math.PI / 2)
+            {
+               rotY = Math.PI / 2 - 0.001f;
+            }
+            if (rotY <= -Math.PI / 2)
+            {
+               rotY = -Math.PI / 2 + 0.001f;
+            }
+
+            quat qx = quat.fromAxisAngle(new vec3(0, 1, 0), (float)rotX).normalized();
+            quat qy = quat.fromAxisAngle(new vec3(1, 0, 0), (float)rotY).normalized();
+
+            cam.Rotation = qx * qy;
+
+            if (gw.InputState == InputState.World)
+            {
+               if ((Gu.Mouse.Pos.x <= width * warp_boundary) || (Gu.Mouse.Pos.x >= width - width * warp_boundary))
+               {
+                  Gu.Mouse.WarpMouse(true, false, true);
+               }
+
+               if ((Gu.Mouse.Pos.y <= height * warp_boundary) || (Gu.Mouse.Pos.y >= height - height * warp_boundary))
+               {
+                  Gu.Mouse.WarpMouse(false, true, true);
+               }
+            }
+
+         }
       }
-
    }
    public class MainWindow : GameWindow
    {
@@ -61,13 +77,17 @@ namespace PirateCraft
       WorldObject _boxMeshThing = null;
       int meshIdx = 0;
       const float scale = 0.5f;
-      InputState InputState = InputState.World;
+      public InputState InputState = InputState.World;
       FirstPersonMouseRotator _FPSRotator = new FirstPersonMouseRotator();
       private NativeWindowSettings _ns = NativeWindowSettings.Default;
       WorldObject Sphere_Rotate_Quat_Test;
       WorldObject Sphere_Rotate_Quat_Test2;
       WorldObject Sphere_Rotate_Quat_Test3;
 
+      WorldObject pick = null;
+      WorldObject sword = null;
+      WorldObject left_hand = null;
+      WorldObject right_hand = null;
       /*
        * base((int)(1920 * scale), (int)(1080 * scale),
       GraphicsMode.Default, "Test", GameWindowFlags.Default,
@@ -119,17 +139,68 @@ namespace PirateCraft
       {
          base.OnFocusedChanged(e);
       }
+      private void InitHandObjects()
+      {
+         vec3 right_pos = new vec3(3.0f, -2.1f, 4.5f);
+         vec3 left_pos = new vec3(-3.0f, -2.1f, 4.5f);
+
+         List<WorldObject> objs;
+         objs = Gu.ResourceManager.LoadObjects(new FileLoc("pick.glb", FileStorage.Embedded));
+         if (objs?.Count > 0)
+         {
+            pick = objs[0];
+            pick.Position = left_pos;
+            pick.Scale *= new vec3(0.7f, 0.7f, 0.7f);
+            pick.Rotation *= quat.fromAxisAngle(new vec3(0, 1, 0), MathUtils.M_PI * 0.5f);
+            pick.Rotation *= quat.fromAxisAngle(new vec3(1, 0, 1), MathUtils.M_PI_2 * 0.125f);
+
+            var cmp = new AnimationComponent();
+            vec3 raxis = new vec3(-1, 1, 0);
+            float t_seconds = 0.5f; // swipe time in seconds
+            float kf_count = 3;
+            cmp.KeyFrames.Add(new Keyframe(t_seconds / kf_count * 0, mat3.getRotation(raxis, 0).toQuat()));
+            cmp.KeyFrames.Add(new Keyframe(t_seconds / kf_count * 1, mat3.getRotation(raxis, (float)(MathUtils.M_PI_2 * 0.5 - 0.001)).toQuat()));
+            cmp.KeyFrames.Add(new Keyframe(t_seconds / kf_count * 2, mat3.getRotation(raxis, (float)(MathUtils.M_PI_2 - 0.002)).toQuat())); ;
+            pick.Components.Add(cmp);
+
+            _camera.AddChild(pick);
+         }
+         objs = Gu.ResourceManager.LoadObjects(new FileLoc("sword.glb", FileStorage.Embedded));
+         if (objs?.Count > 0)
+         {
+            sword = objs[0];
+            sword.Position = right_pos;
+            sword.Scale *= new vec3(0.7f, 0.7f, 0.7f);
+            sword.Rotation *= quat.fromAxisAngle(new vec3(1, 0, 1).normalized(), MathUtils.M_PI_2 * 0.125f);
+
+            _camera.AddChild(sword);
+         }
+      }
+      private void Crosshair()
+      {
+         vec4 ch_c = new vec4(0.31f, 0, 0, .1f);
+         float size = 0.08f;
+         v_v3c4[] verts = new v_v3c4[] {
+           new v_v3c4() { _v = new vec3(-size, 0, 0), _c =  ch_c },
+           new v_v3c4() { _v = new vec3(size, 0, 0), _c =   ch_c },
+           new v_v3c4() { _v = new vec3(0, -size, 0), _c =  ch_c },
+           new v_v3c4() { _v = new vec3(0, size, 0), _c =   ch_c  }
+         };
+         WorldObject Crosshair = new WorldObject("crosshair");
+         Crosshair.Mesh = new MeshData("crosshair_mesh", PrimitiveType.Lines, v_v3c4.VertexFormat, Gpu.GetGpuDataPtr(verts.ToArray()));
+         Crosshair.Mesh.DrawOrder = DrawOrder.Last;
+         Crosshair.Position = new vec3(0, 0, 3);
+         Material crosshair_mat = new Material(Shader.DefaultFlatColorShader());
+         crosshair_mat.GpuRenderState.DepthTest = false;//Disable depth test.
+         crosshair_mat.GpuRenderState.Blend = true;
+         Crosshair.Material = crosshair_mat;
+         _camera.AddChild(Crosshair);
+      }
       protected override void OnLoad()
       {
          try
          {
             Gu.Init(this);
-
-            List<WorldObject> objs = Gu.ResourceManager.LoadObjects(new FileLoc("pick.glb", FileStorage.Embedded));
-            foreach (var ob in objs)
-            {
-               Gu.World.AddObject(ob);
-            }
 
             //Cameras
             _camera = Gu.World.CreateCamera("Camera-001", this.Size.X, this.Size.Y,
@@ -142,10 +213,13 @@ namespace PirateCraft
 
             Gu.World.Initialize(_camera, "Boogerton", DELETE_WORLD_START_FRESH);
 
-            //CreateDebugObjects();
+            Gu.Context.DebugDraw.DrawBoundBoxes = false;
 
-            Gu.Mouse.CenterCursor = true;
-            Gu.Mouse.ShowCursor = true;
+            CreateDebugObjects();
+            InitHandObjects();
+            Crosshair();
+
+            CursorVisible = false;
          }
          catch (Exception ex)
          {
@@ -187,6 +261,7 @@ namespace PirateCraft
          Material sky_mat = new Material(Shader.DefaultDiffuse(), sky1);
          sky_mat.GpuRenderState.DepthTest = false;//Disable depth test.
          Gu.World.Sky = Gu.World.CreateObject("sky", MeshData.GenSphere(128, 128, 400, true, true), sky_mat);
+         Gu.World.Sky.Mesh.DrawOrder = DrawOrder.First;
          Gu.World.Sky.Constraints.Add(new FollowConstraint(_camera, FollowConstraint.FollowMode.Snap));
 
          //Animation test
@@ -197,12 +272,11 @@ namespace PirateCraft
          cmp.KeyFrames.Add(new Keyframe(2, mat3.getRotation(raxis, (float)(MathUtils.M_PI_2 - 0.002)).toQuat(), KeyframeInterpolation.Slerp, new vec3(1, 1, 0), KeyframeInterpolation.Ease)); ;
          cmp.KeyFrames.Add(new Keyframe(3, mat3.getRotation(raxis, (float)(MathUtils.M_PI_2 + MathUtils.M_PI_2 * 0.5 - 0.004)).toQuat(), KeyframeInterpolation.Slerp, new vec3(1, 0, 0), KeyframeInterpolation.Ease)); ;
          cmp.KeyFrames.Add(new Keyframe(4, mat3.getRotation(raxis, (float)(MathUtils.M_PI * 2 - 0.006)).toQuat(), KeyframeInterpolation.Slerp, new vec3(0, 0, 0), KeyframeInterpolation.Ease)); ;
-         cmp.Start();
+         cmp.Play();
          _boxMeshThing.Components.Add(cmp);
 
          //Some fun parenting stuff.
          Sphere_Rotate_Quat_Test.AddChild(Sphere_Rotate_Quat_Test2.AddChild(Sphere_Rotate_Quat_Test3.AddChild(_boxMeshThing)));
-
       }
       private void TestFonts()
       {
@@ -235,11 +309,12 @@ namespace PirateCraft
          float chary = this._camera.Position.y;
          Title = $"(CharY = {chary}) (Vsync: {VSync}) FPS: {1f / e.Time:0} " +
             $"AllGlobs: {Gu.World.NumGlobs} Render: {Gu.World.NumRenderGlobs} Visible: {Gu.World.NumVisibleRenderGlobs} " +
-            $"Elements_Frame:{MeshData.dbg_numDrawElements_Frame} Arrays_Frame: {MeshData.dbg_numDrawArrays_Frame}" +
-            $"OBs culled:{Gu.World.Dbg_N_OB_Culled}";
+            $"Elements_Frame:{MeshData.dbg_numDrawElements_Frame} Arrays_Frame: {MeshData.dbg_numDrawArrays_Frame} " +
+            $"OBs culled:{Gu.World.Dbg_N_OB_Culled} " +
+            $"Mouse:{Gu.Mouse.Pos.x},{Gu.Mouse.Pos.y} "
+            ;
 
          Gu.Context.DebugDraw.BeginFrame();
-
 
          Gu.Context.Update();
 
@@ -321,13 +396,17 @@ namespace PirateCraft
             if (InputState == InputState.World)
             {
                InputState = InputState.Inventory;
-               Gu.Mouse.CenterCursor = false;
+               CursorVisible = true;
             }
             else if (InputState == InputState.Inventory)
             {
                InputState = InputState.World;
-               Gu.Mouse.CenterCursor = true;
+               CursorVisible = false;
             }
+         }
+         if (Gu.Keyboard.Press(Keys.F1))
+         {
+            Gu.Context.DebugDraw.DrawBoundBoxes = !Gu.Context.DebugDraw.DrawBoundBoxes;
          }
          if (Gu.Keyboard.Press(Keys.D1))
          {
@@ -359,21 +438,40 @@ namespace PirateCraft
          }
          if (Gu.Keyboard.PressOrDown(Keys.D6))
          {
-            _boxMeshThing.Material.Shader.nmap += 0.01f;
-            _boxMeshThing.Material.Shader.nmap = _boxMeshThing.Material.Shader.nmap % 1;
+            Material.DefaultDiffuse().Shader.nmap += 0.01f;
+            Material.DefaultDiffuse().Shader.nmap = Material.DefaultDiffuse().Shader.nmap % 1;
          }
 
          //Project ray and hit box.
-         Line3f proj_pt = _camera.Frustum.ProjectPoint(Gu.Mouse.Pos, TransformSpace.World, 0.001f);
+         //vec2 projec_pos = Gu.Mouse.Pos;
+         vec2 projec_pos = new vec2(0, 0);
+         if (this.InputState == InputState.Inventory)
+         {
+            projec_pos = Gu.Mouse.Pos;
+         }
+         else if (this.InputState == InputState.World)
+         {
+            projec_pos = new vec2(_camera.Viewport_Width * 0.5f, _camera.Viewport_Height * 0.5f);
+         }
+         else
+         {
+            Gu.Log.Error("Invalid projection position for raycast blocks.");
+         }
+         Line3f proj_pt = _camera.Frustum.ProjectPoint(projec_pos, TransformSpace.World, 0.001f);
          var b = Gu.World.RaycastBlock(new PickRay3D(proj_pt));
          if (b.Hit)
          {
-            Gu.Context.DebugDraw.Point(b.HitPos + b.HitNormal * 0.1f, new vec4(1, 0, 0, 1));
+          //  Gu.Context.DebugDraw.Point(b.HitPos + b.HitNormal * 0.1f, new vec4(1, 0, 0, 1));
             Gu.Context.DebugDraw.Box(Gu.World.GetBlockBox(b, 0.01f), new vec4(.1014f, .155f, .0915f, 1));
          }
 
-         if (Gu.Mouse.Press(MouseButton.Left))
+         //Play mine animation if we press
+         if (Gu.Mouse.PressOrDown(MouseButton.Left))
          {
+            if (pick != null)
+            {
+               pick.GrabFirstAnimation().Play(true);
+            }
             if (b != null)
             {
                if (b.Glob != null)
@@ -382,9 +480,13 @@ namespace PirateCraft
                }
             }
          }
+         else
+         {
+            pick.GrabFirstAnimation().Repeat = false;
+         }
          if (InputState == InputState.World)
          {
-            _FPSRotator.DoRotate(_camera);
+            _FPSRotator.DoRotate(_camera, this);
          }
          else if (InputState == InputState.Inventory)
          {
@@ -394,9 +496,7 @@ namespace PirateCraft
          {
             Gu.BRThrowNotImplementedException();
          }
-
       }
-
       protected override void OnRenderFrame(FrameEventArgs e)
       {
          Gu.Context.Renderer.BeginRender(this, new vec4(1, 1, 1, 1));

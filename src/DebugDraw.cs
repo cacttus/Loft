@@ -12,6 +12,8 @@ namespace PirateCraft
       public List<v_v3c4> Points =  new List<v_v3c4>();
       public static VertexFormat VertexFormat = v_v3c4.VertexFormat;
 
+      public bool DrawBoundBoxes { get; set; } = false;
+
       public DebugDraw()
       {
       }
