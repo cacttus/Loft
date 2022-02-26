@@ -186,7 +186,7 @@ namespace PirateCraft
                }
                else
                {
-                  Img32 img = Gu.LoadImage(getName());
+                  Img32 img = ResourceManager.LoadImage(getName());
                   _vecTexs[0].setImg(img);
                }
             }
@@ -218,7 +218,7 @@ namespace PirateCraft
             return ret;
          }
 
-         Bitmap master = Gu.LoadBitmap(file);// Gu::loadImage(file);
+         Img32 master = ResourceManager.LoadImage(file);// Gu::loadImage(file);
 
          //So we have to flip it because we load it into OpenGL space but we're in screen space.
          if (master == null)
@@ -805,7 +805,7 @@ namespace PirateCraft
             if (_bCache)
             {
                string imgName = System.IO.Path.Combine(Gu.LocalCachePath, "ui_master.png");
-               Gu.SaveImage(imgName, master_albedo);
+               ResourceManager.SaveImage(imgName, master_albedo);
             }
             else
             {
@@ -822,7 +822,7 @@ namespace PirateCraft
             Gu.Log.Debug("MegaTex - Creating Normal Map.");
             master_normal = master_albedo.createNormalMap();
             string nmapname_dbg = System.IO.Path.Combine(Gu.LocalCachePath, "ui_master_nm.png");
-            Gu.SaveImage(nmapname_dbg, master_normal);
+            ResourceManager.SaveImage(nmapname_dbg, master_normal);
             output.Normal = new Texture2D(master_normal, true, TexFilter.Nearest);
          }
 

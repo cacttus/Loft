@@ -1,11 +1,5 @@
-﻿using System.Drawing;
-using OpenTK;
-using OpenTK.Graphics;
-using OpenTK.Graphics.OpenGL;
-using System.Drawing.Imaging;
-using System;
-using System.Runtime.InteropServices;
-using System.Collections.Generic;
+﻿
+using OpenTK.Graphics.OpenGL4;
 
 namespace PirateCraft
 {
@@ -53,32 +47,17 @@ namespace PirateCraft
       public float Width { get; private set; } = 0;
       public float Height { get; private set; } = 0;
       public TexFilter TexFilter { get; private set; } = TexFilter.Nearest;
-      public TextureWrapMode TextureWrapMode { get; private set; } = TextureWrapMode.Clamp;
-
-      public System.Drawing.Imaging.PixelFormat WindowsPixelFormat
+      public TextureWrapMode TextureWrapMode { get; private set; } = TextureWrapMode.ClampToEdge;
+      
+      public PixelFormat GlPixelFormat
       {
          get
          {
-            return System.Drawing.Imaging.PixelFormat.Format32bppArgb;
+            return PixelFormat.Bgra;
          }
          private set
          {
          }
-      }
-      public OpenTK.Graphics.OpenGL.PixelFormat GlPixelFormat
-      {
-         get
-         {
-            return OpenTK.Graphics.OpenGL.PixelFormat.Bgra;
-         }
-         private set
-         {
-         }
-      }
-      public Texture2D(Bitmap b, bool mipmaps, TexFilter filter, TextureWrapMode wrap = TextureWrapMode.Repeat)
-      {
-         Img32 img = new Img32(b);
-         LoadToGpu(img, mipmaps, filter, wrap);
       }
       public Texture2D(Img32 img, bool mipmaps, TexFilter filter, TextureWrapMode wrap = TextureWrapMode.Repeat)
       {
@@ -86,7 +65,7 @@ namespace PirateCraft
       }
       public Texture2D(FileLoc loc, bool mipmaps, TexFilter filter, TextureWrapMode wrap = TextureWrapMode.Repeat)
       {
-         var bmp = Gu.LoadImage(loc);
+         var bmp = ResourceManager.LoadImage(loc);
          LoadToGpu(bmp, mipmaps, filter, wrap);
       }
       private int GetNumMipmaps(int w, int h)
@@ -207,7 +186,7 @@ namespace PirateCraft
             if (input == Shader.TextureInput.Albedo)
             {
                //White albedo
-               Bitmap b = Img32.CreateBitmapARGB(1, 1, new byte[] { 255, 255, 255, 255 });
+               Img32 b = Img32.Default1x1(255, 255, 255, 255);// new Img32(1, 1, new byte[] { 255, 255, 255, 255 });
                tex = new Texture2D(b, false, TexFilter.Nearest);
             }
             else if (input == Shader.TextureInput.Normal)
@@ -227,7 +206,7 @@ namespace PirateCraft
                   Gu.BRThrowNotImplementedException();
                }
 
-               Bitmap b = Img32.CreateBitmapARGB(1, 1, dat);//Note this must match the Img32 normalizeImage format
+               Img32 b = new Img32(1, 1, dat);
                tex = new Texture2D(b, false, TexFilter.Nearest);
             }
             else

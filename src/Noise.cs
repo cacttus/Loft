@@ -256,7 +256,8 @@ namespace PirateCraft
       public static Texture2D TestNoise()
       {
          int nCount = 0;
-         Bitmap b = new Bitmap(_bsiz, _bsiz, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+         //   Bitmap b = new Bitmap(_bsiz, _bsiz, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+         Img32 b = new Img32(_bsiz, _bsiz);
          int z = 0;// (int z = 0; z < _bsiz; z++)
          {
             for (int y = 0; y < _bsiz; y++)
@@ -273,9 +274,8 @@ namespace PirateCraft
                   frnd = (frnd + 1.0f) / 2.0f;
 
                   byte brnd = (byte)((frnd + 1) / 2 * 255);
-                  Color c = new Color();
-                  c = Color.FromArgb(255, brnd, brnd, brnd);
-                  b.SetPixel(x, y, c);
+                  Pixel4ub c = new Pixel4ub(255, brnd, brnd, brnd);
+                  b.setPixel32(x, y, c);
                   nCount++;
                }
             }

@@ -13,6 +13,13 @@ namespace PirateCraft
    public struct Pixel4ub
    {
       public byte r, g, b, a;
+      public Pixel4ub(byte dr, byte dg, byte db, byte da)
+      {
+         r = dr;
+         g = dg;
+         b = db;
+         a = da;
+      }
    }
    public class Img32
    {
@@ -20,7 +27,9 @@ namespace PirateCraft
       public int Height { get; private set; } = 0;
       public byte[] Data { get; private set; }
       public int BytesPerPixel { get { return 4; } private set { } }//Always 4BPP in our system.
+      public static Img32 Default1x1(byte r, byte g, byte b, byte a) { return new Img32(1, 1, new byte[] { r, g, b, a }); }
 
+      public Img32() { }
       public Img32 Clone()
       {
          Img32 m = new Img32();
@@ -32,95 +41,127 @@ namespace PirateCraft
          return m;
       }
 
-      public Img32()
-      {
+      //public Img32()
+      //{
 
-      }
-      public static Bitmap CreateBitmapARGB(int width, int height, byte[] pixels)
+      //}
+
+      public Img32(int w, int h)
       {
-         Gu.Assert(pixels != null);
-         if (width * height * 4 != pixels.Length)
+         byte[] rgbValues = new byte[w * h * BytesPerPixel]; 
+         init(w, h, rgbValues);
+      }
+      public Img32(int w, int h, byte[] rgbValues)
+      {
+         if(rgbValues.Length % BytesPerPixel != 0)
          {
-            Gu.BRThrowException("Created bitmap w/h will not match input pixel bytes at 32bpp");
+            Gu.Log.Error("the input RGB values were not divisible by the given bytes per pixel. This will result in undefined behavior.");
          }
-
-         Bitmap b = new Bitmap(width, width, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-         BitmapData bmpData = b.LockBits(new Rectangle(0, 0, width, width),
-                                         ImageLockMode.WriteOnly,
-                                         b.PixelFormat);
-         IntPtr ptr = bmpData.Scan0;
-         int bytes = bmpData.Stride * b.Height;
-         Gu.Assert(bytes == pixels.Length); // Sanity check
-         Marshal.Copy(pixels, 0, ptr, bytes);
-         b.UnlockBits(bmpData);
-         return b;
+         init(w, h, rgbValues);
       }
-      public Bitmap ToBitmap()
+      public void FlipBR()
       {
-         Bitmap bitmap = new Bitmap(Width, Height, PixelFormat.Format32bppArgb);
+         byte[] newData = new byte[Data.Length];
 
-         var bmpData = bitmap.LockBits(
-            new Rectangle(0, 0, bitmap.Width, bitmap.Height),
-            ImageLockMode.WriteOnly,
-            bitmap.PixelFormat);
-
-         int bitmap_size_bytes = Math.Abs(bmpData.Stride) * bitmap.Height;
-
-         Gu.Assert(bitmap_size_bytes == Data.Length);
-
-         //byte[] newData = new byte[Data.Length];
-         //Flip Back
-         //for (int i = 0; i < newData.Length; i += 4)
-         //{
-         //   //Argb -> Rgba
-         //   var r = Data[i + 0];//This is correct
-         //   var g = Data[i + 1];
-         //   var b = Data[i + 2];
-         //   var a = Data[i + 3];
-         //   newData[i + 0] = r;
-         //   newData[i + 1] = g;
-         //   newData[i + 2] = b;
-         //   newData[i + 3] = a;
-         //}
-         IntPtr ptr = bmpData.Scan0;
-         Marshal.Copy(Data, 0, ptr, bitmap_size_bytes);
-         bitmap.UnlockBits(bmpData);
-
-         return bitmap;
+         for (int i = 0; i < newData.Length; i += 4)
+         {
+            //Argb -> Rgba
+            var r = Data[i + 0];//This is correct
+            var g = Data[i + 1];
+            var b = Data[i + 2];
+            var a = Data[i + 3];
+            newData[i + 0] = b;
+            newData[i + 1] = g;
+            newData[i + 2] = r;
+            newData[i + 3] = a;
+         }
+         Data = newData;
       }
-      public Img32(Bitmap bitmap)
-      {
-         //Exactly what I needed thanks Microsoft
-         Gu.Assert(bitmap != null);
-         var bmpData = bitmap.LockBits(
-            new Rectangle(0, 0, bitmap.Width, bitmap.Height),
-            ImageLockMode.ReadOnly,
-            PixelFormat.Format32bppArgb);
-         IntPtr ptr = bmpData.Scan0;
-         int bytes = Math.Abs(bmpData.Stride) * bitmap.Height;
-         byte[] rgbValues = new byte[bytes];
-         Marshal.Copy(ptr, rgbValues, 0, bytes);
-         bitmap.UnlockBits(bmpData);
+      //public static Bitmap CreateBitmapARGB(int width, int height, byte[] pixels)
+      //{
+      //   Gu.Assert(pixels != null);
+      //   if (width * height * 4 != pixels.Length)
+      //   {
+      //      Gu.BRThrowException("Created bitmap w/h will not match input pixel bytes at 32bpp");
+      //   }
 
-         //BGRA ==> RGBA
-         //for (int i = 0; i < bytes; i += 4)
-         //{
-         //   //Argb -> Rgba
-         //   var b = rgbValues[i + 0];//This is correct
-         //   var g = rgbValues[i + 1];
-         //   var r = rgbValues[i + 2];
-         //   var a = rgbValues[i + 3];
-         //   rgbValues[i + 0] = b;
-         //   rgbValues[i + 1] = g;
-         //   rgbValues[i + 2] = r;
-         //   rgbValues[i + 3] = a;
-         //}
+      //   Bitmap b = new Bitmap(width, width, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+      //   BitmapData bmpData = b.LockBits(new Rectangle(0, 0, width, width),
+      //                                   ImageLockMode.WriteOnly,
+      //                                   b.PixelFormat);
+      //   IntPtr ptr = bmpData.Scan0;
+      //   int bytes = bmpData.Stride * b.Height;
+      //   Gu.Assert(bytes == pixels.Length); // Sanity check
+      //   Marshal.Copy(pixels, 0, ptr, bytes);
+      //   b.UnlockBits(bmpData);
+      //   return b;
+      //}
+      //public Bitmap ToBitmap()
+      //{
+      //   Bitmap bitmap = new Bitmap(Width, Height, PixelFormat.Format32bppArgb);
 
-         //Note we may need to swap rgba data here.
+      //   var bmpData = bitmap.LockBits(
+      //      new Rectangle(0, 0, bitmap.Width, bitmap.Height),
+      //      ImageLockMode.WriteOnly,
+      //      bitmap.PixelFormat);
 
-         init(bitmap.Width, bitmap.Height, rgbValues);
-      }
-      public void init(int w, int h, byte[] data = null)
+      //   int bitmap_size_bytes = Math.Abs(bmpData.Stride) * bitmap.Height;
+
+      //   Gu.Assert(bitmap_size_bytes == Data.Length);
+
+      //   //byte[] newData = new byte[Data.Length];
+      //   //Flip Back
+      //   //for (int i = 0; i < newData.Length; i += 4)
+      //   //{
+      //   //   //Argb -> Rgba
+      //   //   var r = Data[i + 0];//This is correct
+      //   //   var g = Data[i + 1];
+      //   //   var b = Data[i + 2];
+      //   //   var a = Data[i + 3];
+      //   //   newData[i + 0] = r;
+      //   //   newData[i + 1] = g;
+      //   //   newData[i + 2] = b;
+      //   //   newData[i + 3] = a;
+      //   //}
+      //   IntPtr ptr = bmpData.Scan0;
+      //   Marshal.Copy(Data, 0, ptr, bitmap_size_bytes);
+      //   bitmap.UnlockBits(bmpData);
+
+      //   return bitmap;
+      //}
+      //public Img32(Bitmap bitmap)
+      //{
+      //   //Exactly what I needed thanks Microsoft
+      //   Gu.Assert(bitmap != null);
+      //   var bmpData = bitmap.LockBits(
+      //      new Rectangle(0, 0, bitmap.Width, bitmap.Height),
+      //      ImageLockMode.ReadOnly,
+      //      PixelFormat.Format32bppArgb);
+      //   IntPtr ptr = bmpData.Scan0;
+      //   int bytes = Math.Abs(bmpData.Stride) * bitmap.Height;
+      //   byte[] rgbValues = new byte[bytes];
+      //   Marshal.Copy(ptr, rgbValues, 0, bytes);
+      //   bitmap.UnlockBits(bmpData);
+
+      //   //BGRA ==> RGBA
+      //   //for (int i = 0; i < bytes; i += 4)
+      //   //{
+      //   //   //Argb -> Rgba
+      //   //   var b = rgbValues[i + 0];//This is correct
+      //   //   var g = rgbValues[i + 1];
+      //   //   var r = rgbValues[i + 2];
+      //   //   var a = rgbValues[i + 3];
+      //   //   rgbValues[i + 0] = b;
+      //   //   rgbValues[i + 1] = g;
+      //   //   rgbValues[i + 2] = r;
+      //   //   rgbValues[i + 3] = a;
+      //   //}
+
+      //   //Note we may need to swap rgba data here.
+
+      //   init(bitmap.Width, bitmap.Height, rgbValues);
+      //}
+      public void init(int w, int h, byte[] data)
       {
          Width = w;
          Height = h;
@@ -128,8 +169,8 @@ namespace PirateCraft
       }
       public Img32 copySubImageTo(ivec2 off, ivec2 size)
       {
-         Img32 ret = new Img32();
-         ret.init(size.x, size.y);//ret.create(size.x, size.y);
+         Img32 ret = new Img32(size.x, size.y);
+        // ret.init(size.x, size.y);//ret.create(size.x, size.y);
          ret.copySubImageFrom(new ivec2(0, 0), off, size, this);
          return ret;
       }
@@ -209,7 +250,7 @@ namespace PirateCraft
       {
          return (byte)((11 * pix.r + 16 * pix.g + 5 * pix.b) / 32);
       }
-      Pixel4ub getPixel32(int x, int y)
+      public Pixel4ub getPixel32(int x, int y)
       {
          Pixel4ub pix;
 
@@ -221,7 +262,7 @@ namespace PirateCraft
 
          return pix;
       }
-      void setPixel32(int x, int y, Pixel4ub pix)
+      public void setPixel32(int x, int y, Pixel4ub pix)
       {
          int off = vofftos(x, y, Width) * BytesPerPixel;  //StaticBufffer is a char array so we must scale the size
          Data[off + 0] = pix.r;

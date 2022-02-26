@@ -28,6 +28,25 @@ namespace PirateCraft
       public FileStorage FileStorage { get; private set; } = FileStorage.Disk;
       public string RawPath { get; private set; } ="";
 
+      public Stream? GetStream()
+      {
+         string qualifiedPath = this.QualifiedPath;
+
+         if (FileStorage == FileStorage.Embedded)
+         {
+            return System.Reflection.Assembly.GetExecutingAssembly().GetManifestResourceStream(qualifiedPath);
+         }
+         else if (FileStorage == FileStorage.Disk)
+         {
+            return File.OpenRead(qualifiedPath);
+         }
+         else
+         {
+            Gu.BRThrowNotImplementedException();
+         }
+         return null;
+      }
+
       public string QualifiedPath
       {
          //Returns the full path with base storage location (disk/embed..)
@@ -188,129 +207,9 @@ namespace PirateCraft
 
       #endregion
 
-      #region FileOps
 
-      public static string ReadTextFile(FileLoc loc)
-      {
-         //Returns empty string when failSilently is true.
-         string data = "";
-         loc.AssertExists();
-
-         if (loc.FileStorage == FileStorage.Embedded)
-         {
-            using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(loc.QualifiedPath))
-            {
-               using (StreamReader reader = new StreamReader(stream))
-               {
-                  data = reader.ReadToEnd();
-               }
-            }
-         }
-         else if (loc.FileStorage == FileStorage.Disk)
-         {
-            if (!System.IO.File.Exists(loc.RawPath))
-            {
-               Gu.BRThrowException("File '" + loc.RawPath + "' does not exist.");
-            }
-
-            using (Stream stream = File.Open(loc.RawPath, FileMode.Open, FileAccess.Read, FileShare.None))
-            using (StreamReader reader = new StreamReader(stream))
-            {
-               data = reader.ReadToEnd();
-            }
-         }
-         else
-         {
-            Gu.BRThrowNotImplementedException();
-         }
-
-         return data;
-      }
-      public static void SaveImage(string path, Img32 image)
-      {
-         Bitmap b = image.ToBitmap();
-         var dir = Path.GetDirectoryName(path);
-         if (!Directory.Exists(dir))
-         {
-            Directory.CreateDirectory(dir);
-         }
-         b.Save(path);
-      }
-      public static Img32 LoadImage(FileLoc loc)
-      {
-         //Load an image in the form of Img32
-         Bitmap b = LoadBitmap(loc);
-         Img32 ret = new Img32(b);
-         return ret;
-      }
-      public static Bitmap LoadBitmap(FileLoc loc)
-      {
-         Bitmap b = null;
-
-         loc.AssertExists();
-
-         if (loc.FileStorage == FileStorage.Embedded)
-         {
-            using (var fs = Assembly.GetExecutingAssembly().GetManifestResourceStream(loc.QualifiedPath))
-            {
-               if (fs != null)
-               {
-                  b = new Bitmap(fs);
-               }
-            }
-         }
-         else if (loc.FileStorage == FileStorage.Disk)
-         {
-            b = new Bitmap(loc.QualifiedPath);
-         }
-         else
-         {
-            Gu.BRThrowNotImplementedException();
-         }
-         if (b == null)
-         {
-            Gu.BRThrowException("Failed to load image file " + loc.QualifiedPath);
-         }
-         return b;
-      }
-      public static unsafe byte[] Serialize<T>(T[] data) where T : struct
-      {
-         //This is .. terrible.
-         var size = Marshal.SizeOf(data[0]);
-         var bytes = new byte[size * data.Length];
-         for (int di = 0; di < data.Length; di++)
-         {
-            var ptr = Marshal.AllocHGlobal(size);
-            Marshal.StructureToPtr(data[di], ptr, true);
-            Marshal.Copy(ptr, bytes, di * size, size);
-            Marshal.FreeHGlobal(ptr);
-         }
-
-         return bytes;
-      }
-      public static T[] Deserialize<T>(byte[] data) where T : struct
-      {
-         var tsize = Marshal.SizeOf(default(T));
-
-         //Must be a multiple of the struct.
-         Gu.Assert(data.Length % tsize == 0);
-
-         var count = data.Length / tsize;
-         T[] ret = new T[count];
-
-         for (int di = 0; di < data.Length; di+=tsize)
-         {
-            var ptr_struct = Marshal.AllocHGlobal(tsize);
-            Marshal.StructureToPtr(data[di], ptr_struct, true);
-            ret[di / tsize] = (T)Marshal.PtrToStructure(ptr_struct, typeof(T));
-            Marshal.FreeHGlobal(ptr_struct);
-         }
-
-         return ret;
-      }
 
 
    }
 
-   #endregion
 }

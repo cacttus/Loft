@@ -1,13 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using OpenTK;
-using OpenTK.Graphics;
-using OpenTK.Graphics.OpenGL;
-using System.Drawing.Imaging;
-using System.Diagnostics;
+﻿using System.Text;
+using OpenTK.Graphics.OpenGL4;
 
 namespace PirateCraft
 {
@@ -380,7 +372,7 @@ namespace PirateCraft
          }
          file_lines.Add("//" + new StringBuilder().Insert(0, "->", callnumber).ToString() + "BEGIN: " + loc.RawPath + " (" + loc.QualifiedPath + ")\n");
 
-         string file_text = Gu.ReadTextFile(loc);
+         string file_text = ResourceManager.ReadTextFile(loc);
          string[] lines = file_text.Split("\n");
          foreach (string line in lines)
          {

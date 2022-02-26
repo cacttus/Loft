@@ -1,4 +1,6 @@
-﻿namespace PirateCraft
+﻿using System.Reflection;
+using System.Runtime.InteropServices;
+namespace PirateCraft
 {
    public class ResourceManager
    {
@@ -395,11 +397,11 @@
          {
             if (flip)
             {
-               for(int vi=0; vi<verts.Count; vi += 3)
+               for (int vi = 0; vi < verts.Count; vi += 3)
                {
                   v_v3n3x2 vert = verts[vi];
                   verts[vi] = verts[vi + 1];
-                  verts[vi+1] = vert;
+                  verts[vi + 1] = vert;
                }
             }
 
@@ -563,5 +565,144 @@
          }
          return ret;
       }
+
+
+      public static string ReadTextFile(FileLoc loc)
+      {
+         //Returns empty string when failSilently is true.
+         string data = "";
+         loc.AssertExists();
+
+         if (loc.FileStorage == FileStorage.Embedded)
+         {
+            using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(loc.QualifiedPath))
+            {
+               using (StreamReader reader = new StreamReader(stream))
+               {
+                  data = reader.ReadToEnd();
+               }
+            }
+         }
+         else if (loc.FileStorage == FileStorage.Disk)
+         {
+            if (!System.IO.File.Exists(loc.RawPath))
+            {
+               Gu.BRThrowException("File '" + loc.RawPath + "' does not exist.");
+            }
+
+            using (Stream stream = File.Open(loc.RawPath, FileMode.Open, FileAccess.Read, FileShare.None))
+            using (StreamReader reader = new StreamReader(stream))
+            {
+               data = reader.ReadToEnd();
+            }
+         }
+         else
+         {
+            Gu.BRThrowNotImplementedException();
+         }
+
+         return data;
+      }
+      public static void SaveImage(string path, Img32 image)
+      {
+         var dir = Path.GetDirectoryName(path);
+         if (!Directory.Exists(dir))
+         {
+            Directory.CreateDirectory(dir);
+         }
+
+         string ext = System.IO.Path.GetExtension(path).ToLower();
+         try
+         {
+            using (Stream fs = File.OpenWrite(path))
+            {
+               StbImageWriteSharp.ImageWriter writer = new StbImageWriteSharp.ImageWriter();
+
+               Img32 img2 = image.Clone();
+               img2.FlipBR(); //flip back before saving
+
+               writer.WritePng(img2.Data, image.Width, image.Height, StbImageWriteSharp.ColorComponents.RedGreenBlueAlpha, fs);
+            }
+         }
+         catch (Exception ex)
+         {
+            Gu.Log.Error("Failed to save image: " + ex.ToString());
+            Gu.DebugBreak();
+         }
+      }
+      //public static Img32 LoadImage(FileLoc loc)
+      //{
+      //   //Load an image in the form of Img32
+      //   Bitmap b = LoadBitmap(loc);
+      //   Img32 ret = new Img32(b);
+      //   return ret;
+      //}
+      public static Img32 LoadImage(FileLoc loc)
+      {
+         Img32 b = null;
+
+         loc.AssertExists();
+
+         try
+         {
+            using (var fs = loc.GetStream())
+            {
+               if (fs != null)
+               {
+                  StbImageSharp.ImageResult image = StbImageSharp.ImageResult.FromStream(fs, StbImageSharp.ColorComponents.RedGreenBlueAlpha);
+                  if (image != null)
+                  {
+                     b = new Img32(image.Width, image.Height, image.Data);
+                     b.FlipBR();
+                  }
+                  fs.Close();
+               }
+            }
+         }
+         catch (Exception ex)
+         {
+            Gu.Log.Error("failed to load image: " + ex.ToString());
+            Gu.DebugBreak();
+            b = Img32.Default1x1(255, 0, 255, 255);
+         }
+
+         return b;
+      }
+      public static unsafe byte[] Serialize<T>(T[] data) where T : struct
+      {
+         //This is .. terrible.
+         var size = Marshal.SizeOf(data[0]);
+         var bytes = new byte[size * data.Length];
+         for (int di = 0; di < data.Length; di++)
+         {
+            var ptr = Marshal.AllocHGlobal(size);
+            Marshal.StructureToPtr(data[di], ptr, true);
+            Marshal.Copy(ptr, bytes, di * size, size);
+            Marshal.FreeHGlobal(ptr);
+         }
+
+         return bytes;
+      }
+      public static T[] Deserialize<T>(byte[] data) where T : struct
+      {
+         var tsize = Marshal.SizeOf(default(T));
+
+         //Must be a multiple of the struct.
+         Gu.Assert(data.Length % tsize == 0);
+
+         var count = data.Length / tsize;
+         T[] ret = new T[count];
+
+         for (int di = 0; di < data.Length; di += tsize)
+         {
+            var ptr_struct = Marshal.AllocHGlobal(tsize);
+            Marshal.StructureToPtr(data[di], ptr_struct, true);
+            ret[di / tsize] = (T)Marshal.PtrToStructure(ptr_struct, typeof(T));
+            Marshal.FreeHGlobal(ptr_struct);
+         }
+
+         return ret;
+      }
+
    }
 }
