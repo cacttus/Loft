@@ -72,7 +72,7 @@ namespace PirateCraft
   }
   public class MainWindow : GameWindow
   {
-    bool DELETE_WORLD_START_FRESH = false;
+    bool DELETE_WORLD_START_FRESH = true;
     Camera3D _camera = null;
     WorldObject _boxMeshThing = null;
     int meshIdx = 0;
@@ -477,7 +477,7 @@ namespace PirateCraft
       if (b.Hit)
       {
         //  Gu.Context.DebugDraw.Point(b.HitPos + b.HitNormal * 0.1f, new vec4(1, 0, 0, 1));
-        Gu.Context.DebugDraw.Box(Gu.World.GetBlockBox(b, 0.01f), new vec4(.1014f, .155f, .0915f, 1));
+        Gu.Context.DebugDraw.Box(World.GetBlockBox(b, 0.01f), new vec4(.1014f, .155f, .0915f, 1));
       }
 
       //Play mine animation if we press

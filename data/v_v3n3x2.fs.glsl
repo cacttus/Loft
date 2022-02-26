@@ -69,6 +69,11 @@ void main(void)
     lights[1]._power = .8;// power within radius of light. 1 = is constant, 0.5 linear, 0 would be no light. <0.5 power falloff >0.5 is slow faloff. y=x^(1/p), p=[0,1] ,p!=0
 
     vec4 tx_albedo = texture(_ufTexture2D_Albedo, vec2(_vsTcoords));
+
+    if(tx_albedo.a < 0.001){
+    discard;
+    }
+
     vec3 tx_normal = normalize(texture(_ufTexture2D_Normal, vec2(_vsTcoords)).xyz * 2.0f - 1.0f);
      
     //mat3 mLightMatrix = getLightMatrix(_vsNormal, _vsVertex);

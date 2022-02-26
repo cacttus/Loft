@@ -1,4 +1,7 @@
-﻿Async gen -- this is getting annoying
+﻿TODO: multiple index buffers (with prim type) per mesh.
+/WE are currently rendering 2 meshes opaque and transparent
+
+Async gen -- this is getting annoying
 text on screen (debug)
 
 More things -- 
