@@ -72,7 +72,7 @@ namespace PirateCraft
   }
   public class MainWindow : GameWindow
   {
-    bool DELETE_WORLD_START_FRESH = true;
+    bool DELETE_WORLD_START_FRESH = false;
     Camera3D _camera = null;
     WorldObject _boxMeshThing = null;
     int meshIdx = 0;
@@ -347,7 +347,7 @@ namespace PirateCraft
     {
       if (!IsFocused)
       {
-        //return;
+        return;
       }
 
       if (Gu.Context.PCKeyboard.Press(Keys.D1))
@@ -474,9 +474,9 @@ namespace PirateCraft
         }
         if (b != null)
         {
-          if (b.Glob != null)
+          if (b.Drome != null)
           {
-            Gu.World.SetBlock(b.Glob, b.BlockPosLocal, Block.Empty, true);
+            Gu.World.SetBlock(b.Drome, b.BlockPosLocal, Block.Empty, false);
           }
         }
       }

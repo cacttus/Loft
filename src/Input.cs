@@ -119,7 +119,6 @@ namespace PirateCraft
       return ret;
     }
   }
-
   public class PCKeyboard : ButtonInputDevice<OpenTK.Windowing.GraphicsLibraryFramework.KeyboardState, OpenTK.Windowing.GraphicsLibraryFramework.Keys>
   {
     public override OpenTK.Windowing.GraphicsLibraryFramework.KeyboardState GetDeviceState()

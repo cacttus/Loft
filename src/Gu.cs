@@ -214,6 +214,7 @@ namespace PirateCraft
     {
       if (!x)
       {
+        Gu.DebugBreak();//First catch before we can't change the FOE
         throw new Exception("Assertion failed: " + caller + ":" + lineNumber.ToString());
       }
     }
