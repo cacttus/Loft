@@ -173,27 +173,23 @@ namespace PirateCraft
         if (w.IsFocused)
         {
           var pt = new OpenTK.Mathematics.Vector2i((int)(w.Size.X / 2), (int)(w.Size.Y / 2));
-          var pt_win = w.PointToScreen(pt);
+          var pt_win = pt;// w.PointToScreen(pt);
 
           if (warpX)
           {
-            w.MousePosition = new OpenTK.Mathematics.Vector2i(pt_win.X, pt.Y);
-            //OpenTK.Windowing.GraphicsLibraryFramework.GLFW.SetCursorPos()
-            //  SetCursorPos(pt_win.X, (int)_pos.y);
-            _pos.x = (float)pt.X;
+            w.MousePosition = new OpenTK.Mathematics.Vector2i(pt_win.X, (int)_pos.y);
+            _pos.x = (float)pt_win.X;
           }
           if (warpY)
           {
-            w.MousePosition = new OpenTK.Mathematics.Vector2i(pt.X, pt_win.Y);
-            //  SetCursorPos((int)_pos.x, pt_win.Y);
-            _pos.y = (float)pt.Y;
+            w.MousePosition = new OpenTK.Mathematics.Vector2i((int)_pos.x, pt_win.Y);
+            _pos.y = (float)pt_win.Y;
           }
           if (warpX && warpY)
           {
             w.MousePosition = new OpenTK.Mathematics.Vector2i(pt_win.X, pt_win.Y);
-            //  SetCursorPos(pt_win.X, pt_win.Y);
-            _pos.x = (float)pt.X;
-            _pos.y = (float)pt.Y;
+            _pos.x = (float)pt_win.X;
+            _pos.y = (float)pt_win.Y;
           }
 
           if (zeroDelta)
@@ -210,11 +206,10 @@ namespace PirateCraft
 
     public override void Update()
     {
-
       base.Update();
       _last = _pos;
-      _pos.x = (float)_deviceState.X;//
-      _pos.y = (float)_deviceState.Y;//
+      _pos.x = (float)_deviceState.X;
+      _pos.y = (float)_deviceState.Y;
     }
   }
 
