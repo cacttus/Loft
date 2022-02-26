@@ -408,6 +408,21 @@ namespace PirateCraft
       {
         Gu.Context.DebugDraw.DrawBoundBoxes = !Gu.Context.DebugDraw.DrawBoundBoxes;
       }
+      if (Gu.Keyboard.Press(Keys.F2))
+      {
+        VSync = (VSync==VSyncMode.Off) ? VSyncMode.On : VSyncMode.Off;
+      }
+      if (Gu.Keyboard.Press(Keys.F11))
+      {
+        if(this.WindowState == WindowState.Fullscreen)
+        {
+          WindowState = WindowState.Normal;
+        }
+        else
+        {
+          WindowState = WindowState.Fullscreen;
+        }
+      }
       if (Gu.Keyboard.Press(Keys.D1))
       {
         Material.DefaultDiffuse().Shader.lightingModel = ((Material.DefaultDiffuse().Shader.lightingModel + 1) % 3);
@@ -517,7 +532,6 @@ namespace PirateCraft
     public static void Main(string[] args)
     {
       var m = new MainWindow();
-      m.VSync = VSyncMode.Off;
       m.Run();
     }
   }

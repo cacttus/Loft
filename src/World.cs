@@ -284,24 +284,29 @@ namespace PirateCraft
     }
   }
 
+  public class QueuedGlobData
+  {
+    public Glob glob;
+    public List<v_v3n3x2> async_verts = null;
+    public List<uint> async_inds = null;
+    public long QueueId = 0;
+  }
   //Topology units
   public class Glob
   {
     public enum GlobState
     {
-      None, LoadedAndQueued, Topologized
+      Created, Queued, VertsGenerated, Topologized
     }
 
     public Int64 GeneratedFrameStamp { get; private set; } = 0;
     public MeshData Transparent = null;
     public MeshData Opaque = null;
-    //public Block[] Blocks = null;
     public ivec3 Pos = new ivec3(0, 0, 0);
-    public GlobState State = GlobState.None;
+    public GlobState State = GlobState.Created;
     public Drome Drome = null;
-    //public int Solid = 0;
-    //public int Empty = 0;
-    //public int Items = 0;
+    public object lock_object = new object();
+    public long QueueId = 0;
     public vec3 OriginR3
     {
       get
@@ -344,12 +349,13 @@ namespace PirateCraft
   //GlobWorld
   public class World
   {
+    public int LimitYAxisGeneration = 0;//0 = off, >0 - limit globs generated along Y axis (faster generation)
     public const float MaxTotalGlobs = 4096 * 2 * 2 * 2;
     public const float MaxRenderGlobs = 4096;
     public int MaxGlobsToGeneratePerFrameShell = 10;
-    public const float BlockSizeX = 4.0f;
-    public const float BlockSizeY = 4.0f;
-    public const float BlockSizeZ = 4.0f;
+    public const float BlockSizeX = 8.0f;
+    public const float BlockSizeY = 8.0f;
+    public const float BlockSizeZ = 8.0f;
     public const int GlobBlocksX = 16;
     public const int GlobBlocksY = 16;
     public const int GlobBlocksZ = 16;
@@ -383,10 +389,14 @@ namespace PirateCraft
     private Dictionary<ivec3, Glob> _globs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //All globs
     private Dictionary<ivec3, Glob> _renderGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
     private Dictionary<ivec3, Glob> _visibleRenderGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
-    private Dictionary<ivec3, Glob> _globsToUpdate = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
+    private object _globsToTopo_LockObject = new object();
+    private List<QueuedGlobData> _globsToTopo = new List<QueuedGlobData>(); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
+    private object _finishedGlobs_LockObject= new object();
+    private List<QueuedGlobData> _finishedGlobs = new List<QueuedGlobData>(); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
+    private long _queueId = 1;
+
     private Dictionary<string, WorldObject> Objects { get; set; } = new Dictionary<string, WorldObject>();
     private Dictionary<ivec3, Drome> _dromes = new Dictionary<ivec3, Drome>(new ivec3.ivec3EqualityComparer()); //All globs
-
 
     public int Dbg_N_OB_Culled = 0;
     public int NumGlobs { get { return _globs.Count; } }
@@ -427,10 +437,11 @@ namespace PirateCraft
       Gu.Assert(loc != null);
       return loc;
     }
-    public void Initialize(WorldObject player, string worldName, bool delete_world_start_fresh)
+    public void Initialize(WorldObject player, string worldName, bool delete_world_start_fresh, int limit_y_axis=0)
     {
       Player = player;
       WorldName = worldName;
+      LimitYAxisGeneration = limit_y_axis;
 
       if (!MathUtils.IsPowerOfTwo(GlobBlocksX) || !MathUtils.IsPowerOfTwo(GlobBlocksY) || !MathUtils.IsPowerOfTwo(GlobBlocksZ))
       {
@@ -452,11 +463,17 @@ namespace PirateCraft
       InitWorldDiskFile(delete_world_start_fresh);
 
       //Asynchronous generator .. (TODO)
-      // Task.Factory.StartNew(() => {
-      //});
+      Task.Factory.StartNew(() =>
+      {
+        while (true)
+        {
+          TopologizeGlobs();
+          System.Threading.Thread.Sleep(1);
+        }
+      });
 
       Gu.Log.Info("Building initail grid");
-      BuildGlobGridAndTopologize(player.World.extractTranslation(), RenderRadiusShell * 5, true);
+      BuildGlobGrid(player.World.extractTranslation(), RenderRadiusShell * 5, true);
     }
     public void Update(double dt, Camera3D cam)
     {
@@ -812,7 +829,7 @@ namespace PirateCraft
         vec3 awareness_radius = RenderRadiusShell * _currentShell;
 
         vec3 ppos = Player.World.extractTranslation();
-        List<Glob> newGlobs = BuildGlobGridAndTopologize(ppos, awareness_radius);
+        List<Glob> newGlobs = BuildGlobGrid(ppos, awareness_radius);
 
         if ((newPlayerGlob != playerLastGlob))
         {
@@ -825,6 +842,7 @@ namespace PirateCraft
           _currentShell++;
         }
 
+        FinishGeneratingGlobs();
       }
 
       //We are no longer initially generating the world.
@@ -856,6 +874,56 @@ namespace PirateCraft
       //}
 
     }
+    private void FinishGeneratingGlobs()
+    {
+      //Create the mesh (gpu) and add/remove from renderglobs.
+      List<QueuedGlobData> finished;
+      lock (_finishedGlobs_LockObject)
+      {
+        finished = new List<QueuedGlobData>(_finishedGlobs);
+        _finishedGlobs.Clear();
+      }
+      foreach(var qgd in finished)
+      {
+        var glob = qgd.glob;
+
+        //if(glob.QueueId != qgd.QueueId)
+        //{
+        //  //Discard - w
+        //  continue;
+        //}
+
+        StitchGlobTopology(glob);
+
+        bool globTopologyBefore = glob.Opaque != null || glob.Transparent != null;
+        glob.Opaque = null;
+        glob.Transparent = null;
+
+        if (qgd.async_inds.Count > 0)
+        {
+          glob.Opaque = new MeshData("", OpenTK.Graphics.OpenGL4.PrimitiveType.Triangles,
+             v_v3n3x2.VertexFormat, Gpu.GetGpuDataPtr(qgd.async_verts.ToArray()),
+             IndexFormatType.Uint32, Gpu.GetGpuDataPtr(qgd.async_inds.ToArray())
+             );
+        }
+        //Avoid memory leaks
+        qgd.async_inds = null;
+        qgd.async_verts = null;
+
+        //Update RenderGlobs
+        bool globTopologyAfter = glob.Opaque != null || glob.Transparent != null;
+        if (globTopologyBefore && !globTopologyAfter)
+        {
+          _renderGlobs.Remove(glob.Pos);
+        }
+        else if (!globTopologyBefore && globTopologyAfter)
+        {
+          _renderGlobs.Add(glob.Pos, glob);
+        }
+
+        glob.State = Glob.GlobState.Topologized;
+      }
+    }
     private List<Glob> BuildGlobGrid(vec3 origin, vec3 awareness_radius, bool logprogress = false)
     {
       //Build a grid of globs in the volume specified by origin/radius
@@ -869,13 +937,16 @@ namespace PirateCraft
       ibox._max = new ivec3((int)(bf._max.x / GlobWidthX), (int)(bf._max.y / GlobWidthY), (int)(bf._max.z / GlobWidthZ));
 
       //Limit Y axis ..  DEBUG ONLY
-      Gu.Log.WarnCycle("Limiting debug Y axis for testing");
-      int ylimit = 3;
-      if (ibox._min.y > ylimit) { ibox._min.y = ylimit; }
-      if (ibox._min.y < -ylimit) { ibox._min.y = -ylimit; }
-      if (ibox._max.y > ylimit) { ibox._max.y = ylimit; }
-      if (ibox._max.y < -ylimit) { ibox._max.y = -ylimit; }
-      if (ibox._min.y > ibox._max.y) { ibox._min.y = ibox._max.y; }
+      if (LimitYAxisGeneration>0)
+      {
+        Gu.Log.WarnCycle("Limiting debug Y axis for testing");
+        int ylimit = LimitYAxisGeneration;
+        if (ibox._min.y > ylimit) { ibox._min.y = ylimit; }
+        if (ibox._min.y < -ylimit) { ibox._min.y = -ylimit; }
+        if (ibox._max.y > ylimit) { ibox._max.y = ylimit; }
+        if (ibox._max.y < -ylimit) { ibox._max.y = -ylimit; }
+        if (ibox._min.y > ibox._max.y) { ibox._min.y = ibox._max.y; }
+      }
 
       int dbg_totalCount = 0;
       for (int z = ibox._min.z; z <= ibox._max.z; z++)
@@ -932,44 +1003,7 @@ namespace PirateCraft
     }
     public int dbg_nSkippedStitch = 0;
     public int dbg_nEmptyNoData = 0;
-    private List<Glob> BuildGlobGridAndTopologize(vec3 origin, vec3 awareness_radius, bool logprogress = false)
-    {
-      List<Glob> newGlobs = BuildGlobGrid(origin, awareness_radius, logprogress);
 
-      if (logprogress)
-      {
-        Gu.Log.Info("Topologizing " + newGlobs.Count);
-      }
-
-      //We need to add a sufficient grow algorithm.
-
-      foreach (Glob g in _globsToUpdate.Values)
-      {
-        //  g.Opaque = null;
-        //  g.Transparent = null;
-
-      //  Gu.Log.Warn("Commented out density state optimizations until we index into the drome array for states");
-     //   if (g.DensityState != Glob.GlobDensityState.Empty_AndNoData)
-        {
-          TopologizeGlob(g);
-          dbg_nEmptyNoData++;
-        }
-      //  else
-        {
-          //The block is empty, the inside of the block has no topology. No data.
-          // g.Blocks = null;
-        }
-     //   if (g.DensityState != Glob.GlobDensityState.SolidBlocksOnly)
-        {
-          //No neighboring blocks would be visible, so stitchin gisn't needed
-          StitchGlobTopology(g);
-          dbg_nSkippedStitch++;
-        }
-      }
-      _globsToUpdate.Clear();
-
-      return newGlobs;
-    }
     private UInt16 CreateBlock(ushort item, vec3 world_pos)
     {
       //Coming in we have just value/empty blocks now generate the block type.
@@ -1014,7 +1048,7 @@ namespace PirateCraft
       Drome drome = GenerateOrLoadDrome(dromePos);
       Glob g = new Glob(gpos, Gu.Context.FrameStamp, drome);
 
-      _globsToUpdate.Add(gpos, g);
+      QueueForTopo(g, false);
 
       return g;
     }
@@ -1141,24 +1175,67 @@ namespace PirateCraft
           else
           {
             //It's way faster to do a cutsom stitching of just the borders, but this is a Q&D thing right now.
-            TopologizeGlob(gn);
+            QueueForTopo(gn, false);
+            //TopologizeGlob(gn);
           }
         }
       }
     }
-    private void TopologizeGlob(Glob glob)
+    private void TopologizeGlobs()
     {
-      bool globTopologyBefore = glob.Opaque != null || glob.Transparent != null;
+      //if (logprogress)
+      //{
+      //}
+      List<QueuedGlobData> tops = GrabFromTopo(32);
 
-      glob.Opaque = null;
-      glob.Transparent = null;
+      //We need to add a sufficient grow algorithm.
+      //  Gu.Log.Info("Topologizing " + newGlobs.Count);
+
+      foreach (QueuedGlobData qgd in tops)
+      {
+        //bool discard = false;
+        //if(qgd.QueueId != qgd.glob.QueueId)
+        //{
+        //  discard = true;
+        //}
+        //if (discard)
+        //{
+        //  continue;
+        //}
+
+        //TODO: - add this back
+        //  Gu.Log.Warn("Commented out density state optimizations until we index into the drome array for states");
+        //   if (g.DensityState != Glob.GlobDensityState.Empty_AndNoData)
+        {
+          TopologizeGlob(qgd);
+          dbg_nEmptyNoData++;
+        }
+        //  else
+        {
+          //The block is empty, the inside of the block has no topology. No data.
+          // g.Blocks = null;
+        }
+        //   if (g.DensityState != Glob.GlobDensityState.SolidBlocksOnly)
+        {
+          //No neighboring blocks would be visible, so stitchin gisn't needed
+          dbg_nSkippedStitch++;
+        }
+      }
+      //lock (_globsToTopo_LockObject)
+      //{
+      // // _globsToTopo.Clear();
+      //}
+    }
+    private void TopologizeGlob(QueuedGlobData qgd)
+    {
       //    6    7
       // 2    3
       //    4    5
       // 0    1
       //Mesh
-      List<v_v3n3x2> verts = new List<v_v3n3x2>();
-      List<uint> inds = new List<uint>();
+      List<v_v3n3x2>  async_verts = new List<v_v3n3x2>();
+      List<uint>  async_inds = new List<uint>();
+      
       vec3[] face_offs = new vec3[] {
             new vec3(-World.BlockSizeX, 0, 0),
             new vec3(World.BlockSizeX, 0, 0),
@@ -1170,6 +1247,8 @@ namespace PirateCraft
       Block our_block;
       vec2[] texs = new vec2[4];
       List<MtTex> patches = new List<MtTex>();
+
+      var glob = qgd.glob;
 
       Gu.Assert(glob.Drome != null);
       Drome drome = glob.Drome;
@@ -1226,7 +1305,7 @@ namespace PirateCraft
               }
               else
               {
-                uint foff = (uint)verts.Count;
+                uint foff = (uint)async_verts.Count;
 
                 //b.Value
                 if (patches != null && patches.Count == 3)
@@ -1270,7 +1349,7 @@ namespace PirateCraft
                 vec3 block_pos_abs_R3 = block_pos_rel_R3 + glob.OriginR3;
                 for (int vi = 0; vi < 4; ++vi)
                 {
-                  verts.Add(new v_v3n3x2()
+                  async_verts.Add(new v_v3n3x2()
                   {
                     _v = WorldStaticData.bx_verts_face[face, vi]._v + block_pos_abs_R3,
                     _n = WorldStaticData.bx_verts_face[face, vi]._n,
@@ -1280,7 +1359,7 @@ namespace PirateCraft
 
                 for (int ii = 0; ii < 6; ++ii)
                 {
-                  inds.Add(foff + WorldStaticData.bx_face_inds[ii]);
+                  async_inds.Add(foff + WorldStaticData.bx_face_inds[ii]);
                 }
 
               }
@@ -1289,27 +1368,22 @@ namespace PirateCraft
           }
         }
       }
+      qgd.async_verts = async_verts;
+      qgd.async_inds = async_inds;
 
-      if (inds.Count > 0)
+      //lock (glob.lock_object)
+      //{
+      //  //These must be set to null to avoid memory leaks.
+      //  Gu.Assert(glob.async_verts == null);
+      //  Gu.Assert(glob.async_inds == null);
+        
+      //  glob.State = Glob.GlobState.VertsGenerated;
+      //}
+      lock (_finishedGlobs_LockObject)
       {
-        glob.Opaque = new MeshData("", OpenTK.Graphics.OpenGL4.PrimitiveType.Triangles,
-           v_v3n3x2.VertexFormat, Gpu.GetGpuDataPtr(verts.ToArray()),
-           IndexFormatType.Uint32, Gpu.GetGpuDataPtr(inds.ToArray())
-           );
+        _finishedGlobs.Add(qgd);
       }
 
-      //Update RenderGlobs
-      bool globTopologyAfter = glob.Opaque != null || glob.Transparent != null;
-      if (globTopologyBefore && !globTopologyAfter)
-      {
-        _renderGlobs.Remove(glob.Pos);
-      }
-      else if (!globTopologyBefore && globTopologyAfter)
-      {
-        _renderGlobs.Add(glob.Pos, glob);
-      }
-
-      glob.State = Glob.GlobState.Topologized;
     }
     private UInt16 Density(vec3 world_pos)
     {
@@ -1472,7 +1546,7 @@ namespace PirateCraft
         //Assuming that SetBlock with bInitialGen_.. as false is only ever called when we mine a block.. Therefore the block must be in view. and loaded
         if (g != null)
         {
-          QueueForUpdate(g);
+          QueueForTopo(g, true);
         }
         else
         {
@@ -1480,12 +1554,37 @@ namespace PirateCraft
         }
       }
     }
-    public void QueueForUpdate(Glob g)
+    public void QueueForTopo(Glob g, bool priority)
     {
-      if (!_globsToUpdate.ContainsKey(g.Pos))
+
+            QueuedGlobData qgd = new QueuedGlobData();
+        qgd.glob = g;
+        qgd.QueueId = _queueId++;
+        g.QueueId = qgd.QueueId;
+      lock (_globsToTopo_LockObject)
       {
-        _globsToUpdate.Add(g.Pos, g);
+        if (priority)
+        {
+          _globsToTopo.Insert(0, qgd);
+        }
+        else
+        {
+          _globsToTopo.Add(qgd);
+        }
       }
+    }
+    public List<QueuedGlobData> GrabFromTopo(int max_per_step)
+    {
+      List<QueuedGlobData> ret = new List<QueuedGlobData>();
+      lock (_globsToTopo_LockObject)
+      {
+        for (int i = 0; i < max_per_step && i< _globsToTopo.Count; i++)
+        {
+          ret.Add(_globsToTopo[0]);
+          _globsToTopo.RemoveAt(0);
+        }
+      }
+      return ret;
     }
     //public Block GetBlock(Glob g, ivec3 local_pos_glob)
     //{
