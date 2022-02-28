@@ -1,4 +1,27 @@
-﻿TODO: multiple index buffers (with prim type) per mesh.
+﻿mountain
+
+shells work for dromes but not for globs. too many globs I think we have a minimum shell for globs,
+//like say 3 glob raius (critical) then we generate what the player sees
+///So we march a small radius then the grid of the player.
+      
+we need a better algorithm for culling out globs than chekcing ivec3 in _globs since 90% of globs have no topology.
+1 start from cam pos and walk globs in camera
+2 walk known globs neighbors if they're within camera - so all render globs are visible, we already have them, so march their nighbrons
+* render globs sorted by distance anyway, so we take the furthest renderglobs and topologize their neighbors if the neighbor is within camera bounds.
+
+globs really have no use besides being handles to mesh data. we can cull 90% of them out and save memory.
+dromes will still use awareness but a fixed radius and short one. We only need 8 dromes at a time max.
+get rid of most globs
+only generate visible globs based on distance from user (not ivec3)
+
+* stitch globs
+fix drome / glob intersection in glob generation performance problems.
+gix awareness distance
+
+async drome
+Lighting + materials
+
+TODO: multiple index buffers (with prim type) per mesh.
 /WE are currently rendering 2 meshes opaque and transparent
 
 Async gen -- this is getting annoying
@@ -8,6 +31,10 @@ More things --
 deferred buffers (for picking objects mainly)
 shader includes 
 d_lighting isn't needed if we're using some kind of integer lighting method.
+    plane cast lighting
+        use integer grid, but at the points of cubes and blend the points for shadows
+           kind of a shadow volume technique I guess
+           bounce lighting ugh, I dont know
 picking.. sort of.
 
 dir light (sun)

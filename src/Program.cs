@@ -211,7 +211,9 @@ namespace PirateCraft
            World.BlockSizeZ * World.GlobBlocksZ * .5f
            ));
 
-        Gu.World.Initialize(_camera, "Boogerton", DELETE_WORLD_START_FRESH);
+        _camera.Far = 2000.0f;
+
+        Gu.World.Initialize(_camera, "Boogerton", DELETE_WORLD_START_FRESH, 2);
 
         Gu.Context.DebugDraw.DrawBoundBoxes = false;
 
@@ -258,11 +260,11 @@ namespace PirateCraft
       Sphere_Rotate_Quat_Test3 = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test3", MeshData.GenSphere(), new Material(Shader.DefaultDiffuse(), hogback));
 
       //TODO: sky shader. 
-      Material sky_mat = new Material(Shader.DefaultDiffuse(), sky1);
-      sky_mat.GpuRenderState.DepthTest = false;//Disable depth test.
-      Gu.World.Sky = Gu.World.CreateObject("sky", MeshData.GenSphere(128, 128, 400, true, true), sky_mat);
-      Gu.World.Sky.Mesh.DrawOrder = DrawOrder.First;
-      Gu.World.Sky.Constraints.Add(new FollowConstraint(_camera, FollowConstraint.FollowMode.Snap));
+     // Material sky_mat = new Material(Shader.DefaultDiffuse(), sky1);
+     // sky_mat.GpuRenderState.DepthTest = false;//Disable depth test.
+     // Gu.World.Sky = Gu.World.CreateObject("sky", MeshData.GenSphere(128, 128, 400, true, true), sky_mat);
+     // Gu.World.Sky.Mesh.DrawOrder = DrawOrder.First;
+     // Gu.World.Sky.Constraints.Add(new FollowConstraint(_camera, FollowConstraint.FollowMode.Snap));
 
       //Animation test
       var cmp = new AnimationComponent();
@@ -365,7 +367,7 @@ namespace PirateCraft
       float speedMul = 1;
       if (Gu.Keyboard.PressOrDown(Keys.LeftControl) || Gu.Keyboard.PressOrDown(Keys.RightControl))
       {
-        speedMul = 3;
+        speedMul = 6;
       }
       if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.Q }))
       {
@@ -514,7 +516,7 @@ namespace PirateCraft
     }
     protected override void OnRenderFrame(FrameEventArgs e)
     {
-      Gu.Context.Renderer.BeginRender(this, new vec4(1, 1, 1, 1));
+      Gu.Context.Renderer.BeginRender(this, new vec4(.3f, .3f, .3f, 1));
       {
         Gu.World.Render(Gu.Context.Delta, _camera);
         Gu.World.RenderDebug(Gu.Context.Delta, _camera);

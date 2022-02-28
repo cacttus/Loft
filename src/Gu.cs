@@ -1,121 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Drawing;
-using System.Reflection;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using OpenTK.Windowing.Desktop;
 
 namespace PirateCraft
 {
-  public enum FileStorage
-  {
-    Disk,
-    Embedded,
-    Web,
-    Generated,
-  }
-
-  /// <summary>
-  /// FileLoc represents a virtual file location on disk, embed, or web
-  /// </summary>
-  public class FileLoc
-  {
-    //The name here has to be unique or it will cause conflicts.
-    public static FileLoc Generated = new FileLoc("<generated>", FileStorage.Generated);
-
-    public FileStorage FileStorage { get; private set; } = FileStorage.Disk;
-    public string RawPath { get; private set; } = "";
-
-    public Stream? GetStream()
-    {
-      string qualifiedPath = this.QualifiedPath;
-
-      if (FileStorage == FileStorage.Embedded)
-      {
-        return System.Reflection.Assembly.GetExecutingAssembly().GetManifestResourceStream(qualifiedPath);
-      }
-      else if (FileStorage == FileStorage.Disk)
-      {
-        return File.OpenRead(qualifiedPath);
-      }
-      else
-      {
-        Gu.BRThrowNotImplementedException();
-      }
-      return null;
-    }
-
-    public string QualifiedPath
-    {
-      //Returns the full path with base storage location (disk/embed..)
-      get
-      {
-        string path = RawPath;
-        if (FileStorage == FileStorage.Embedded)
-        {
-          path = Gu.EmbeddedDataPath + path;
-        }
-        else if (FileStorage == FileStorage.Disk)
-        {
-          //noop
-        }
-        else
-        {
-          Gu.BRThrowNotImplementedException();
-        }
-        return path;
-      }
-    }
-    public bool Exists
-    {
-      get
-      {
-        if (FileStorage == FileStorage.Embedded)
-        {
-          bool exist = Assembly.GetExecutingAssembly().GetManifestResourceNames().Contains(QualifiedPath);
-          return exist;
-        }
-        else if (FileStorage == FileStorage.Disk)
-        {
-          return File.Exists(QualifiedPath);
-        }
-        else
-        {
-          Gu.BRThrowNotImplementedException();
-        }
-        return false;
-      }
-    }
-
-    public FileLoc(string path, FileStorage storage)
-    {
-      RawPath = path;
-      FileStorage = storage;
-    }
-    public override bool Equals(object? obj)
-    {
-      return base.Equals(obj);
-      FileLoc other = obj as FileLoc;
-      if (other != null)
-      {
-        return other.RawPath.Equals(RawPath) && other.FileStorage.Equals(FileStorage);
-      }
-      else
-      {
-        Gu.BRThrowNotImplementedException();
-      }
-      return false;
-    }
-    public void AssertExists()
-    {
-      if (!Exists)
-      {
-        throw new Exception("File " + QualifiedPath + " does not exist.");
-      }
-    }
-  }
   // Global Utils. static Class
   public static class Gu
   {
@@ -146,13 +35,13 @@ namespace PirateCraft
     public static PCKeyboard Keyboard { get { return Context.PCKeyboard; } }
     public static ResourceManager ResourceManager { get; private set; } = new ResourceManager();
 
-    public static string LocalCachePath="";
-    public static string SavePath="";
+    public static string LocalCachePath = "";
+    public static string SavePath = "";
 
     public static void Init(GameWindow g)
     {
-      LocalCachePath = System.IO.Path.Combine(ExePath,"./data/cache");
-      SavePath = System.IO.Path.Combine(ExePath,"./save");
+      LocalCachePath = System.IO.Path.Combine(ExePath, "./data/cache");
+      SavePath = System.IO.Path.Combine(ExePath, "./save");
 
       //Create cache
       var dir = Path.GetDirectoryName(LocalCachePath);
@@ -194,6 +83,10 @@ namespace PirateCraft
     {
       return Nanoseconds() / 1000;
     }
+    public static Int64 Milliseconds()
+    {
+      return Microseconds() / 1000;
+    }
     public static double RotationPerSecond(double seconds)
     {
       var f = (Context.UpTime % seconds) / seconds;
@@ -225,7 +118,21 @@ namespace PirateCraft
 
     #endregion
 
+    public static void TryLock(object ob, Action<object> act)
+    {
+      if (Monitor.TryEnter(ob))
+      {
+        try
+        {
+          act(ob);
+        }
+        finally
+        {
+          Monitor.Exit(ob);
+        }
+      }
 
+    }
 
 
   }
