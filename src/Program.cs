@@ -310,7 +310,7 @@ namespace PirateCraft
     {
       float chary = this._camera.Position.y;
       Title = $"(CharY = {chary}) (Vsync: {VSync}) FPS: {1f / e.Time:0} " +
-         $"AllGlobs: {Gu.World.NumGlobs} Render: {Gu.World.NumRenderGlobs} Visible: {Gu.World.NumVisibleRenderGlobs} " +
+         $"Render G: {Gu.World.NumRenderGlobs} Visible G: {Gu.World.NumVisibleRenderGlobs} " +
          $"Elements_Frame:{MeshData.dbg_numDrawElements_Frame} Arrays_Frame: {MeshData.dbg_numDrawArrays_Frame} " +
          $"OBs culled:{Gu.World.Dbg_N_OB_Culled} " +
          $"Mouse:{Gu.Mouse.Pos.x},{Gu.Mouse.Pos.y} "
@@ -493,7 +493,7 @@ namespace PirateCraft
         {
           if (b.Drome != null)
           {
-            Gu.World.SetBlock(b.Drome, b.BlockPosLocal, Block.Empty, false);
+            b.Drome.SetBlock(b.BlockPosLocal, Block.Empty, false);
           }
         }
       }

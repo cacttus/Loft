@@ -1,4 +1,20 @@
-﻿mountain
+﻿
+divide drome x 8 
+for now, just keep the block data in the whole drome. don't cull empties. 
+    'if we change that we'd change the raymarch algorithm and I dont want to yet.
+    and basiclly .. all block indexing
+    and entire drome save routine ..
+    in the future we can move block data to globs
+integer bvh - neat
+
+drome load - construct bvh. dont save it
+
+usage of bvh is to collide with frustum to determine visible/invisible regions
+
+
+
+
+mountain
 
 shells work for dromes but not for globs. too many globs I think we have a minimum shell for globs,
 //like say 3 glob raius (critical) then we generate what the player sees
