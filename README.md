@@ -7,21 +7,18 @@
 * Make sure to install OpenAL 
 	* Windows google the openAL installer and run the installer
 	* Linux install via package manager
-	TODO: we can add the DLL here for windows .. Linux .. 
+		* TODO: add the DLL here for windows 
+
 
 # How to Run
+
+* Note: MonoDevelop is no longer working for this. Use VSCode or Mono on Linux
 
 1. Visual Studio
 	
 	* Open Solution (.sln), F5.
 
-2. MonoDevelop
-
-	* Go to MonoDevelop.com and follow the steps to install it. 
-
-	* The package manager in MonoDevelop should detect the correct OpenTK packages. The newest versions of OpenTK aren't compatible, probably due to .NET version. I selected v3.1.
-
-3. VSCode + OmniSharp
+2. VSCode + OmniSharp
 	
 	* This is for OmniSharp. There is also an extension that lets you debug with Mono on a server. 
 
@@ -36,7 +33,7 @@
 	* There is also a solution explorer extension for VSCode that makes this easier.
 
 
-4. Manual Debug with Mono
+3. Manual Debug with Mono
 
 	* Install mono-complete.
 
