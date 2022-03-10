@@ -120,8 +120,8 @@ namespace PirateCraft
       public int getWidth() { return _iWidth; }
       public int getHeight() { return _iHeight; }
       public float getSizeRatio() { return _fSizeRatio; }
-      public vec2 uv0 { get { return _uv_p0; } set { _uv_p0 = value; } }
-      public vec2 uv1 { get { return _uv_p1; } set { _uv_p1 = value; } }
+      public vec2 uv0 { get { return _uv_p0; } set { _uv_p0 = value; } } // Bottom left,in OpenGL coordinates, from [0,1] 
+      public vec2 uv1 { get { return _uv_p1; } set { _uv_p1 = value; } } // Top Right [0,1]
       public MtNode node() { return _pMtNode; }        //mega texture node
       public void setNode(MtNode n) { _pMtNode = n; }  //mega texture node
       public Img32 img() { return _pImg; }

@@ -3,18 +3,24 @@ using System.Drawing;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Windowing.Desktop;
 using System.Collections.Generic;
-
+using System.Runtime.InteropServices;
 namespace PirateCraft
 {
-   //Rendering pipeline
-   //Sets up context, passes, FBOs, and renders to multiple cameras.
-   // pipeline -> begin (FBO, pass)
-   //  camera -> begin (viewport, clip, matrices)
-   //   material -> begin (gpu state)
-   //    shader -> begin (bind uniforms, textures)
-   //     draw elements
-   //  unbind so we don't mess up the state.. 
-   public class Renderer
+  [StructLayout(LayoutKind.Sequential)]
+  public struct GLInstance
+  {
+    public mat4 model_matrix;
+  }
+  
+  //Rendering pipeline
+  //Sets up context, passes, FBOs, and renders to multiple cameras.
+  // pipeline -> begin (FBO, pass)
+  //  camera -> begin (viewport, clip, matrices)
+  //   material -> begin (gpu state)
+  //    shader -> begin (bind uniforms, textures)
+  //     draw elements
+  //  unbind so we don't mess up the state.. 
+  public class Renderer
    {
       public enum RenderPipelineState
       {
@@ -28,7 +34,7 @@ namespace PirateCraft
       public Renderer()
       {
       }
-      public void BeginRender(GameWindow g, vec4 color)
+      public void BeginRender(MainWindow g, vec4 color)
       {
          //Begin global rendering, to render to all cameras that want rendering.
          Gu.Assert(RenderState == RenderPipelineState.End || RenderState == RenderPipelineState.None );

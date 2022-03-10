@@ -12,11 +12,22 @@ namespace PirateCraft
       v.normalize();
       return v;
     }
+    //Inclusive [min,max]
     public static int NextInt(int min, int max)
     {
       //Inclusive
       int ret = (int)Math.Round((float)min + ((float)max - (float)min) * Next());
       return ret;
+    }
+    public static int Next(Minimax<int> ia)
+    {
+      //Inclusive
+      return NextInt(ia.Min, ia.Max);
+    }
+    public static float Next(Minimax<float> ia)
+    {
+      //Exclusive
+      return Next(ia.Min, ia.Max);
     }
     public static float Next(float min, float max)
     {

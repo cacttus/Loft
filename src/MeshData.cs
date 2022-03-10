@@ -7,7 +7,7 @@ using System.Runtime.InteropServices;
 
 namespace PirateCraft
 {
-  public abstract class DataBlock : IDisposable
+  public abstract class DataBlock 
   {
     private static int IdGen = 1;
     public string Name { get; private set; }
@@ -17,8 +17,6 @@ namespace PirateCraft
       Id = IdGen++;
       Name = name;
     }
-
-    public abstract void Dispose();
   }
   public enum DrawOrder
   {
@@ -36,17 +34,20 @@ namespace PirateCraft
     }
     public void Bind()
     {
+      //Note the vertex array must be bound before this works.
+      //If array is a name returned by glGenVertexArrays, by that has not yet been bound through a call to glBindVertexArray, then the name is not a vertex array object and glIsVertexArray returns GL_FALSE.
       if (!GL.IsVertexArray(_glId))
       {
         Gu.Log.Error("Mesh was not a VAO.");
+        Gu.DebugBreak();
         return;
       }
       GL.BindVertexArray(_glId);
     }
-    public override void Dispose()
+    //Do not implement finalizer
+    public override void Dispose_OpenGL_RenderThread()
     {
       GL.DeleteVertexArray(_glId);
-      base.Dispose();
     }
     public void Unbind()
     {
@@ -70,14 +71,6 @@ namespace PirateCraft
     public IndexFormat IndexFormat { get { return _indexFormat; } } //If null, then there is no indexes associated with this mesh.
     public PrimitiveType PrimitiveType { get { return _primitiveType; } }
     public bool BoundBoxComputed { get; private set; } = false;
-
-    public override void Dispose()
-    {
-      _indexBuffer.Dispose();
-      _vertexBuffer.Dispose();
-      _vao.Dispose();
-    }
-
     public bool HasIndexes
     {
       get
@@ -87,6 +80,7 @@ namespace PirateCraft
     }
     public MeshData(string name, PrimitiveType pt, VertexFormat fmt, IndexFormatType ifmt = IndexFormatType.None) : base(name)
     {
+      
       Gu.Assert(fmt != null);
       _primitiveType = pt;
       _vertexFormat = fmt;
@@ -114,12 +108,13 @@ namespace PirateCraft
       {
         Gu.Log.Error("MeshData creation: Error: vertexes or indexes are null and were required.");
       }
+      
       CreateBuffers(verts, indexes, computeBoundBox);
     }
     public static int dbg_numDrawElements_Frame = 0;
     public static int dbg_numDrawArrays_Frame = 0;
     private static long dbg_frame = 0;
-    public void Draw()
+    public void Draw(mat4[] instances = null)
     {
       if (Gu.Context.FrameStamp != dbg_frame)
       {
@@ -135,14 +130,27 @@ namespace PirateCraft
       {
         if (_indexBuffer != null)
         {
-          GL.DrawElements(PrimitiveType,
+          if (instances != null && instances.Length > 0)
+          {
+            GL.DrawElementsInstanced(PrimitiveType,
+              _indexBuffer.ItemCount,
+              _indexBuffer.ItemSize == 2 ? DrawElementsType.UnsignedShort : DrawElementsType.UnsignedInt,
+              IntPtr.Zero,
+              instances.Length
+              );
+            Gpu.CheckGpuErrorsDbg();
+            dbg_numDrawElements_Frame++;
+          }
+          else
+          {
+            GL.DrawElements(PrimitiveType,
               _indexBuffer.ItemCount,
               _indexBuffer.ItemSize == 2 ? DrawElementsType.UnsignedShort : DrawElementsType.UnsignedInt,
               IntPtr.Zero
               );
-          //This is the big guns
-          Gpu.CheckGpuErrorsRt();
-          dbg_numDrawElements_Frame++;
+            Gpu.CheckGpuErrorsDbg();
+            dbg_numDrawElements_Frame++;
+          }
         }
         else
         {
@@ -151,25 +159,28 @@ namespace PirateCraft
       }
       else
       {
-        if (PrimitiveType == PrimitiveType.Triangles)
+        if (instances != null && instances.Length > 0)
         {
-          int n = 0;
-          n++;
+          GL.DrawArraysInstanced(PrimitiveType, 0, _vertexBuffer.ItemCount, instances.Length);
+          Gpu.CheckGpuErrorsDbg();
+          dbg_numDrawArrays_Frame++;
         }
-        if (PrimitiveType == PrimitiveType.Lines)
+        else
         {
-          int n = 0;
-          n++;
+          GL.DrawArrays(PrimitiveType, 0, _vertexBuffer.ItemCount);
+          Gpu.CheckGpuErrorsDbg();
+          dbg_numDrawArrays_Frame++;
         }
-        GL.DrawArrays(PrimitiveType, 0, _vertexBuffer.ItemCount);
-        dbg_numDrawArrays_Frame++;
       }
       _vao.Unbind();
     }
     public void CreateBuffers(GpuDataPtr verts, GpuDataPtr indexes, bool computeBoundBox)
     {
+      Gu.Assert(this.VertexFormat.VertexSizeBytes == verts.ItemSizeBytes);
+
       Gpu.CheckGpuErrorsDbg();
       _vao = new VertexArrayObject();
+      _vao.Bind();
 
       if (verts != null)
       {
@@ -193,10 +204,9 @@ namespace PirateCraft
       }
 
       Gpu.CheckGpuErrorsDbg();
-      GL.BindVertexArray(0);
-      GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
-      GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
-      Gpu.CheckGpuErrorsDbg();
+      _vao.Unbind();
+      _vertexBuffer?.Unbind();
+      _indexBuffer?.Unbind();
 
       if (computeBoundBox)
       {
@@ -205,13 +215,6 @@ namespace PirateCraft
       }
 
     }
-
-    //private void EditVertex(VertexComponentType comp_type, byte[] comp, byte[] verts)
-    //{
-    //   int voff = VertexFormat.GetComponentOffset(VertexComponentType.v3_01);
-    //   //Essentially copy comp to verts. but ther's an easier way
-    //}
-
     private void ComputeBoundBox()
     {
       _boundBoxExtent.genResetLimits();
@@ -236,11 +239,11 @@ namespace PirateCraft
                   int index = 0;
                   if (indexes.ItemSizeBytes == 2)
                   {
-                    index = *((Int16*)(ibarr + ii * indexes.ItemSizeBytes));
+                    index = Convert.ToInt32(*((ushort*)(ibarr + ii * indexes.ItemSizeBytes)));
                   }
                   else if (indexes.ItemSizeBytes == 4)
                   {
-                    index = *((Int32*)(ibarr + ii * indexes.ItemSizeBytes));
+                    index = *((int*)(ibarr + ii * indexes.ItemSizeBytes));
                   }
                   else
                   {
@@ -398,10 +401,10 @@ namespace PirateCraft
     {
       //Let's do the UI from bottom left like OpenGL
       v_v3n3x2[] verts = new v_v3n3x2[4];
-      verts[0]._v = c.Frustum.ProjectPoint(new vec2(x, y), TransformSpace.Local, 0.01f).p0;
-      verts[1]._v = c.Frustum.ProjectPoint(new vec2(x + w, y), TransformSpace.Local, 0.01f).p0;
-      verts[2]._v = c.Frustum.ProjectPoint(new vec2(x, y + h), TransformSpace.Local, 0.01f).p0;
-      verts[3]._v = c.Frustum.ProjectPoint(new vec2(x + w, y + h), TransformSpace.Local, 0.01f).p0;
+      verts[0]._v = c.Frustum.ScreenToWorld(new vec2(x, y), TransformSpace.Local, 0.01f).p0;
+      verts[1]._v = c.Frustum.ScreenToWorld(new vec2(x + w, y), TransformSpace.Local, 0.01f).p0;
+      verts[2]._v = c.Frustum.ScreenToWorld(new vec2(x, y + h), TransformSpace.Local, 0.01f).p0;
+      verts[3]._v = c.Frustum.ScreenToWorld(new vec2(x + w, y + h), TransformSpace.Local, 0.01f).p0;
 
       verts[0]._x = new vec2(1, 0);
       verts[1]._x = new vec2(1, 1);
@@ -418,10 +421,23 @@ namespace PirateCraft
 
       return new MeshData("texturefrtont", PrimitiveType.Triangles, v_v3n3x2.VertexFormat, vertsBoxed, IndexFormatType.Uint32, indsBoxed);
     }
-    public static MeshData GenSphere(int slices = 128, int stacks = 128, float radius = 1, bool smooth = false, bool flip_tris = false)
+    public static MeshData GenSphere(float radius, int slices = 128, int stacks = 128, bool smooth = false, bool flip_tris = false)
+    {
+      return GenEllipsoid(new vec3(radius, radius, radius), slices, stacks, smooth, flip_tris);
+    }
+    public static MeshData GenEllipsoid(vec3 radius, int slices = 128, int stacks = 128, bool smooth = false, bool flip_tris = false)
+    {
+      v_v3n3x2[] verts;
+      uint[] inds;
+      GenEllipsoid(out verts, out inds, radius, slices, stacks, smooth, flip_tris);
+      var vertsBoxed = Gpu.GetGpuDataPtr(verts);
+      var indsBoxed = Gpu.GetGpuDataPtr(inds);
+      return new MeshData("sphere", PrimitiveType.Triangles, v_v3n3x2.VertexFormat, vertsBoxed, IndexFormatType.Uint32, indsBoxed);
+    }
+    public static void GenEllipsoid(out v_v3n3x2[] verts, out uint[] inds, vec3 radius, int slices = 128, int stacks = 128, bool smooth = false, bool flip_tris = false)
     {
       int vcount = slices * stacks * 4;
-      v_v3n3x2[] verts = new v_v3n3x2[vcount];
+      verts = new v_v3n3x2[vcount];
 
       //Use a 2D grid as a sphere. This is less optimal but doesn't mess up the tex coords.
       for (int stack = 0; stack < stacks; stack++)
@@ -444,9 +460,9 @@ namespace PirateCraft
               // 0 1  
               // >x ^y
               verts[vind + p * 2 + t]._v = new vec3(
-                  radius * MathUtils.sinf(phi[p]) * MathUtils.cosf(theta[t]),
-                  radius * MathUtils.cosf(phi[p]),
-                  radius * MathUtils.sinf(phi[p]) * MathUtils.sinf(theta[t])
+                  radius.x * MathUtils.sinf(phi[p]) * MathUtils.cosf(theta[t]),
+                  radius.y * MathUtils.cosf(phi[p]),
+                  radius.z * MathUtils.sinf(phi[p]) * MathUtils.sinf(theta[t])
               );
             }
           }
@@ -479,10 +495,8 @@ namespace PirateCraft
         }
       }
 
-      var indsBoxed = GenerateQuadIndicesArray(verts.Length / 4, !flip_tris);
-      var vertsBoxed = Gpu.GetGpuDataPtr(verts);
+      inds = GenerateQuadIndices(verts.Length / 4, !flip_tris);
 
-      return new MeshData("sphere", PrimitiveType.Triangles, v_v3n3x2.VertexFormat, vertsBoxed, IndexFormatType.Uint32, indsBoxed);
     }
 
 

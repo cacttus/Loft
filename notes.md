@@ -1,4 +1,39 @@
 ﻿
+seaweed does not show we're going to have to figure out how to have water at a block at the same time as "stuff"
+
+'
+The light alg isn't working yet. X only too. But looks promising
+
+
+fixed grids of blocks are taking toom uch data
+  -> Move grids to globs
+  -> For GRay - move the GRay grid to a Dictionrary<ivec3> or something. We don't need gray at every single .. thing.'
+
+bug - regionstates is null but it says it's not WHYYY'
+
+TODO: we need to cull solid globs.
+
+radiosity lighting must come first, because this is how we light the objects and all the clels too
+so we need to figurte this out
+then we can finish instancing
+
+
+
+so waht we're doing
+essentially - physics - ellipsoid collision with scenery
+    ellipsoid box colllide is probably working, but we need a better raycast so we made new
+    but raycast does not work.
+    now, there a rea lot of bugs 
+    probably in boxes of hierarchy
+   we got ellipsoid to collide with scenery, but it's off (program.cs - tests)
+   so we are debug drawing the blocks it collides
+   we made a static node to collide BVH at the sub-block level
+   now there is a problem with block topology
+   the topology doesn't add/delete when needed
+   this means there is a problem with subdivide() and node destruction
+   it DID work when we nuked the whole BVH each time, but that was a bug - we can't keep nuking BVH.'
+   
+
 divide drome x 8 
 for now, just keep the block data in the whole drome. don't cull empties. 
     'if we change that we'd change the raymarch algorithm and I dont want to yet.

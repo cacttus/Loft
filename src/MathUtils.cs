@@ -182,53 +182,69 @@ namespace PirateCraft
     }
 
   }
+  public enum RaycastResult
+  {
+    Unset,
+    NoHit,
+    HitBefore, //we collided with the solid along the ray
+    Inside //we are inside the solid already
+  }
   public class BoxAAHit
   {
-    public bool _bHit;  // Whether the ray intersected the box.
+    public bool IsHit { get { return _t >= 0.0f && _t <= 1.0f; } }  // Whether the ray intersected the box.
     public bool _p1Contained;
     public bool _p2Contained;
-    public float _t; // - Time to hit [0,1]
+    public double _t = float.MaxValue; // - Time to hit [0,1]
+    public RaycastResult RaycastResult = RaycastResult.Unset;
   };
   public class PickRay3D
   {
-    public vec3 Origin;
-    public vec3 Dir; //Ray direction
-    public float Length = float.MaxValue;
+    public vec3 Origin { get; private set; }
+    public vec3 Dir { get; private set; } //Ray direction NOT normalized
+    public float Length { get; private set; } = float.MaxValue;
     public float _t = float.MaxValue;
-    public vec3 InvDir;
-    public int[] Sign = new int[3];
-
+    public vec3 InvDir { get; private set; }
+    public int[] Sign { get; private set; } = new int[3];
+    public float RayLength { get; private set; }
     public bool DidHit { get { return _t >= 0 && _t <= 1; } }
     public vec3 PickedPoint { get { return Origin + Dir * _t; } }
-
+    public vec3 Radius { get; private set; } = new vec3(0, 0, 0);
+    public float RadiusLen2 { get; private set; } = 0;
     public vec3 Project(vec3 p)
     {
       //Project p onto ray returning projected point
       vec3 ret;
-      vec3 p2 = Origin + Dir * Length;
-      ret = Origin + Dir * Length * Line3f.pointOnLine_t(Origin, p2, p);
+      ret = Origin + Dir * Line3f.pointOnRay_t(Dir, p - Origin);
       return ret;
     }
-
     public PickRay3D(Line3f line)
     {
-      Init(line.p0, (line.p1 - line.p0));
+      Init(line.p0, (line.p1 - line.p0), vec3.zero);
+    }
+    public PickRay3D(Line3f line, vec3 radius)
+    {
+      Init(line.p0, (line.p1 - line.p0), radius);
     }
     public PickRay3D(vec3 origin, vec3 normal, float length)
     {
-      Init(origin, normal * length);
+      Init(origin, normal * length, vec3.zero);
     }
-    private void Init(vec3 origin, vec3 dir)
+    public PickRay3D(vec3 origin, vec3 ray, vec3 radius)
     {
+      Init(origin, ray, radius);
+    }
+    private void Init(vec3 origin, vec3 dir, vec3 radius)
+    {
+      Radius = radius;
+      RayLength = dir.length();
       Origin = origin;
       Dir = dir;
       Length = dir.length();
-      InvDir.x = 1.0f / (Dir.x);
-      InvDir.y = 1.0f / (Dir.y);
-      InvDir.z = 1.0f / (Dir.z);
+      InvDir = 1.0f / Dir;
       Sign[0] = Convert.ToInt32(InvDir.x < 0);
       Sign[1] = Convert.ToInt32(InvDir.y < 0);
       Sign[2] = Convert.ToInt32(InvDir.z < 0);
+      RadiusLen2 = radius.dot(radius);
     }
   }
   [StructLayout(LayoutKind.Sequential)]
@@ -282,7 +298,10 @@ namespace PirateCraft
   {
     public vec3 p0;
     public vec3 p1;
-
+    public Line3f(vec3 dp0, vec3 dp1)
+    {
+      p0 = dp0; p1 = dp1;
+    }
     public static float pointOnLine_t(vec3 p0, vec3 p1, vec3 pt)
     {
       //Returns closest point on this line.
@@ -291,16 +310,14 @@ namespace PirateCraft
       float dPdL = dP.dot(dL);
       float dLdL = dL.dot(dL);
       float t = dPdL / dLdL;
-
       return t;
     }
     public static float pointOnRay_t(vec3 ray, vec3 pt)
     {
       //Returns the point on ray between [0,1] of the ray.
-      vec3 AP = pt - ray;
-      vec3 AB = ray * -1.0f;
-      float ab2 = AB.x * AB.x + AB.y * AB.y + AB.z * AB.z;
-      float ap_ab = AP.x * AB.x + AP.y * AB.y + AP.z * AB.z;
+      //Both ray and point are relative the the origin.
+      float ap_ab = pt.dot(ray);
+      float ab2 = ray.dot(ray);
       float t = ap_ab / ab2;
       return t;
     }
@@ -414,6 +431,86 @@ namespace PirateCraft
       ret.y = (float)Math.Max(a.y, b.y);
       return ret;
     }
+    public string ToString() { return "(" + x + "," + y + ")"; }
+
+  }
+  [StructLayout(LayoutKind.Sequential)]
+  public struct dvec3
+  {
+    public double x;
+    public double y;
+    public double z;
+    public dvec3(dvec3 r)
+    {
+      x = r.x;
+      y = r.y;
+      z = r.z;
+    }
+    public dvec3(double dx, double dy, double dz)
+    {
+      x = dx;
+      y = dy;
+      z = dz;
+    }
+    public dvec3(vec3 r)
+    {
+      x = (double)r.x;
+      y = (double)r.y;
+      z = (double)r.z;
+    }
+    public static dvec3 operator -(in dvec3 d)
+    {
+      return new dvec3(-d.x, -d.y, -d.z);
+    }
+    public static dvec3 operator +(in dvec3 a, in dvec3 b)
+    {
+      return new dvec3(a.x + b.x, a.y + b.y, a.z + b.z);
+    }
+    public static dvec3 operator -(in dvec3 a, in dvec3 b)
+    {
+      return new dvec3(a.x - b.x, a.y - b.y, a.z - b.z);
+    }
+    public static dvec3 operator *(in dvec3 a, in dvec3 b)
+    {
+      return new dvec3(a.x * b.x, a.y * b.y, a.z * b.z);
+    }
+    public static dvec3 operator /(in dvec3 a, in dvec3 b)
+    {
+      return new dvec3(a.x / b.x, a.y / b.y, a.z / b.z);
+    }
+    public static dvec3 operator +(in dvec3 a, double f)
+    {
+      return new dvec3(a.x + f, a.y + f, a.z + f);
+    }
+    public static dvec3 operator -(in dvec3 a, double f)
+    {
+      return new dvec3(a.x - f, a.y - f, a.z - f);
+    }
+    public static dvec3 operator *(in dvec3 a, double b)
+    {
+      return new dvec3(a.x * b, a.y * b, a.z * b);
+    }
+    public static dvec3 operator /(in dvec3 a, double b)
+    {
+      return new dvec3(a.x / b, a.y / b, a.z / b);
+    }
+    public static dvec3 operator +(in double a, in dvec3 b)
+    {
+      return new dvec3(a + b.x, a + b.y, a + b.z);
+    }
+    public static dvec3 operator -(in double a, in dvec3 b)
+    {
+      return new dvec3(a - b.x, a - b.y, a - b.z);
+    }
+    public static dvec3 operator *(in double a, in dvec3 b)
+    {
+      return new dvec3(a * b.x, a * b.y, a * b.z);
+    }
+    public static dvec3 operator /(in double a, in dvec3 b)
+    {
+      return new dvec3(a / b.x, a / b.y, a / b.z);
+    }
+    public string ToString() { return "(" + x + "," + y + "," + z + ")"; }
 
   }
   [StructLayout(LayoutKind.Sequential)]
@@ -424,6 +521,7 @@ namespace PirateCraft
     public float z;
 
     public static vec3 zero { get { return new vec3(0, 0, 0); } }
+    public static vec3 one { get { return new vec3(1, 1, 1); } }
     public static vec3 VEC3_MIN()
     {
       return new vec3(float.MinValue, float.MinValue, float.MinValue);
@@ -432,7 +530,76 @@ namespace PirateCraft
     {
       return new vec3(float.MaxValue, float.MaxValue, float.MaxValue);
     }
+    public OpenTK.Mathematics.Vector3 ToOpenTK()
+    {
+      return new OpenTK.Mathematics.Vector3(x, y, z);
+    }
+    public float this[int i]
+    {
+      get
+      {
+        if (i == 0)
+        {
+          return x;
+        }
+        else if (i == 1)
+        {
+          return y;
+        }
+        else if (i == 2)
+        {
+          return z;
+        }
 
+        else
+        {
+          Gu.BRThrowException("invalid index " + i + " to vec3");
+        }
+        return 0;
+      }
+      set
+      {
+        if (i == 0)
+        {
+          x = value;
+        }
+        else if (i == 1)
+        {
+          y = value;
+        }
+        else if (i == 2)
+        {
+          z = value;
+        }
+
+        else
+        {
+          Gu.BRThrowException("invalid index " + i + " to vec3");
+        }
+      }
+
+    }
+    public vec3 snap()
+    {
+      //return a vector with only the longest dimension (used to snap to a normal on a cube)
+      vec3 ret;
+      float ax = Math.Abs(x);
+      float ay = Math.Abs(y);
+      float az = Math.Abs(z);
+      if (ax >= ay && ax >= az)
+      {
+        ret = new vec3(x, 0, 0);
+      }
+      else if (ay >= ax && ay >= az)
+      {
+        ret = new vec3(0, y, 0);
+      }
+      else
+      {
+        ret = new vec3(0, 0, z);
+      }
+      return ret;
+    }
     public vec3(OpenTK.Mathematics.Vector3 v)
     {
       x = v.X;
@@ -525,7 +692,6 @@ namespace PirateCraft
     {
       return new vec2(x, y);
     }
-
     public float length()
     {
       return (float)Math.Sqrt(x * x + y * y + z * z);
@@ -687,6 +853,22 @@ namespace PirateCraft
     {
       return new vec3(a.x / b, a.y / b, a.z / b);
     }
+    public static vec3 operator +(in float a, in vec3 b)
+    {
+      return new vec3(a + b.x, a + b.y, a + b.z);
+    }
+    public static vec3 operator -(in float a, in vec3 b)
+    {
+      return new vec3(a - b.x, a - b.y, a - b.z);
+    }
+    public static vec3 operator *(in float a, in vec3 b)
+    {
+      return new vec3(a * b.x, a * b.y, a * b.z);
+    }
+    public static vec3 operator /(in float a, in vec3 b)
+    {
+      return new vec3(a / b.x, a / b.y, a / b.z);
+    }
     public static bool operator >(in vec3 v1, in vec3 v2)
     {
       return (v1.x > v2.x && v1.y > v2.y && v1.z > v2.z);
@@ -784,9 +966,10 @@ namespace PirateCraft
     //    avg = v1 + (v2 - v1) * pct;
     //}
     //template<typename Tx>
-    static void reflect(in vec3 v, in vec3 n, out vec3 v_r)
+    public vec3 reflect(in vec3 n)
     {
-      v_r = v - (n * n.dot(v)) * 2.0f;
+      vec3 ret = this - (n * n.dot(this)) * 2.0f;
+      return ret;
     }
     //template<typename Tx>
     //void checkNormalOrZero()
@@ -874,6 +1057,63 @@ namespace PirateCraft
     public vec4(vec4 dxy) { x = dxy.x; y = dxy.y; z = dxy.z; w = dxy.w; }
     public vec4(float dx, float dy, float dz, float dw) { x = dx; y = dy; z = dz; w = dw; }
     public vec4(OpenTK.Mathematics.Vector4 v) { x = v.X; y = v.Y; z = v.Z; w = v.W; }//From XNA's Vector2
+    public static vec4 FromHex(string hex)
+    {
+      if (hex.Length < 4 * 2 + 1)
+      {
+        Gu.Log.Error("Hex string was not 9 characters");
+        Gu.DebugBreak();
+      }
+      vec4 ret = new vec4(0, 0, 0, 0);
+      hex = hex.ToLower();
+      int comp = 0;
+      string s = "";
+      for (int ci = 0; ci < hex.Length; ci++)
+      {
+        char c = hex[ci];
+        if (c == '#')
+        {
+          if (ci != 0)
+          {
+            Gu.Log.Error("Invalid token in hex string.");
+            Gu.DebugBreak();
+          }
+        }
+        else if (
+          c == '0' ||
+          c == '1' ||
+          c == '2' ||
+          c == '3' ||
+          c == '4' ||
+          c == '5' ||
+          c == '6' ||
+          c == '7' ||
+          c == '8' ||
+          c == '0' ||
+          c == 'a' ||
+          c == 'b' ||
+          c == 'c' ||
+          c == 'd' ||
+          c == 'e' ||
+          c == 'f')
+        {
+          s += c;
+          if (s.Length == 2)
+          {
+            int v = Convert.ToInt32(s, 16);
+            ret[comp] = (float)v / 255.0f;
+            comp++;
+            s = "";
+          }
+        }
+        else
+        {
+          Gu.Log.Error("Invalid token in hex string.");
+          Gu.DebugBreak();
+        }
+      }
+      return ret;
+    }
     public vec4(float[] vals)
     {
       Gu.Assert(vals.Length >= 4);
@@ -882,7 +1122,57 @@ namespace PirateCraft
       this.z = vals[2];
       this.w = vals[3];
     }
-    public override string ToString() { return "(" + x + "," + y + "," + z + "," + w + ")"; }
+    public float this[int i]
+    {
+      get
+      {
+        if (i == 0)
+        {
+          return x;
+        }
+        else if (i == 1)
+        {
+          return y;
+        }
+        else if (i == 2)
+        {
+          return z;
+        }
+        else if (i == 3)
+        {
+          return w;
+        }
+        else
+        {
+          Gu.BRThrowException("invalid index " + i + " to vec4");
+        }
+        return 0;
+      }
+      set
+      {
+        if (i == 0)
+        {
+          x = value;
+        }
+        else if (i == 1)
+        {
+          y = value;
+        }
+        else if (i == 2)
+        {
+          z = value;
+        }
+        else if (i == 3)
+        {
+          w = value;
+        }
+        else
+        {
+          Gu.BRThrowException("invalid index " + i + " to vec4");
+        }
+      }
+
+    }
     public vec4 construct(float dx, float dy, float dz, float dw)
     {
       x = dx; y = dy; z = dz; w = dw;
@@ -970,6 +1260,7 @@ namespace PirateCraft
     {
       return new vec3(x, y, z);
     }
+    public override string ToString() { return "(" + x + "," + y + "," + z + "," + w + ")"; }
   }
   [StructLayout(LayoutKind.Sequential)]
   public struct ivec2
@@ -1009,6 +1300,7 @@ namespace PirateCraft
     {
       return new ivec2(a.x - f, a.y - f);
     }
+    public string ToString() { return "(" + x + "," + y + ")"; }
   }
   [StructLayout(LayoutKind.Sequential)]
   public struct uvec2
@@ -1048,6 +1340,7 @@ namespace PirateCraft
     {
       return new uvec2(a.x - f, a.y - f);
     }
+    public string ToString() { return "(" + x + "," + y + ")"; }
   }
   [StructLayout(LayoutKind.Sequential)]
   public struct ivec3
@@ -1062,6 +1355,48 @@ namespace PirateCraft
     public void construct(Int32 dx, Int32 dy, Int32 dz)
     {
       x = dx; y = dy; z = dz;
+    }
+    public int this[int i]
+    {
+      get
+      {
+        if (i == 0)
+        {
+          return x;
+        }
+        else if (i == 1)
+        {
+          return y;
+        }
+        else if (i == 2)
+        {
+          return z;
+        }
+        else
+        {
+          Gu.BRThrowException("invalid index " + i + " to ivec3");
+        }
+        return 0;
+      }
+      set
+      {
+        if (i == 0)
+        {
+          x = value;
+        }
+        else if (i == 1)
+        {
+          y = value;
+        }
+        else if (i == 2)
+        {
+          z = value;
+        }
+        else
+        {
+          Gu.BRThrowException("invalid index " + i + " to ivec3");
+        }
+      }
     }
     public static ivec3 operator -(in ivec3 d)
     {
@@ -1112,6 +1447,7 @@ namespace PirateCraft
       }
     }
     public vec3 toVec3() { return new vec3((float)x, (float)y, (float)z); }
+    public string ToString() { return "(" + x + "," + y + "" + z + ")"; }
   }
   [StructLayout(LayoutKind.Sequential)]
   public struct ivec4
@@ -1124,6 +1460,57 @@ namespace PirateCraft
     {
       x = dx; y = dy; z = dz; w = dw;
     }
+    public int this[int i]
+    {
+      get
+      {
+        if (i == 0)
+        {
+          return x;
+        }
+        else if (i == 1)
+        {
+          return y;
+        }
+        else if (i == 2)
+        {
+          return z;
+        }
+        else if (i == 3)
+        {
+          return w;
+        }
+        else
+        {
+          Gu.BRThrowException("invalid index " + i + " to ivec4");
+        }
+        return 0;
+      }
+      set
+      {
+        if (i == 0)
+        {
+          x = value;
+        }
+        else if (i == 1)
+        {
+          y = value;
+        }
+        else if (i == 2)
+        {
+          z = value;
+        }
+        else if (i == 3)
+        {
+          w = value;
+        }
+        else
+        {
+          Gu.BRThrowException("invalid index " + i + " to ivec4");
+        }
+      }
+    }
+    public override string ToString() { return "(" + x + "," + y + "," + z + "," + w + ")"; }
   }
   [StructLayout(LayoutKind.Sequential)]
   public struct mat2
@@ -1149,6 +1536,12 @@ namespace PirateCraft
       ret._m22 = (float)Math.Cos(theta);
 
       return ret;
+    }
+    public string ToString()
+    {
+      return
+          "" + _m11 + ", " + _m12 + "," + "\n" +
+          "" + _m21 + ", " + _m22 + "," + "\n";
     }
   }
   [StructLayout(LayoutKind.Sequential)]
@@ -1477,7 +1870,13 @@ namespace PirateCraft
       //quat ret = new quat(q1[k0], q1[k1], q1[k2], q1[k3]);
       return q;
     }
-
+    public string ToString()
+    {
+      return
+          "" + _m11 + ", " + _m12 + "," + _m13 + ", " + "\n" +
+          "" + _m21 + ", " + _m22 + "," + _m23 + ", " + "\n" +
+          "" + _m31 + ", " + _m32 + "," + _m33 + ", " + "\n";
+    }
   }
   [StructLayout(LayoutKind.Sequential)]
   public struct mat4
@@ -2242,6 +2641,14 @@ namespace PirateCraft
 
     //   return true;
     // }
+    public string ToString()
+    {
+      return
+          "" + _m11 + ", " + _m12 + "," + _m13 + ", " + _m14 + "\n" +
+          "" + _m21 + ", " + _m22 + "," + _m23 + ", " + _m24 + "\n" +
+          "" + _m31 + ", " + _m32 + "," + _m33 + ", " + _m34 + "\n" +
+          "" + _m41 + ", " + _m42 + "," + _m43 + ", " + _m44 + "\n";
+    }
 
 
   }
@@ -2457,69 +2864,70 @@ namespace PirateCraft
     {
       return new quat(0, 0, 0, 1);
     }
+    public string ToString() { return "" + x.ToString() + ", " + y.ToString() + "," + z.ToString() + ", " + w.ToString() + ")"; }
   }
   [StructLayout(LayoutKind.Sequential)]
   public struct Box2f
   {
-    public vec2 Min;
-    public vec2 Max;
+    public vec2 _min;
+    public vec2 _max;
 
-    public float Width() { return Max.x - Min.x; }
-    public float Height() { return Max.y - Min.y; }
+    public float Width() { return _max.x - _min.x; }
+    public float Height() { return _max.y - _min.y; }
 
-    public vec2 TopRight() { return new vec2(Max.x, Min.y); }
-    public vec2 BotRight() { return new vec2(Max.x, Max.y); }
-    public vec2 BotLeft() { return new vec2(Min.x, Max.y); }
-    public vec2 TopLeft() { return new vec2(Min.x, Min.y); }
+    public vec2 TopRight() { return new vec2(_max.x, _min.y); }
+    public vec2 BotRight() { return new vec2(_max.x, _max.y); }
+    public vec2 BotLeft() { return new vec2(_min.x, _max.y); }
+    public vec2 TopLeft() { return new vec2(_min.x, _min.y); }
 
     public void Construct(vec2 min, vec2 max)
     {
-      Min = min; Max = max;
+      _min = min; _max = max;
     }
     public Box2f(float x, float y, float w, float h)
     {
-      Min = new vec2(x, y);
-      Max = new vec2(w, h) + Min;
+      _min = new vec2(x, y);
+      _max = new vec2(w, h) + _min;
     }
     public Box2f(vec2 min, vec2 max)
     {
-      Min = min;
-      Max = max;
+      _min = min;
+      _max = max;
     }
     public vec2 Center()
     {
-      return Min + (Max - Min) * 0.5f;
+      return _min + (_max - _min) * 0.5f;
     }
     public static Box2f FlipBoxH(Box2f b, float w)
     {
       //Flip the box inside of a larger box (w)
       Box2f ret = new Box2f();
-      ret.Min.x = w - b.Max.x;
-      ret.Max.x = w - b.Min.x;
+      ret._min.x = w - b._max.x;
+      ret._max.x = w - b._min.x;
 
-      ret.Min.y = b.Min.y;
-      ret.Max.y = b.Max.y;
+      ret._min.y = b._min.y;
+      ret._max.y = b._max.y;
       return ret;
     }
     public static Box2f FlipBoxV(Box2f b, float h)
     {
       //Flip the box inside of a larger box (h)
       Box2f ret = new Box2f();
-      ret.Min.y = h - b.Max.y;
-      ret.Max.y = h - b.Min.y;
+      ret._min.y = h - b._max.y;
+      ret._max.y = h - b._min.y;
 
-      ret.Min.x = b.Min.x;
-      ret.Max.x = b.Max.x;
+      ret._min.x = b._min.x;
+      ret._max.x = b._max.x;
       return ret;
     }
     public Rectangle ToXNARect()
     {
       Rectangle r = new Rectangle();
 
-      r.X = (int)(Min.x);
-      r.Y = (int)(Min.y);
-      r.Width = (int)(Max.x - Min.x);
-      r.Height = (int)(Max.y - Min.y);
+      r.X = (int)(_min.x);
+      r.Y = (int)(_min.y);
+      r.Width = (int)(_max.x - _min.x);
+      r.Height = (int)(_max.y - _min.y);
 
       return r;
     }
@@ -2528,77 +2936,77 @@ namespace PirateCraft
     {
       Box2f ret = new Box2f();
 
-      ret.Min.x = Single.MaxValue;
-      ret.Min.y = Single.MaxValue;
-      ret.Max.x = -Single.MaxValue;
-      ret.Max.y = -Single.MaxValue;
+      ret._min.x = Single.MaxValue;
+      ret._min.y = Single.MaxValue;
+      ret._max.x = -Single.MaxValue;
+      ret._max.y = -Single.MaxValue;
 
 
-      if (a.Min.x >= b.Min.x && a.Min.x <= b.Max.x)
+      if (a._min.x >= b._min.x && a._min.x <= b._max.x)
       {
-        ret.Min.x = Math.Min(ret.Min.x, a.Min.x);
+        ret._min.x = Math.Min(ret._min.x, a._min.x);
       }
-      if (a.Max.x <= b.Max.x && a.Max.x >= b.Min.x)
+      if (a._max.x <= b._max.x && a._max.x >= b._min.x)
       {
-        ret.Max.x = Math.Max(ret.Max.x, a.Max.x);
+        ret._max.x = Math.Max(ret._max.x, a._max.x);
       }
-      if (a.Min.y >= b.Min.y && a.Min.y <= b.Max.y)
+      if (a._min.y >= b._min.y && a._min.y <= b._max.y)
       {
-        ret.Min.y = Math.Min(ret.Min.y, a.Min.y);
+        ret._min.y = Math.Min(ret._min.y, a._min.y);
       }
-      if (a.Max.y <= b.Max.y && a.Max.y >= b.Min.y)
+      if (a._max.y <= b._max.y && a._max.y >= b._min.y)
       {
-        ret.Max.y = Math.Max(ret.Max.y, a.Max.y);
+        ret._max.y = Math.Max(ret._max.y, a._max.y);
       }
 
-      if (b.Min.x >= a.Min.x && b.Min.x <= a.Max.x)
+      if (b._min.x >= a._min.x && b._min.x <= a._max.x)
       {
-        ret.Min.x = Math.Min(ret.Min.x, b.Min.x);
+        ret._min.x = Math.Min(ret._min.x, b._min.x);
       }
-      if (b.Max.x <= a.Max.x && b.Max.x >= a.Min.x)
+      if (b._max.x <= a._max.x && b._max.x >= a._min.x)
       {
-        ret.Max.x = Math.Max(ret.Max.x, b.Max.x);
+        ret._max.x = Math.Max(ret._max.x, b._max.x);
       }
-      if (b.Min.y >= a.Min.y && b.Min.y <= a.Max.y)
+      if (b._min.y >= a._min.y && b._min.y <= a._max.y)
       {
-        ret.Min.y = Math.Min(ret.Min.y, b.Min.y);
+        ret._min.y = Math.Min(ret._min.y, b._min.y);
       }
-      if (b.Max.y <= a.Max.y && b.Max.y >= a.Min.y)
+      if (b._max.y <= a._max.y && b._max.y >= a._min.y)
       {
-        ret.Max.y = Math.Max(ret.Max.y, b.Max.y);
+        ret._max.y = Math.Max(ret._max.y, b._max.y);
       }
       return ret;
     }
 
     public void GenResetExtents()
     {
-      Min = new vec2(Single.MaxValue, Single.MaxValue);
-      Max = new vec2(-Single.MaxValue, -Single.MaxValue);
+      _min = new vec2(Single.MaxValue, Single.MaxValue);
+      _max = new vec2(-Single.MaxValue, -Single.MaxValue);
     }
     public void ExpandByPoint(vec2 v)
     {
-      Min = vec2.Minv(Min, v);// Vec2f.ComponentMin(Min, v);// Vec2f.Minv(Min, v);
-      Max = vec2.Maxv(Max, v); //Vec2f.ComponentMax(Max, v);// Vec2f.Maxv(Max, v);
+      _min = vec2.Minv(_min, v);// Vec2f.ComponentMin(Min, v);// Vec2f.Minv(Min, v);
+      _max = vec2.Maxv(_max, v); //Vec2f.ComponentMax(Max, v);// Vec2f.Maxv(Max, v);
     }
     public bool BoxIntersect_EasyOut_Inclusive(Box2f cc)
     {
-      return cc.Min.x <= Max.x && cc.Min.y <= Max.y && Min.x <= cc.Max.x && Min.y <= cc.Max.y;
+      return cc._min.x <= _max.x && cc._min.y <= _max.y && _min.x <= cc._max.x && _min.y <= cc._max.y;
     }
     public bool ContainsPointInclusive(vec2 point)
     {
-      if (point.x < Min.x)
+      if (point.x < _min.x)
       {
         return false;
       }
-      if (point.y < Min.y)
+      if (point.y < _min.y)
       {
         return false;
       }
-      if (point.x > Max.x)
+      if (point.x > _max.x)
       {
         return false;
       }
-      if (point.y > Max.y)
+      if (point.y > _max.y)
       {
         return false;
       }
@@ -2608,9 +3016,9 @@ namespace PirateCraft
     {
       if (x == 0)
       {
-        return Min;
+        return _min;
       }
-      return Max;
+      return _max;
     }
     public bool RayIntersect(PickRay2D ray, ref RaycastHit bh)
     {
@@ -2640,7 +3048,7 @@ namespace PirateCraft
         txmax = tymax;
       }
 
-      bHit = ((txmin >= 0.0f) && (txmax <= ray.Length));
+      bHit = ((txmin >= 0.0f) && (txmax <= 1));
 
       //**Note changed 20151105 - this is not [0,1] this is the lenth along the line in which 
       // the ray enters and exits the cube, so any value less than the maximum is valid
@@ -2653,6 +3061,7 @@ namespace PirateCraft
 
       return bHit;
     }
+    public string ToString() { return "" + _min.ToString() + ", " + _max.ToString() + ")"; }
   }
   [StructLayout(LayoutKind.Sequential)]
   public struct Box2i
@@ -2684,6 +3093,7 @@ namespace PirateCraft
       _max.x = maxx;
       _max.y = maxy;
     }
+    public string ToString() { return "" + _min.ToString() + ", " + _max.ToString() + ")"; }
   }
   [StructLayout(LayoutKind.Sequential)]
   public struct Box3i
@@ -2715,6 +3125,7 @@ namespace PirateCraft
         }
       }
     }
+    public string ToString() { return "" + _min.ToString() + ", " + _max.ToString() + ")"; }
 
   }
   [StructLayout(LayoutKind.Sequential)]
@@ -2762,6 +3173,44 @@ namespace PirateCraft
         throw new Exception("Bound box Z was invalid.");
       }
     }
+    public bool Intersect_Ellipsoid_Fast(vec3 c, vec3 r)
+    {
+      //graphics gems 1 p339
+      //"find the point on/in the box closest to c. then check for being < r (x^2 < r^2)"
+      float dmin = 0;
+
+      //Essentially this is just the equation for an ellipsoid x/rx ^2 + y/ry ^2 + z/rz ^2 = 1
+      if (c.x < _min.x)
+        dmin += (float)Math.Pow((c.x - _min.x) / r.x, 2.0f);//dot product, (c-i)^2 + .. == r^2 (r=1)
+      else if (c.x > _max.x)
+        dmin += (float)Math.Pow((c.x - _max.x) / r.x, 2.0f);
+
+      if (c.y < _min.y)
+        dmin += (float)Math.Pow((c.y - _min.y) / r.y, 2.0f);
+      else if (c.y > _max.y)
+        dmin += (float)Math.Pow((c.y - _max.y) / r.y, 2.0f);
+
+      if (c.z < _min.z)
+        dmin += (float)Math.Pow((c.z - _min.z) / r.z, 2.0f);
+      else if (c.z > _max.z)
+        dmin += (float)Math.Pow((c.z - _max.z) / r.z, 2.0f);
+
+      return dmin <= 1.0f;
+    }
+    public bool Intersect_Sphere_fast(vec3 c, float r)
+    {
+      //graphics gems2 
+      float dist_squared = r * r;
+      if (c.x < _min.x) dist_squared -= (float)Math.Pow(c.x - _min.x, 2);
+      else if (c.x > _max.x) dist_squared -= (float)Math.Pow(c.x - _max.x, 2);
+      if (c.y < _min.y) dist_squared -= (float)Math.Pow(c.y - _min.y, 2);
+      else if (c.y > _max.y) dist_squared -= (float)Math.Pow(c.y - _max.y, 2);
+      if (c.z < _min.z) dist_squared -= (float)Math.Pow(c.z - _min.z, 2);
+      else if (c.z > _max.z) dist_squared -= (float)Math.Pow(c.z - _max.z, 2);
+      return dist_squared > 0;
+    }
+    public static int nugs = 5;
+    public static int maxnugs = 7;
     /**
     *   @fn RayIntersect
     *   @brief Returns true if the given ray intersects this Axis aligned
@@ -2772,45 +3221,56 @@ namespace PirateCraft
     */
     public bool LineOrRayIntersectInclusive_EasyOut(in PickRay3D ray, ref BoxAAHit bh)
     {
-      if (RayIntersectInclusive(ray, ref bh))
+      if (nugs < maxnugs && ray.RadiusLen2 > 0.0f)
       {
-        return true;
+        //Ellipsoid_Collide_With_Velocity
+        //RayIntersectInclusive2_ellipsid
+        //if (Ellipsoid_Collide_With_Velocity(ray, ref bh))
+
+        if (nugs == 0 && Ellipsoid_Collide_With_Velocity(ray, ref bh))
+        {
+          return true;
+        }
+        if (nugs == 1 && RayIntersectInclusive2_ellipsid(ray, ref bh))
+        {
+          return true;
+        }
+        if (nugs == 2 && Ellipsoid_Collide_With_Velocity(ray, ref bh))
+        {
+          return true;
+        }
+        if (nugs == 3 && Ellipsoid_Collide_With_Velocity2(ray, ref bh))
+        {
+          return true;
+        }
+        if (nugs == 4 && nugs4(ray, ref bh))
+        {
+          return true;
+        }
+        if (nugs == 5 && nugs5(ray, ref bh))
+        {
+          return true;
+        }
+      }
+      else
+      {
+        if (RayIntersectInclusive(ray, ref bh))
+        {
+          return true;
+        }
       }
       // - otherwise check for points contained.
-      if (containsInclusive(ray.Origin))
+      if (containsPointInclusive(ray.Origin))
       {
         bh._p1Contained = true;
-        bh._bHit = true;
+        bh._t = 0.0f;
         return true;
       }
 
-      if (containsInclusive(ray.Origin + ray.Dir*ray.Length))
+      if (containsPointInclusive(ray.Origin + ray.Dir))
       {
         bh._p2Contained = true;
-        bh._bHit = true;
-        return true;
-      }
-
-      return false;
-    }
-    public bool LineOrRayIntersectExclusive_EasyOut(in PickRay3D ray, ref BoxAAHit bh)
-    {
-      if (RayIntersectExclusive(ray, ref bh))
-      {
-        return true;
-      }
-      // - otherwise check for points contained.
-      if (containsExclusive(ray.Origin))
-      {
-        bh._p1Contained = true;
-        bh._bHit = true;
-        return true;
-      }
-
-      if (containsExclusive(ray.Origin + ray.Dir * ray.Length))
-      {
-        bh._p2Contained = true;
-        bh._bHit = true;
+        bh._t = 1.0f;
         return true;
       }
 
@@ -2827,6 +3287,511 @@ namespace PirateCraft
         return _max;
       }
     }
+    //public vec3 ClosestPointToRay(PickRay3D ray)
+    //{
+
+    //}
+    public bool nugs5(PickRay3D ray, ref BoxAAHit bh)
+    {
+      Gu.Assert(bh != null);
+
+      // if we already intersect then t=0
+      //if we are to move out of the box, we would need intersect distance
+      if (this.Intersect_Ellipsoid_Fast(ray.Origin, ray.Radius))
+      {
+        bh._t = 0;
+        //todo return the amount of intersect distance
+        return true;
+      }
+      if (this.containsPointBottomLeftInclusive(ray.Origin))
+      {
+        bh._t = 0;
+        //todo return the amount of intersect distance
+        return true;
+      }
+      //order verts based on veloci8y
+      vec3 p0, p1;
+      if (ray.Dir.x >= 0)
+      {
+        p0.x = _min.x;
+        p1.x = _max.x;
+      }
+      else
+      {
+        p0.x = _max.x;
+        p1.x = _min.x;
+      }
+      if (ray.Dir.y >= 0)
+      {
+        p0.y = _min.y;
+        p1.y = _max.y;
+      }
+      else
+      {
+        p0.y = _max.y;
+        p1.y = _min.y;
+      }
+      if (ray.Dir.z >= 0)
+      {
+        p0.z = _min.z;
+        p1.z = _max.z;
+      }
+      else
+      {
+        p0.z = _max.z;
+        p1.z = _min.z;
+      }
+
+      dvec3 R = new dvec3(ray.Radius);
+      dvec3 O = new dvec3(ray.Origin);
+      dvec3 Pmin = new dvec3(p0);
+      dvec3 Pmax = new dvec3(p1);
+      dvec3 V = new dvec3(ray.Dir);
+      dvec3 L = new dvec3(1.0 / (R * R));
+      dvec3 P;
+      //note min and max are sorted along vloeicyt already
+      if (O.x + R.x <= Pmin.x)
+      {
+        P.x = Pmin.x;
+      }
+      else
+      {
+        P.x = Pmax.x;
+      }
+      //4 tests per axis, how do we know which ones and who to relate 
+
+
+      return false;
+    }
+    public float DistanceToCam2(Camera3D cam)
+    {
+      //Squared distance to camera viewport
+      //technically this is incorrect since the distance would be the projection onto the viewport, and not the center of the viewport
+      //Return
+      // - float.maxvalue if there is no hit
+      // - the length squared if there is a hit
+      vec3 p = cam.Position;
+      if (containsPointBottomLeftInclusive(p))
+      {
+        return 0;
+      }
+      vec3 bc = center();
+      //vec3? vv = cam.Frustum.WorldToScreen(bc);
+      //if (vv == null)
+      //{
+      //  return float.MaxValue;
+      //}
+
+      vec3 v = (bc - p);
+      float t = 0;
+      RayIntersect_t(p, v, ref t);
+
+      if (t < 0 || t > 1)
+      {
+        Gu.DebugBreak();//This should never happen (we test for included point above)
+      }
+
+      float len = (v * t).length2();
+      return len;
+    }
+    public float FrustumDistance_2_Exact(Camera3D cam)
+    {
+      //**THis is untested. May not be needed
+      vec4 v = cam.ProjectionMatrix * new vec4(center(), 1.0f);
+
+      PickRay3D pr = new PickRay3D(new Line3f(center(), v.xyz()));
+      BoxAAHit bh = new BoxAAHit();
+      LineOrRayIntersectInclusive_EasyOut(pr, ref bh);
+      if (bh.IsHit)
+      {
+        float len = ((center() - v.xyz()) * (float)bh._t).length2();
+        return len;
+      }
+      return -1.0f;
+    }
+    public bool nugs4(PickRay3D ray, ref BoxAAHit bh)
+    {
+      //Same as nugs3, however we are going to test each individual axis
+      //nugs3 seems to collide with points only, not within the cube
+
+      // (Px - (Ox + Vxt))^2 / rx^2 + (Py - (Oy + Vyt))^2 / ry^2 + (Pz - (Oz + Vzt))^2 / rz^2 - 1 = 0
+      //  
+      Gu.Assert(bh != null);
+
+      //Ellipsoid - AABB - velocity - test
+      vec3 p0, p1;
+      if (ray.Dir.x >= 0)
+      {
+        p0.x = _min.x;
+        p1.x = _max.x;
+      }
+      else
+      {
+        p0.x = _max.x;
+        p1.x = _min.x;
+      }
+      if (ray.Dir.y >= 0)
+      {
+        p0.y = _min.y;
+        p1.y = _max.y;
+      }
+      else
+      {
+        p0.y = _max.y;
+        p1.y = _min.y;
+      }
+      if (ray.Dir.z >= 0)
+      {
+        p0.z = _min.z;
+        p1.z = _max.z;
+      }
+      else
+      {
+        p0.z = _max.z;
+        p1.z = _min.z;
+      }
+
+      dvec3 O = new dvec3(ray.Origin);
+      dvec3 P = new dvec3(p0);
+      dvec3 V = new dvec3(ray.Dir);
+      dvec3 L = new dvec3(1.0f / (ray.Radius * ray.Radius));
+
+      dvec3 A1 = L * V * V;
+      dvec3 B1 = L * (2.0 * O * V - 2.0 * P * V);
+      dvec3 C1 = L * (P * P - 2.0 * O * P + O * O);
+
+      double A = A1.x + A1.y + A1.z;
+      double B = B1.x + B1.y + B1.z;
+      double C = C1.x + C1.y + C1.z - 1.0;
+
+      //double A = L.x * V.x * V.x + L.y * V.y * V.y + L.z * V.z * V.z;
+      //double B = L.x * (2.0 * O.x * V.x - 2.0 * P.x * V.x) + L.y * (2.0 * O.y * V.y - 2.0 * P.y * V.y) + L.z * (2.0 * O.z * V.z - 2.0 * P.z * V.z);
+      //double C = L.x * (P.x * P.x - 2.0 * O.x * P.x + O.x * O.x) + L.y * (P.y * P.y - 2.0 * O.y * P.y + O.y * O.y) + L.z * (P.z * P.z - 2.0 * O.z * P.z + O.z * O.z) - 1.0;
+
+      double descriminant = B * B - 4.0 * A * C;
+      if (descriminant < 0)
+      {
+        bh.RaycastResult = RaycastResult.NoHit;
+        return false;
+      }
+      else
+      {
+        //One solution for each radial distance before, and after the given projected AABB point.
+        //We only care about the distance before the point in the case of collision detection.
+        double t1 = (-B - Math.Sqrt(descriminant)) / (2.0 * A);
+        double t2 = (-B + Math.Sqrt(descriminant)) / (2.0 * A);
+
+        if (t1 > t2)
+        {
+          double tmp = t1;
+          t1 = t2;
+          t2 = tmp;
+        }
+
+        if (t1 >= 0 && t1 <= 1)
+        {
+          bh._t = t1;
+          bh.RaycastResult = RaycastResult.HitBefore;
+          return true;
+        }
+        else
+        {
+          bh.RaycastResult = RaycastResult.NoHit;
+          return false;
+        }
+      }
+
+      return false;
+    }
+    public bool Ellipsoid_Collide_With_Velocity2(PickRay3D ray, ref BoxAAHit bh)
+    {
+      //nugs3
+      //feel like the solution here is to test all 8 points, if it's working liek that
+      //at that point it makes more sense to divide this into each axis
+      // (Px - (Ox + Vxt))^2 / rx^2 + (Py - (Oy + Vyt))^2 / ry^2 + (Pz - (Oz + Vzt))^2 / rz^2 - 1 = 0
+      //  
+      Gu.Assert(bh != null);
+
+      if (this.Intersect_Ellipsoid_Fast(ray.Origin, ray.Radius))
+      {
+        bh._t = 0;
+        return true;
+      }
+
+      //Ellipsoid - AABB - velocity - test
+      vec3 p0, p1;
+      if (ray.Dir.x >= 0)
+      {
+        p0.x = _min.x;
+        p1.x = _max.x;
+      }
+      else
+      {
+        p0.x = _max.x;
+        p1.x = _min.x;
+      }
+      if (ray.Dir.y >= 0)
+      {
+        p0.y = _min.y;
+        p1.y = _max.y;
+      }
+      else
+      {
+        p0.y = _max.y;
+        p1.y = _min.y;
+      }
+      if (ray.Dir.z >= 0)
+      {
+        p0.z = _min.z;
+        p1.z = _max.z;
+      }
+      else
+      {
+        p0.z = _max.z;
+        p1.z = _min.z;
+      }
+
+      dvec3 O = new dvec3(ray.Origin);
+      dvec3 P = new dvec3(p1);
+      dvec3 V = new dvec3(ray.Dir);
+      dvec3 L = new dvec3(1.0f / (ray.Radius * ray.Radius));
+
+      dvec3 A1 = L * V * V;
+      dvec3 B1 = L * (2.0 * O * V - 2.0 * P * V);
+      dvec3 C1 = L * (P * P - 2.0 * O * P + O * O);
+
+      double A = A1.x + A1.y + A1.z;
+      double B = B1.x + B1.y + B1.z;
+      double C = C1.x + C1.y + C1.z - 1.0;
+
+      //double A = L.x * V.x * V.x + L.y * V.y * V.y + L.z * V.z * V.z;
+      //double B = L.x * (2.0 * O.x * V.x - 2.0 * P.x * V.x) + L.y * (2.0 * O.y * V.y - 2.0 * P.y * V.y) + L.z * (2.0 * O.z * V.z - 2.0 * P.z * V.z);
+      //double C = L.x * (P.x * P.x - 2.0 * O.x * P.x + O.x * O.x) + L.y * (P.y * P.y - 2.0 * O.y * P.y + O.y * O.y) + L.z * (P.z * P.z - 2.0 * O.z * P.z + O.z * O.z) - 1.0;
+
+      double descriminant = B * B - 4.0 * A * C;
+      if (descriminant < 0)
+      {
+        bh.RaycastResult = RaycastResult.NoHit;
+        return false;
+      }
+      else
+      {
+        //One solution for each radial distance before, and after the given projected AABB point.
+        //We only care about the distance before the point in the case of collision detection.
+        double t1 = (-B - Math.Sqrt(descriminant)) / (2.0 * A);
+        double t2 = (-B + Math.Sqrt(descriminant)) / (2.0 * A);
+
+        if (t1 > t2)
+        {
+          double tmp = t1;
+          t1 = t2;
+          t2 = tmp;
+        }
+
+        if (t1 >= 0 && t1 <= 1)
+        {
+          bh._t = t1;
+          bh.RaycastResult = RaycastResult.HitBefore;
+          return true;
+        }
+        else
+        {
+          bh.RaycastResult = RaycastResult.NoHit;
+          return false;
+        }
+      }
+
+      return false;
+    }
+    public bool Ellipsoid_Collide_With_Velocity(PickRay3D ray, ref BoxAAHit bh)
+    {
+      Gu.Assert(bh != null);
+
+      //Ellipsoid - AABB - velocity - test
+      //** RayMinimum(p)
+      vec3 p0, p1;
+      if (ray.Dir.x >= 0)
+      {
+        p0.x = _min.x;
+        p1.x = _max.x;
+      }
+      else
+      {
+        p0.x = _max.x;
+        p1.x = _min.x;
+      }
+      if (ray.Dir.y >= 0)
+      {
+        p0.y = _min.y;
+        p1.y = _max.y;
+      }
+      else
+      {
+        p0.y = _max.y;
+        p1.y = _min.y;
+      }
+      if (ray.Dir.z >= 0)
+      {
+        p0.z = _min.z;
+        p1.z = _max.z;
+      }
+      else
+      {
+        p0.z = _max.z;
+        p1.z = _min.z;
+      }
+
+      //a lot of boxes getting checked
+      //There needs to be another check. The minimum distance from the box to the line < el lipsoid r.
+      // All projected boxes are getting tested.
+      //Box Ray Distance.
+      //minimum point from box to ray
+      //not true, you can have any case of box ray distance
+
+      //proj0 always < proj1 due to above algorithm
+      float proj0 = Line3f.pointOnRay_t(ray.Dir, p0 - ray.Origin);
+      float proj1 = Line3f.pointOnRay_t(ray.Dir, p1 - ray.Origin);
+
+      //this can be optimized
+      vec3 r_p = ray.Dir.normalized() * ray.Radius;
+      double r = (double)r_p.length();
+
+      /// this is a problem
+      /// //to do simple point o n line test we need to either check akk 8 verts or
+      /// point-on-line each of 8 verts
+      /// // then test them for radius - now we need radius to point -to-likne of ellipsoid too.
+      ///  probably point - point-on-line / ellipsoid radius <= 1 it's close to the line
+      ///  we need minimum point on cube to line to make this work
+     // (_max.x - ray.Origin.x)
+
+      double dr = r / ray.Length;
+      if ((proj0 < -dr && proj1 > -dr) || (proj0 < dr && proj1 > dr))
+      {
+        //We are inside
+        bh._t = 0;
+        bh.RaycastResult = RaycastResult.Inside;
+        return true;
+      }
+
+      //AABB SAT extents
+      //Currently p1 is not needed for physics
+      p0 = ray.Origin + ray.Dir * proj0;
+      p1 = ray.Origin + ray.Dir * proj1;
+
+      double A = ray.Dir.dot(ray.Dir);
+      double B = 2.0 * ray.Origin.dot(ray.Dir) - 2.0 * (ray.Dir.dot(p0));
+      double C = ray.Origin.dot(ray.Origin) - 2.0 * ray.Origin.dot(p0) + p0.dot(p0) - r;//r or r*r ..
+
+      double descriminant = B * B - 4.0 * A * C;
+      if (descriminant < 0)
+      {
+        bh.RaycastResult = RaycastResult.NoHit;
+        return false;
+      }
+      else
+      {
+        //One solution for each radial distance before, and after the given projected AABB point.
+        //We only care about the distance before the point in the case of collision detection.
+        double t1 = (-B - Math.Sqrt(descriminant)) / (2.0 * A);
+        double t2 = (-B + Math.Sqrt(descriminant)) / (2.0 * A);
+
+        if (t1 > t2)
+        {
+          double tmp = t1;
+          t1 = t2;
+          t2 = tmp;
+        }
+
+        if (t1 >= 0 && t1 <= 1)
+        {
+          bh._t = t1;
+          bh.RaycastResult = RaycastResult.HitBefore;
+          return true;
+        }
+        else
+        {
+          bh.RaycastResult = RaycastResult.NoHit;
+          return false;
+        }
+      }
+
+      return false;
+    }
+    private float Solve_Eq_Axis(float P, float C, float V, float r)
+    {
+      float t = float.MaxValue;
+
+      float A = V * V;
+      float B = 2.0f * C * V - 2.0f * P * V;
+      float Ce = C * C - 2.0f * C * P + P * P - r * r;
+
+      float descriminant = B * B - 4.0f * A * Ce;
+      if (descriminant >= 0)
+      {
+        float t1 = (-B - (float)Math.Sqrt(descriminant)) / (2.0f * A);
+        float t2 = (-B + (float)Math.Sqrt(descriminant)) / (2.0f * A);
+
+        if (t1 > t2)
+        {
+          float tmp = t1;
+          t1 = t2;
+          t2 = tmp;
+        }
+        t = t1;
+
+      }
+      return t;
+    }
+    private bool RayIntersectInclusive2_ellipsid(PickRay3D ray, ref BoxAAHit bh)
+    {
+      //nugs1
+      float txmin, txmax, tymin, tymax, tzmin, tzmax;
+
+      float sx = ray.Radius.x;
+      float sy = ray.Radius.y;
+      float sz = ray.Radius.z;
+
+      txmin = Solve_Eq_Axis(bounds(ray.Sign[0]).x, ray.Origin.x, ray.Dir.x, sx);
+      txmax = Solve_Eq_Axis(bounds(1 - ray.Sign[0]).x, ray.Origin.x, ray.Dir.x, sx);
+
+      tymin = Solve_Eq_Axis(bounds(ray.Sign[1]).y, ray.Origin.y, ray.Dir.y, sy);
+      tymax = Solve_Eq_Axis(bounds(1 - ray.Sign[1]).y, ray.Origin.y, ray.Dir.y, sy);
+
+      if ((txmin > tymax) || (tymin > txmax))
+      {
+        bh._t = float.MaxValue;
+        return false;
+      }
+      if (tymin > txmin)
+      {
+        txmin = tymin;
+      }
+      if (tymax < txmax)
+      {
+        txmax = tymax;
+      }
+
+      tzmin = Solve_Eq_Axis(bounds(ray.Sign[2]).z, ray.Origin.z, ray.Dir.z, sz);
+      tzmax = Solve_Eq_Axis(bounds(1 - ray.Sign[2]).z, ray.Origin.z, ray.Dir.z, sz);
+
+      if ((txmin > tzmax) || (tzmin > txmax))
+      {
+        bh._t = float.MaxValue;
+        return false;
+      }
+      if (tzmin > txmin)
+      {
+        txmin = tzmin;
+      }
+      if (tzmax < txmax)
+      {
+        txmax = tzmax;
+      }
+
+      bh._t = txmin;
+
+      return bh.IsHit;
+    }
     private bool RayIntersectInclusive(PickRay3D ray, ref BoxAAHit bh)
     {
       float txmin, txmax, tymin, tymax, tzmin, tzmax;
@@ -2839,7 +3804,7 @@ namespace PirateCraft
 
       if ((txmin > tymax) || (tymin > txmax))
       {
-        bh._bHit = false;
+        bh._t = float.MaxValue;
         return false;
       }
       if (tymin > txmin)
@@ -2856,7 +3821,7 @@ namespace PirateCraft
 
       if ((txmin > tzmax) || (tzmin > txmax))
       {
-        bh._bHit = false;
+        bh._t = float.MaxValue;
         return false;
       }
       if (tzmin > txmin)
@@ -2868,10 +3833,63 @@ namespace PirateCraft
         txmax = tzmax;
       }
 
-      bh._bHit = ((txmin > 0.0f) && (txmax <= ray.Length));
       bh._t = txmin;
 
-      return bh._bHit;
+      return bh.IsHit;
+    }
+    private bool RayIntersect_t(vec3 origin, vec3 dir, ref float t)
+    {
+      //Note: Origin must be outside the box for correct results. Use
+      // ContainsPointInclusive to check for origin location
+      // t = float.maxvalue if no hit (no solution).
+      // t >=0 && t<=1.0 if hit
+      // t <0 || t>1 if there is a hit along the ray, but it is not within bounds.
+      float txmin, txmax, tymin, tymax, tzmin, tzmax;
+
+      bool dx = dir.x >= 0;
+      bool dy = dir.y >= 0;
+      bool dz = dir.z >= 0;
+
+      txmin = ((dx ? _min : _max).x - origin.x) / dir.x;
+      txmax = ((dx ? _max : _min).x - origin.x) / dir.x;
+
+      tymin = ((dy ? _min : _max).y - origin.y) / dir.y;
+      tymax = ((dy ? _max : _min).y - origin.y) / dir.y;
+
+      if ((txmin > tymax) || (tymin > txmax))
+      {
+        t = float.MaxValue;
+        return false;
+      }
+      if (tymin > txmin)
+      {
+        txmin = tymin;
+      }
+      if (tymax < txmax)
+      {
+        txmax = tymax;
+      }
+
+      tzmin = ((dz ? _min : _max).z - origin.z) / dir.z;
+      tzmax = ((dz ? _max : _min).z - origin.z) / dir.z;
+
+      if ((txmin > tzmax) || (tzmin > txmax))
+      {
+        t = float.MaxValue;
+        return false;
+      }
+      if (tzmin > txmin)
+      {
+        txmin = tzmin;
+      }
+      if (tzmax < txmax)
+      {
+        txmax = tzmax;
+      }
+
+      t = txmin;
+
+      return (t >= 0.0 && t <= 1.0);
     }
     private bool RayIntersectExclusive(PickRay3D ray, ref BoxAAHit bh)
     {
@@ -2885,7 +3903,7 @@ namespace PirateCraft
 
       if ((txmin >= tymax) || (tymin >= txmax))
       {
-        bh._bHit = false;
+        bh._t = float.MaxValue;
         return false;
       }
       if (tymin > txmin)
@@ -2902,7 +3920,8 @@ namespace PirateCraft
 
       if ((txmin >= tzmax) || (tzmin >= txmax))
       {
-        bh._bHit = false;
+        bh._t = float.MaxValue;
+
         return false;
       }
       if (tzmin > txmin)
@@ -2914,12 +3933,11 @@ namespace PirateCraft
         txmax = tzmax;
       }
 
-      bh._bHit = ((txmin > 0.0f) && (txmax <= ray.Length));
       bh._t = txmin;
 
-      return bh._bHit;
+      return bh.IsHit;
     }
-    public bool containsInclusive(vec3 v)
+    public bool containsPointInclusive(vec3 v)
     {
       return (
           (v.x >= _min.x) && (v.x <= _max.x) &&
@@ -2927,7 +3945,7 @@ namespace PirateCraft
           (v.z >= _min.z) && (v.z <= _max.z)
           );
     }
-    public bool containsExclusive(vec3 v)
+    public bool containsPointExclusive(vec3 v)
     {
       return (
           (v.x > _min.x) && (v.x < _max.x) &&
@@ -2935,7 +3953,7 @@ namespace PirateCraft
           (v.z > _min.z) && (v.z < _max.z)
           );
     }
-    public bool containsBottomLeftInclusive(in vec3 v)
+    public bool containsPointBottomLeftInclusive(in vec3 v)
     {
       return (
         (v.x >= _min.x) && (v.x < _max.x) &&
@@ -2980,6 +3998,110 @@ namespace PirateCraft
     {
       return (_max.x - _min.x) * (_max.y - _min.y) * (_max.z - _min.z);
     }
+    public Box3f GetDivisionChild(int i_child)
+    {
+      // Divides this box into 8 boxes (specifically, for octrees)
+      // The order of boxes is as follows (for left hand coordinates +x right, +z forward +y up)
+      //  y      6    7
+      //  ^   2    3  
+      //  |      4    5  
+      //  |   0    1 
+      //  |
+      //   ---> x
+      vec3 i = _min;
+      vec3 c = _min + (_max - _min) * 0.5f;
+      vec3 a = _max;
+
+      Gu.Assert(i_child >= 0 && i_child < 8);
+      Box3f kid = new Box3f();
+      if (i_child == 0)
+      {
+        kid._min = new vec3(i.x, i.y, i.z);
+        kid._max = new vec3(c.x, c.y, c.z);
+      }
+      else if (i_child == 1)
+      {
+        kid._min = new vec3(c.x, i.y, i.z);
+        kid._max = new vec3(a.x, c.y, c.z);
+      }
+      else if (i_child == 2)
+      {
+        kid._min = new vec3(i.x, c.y, i.z);
+        kid._max = new vec3(c.x, a.y, c.z);
+      }
+      else if (i_child == 3)
+      {
+        kid._min = new vec3(c.x, c.y, i.z);
+        kid._max = new vec3(a.x, a.y, c.z);
+      }
+      else if (i_child == 4)
+      {
+        kid._min = new vec3(i.x, i.y, c.z);
+        kid._max = new vec3(c.x, c.y, a.z);
+      }
+      else if (i_child == 5)
+      {
+        kid._min = new vec3(c.x, i.y, c.z);
+        kid._max = new vec3(a.x, c.y, a.z);
+      }
+      else if (i_child == 6)
+      {
+        kid._min = new vec3(i.x, c.y, c.z);
+        kid._max = new vec3(c.x, a.y, a.z);
+      }
+      else if (i_child == 7)
+      {
+        kid._min = new vec3(c.x, c.y, c.z);
+        kid._max = new vec3(a.x, a.y, a.z);
+      }
+      return kid;
+    }
+    public Box3f[] Divide()
+    {
+      // Divides this box into 8 boxes (specifically, for octrees)
+      // The order of boxes is as follows (for left hand coordinates +x right, +z forward +y up)
+      //  y      6    7
+      //  ^   2    3  
+      //  |      4    5  
+      //  |   0    1 
+      //  |
+      //   ---> x
+      vec3 i = _min;
+      vec3 c = _min + (_max - _min) * 0.5f;
+      vec3 a = _max;
+
+      //   6 7
+      // 2 3 5   ->x ^z
+      // 0 1
+      //
+      Box3f[] ret = new Box3f[8];
+      for (int cc = 0; cc < 8; cc++)
+      {
+        ret[cc] = GetDivisionChild(cc);
+      }
+
+      //ret[0]._min = new vec3(i.x, i.y, i.z);
+      //ret[0]._max = new vec3(c.x, c.y, c.z);
+      //ret[1]._min = new vec3(c.x, i.y, i.z);
+      //ret[1]._max = new vec3(a.x, c.y, c.z);
+      //ret[2]._min = new vec3(i.x, c.y, i.z);
+      //ret[2]._max = new vec3(c.x, a.y, c.z);
+      //ret[3]._min = new vec3(c.x, c.y, i.z);
+      //ret[3]._max = new vec3(a.x, a.y, c.z);
+
+      //ret[4]._min = new vec3(i.x, i.y, c.z);
+      //ret[4]._max = new vec3(c.x, c.y, a.z);
+      //ret[5]._min = new vec3(c.x, i.y, c.z);
+      //ret[5]._max = new vec3(a.x, c.y, a.z);
+      //ret[6]._min = new vec3(i.x, c.y, c.z);
+      //ret[6]._max = new vec3(c.x, a.y, a.z);
+      //ret[7]._min = new vec3(c.x, c.y, c.z);
+      //ret[7]._max = new vec3(a.x, a.y, a.z);
+
+      return ret;
+    }
+    public string ToString() { return "" + _min.ToString() + ", " + _max.ToString() + ")"; }
+
   }
   [StructLayout(LayoutKind.Sequential)]
   public struct OOBox3f
@@ -3089,8 +4211,8 @@ namespace PirateCraft
     }
     public static void Write(this System.IO.BinaryWriter writer, Box2f box)
     {
-      writer.Write((vec2)box.Min);
-      writer.Write((vec2)box.Max);
+      writer.Write((vec2)box._min);
+      writer.Write((vec2)box._max);
     }
 
     public static vec2 ReadVec2(this System.IO.BinaryReader reader)
@@ -3188,8 +4310,8 @@ namespace PirateCraft
     public static Box2f ReadBox2f(this System.IO.BinaryReader reader)
     {
       Box2f box = new Box2f();
-      box.Min = reader.ReadVec2();
-      box.Max = reader.ReadVec2();
+      box._min = reader.ReadVec2();
+      box._max = reader.ReadVec2();
       return box;
     }
     public static Box3f ReadBox3f(this System.IO.BinaryReader reader)

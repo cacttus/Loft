@@ -51,7 +51,7 @@ namespace PirateCraft
             Error(s);
          }
       }
-      public void WarnCycle(string s)
+      public void WarnCycle(string s, int frames = 60)
       {
          int md = (int)Gu.Context.FrameStamp % 60;
          if (md == 0)

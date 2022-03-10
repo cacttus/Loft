@@ -1,198 +1,230 @@
-﻿using System;
+﻿using OpenTK.Graphics.OpenGL4;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Collections;
-using OpenTK.Graphics.OpenGL4;
-using System.IO.Compression;
 
 namespace PirateCraft
 {
+  [StructLayout(LayoutKind.Sequential)]
+  public struct GRay
+  {
+    public vec3 Color;
+    public vec3 Dir; //8
+    public GRay(vec3 c, vec3 d) { Color = c; Dir = d; }
+  };
   public enum GenState
   {
-    Created, Queued, GenStart, GenEnd, Ready, Deleted
+    Created, Queued, GenStart, GenEnd, Ready, Deleted,
   }
-  [StructLayout(LayoutKind.Sequential)]
-  public struct Block
+  public static class Block
   {
+    //blocks are stored currently as ushort
+    //this class is just a utility methods for block
     //The effigious block
-    public static Block Empty = new Block(0);
-    public Block(UInt16 val) { Value = val; }
-    public UInt16 Value;
-
-    public bool IsEmpty()
+    //1111   1111 1111 1111 
+    //fog             item
+    public static bool IsAir_Or_Missing(ushort b)
     {
       //Nothing but air
-      return Value == 0;
+      return b == BlockItemCode.Air || b == BlockItemCode.Missing;
     }
-    public bool IsItem()
+    public static bool IsMeshItem(ushort b)
     {
       //Items are special case cullables since they may not, or may cull entire faces.
-
-      return Value == BlockItemCode.Tussock || Value == BlockItemCode.Dandilion || Value == BlockItemCode.Cedar_Needles;
+      return b == BlockItemCode.Torch;
     }
-    public bool IsTransparentOr2Sided()
+    public static bool IsDecalOr2Sided(ushort b)
     {
       //In the future we'll probably keep a list of 2-sided billboards
-      return IsItem(); // IsTransparentLiquid() ..
+      return b == BlockItemCode.Tussock || b == BlockItemCode.Dandilion || b == BlockItemCode.RosePink || b == BlockItemCode.RoseRed || b == BlockItemCode.Cedar_Needles || b == BlockItemCode.Seaweed;
     }
-    public bool IsSolidBlockNotTransparent()
+    public static bool IsTransparent(ushort b)
+    {
+      return b == BlockItemCode.Water;
+    }
+    public static bool IsSolidBlockNotDecal_OrWater(ushort b)
     {
       //This should return whether the block is a *solid (non-item) *non-transparent *block (6 solid sides). 
       // Used for face culling.
       //Technically it should index into a LUT to see whether this block-item is solid or not.
       //For now - we are just rendering blocks so we can return HasDensity for this.
-      return !IsEmpty() && !IsItem();
+      return !IsAir_Or_Missing(b) && !IsMeshItem(b) && !IsDecalOr2Sided(b) && !IsTransparent(b);
+    }
+    public static bool IsVisibleBlock(ushort b)
+    {
+      return !IsAir_Or_Missing(b);
     }
   }
+  //This is used for culling 99% of the data.
+  public enum RegionState
+  {
+    Partial, VisibleBlocksOnly, Empty_AndNoData // TODO: Solid Only, Transparent, Mixed
+  }
   [StructLayout(LayoutKind.Sequential)]
-  public struct RegionState
+  public struct RegionBlocks
   {
     //This class determines what regions of globs/dromes have data, or are solid, this is used to
     //optimize the topology generator, and, unload empty regions of blocks, as empty areas have no data.
-    public const int Partial = 0;
-    public const int SolidBlocksOnly = 1;
-    public const int SolidItems = 2;
-    public const int Empty_AndNoData = 3;//Partial = renderable, Solid = fully solid, Empty = empty
 
-    private int _solid = 0;
-    private int _empty = 0;
-    private int _items = 0;
-    public bool IsSolid
+    private int _value_count = 0;
+    private int _empty_count = 0;
+
+    private const int RegionStateMaxBlocks = World.GlobBlocksX * World.GlobBlocksY * World.GlobBlocksZ;
+
+    public static RegionBlocks EmptyRegionState_Glob = new RegionBlocks();
+    public bool HasValues
     {
       get
       {
-        return (_solid == World.GlobBlocksX * World.GlobBlocksY * World.GlobBlocksZ) &&
-          (_empty == 0) &&
-          (_items == 0);
+        return (_value_count == World.GlobBlocksX * World.GlobBlocksY * World.GlobBlocksZ) &&
+          (_empty_count == 0);
       }
     }
     public bool IsEmpty
     {
       get
       {
-        return (_solid == 0) &&
-          (_empty == World.GlobBlocksX * World.GlobBlocksY * World.GlobBlocksZ) &&
-          (_items == 0);
+        return (_value_count == 0) &&
+          (_empty_count == World.GlobBlocksX * World.GlobBlocksY * World.GlobBlocksZ);
       }
     }
 
     public void Reset()
     {
-      _solid = _empty = _items = 0;
+      _value_count = _empty_count;
     }
 
-    public int Solid { get { return _solid; } }
-    public int Empty { get { return _empty; } }
-    public int Items { get { return _items; } }
+    public int ValueCount { get { return _value_count; } }
+    public int EmptyCount { get { return _empty_count; } }
     public void Deserialize(BinaryReader br)
     {
-      _solid = br.ReadInt32();
-      _empty = br.ReadInt32();
-      _items = br.ReadInt32();
+      _value_count = br.ReadInt32();
+      _empty_count = br.ReadInt32();
     }
     public void Serialize(BinaryWriter br)
     {
-      br.Write((Int32)_solid);
-      br.Write((Int32)_empty);
-      br.Write((Int32)_items);
+      br.Write((Int32)_value_count);
+      br.Write((Int32)_empty_count);
     }
-
-    public RegionState() { }
-    public int State
+    public RegionBlocks()
+    {
+      if (Block.IsVisibleBlock(Drome.InitialBlockValue))
+      {
+        _value_count = RegionStateMaxBlocks;
+        _empty_count = 0;
+      }
+      else
+      {
+        _empty_count = RegionStateMaxBlocks;
+        _value_count = 0;
+      }
+    }
+    public RegionState State
     {
       get
       {
-        if (Solid > 0 && Empty > 0)
+        if (ValueCount > 0 && EmptyCount > 0)
         {
-          return Partial;
+          return RegionState.Partial;
         }
-        else if (Empty == 0)
+        else if (EmptyCount == 0)
         {
-          return SolidBlocksOnly;
+          return RegionState.VisibleBlocksOnly;
         }
-        else if (Solid == 0)
+        else if (ValueCount == 0)
         {
           //Later we delete block data to save space for empty globs.
-          return Empty_AndNoData;
+          return RegionState.Empty_AndNoData;
         }
-        return Partial;
+        return RegionState.Partial;
       }
     }
-    public void UpdateInitialGenAddedBlock(Block block)
-    {
-      if (block.IsSolidBlockNotTransparent())
-      {
-        _solid++;
-      }
-      else
-      {
-        _empty++;
-      }
-      if (block.IsItem())
-      {
-        _items++;
-      }
-    }
-    public void UpdateBlockModified(Block old, Block block)
+    public void UpdateBlockModified(ushort old, ushort block)
     {
       //Modified a block, our state may have changed
-      if (old.IsSolidBlockNotTransparent())
+      if (Block.IsVisibleBlock(old))
       {
-        if (!block.IsSolidBlockNotTransparent())
+        if (!Block.IsVisibleBlock(block))
         {
-          _empty++;
-          _solid--;
+          _empty_count++;
+          _value_count--;
         }
       }
       else
       {
-        if (block.IsSolidBlockNotTransparent())
+        if (Block.IsVisibleBlock(block))
         {
-          _solid++;
-          _empty--;
+          _value_count++;
+          _empty_count--;
         }
       }
-
-      if (old.IsItem())
-      {
-        if (!block.IsItem())
-        {
-          _items--;
-        }
-      }
-      else
-      {
-        if (block.IsItem())
-        {
-          _items++;
-        }
-      }
-
     }
   }
   public class BlockItemCode
   {
     //Blocks
-    public const ushort Empty = 0;
-    public const ushort Value = 1;
-    public const ushort Grass = 2;
-    public const ushort Dirt = 3;
-    public const ushort Brick = 4;
-    public const ushort Brick2 = 5;
-    public const ushort Gravel = 6;
-    public const ushort Sand = 7;
-    public const ushort Cedar_Sapling = 8;
-    public const ushort Cedar = 9;
-    public const ushort Cedar_Needles = 10;
-    public const ushort Feldspar = 11;
-    public const ushort Tussock = 12;
-    public const ushort Dandilion = 13;
+    public const ushort Missing = 0; //block is missing, drome not loaded, - do not generate
+    public const ushort Air = 1; //air = empty = generate faces
+    public const ushort Land = 2;
+    public const ushort Land_Or_Water = 4;
+    public const ushort Grass = 5;
+    public const ushort Dirt = 6;
+    public const ushort Brick = 7;
+    public const ushort Brick2 = 8;
+    public const ushort Gravel = 9;
+    public const ushort Sand = 10;
+    public const ushort Cedar_Sapling = 11;
+    public const ushort Cedar = 12;
+    public const ushort Cedar_Needles = 13;
+    public const ushort Feldspar = 14;
+    public const ushort Tussock = 15;
+    public const ushort Dandilion = 16;
+    public const ushort Torch = 17;
+    public const ushort Feldspar_Coal = 18;
+    public const ushort Marble_White = 19;
+    public const ushort Marble_Green = 20;
+    public const ushort Water = 21;
+    public const ushort Seaweed = 22;
+    public const ushort Clay = 23;
+    public const ushort RedClay = 24;
+    public const ushort RosePink = 25;
+    public const ushort RoseRed = 26;
+    //MAX ** 
+    public const ushort MaxBlockItemCodes = 32;//This can be anywhere up to ushort - fog bits
     //Items
     //...
   }
+  //A picked block from a raycast or other
+  public class PickedBlock
+  {
+    public bool IsHit = false;
+    //public Glob Glob;
+    public Drome Drome = null;
+    public ushort Block;
+    public ivec3 BlockPosLocal;
+    public vec3 HitPos;
+    public vec3 Block_Center;
+    public float _t = float.MaxValue;
+    public vec3 HitNormal_Ray;
+    public List<Box3f> PickedBlockBoxes_Debug = null;
+    public bool AddPickedBlockBoxes_Debug = false;
+    public vec3 GetHitNormal_Block()
+    {
+      vec3 dir = HitPos - World.GetBlockBox(this, 0.00f).center();
+      vec3 dir_n = dir.snap().normalize();
+      return dir_n;
+    }
+  }
   public enum TileImage
   {
-    Grass, GrassSide, Dirt, Plank, Brick, Brick2, Gravel, Sand, Cedar, Cedar_Needles, Cedar_Top, Feldspar, Tussock, Blank, Dandilion
+    Grass, GrassSide, Dirt, Plank, Brick, Brick2, Gravel, Sand, Cedar,
+    Cedar_Needles, Cedar_Top, Feldspar,
+    Tussock, Tussock2, Tussock_Stalk_Bot, Tussock_Stalk_Mid, Tussock_Stalk_Top,
+
+    Blank, Dandilion, Cracks1, Cracks2, Cracks3, Cracks4, Feldspar_Coal, Marble_White, Marble_Green, Water, Seaweed, Clay, RedClay, RosePink, RoseRed
+  }
+  public enum BlockSide
+  {
+    Left = 0, Right = 1, Bottom = 2, Top = 3, Back = 4, Front = 5
   }
   public class BlockTileUVSide
   {
@@ -202,24 +234,33 @@ namespace PirateCraft
   }
   public class WorldStaticData
   {
+    public static ivec3[] n_off = new ivec3[]
+    {
+      new ivec3(-1, 0, 0),
+      new ivec3( 1, 0, 0),
+      new ivec3( 0,-1, 0),
+      new ivec3( 0, 1, 0),
+      new ivec3( 0, 0,-1),
+      new ivec3( 0, 0, 1),
+    };
     //Unit box for creating mesh cubes, Tiles, Material
     public static vec3[] GlobNeighborOffsets = new vec3[6]
     {
-         new vec3(-World.GlobWidthX, 0, 0),
-         new vec3(World.GlobWidthX, 0, 0),
-         new vec3(0, -World.GlobWidthY, 0),
-         new vec3(0, World.GlobWidthY, 0),
-         new vec3(0, 0, -World.GlobWidthZ),
-         new vec3(0, 0, World.GlobWidthZ),
+      new vec3(-World.GlobWidthX, 0, 0),
+      new vec3(World.GlobWidthX, 0, 0),
+      new vec3(0, -World.GlobWidthY, 0),
+      new vec3(0, World.GlobWidthY, 0),
+      new vec3(0, 0, -World.GlobWidthZ),
+      new vec3(0, 0, World.GlobWidthZ),
     };
     public static vec3[] BlockNeighborOffsets = new vec3[6]
     {
-         new vec3(-World.BlockSizeX, 0, 0),
-         new vec3(World.BlockSizeX, 0, 0),
-         new vec3(0, -World.BlockSizeY, 0),
-         new vec3(0, World.BlockSizeY, 0),
-         new vec3(0, 0, -World.BlockSizeZ),
-         new vec3(0, 0, World.BlockSizeZ),
+      new vec3(-World.BlockSizeX, 0, 0),
+      new vec3(World.BlockSizeX, 0, 0),
+      new vec3(0, -World.BlockSizeY, 0),
+      new vec3(0, World.BlockSizeY, 0),
+      new vec3(0, 0, -World.BlockSizeZ),
+      new vec3(0, 0, World.BlockSizeZ),
     };
 
     public static Dictionary<TileImage, FileLoc> TileImages = new Dictionary<TileImage, FileLoc>() {
@@ -236,20 +277,41 @@ namespace PirateCraft
             { TileImage.Cedar_Top, new FileLoc("tx64_cedar_top.png", FileStorage.Embedded) },
             { TileImage.Feldspar, new FileLoc("tx64_plagioclase_feldspar.png", FileStorage.Embedded) },
             { TileImage.Tussock, new FileLoc("tx64_tussock.png", FileStorage.Embedded) },
+            { TileImage.Tussock2, new FileLoc("tx64_tussock2.png", FileStorage.Embedded) },
+            { TileImage.Tussock_Stalk_Bot, new FileLoc("tx64_tussock_stalk_bot.png", FileStorage.Embedded) },
+            { TileImage.Tussock_Stalk_Mid, new FileLoc("tx64_tussock_stalk_mid.png", FileStorage.Embedded) },
+            { TileImage.Tussock_Stalk_Top, new FileLoc("tx64_tussock_stalk_top.png", FileStorage.Embedded) },
             { TileImage.Blank, new FileLoc("tx64_blank.png", FileStorage.Embedded) },
             { TileImage.Dandilion, new FileLoc("tx64_dandilion.png", FileStorage.Embedded) },
+            { TileImage.Cracks1, new FileLoc("tx64_cracks1.png", FileStorage.Embedded) },
+            { TileImage.Cracks2, new FileLoc("tx64_cracks2.png", FileStorage.Embedded) },
+            { TileImage.Cracks3, new FileLoc("tx64_cracks3.png", FileStorage.Embedded) },
+            { TileImage.Cracks4, new FileLoc("tx64_cracks4.png", FileStorage.Embedded) },
+            { TileImage.Feldspar_Coal, new FileLoc("tx64_plagioclase_coal.png", FileStorage.Embedded) },
+            { TileImage.Marble_Green, new FileLoc("tx64_marble_green.png", FileStorage.Embedded) },
+            { TileImage.Marble_White, new FileLoc("tx64_marble_white.png", FileStorage.Embedded) },
+            { TileImage.Water, new FileLoc("tx64_water.png", FileStorage.Embedded) },
+            { TileImage.Seaweed, new FileLoc("tx64_seaweed.png", FileStorage.Embedded) },
+            { TileImage.Clay, new FileLoc("tx64_clay.png", FileStorage.Embedded) },
+            { TileImage.RedClay, new FileLoc("tx64_red_clay.png", FileStorage.Embedded) },
+            { TileImage.RosePink, new FileLoc("tx64_rose_pink.png", FileStorage.Embedded) },
+            { TileImage.RoseRed, new FileLoc("tx64_rose_red.png", FileStorage.Embedded) },
          };
 
     private static vec3[] bx_box = new vec3[8];
-    private static vec3[] bx_norms = new vec3[6];//lrbtaf
+    public static vec3[] bx_norms = new vec3[6];//lrbtaf
     private static vec2[] bx_texs = new vec2[4];
     public static v_v3n3x2[,] bx_verts_face { get; private set; } = new v_v3n3x2[6, 4];//lrbtaf
     public static uint[] bx_face_inds { get; private set; }
 
-    public static void Generate()
+    private static vec3[] bb_planes_Zup = new vec3[8];
+    private static vec3[] bb_norms_Zup = new vec3[2];
+    public static v_v3n3x2[,] bb_verts_face_zup { get; private set; } = new v_v3n3x2[2, 4];//normals point +x, +z
+    public static uint[] bb_face_inds_zup { get; private set; }
+
+    private static void DoBox(float w2, float h2, float d2)
     {
       //Left Righ, Botom top, back front
-      float w2 = World.BlockSizeX, h2 = World.BlockSizeY, d2 = World.BlockSizeZ;
       bx_box[0] = new vec3(0, 0, 0);
       bx_box[1] = new vec3(w2, 0, 0);
       bx_box[2] = new vec3(0, h2, 0);
@@ -315,19 +377,187 @@ namespace PirateCraft
             (uint)(flip ? 3 : 1),
             (uint)(flip ? 1 : 3)
          };
+    }
+    private static void DoBillboard(float w2, float h2, float d2)
+    {
+      // 2* 
+      //     \ 3* --> +x (normal)
+      //
+      // 0*  \
+      //       1*
+      // \ +z
+      // float x = World.BlockSizeX, = 1.0f, float y = 1.0f;
+      bb_planes_Zup[0] = new vec3(w2 * 0.5f, 0, d2);
+      bb_planes_Zup[1] = new vec3(w2 * 0.5f, 0, 0);
+      bb_planes_Zup[2] = new vec3(w2 * 0.5f, h2, d2);
+      bb_planes_Zup[3] = new vec3(w2 * 0.5f, h2, 0);
 
+      bb_planes_Zup[4] = new vec3(0, 0, d2 * 0.5f);
+      bb_planes_Zup[5] = new vec3(w2, 0, d2 * 0.5f);
+      bb_planes_Zup[6] = new vec3(0, h2, d2 * 0.5f);
+      bb_planes_Zup[7] = new vec3(w2, h2, d2 * 0.5f);
+
+      bb_norms_Zup[0] = new vec3(1, 0, 0);
+      bb_norms_Zup[1] = new vec3(0, 0, 1);
+
+      //using box textures here because we won't need it in a normal case anyway.
+      bb_verts_face_zup[0, 0] = new v_v3n3x2() { _v = bb_planes_Zup[0], _n = bb_norms_Zup[0], _x = bx_texs[0] };
+      bb_verts_face_zup[0, 1] = new v_v3n3x2() { _v = bb_planes_Zup[1], _n = bb_norms_Zup[0], _x = bx_texs[1] };
+      bb_verts_face_zup[0, 2] = new v_v3n3x2() { _v = bb_planes_Zup[2], _n = bb_norms_Zup[0], _x = bx_texs[2] };
+      bb_verts_face_zup[0, 3] = new v_v3n3x2() { _v = bb_planes_Zup[3], _n = bb_norms_Zup[0], _x = bx_texs[3] };
+
+      bb_verts_face_zup[1, 0] = new v_v3n3x2() { _v = bb_planes_Zup[4], _n = bb_norms_Zup[1], _x = bx_texs[0] };
+      bb_verts_face_zup[1, 1] = new v_v3n3x2() { _v = bb_planes_Zup[5], _n = bb_norms_Zup[1], _x = bx_texs[1] };
+      bb_verts_face_zup[1, 2] = new v_v3n3x2() { _v = bb_planes_Zup[6], _n = bb_norms_Zup[1], _x = bx_texs[2] };
+      bb_verts_face_zup[1, 3] = new v_v3n3x2() { _v = bb_planes_Zup[7], _n = bb_norms_Zup[1], _x = bx_texs[3] };
+
+      bool flip = false;
+      bb_face_inds_zup = new uint[6] {
+            0,
+            (uint)(flip ? 2 : 3),
+            (uint)(flip ? 3 : 2),
+            0,
+            (uint)(flip ? 3 : 1),
+            (uint)(flip ? 1 : 3)
+         };
+    }
+    public static void Generate()
+    {
+      float w2 = World.BlockSizeX, h2 = World.BlockSizeY, d2 = World.BlockSizeZ;
+      DoBox(w2, h2, d2);
+      DoBillboard(w2, h2, d2);
+    }
+  }
+  public class BlockWorldVisibleStuff
+  {
+    public MultiMap<float, Glob> visible_globs = new MultiMap<float, Glob>();
+    public Dictionary<BlockItem, SortedDictionary<float, vec3>> visible_blockitems = new Dictionary<BlockItem, SortedDictionary<float, vec3>>();
+    public void Clear()
+    {
+      visible_blockitems.Clear();
+      visible_globs.Clear();
+    }
+    public void Collect(Camera3D cam, Glob glob, DromeNode dn)
+    {
+
+      //Item collection
+      if (visible_blockitems != null || visible_globs != null)
+      {
+        if (glob != null && glob.CanRender_and_HasRenderData)
+        {
+          float glob_dist2 = dn.Box.DistanceToCam2(cam);// (cam.Position - box_center).length2();
+          if (visible_globs != null)
+          {
+            visible_globs.Add(glob_dist2, glob);
+          }
+
+          if (glob.BlockItems != null)
+          {
+            //Note: It is impossible to have duplicates in glob_blockitems
+            foreach (var glob_blockitems_kvp in glob.BlockItems)
+            {
+              BlockItem the_item = glob_blockitems_kvp.Key;
+              //Item positions are the block center (right now.. might change to block bottom)
+              List<vec3> item_positions_in_glob_r3 = glob_blockitems_kvp.Value;
+
+              //add vec4 (pos.xyz, distance)
+              SortedDictionary<float, vec3> items_byDist = null;
+              if (!visible_blockitems.TryGetValue(the_item, out items_byDist))
+              {
+                items_byDist = new SortedDictionary<float, vec3>();
+                visible_blockitems.Add(the_item, items_byDist);
+              }
+              if (item_positions_in_glob_r3 != null)
+              {
+                foreach (var item_pos in item_positions_in_glob_r3)
+                {
+                  float dist = the_item.IsVisible(cam, item_pos);
+                  if (dist > 0)
+                  {
+                    items_byDist.Add(dist, item_pos);
+                  }
+                }
+              }
+            }
+
+          }
+        }
+      }
     }
   }
   //Asynchronous generation for globs (mesh topologies within the drome)
+  public class DromeKernel : List<Drome>
+  {
+    private const int C27_Count = 27;
+    public DromeKernel()
+    {
+      for (int i = 0; i < C27_Count; ++i)
+      {
+        Add(null);
+      }
+    }
+    public void Set(int ddx, int ddy, int ddz, Drome d)
+    {
+      this[9 * ddz + 3 * ddy + ddx] = d;
+    }
+    public Drome Get(int ddx, int ddy, int ddz)
+    {
+      return this[9 * ddz + 3 * ddy + ddx];
+    }
+    public Drome Get(ivec3 idx)
+    {
+      return Get(idx.x, idx.y, idx.z);
+    }
+    public void Lock()
+    {
+      //Unlock our boys
+      foreach (var d in this)
+      {
+        if (d != null)
+        {
+          d.Lock();
+        }
+      }
+    }
+    public void Unlock()
+    {
+      //Unlock our boys
+      foreach (var d in this)
+      {
+        if (d != null)
+        {
+          d.Unlock();
+        }
+      }
+    }
+  }
   public class QueuedGlobData_WithKernel
   {
-    public Glob glob;
-    public List<v_v3n3x2> async_verts = null;
-    public List<uint> async_inds_op = null;
-    public List<uint> async_inds_tp = null;
-    public long QueueId = 0;
+    //public Drome drome;//keep this here to prevent drome from disappearing while iterating its blocks ** this willb e in locked droems
+    public Glob MyGlob;
+    //C27
+    //                  24 25 26
+    //         15 16 17 21 22 23
+    //06 07 08 12 13 14 18 19 20
+    //03 04 05 09 10 11 
+    //00 01 02
+    // x-->  ^y /z  Center (our drome) = 13
+
+    public DromeKernel ScalarFields = new DromeKernel();
+    public List<v_v3c3n3x2u1> async_verts = null;
+    public List<ushort> async_inds_op
+    {
+      get;
+      set;
+    } = null;
+    public List<ushort> async_inds_tp
+    {
+      get;
+      set;
+    } = null;
+    public Dictionary<BlockItem, List<vec3>> _blockitems = null;
     public double DistanceToPlayer = 0;//Sort key for generating
-    public Block[] CopiedBlocks = null;//Note this is the block kernel of blocks + n
+    public ushort[] CopiedBlocks = null;//Note this is the block kernel of blocks + n
     public static int Kernel_Offset(int dx, int dy, int dz)
     {
       int off = World.GlobBlocksX_Gen_Kernel * World.GlobBlocksY_Gen_Kernel * dz +
@@ -335,7 +565,7 @@ namespace PirateCraft
                 dx;
       return off;
     }
-    public Block GetBlock_Kernel(int dx, int dy, int dz)
+    public ushort GetBlock_Kernel(int dx, int dy, int dz)
     {
       Gu.Assert(dx >= 0 && dx < World.GlobBlocksX_Gen_Kernel);
       Gu.Assert(dy >= 0 && dy < World.GlobBlocksY_Gen_Kernel);
@@ -345,26 +575,91 @@ namespace PirateCraft
 
       return CopiedBlocks[off];
     }
+    public ushort GetBlock_Glob_Drome(int dx, int dy, int dz)
+    {
+      //I am no longer using "Missing" in the assumption this will work.
+      ivec3 glocal = World.GlobGlobal_Z3_To_DromeLocal_Z3(MyGlob.Pos);
+
+      ivec3 c27_drome_idx = new ivec3(1, 1, 1);
+
+      int x = glocal.x * World.GlobBlocksX + dx;
+      int y = glocal.y * World.GlobBlocksY + dy;
+      int z = glocal.z * World.GlobBlocksZ + dz;
+
+      //Wrap
+      if (x < 0)
+      {
+        x = (x % World.DromeBlocksX) + World.DromeBlocksX;
+        c27_drome_idx.x -= 1;
+      }
+      else if (x >= World.DromeBlocksX)
+      {
+        x = (x % World.DromeBlocksX);
+        c27_drome_idx.x += 1;
+      }
+      if (y < 0)
+      {
+        y = (y % World.DromeBlocksY) + World.DromeBlocksY;
+        c27_drome_idx.y -= 1;
+      }
+      else if (y >= World.DromeBlocksY)
+      {
+        y = (y % World.DromeBlocksY);
+        c27_drome_idx.y += 1;
+      }
+      if (z < 0)
+      {
+        z = (z % World.DromeBlocksZ) + World.DromeBlocksZ;
+        c27_drome_idx.z -= 1;
+      }
+      else if (z >= World.DromeBlocksZ)
+      {
+        z = (z % World.DromeBlocksZ);
+        c27_drome_idx.z += 1;
+      }
+
+      var d = ScalarFields.Get(c27_drome_idx);
+
+      Gu.Assert(d != null);
+
+      if (d.Blocks.Grid == null)
+      {
+        return BlockItemCode.Air;
+      }
+
+      return d.Blocks.Get_Direct_Unsafe_But_Fast(x, y, z);
+    }
   }
   //Asynchronous generation data for dromes (scalar fields e.g. blocks as ushort)
   public class QueuedDromeData
   {
-    public Drome drome;
-    public long QueueId = 0;
+    public Drome drome = null;
+    public ivec3 gpos;
     public double DistanceToPlayer = 0;
   }
   //Topology units
   public class Glob
   {
+    public Dictionary<BlockItem, List<vec3>> BlockItems = null;
+    public MeshData Transparent { get; set; } = null;
+    public MeshData Opaque { get; set; } = null;
+
+    public WeakReference<Drome> Drome { get; private set; } = null;
+    public ivec3 Pos { get; private set; } = new ivec3(0, 0, 0);
     public Int64 GeneratedFrameStamp { get; private set; } = 0;
-    public MeshData Transparent = null;
-    public MeshData Opaque = null;
-    public ivec3 Pos = new ivec3(0, 0, 0);
-    public GenState State = GenState.Created;
-    public Drome Drome = null;
+    public GenState State { get; set; } = GenState.Created;
+
     public object lock_object = new object();
-    public long QueueId = 0;
-    public long LastVisible_ms = 0; //Last time this glob was visible.
+    public bool CanRender_and_HasRenderData
+    {
+      get
+      {
+        //Don't check for genstate here. If you check against genstate then you will get flickering as the glob is being updated.
+        //meshes are updated synchronously anyway, so it's alright if this glob data is being generated.
+        bool canrender = (Transparent != null) || (Opaque != null);
+        return canrender;
+      }
+    }
     public static vec3 OriginR3_fn(ivec3 g_pos)
     {
       vec3 r = new vec3(g_pos.x * World.GlobWidthX, g_pos.y * World.GlobWidthY, g_pos.z * World.GlobWidthZ);
@@ -386,19 +681,36 @@ namespace PirateCraft
         return r;
       }
     }
+    public ivec3 DromeLocalZ3
+    {
+      get
+      {
+        return World.GlobGlobal_Z3_To_DromeLocal_Z3(Pos);
+      }
+    }
     public Glob(ivec3 pos, Int64 genframeStamp, Drome drom)
     {
       Pos = pos;
       GeneratedFrameStamp = genframeStamp;
-      Drome = drom;
+      Drome = new WeakReference<Drome>(drom);
     }
   }
   public class DromeNode
   {
     public DromeNode[] Children = null; //octree .. 
+    private bool[] ChildWasProcessed = new bool[8] { false, false, false, false, false, false, false, false }; //this could be just a byte but man it sucks doing bit shit in c number
     protected Box3f _box;
     public bool IsLeaf = false;
-    public bool HasTopo = false;
+    public bool IsStaticHierarchy = false; //Static leaf box block
+    public Glob Glob = null;
+    public bool IsDirty = true;
+    public long LastVisible_ms = 0; //Last time this glob was visible.
+    public static bool IsVisible(World w, Camera3D cam, Box3f box)
+    {
+      float dist_cam2 = box.DistanceToCam2(cam);
+      bool vis = cam.Frustum.HasBox(box) && (dist_cam2 < (w.RenderDistance * w.RenderDistance));
+      return vis;
+    }
     public Box3f Box
     {
       get
@@ -406,166 +718,387 @@ namespace PirateCraft
         return _box;
       }
     }
-    public Glob Glob = null;
-
-    public void CollectVisibleGlobs_Or_GenThem(World w, Drome d, Camera3D cam, MultiMap<float, Glob> out_globs)
+    public vec3 OriginR3 { get { return _box._min; } }
+    public void Subdivide_Static_Hierarchy(bool isroot)
     {
-      if (cam.Frustum.HasBox(this.Box))
-      {
-        vec3 box_center = _box.center();
-        ivec3 gpos = World.R3toI3Glob(box_center);
+      IsStaticHierarchy = true;
 
-        if (IsLeaf)
+      //treat this as a static glob that we subdivide until we hit blocks. This is used for raycasting.
+      if (isroot)
+      {
+        _box = new Box3f(new vec3(0, 0, 0), new vec3(World.GlobWidthX, World.GlobWidthY, World.GlobWidthZ));
+      }
+
+      if ((Box.Width() < World.BlockSizeX + 0.01f) &&
+        (Box.Height() < World.BlockSizeY + 0.01f) &&
+        (Box.Depth() < World.BlockSizeZ + 0.01f))
+      {
+        IsLeaf = true;
+      }
+      else
+      {
+        Children = new DromeNode[8];
+        Box3f[] cbox = Box.Divide();
+        for (int ci = 0; ci < 8; ci++)
         {
-          if (HasTopo)
-          {
-            if (Glob == null)
-            {
-              //There should not be multiple globs here.
-              Glob = new Glob(gpos, Gu.Context.FrameStamp, d);
-              w.QueueForTopo(Glob);
-            }
-            else
-            {
-           //   float fDist2 = (cam.Position - box_center).length2();
-           //   if (Glob.State == GenState.Ready)
-           //   {
-           //     out_globs.Add(fDist2, Glob);
-            //  }
-            }
-          }
-        }
-        else
-        {
-          if (Children != null)
-          {
-            foreach (var c in Children)
-            {
-              if (c != null)
-              {
-                c.CollectVisibleGlobs_Or_GenThem(w, d, cam, out_globs);
-              }
-            }
-          }
+          Children[ci] = new DromeNode();
+          Children[ci]._box = cbox[ci];
+          Children[ci].Subdivide_Static_Hierarchy(false);
         }
       }
     }
-    public int Subdivide(Drome root, vec3? modified_block_center_R3 = null)
+    private int CheckLeaf(Drome root)
     {
+      //check if leaf
+      //also check region state if we are. 
+      if (
+          (Box.Width() < World.GlobWidthX + 0.01f) &&
+          (Box.Height() < World.GlobWidthY + 0.01f) &&
+          (Box.Depth() < World.GlobWidthZ + 0.01f))
+      {
+        //So, we either did, or didn't divide the child.
+
+        var state = root.GetRegionStateForDromeNodeLeaf(this);
+        if (state.IsEmpty /*|| rs.IsSolid*/)//.. ?Makes no sesne for solid as cubers generate their own topology.
+        {
+          root.dbg_nCount_Empty_Leaves++;
+
+          return 8; //Parent culls any nodes that return 8.
+        }
+        IsLeaf = true;
+        root.dbg_nCountLeaves++;
+      }
+      return 0;
+    }
+
+    public int DoLiterallyEverything(World w, Drome root, Camera3D cam, BlockWorldVisibleStuff stuff = null, ModifiedBlock mb = null)
+    {
+      //What this does:
+      // subdivide drome into node hierarchy
+      // create globs (world meshes)
+      // edit globs
+      // delete globs
+      // delete node hierarchy
+      // collect visible objects visible globs for render
+
+      Gu.Assert((w != null) && (root != null) && (cam != null));
+
+      int nculled = 0;
+
       //return the number of children that are empty or, have no topology
       Gu.Assert(root != null);
 
-      root.dbg_nCountSubs++;
+      LastVisible_ms = Gu.Milliseconds();
 
-      vec3 i = Box._min;
-      vec3 c = Box._min + (Box._max - Box._min) * 0.5f;
-      vec3 a = Box._max;
-
-      if (
-        (Box.Width() < World.GlobWidthX + 0.01) &&
-        (Box.Height() < World.GlobWidthY + 0.01) &&
-        (Box.Depth() < World.GlobWidthZ + 0.01))
+      if (IsLeaf)
       {
-        //128 x 64 cubes - which is invalid.
-        root.dbg_nCountLeaves++;
-        IsLeaf = true;
-        ivec3 gpos_global = World.R3toI3Glob(c);
-        ivec3 gpos_local = World.GlobOffsetInDrome_LocalZ3(gpos_global);
-        //we are a glob
-        var rs = root.RegionStates[Drome.RegionStateOffset_FromLocalGlobPos(gpos_local)];
-        if (rs.IsEmpty /*|| rs.IsSolid*/)//.. ?Makes no sesne for solid as cubers generate their own topology.
+        //Note - We already checked for region state when CREATING this leaf - so if we get here
+        //it means we have a non-empty region state and this leaf does have visible data. (however we dont' check for world objects here)
+        if ((mb != null) || (Glob == null))
         {
-          HasTopo = false; // this will get culled anyway
-          return 8;
+          vec3 box_center = _box.center();
+          ivec3 gpos = World.R3toI3Glob(box_center);
+          Glob = w.QueueGlob(Glob, root, gpos);
         }
-        HasTopo = true;
+        else if ((Glob != null) && (Glob.State == GenState.Ready) && (stuff != null))
+        {
+          //We have a glob and we are collecting stuff to render
+          stuff.Collect(cam, Glob, this);
+        }
 
         return 0;
       }
       else
       {
-        //   6 7
-        // 2 3 5   ->x ^z
-        // 0 1
-        //
-        Children = new DromeNode[8];
+        //Create or recreate missing children
         for (int ci = 0; ci < 8; ci++)
         {
-          Children[ci] = new DromeNode();
-        }
+          var box = ((Children != null) && (Children[ci] != null)) ? Children[ci].Box : Box.GetDivisionChild(ci);
 
-        Children[0]._box._min = new vec3(i.x, i.y, i.z);
-        Children[0]._box._max = new vec3(c.x, c.y, c.z);
-
-        Children[1]._box._min = new vec3(c.x, i.y, i.z);
-        Children[1]._box._max = new vec3(a.x, c.y, c.z);
-
-        Children[2]._box._min = new vec3(i.x, c.y, i.z);
-        Children[2]._box._max = new vec3(c.x, a.y, c.z);
-
-        Children[3]._box._min = new vec3(c.x, c.y, i.z);
-        Children[3]._box._max = new vec3(a.x, a.y, c.z);
-
-        Children[4]._box._min = new vec3(i.x, i.y, c.z);
-        Children[4]._box._max = new vec3(c.x, c.y, a.z);
-
-        Children[5]._box._min = new vec3(c.x, i.y, c.z);
-        Children[5]._box._max = new vec3(a.x, c.y, a.z);
-
-        Children[6]._box._min = new vec3(i.x, c.y, c.z);
-        Children[6]._box._max = new vec3(c.x, a.y, a.z);
-
-        Children[7]._box._min = new vec3(c.x, c.y, c.z);
-        Children[7]._box._max = new vec3(a.x, a.y, a.z);
-
-        int ncull = 0;
-        for (int ci = 0; ci < Children.Length; ci++)
-        {
-          if (
-            ((modified_block_center_R3 != null) && Children[ci].Box.containsBottomLeftInclusive(modified_block_center_R3.Value))
-            || (modified_block_center_R3 == null)
-            )
+          bool must_process = false;
+          if (mb == null)
           {
-            //We subdivide just for a modified block
-            var ret = Children[ci].Subdivide(root);
-            //cull out empty ones.
-            if (ret == 8)
+
+            //visible
+            if (DromeNode.IsVisible(w, cam, box))
             {
-              Children[ci] = null;
-              ncull++;
-              root.dbg_nCountCulled++;
+              must_process = true;
+            }
+          }
+          else if (mb != null)
+          {
+            //dividing by a modified block / point. Node may not be visible but we still divide.
+            if (Children != null && Children[ci] != null)
+            {
+              must_process = box.containsPointBottomLeftInclusive(mb.Pos);
             }
             else
             {
-              root.dbg_nCountHave++;
+              must_process = box.containsPointBottomLeftInclusive(mb.Pos);
+            }
+          }
+
+          if (must_process)
+          {
+            ChildWasProcessed[ci] = true;
+
+            if (Children == null)
+            {
+              Children = new DromeNode[8] { null, null, null, null, null, null, null, null };
+            }
+
+            int num_culled_child = 0;
+
+            if (Children[ci] == null)
+            {
+              Children[ci] = new DromeNode();
+              Children[ci]._box = Box.GetDivisionChild(ci);
+              num_culled_child = Children[ci].CheckLeaf(root);
+              if (num_culled_child == 8)
+              {
+                Children[ci] = null;
+              }
+            }
+
+            if (Children[ci] != null)
+            {
+              num_culled_child = Children[ci].DoLiterallyEverything(w, root, cam, stuff, mb);
+            }
+
+            //cull empty child
+            if (num_culled_child == 8)
+            {
+              Children[ci] = null;
+              root.dbg_nCountCulled++;
+            }
+          }
+
+          if (Children == null || Children[ci] == null)
+          {
+            nculled++;
+          }
+        }
+
+        //We culled all the kids - set children to  null. and get ourselves culled.
+        if (nculled == 8)
+        {
+          Children = null;
+        }
+      }
+
+      //Delete check.. Make sure the Gen  < delete distance or we gen/delete over and over..
+      if (w.Drome_or_Node_Can_Delete_Distance(_box) && ((Gu.Milliseconds() - LastVisible_ms) > World.Abandon_DeleteTime_DromeNode_ms))
+      {
+        //Delete if we are invisible
+        nculled = 8;
+      }
+      if (this == root)
+      {
+        //Do not cull dromes here. We cull them outside here
+        nculled = 0;
+      }
+
+      return nculled;
+    }
+    private static int dbg_int_ncalls = 0;
+    public void RaycastBlockBVH(Drome root, PickRay3D pr, ref PickedBlock pb, vec3? parent_glob__origin = null)
+    {
+      if (this == root)
+      {
+        dbg_int_ncalls = 0;
+      }
+      dbg_int_ncalls++;
+      if (pb.AddPickedBlockBoxes_Debug)
+      {
+        //  Gu.Log.WarnCycle("Picked boxces debug is enabled. disable / delete this later.");
+        if (pb.PickedBlockBoxes_Debug == null)
+        {
+          pb.PickedBlockBoxes_Debug = new List<Box3f>();
+        }
+        pb.PickedBlockBoxes_Debug.Add(Box);
+      }
+      if (IsStaticHierarchy == true)
+      {
+        if (IsLeaf == true)
+        {
+          //we are a block
+          Gu.Assert(parent_glob__origin != null);
+
+          var cpos_r3 = parent_glob__origin.Value + _box.center();
+          ivec3 b3i = Drome.R3toI3BlockLocal_Drome(cpos_r3);
+          ushort b = root.GetBlock(b3i);
+
+          if (pb.AddPickedBlockBoxes_Debug)
+          {
+            //  Gu.Log.WarnCycle("Picked boxces debug is enabled. disable / delete this later.");
+            if (pb.PickedBlockBoxes_Debug == null)
+            {
+              pb.PickedBlockBoxes_Debug = new List<Box3f>();
+            }
+            pb.PickedBlockBoxes_Debug.Add(World.GetBlockBoxGlobalR3(cpos_r3));
+          }
+
+          if (!Block.IsAir_Or_Missing(b))
+          {
+            BoxAAHit bh = new BoxAAHit();
+            //note pr is currently translated into static glob space
+            if (_box.LineOrRayIntersectInclusive_EasyOut(pr, ref bh))
+            {
+              if (bh._t < pb._t)
+              {
+                pb._t = (float)bh._t;
+
+                pb.Drome = root;
+                pb.Block = b;
+                pb.BlockPosLocal = b3i;
+                //This is the static glob at 0,0,0, add the minimum of the parent to translate the box into the actual coordinates.
+                pb.HitPos = parent_glob__origin.Value + pr.Origin + pr.Dir * (float)bh._t;
+                pb.Block_Center = cpos_r3;
+                pb.HitNormal_Ray = -pr.Dir;
+                pb.IsHit = true;
+                return;
+              }
             }
           }
 
         }
-        if (ncull == 8)
+      }
+      else
+      {
+        if (IsLeaf == true)
         {
-          this.Children = null;
-        }
+          //Translate the ray relative to the static "block box" that has a hierarchy
+          //of box nodes at the sub-glob level. Then raycast into this box until we reach a block.
+          PickRay3D pr_translated = new PickRay3D(pr.Origin - _box._min, pr.Dir, pr.Radius);
 
+          Drome.Static_Hierarchy.RaycastBlockBVH(root, pr_translated, ref pb, _box._min);
+        }
       }
 
-      return 0;
-    }
+      if (Children != null)
+      {
+        BoxAAHit bh = new BoxAAHit();
+        foreach (var c in this.Children)
+        {
+          if (c != null)
+          {
+            if (c.Box.LineOrRayIntersectInclusive_EasyOut(pr, ref bh))
+            {
+              if (bh._t < pb._t)
+              {
+                //Don't set t here, the ray is inside the boxes most of hte time.
+                c.RaycastBlockBVH(root, pr, ref pb, parent_glob__origin);
+              }
+            }
+          }
+        }
+      }
 
+
+
+    }//RaycastBlockBVH
+
+  }
+  public class ModifiedBlock
+  {
+    public vec3 Pos { get; }
+    public ivec3 IPos { get; }
+    public ushort OldBlock { get; } //BlockItemcode //these arent used
+    public ushort NewBlock { get; } //BlockItemcode
+    public ModifiedBlock(vec3 p, ushort oldblock, ushort newBLock)
+    {
+      Pos = p;
+      OldBlock = oldblock;
+      NewBlock = newBLock;
+    }
+  }
+  public class BlockStats
+  {
+    //A more sophisticated RegionState for dromes.
+    //We need to know via the generator how many plagio, wood, etc exist in the block, ot generate in it
+    public Dictionary<ushort, int> BlockCounts = new Dictionary<ushort, int>();
+    public BlockStats()
+    {
+      //All blocks are air initially.
+      BlockCounts.Add(Drome.InitialBlockValue, Drome.DromeBlockCount);
+    }
+    public RegionState RegionState
+    {
+      get
+      {
+        //Gets whether we are solid / partial / empty
+        RegionState ret = RegionState.Partial;
+        Gu.Assert(BlockCounts.Keys.Count > 0);//This should be impossible.
+        if (BlockCounts.Keys.Count > 1)
+        {
+          ret = RegionState.Partial;
+        }
+        else
+        {
+          ushort k = BlockCounts.Keys.First();
+          if (Block.IsVisibleBlock(k))
+          {
+            ret = RegionState.VisibleBlocksOnly;
+          }
+          ret = RegionState.Empty_AndNoData;
+        }
+        return ret;
+      }
+    }
+    public void UpdateBlockModified(ushort oldb, ushort newb)
+    {
+      if (!BlockCounts.ContainsKey(newb))
+      {
+        BlockCounts.Add(newb, 0);
+      }
+      BlockCounts[newb] += 1;
+      BlockCounts[oldb] -= 1;
+      if (BlockCounts[oldb] <= 0)
+      {
+        BlockCounts.Remove(oldb);
+      }
+
+    }
+    public void Serialize(BinaryWriter br)
+    {
+      br.Write((int)BlockCounts.Keys.Count);
+      foreach (var c in BlockCounts)
+      {
+        br.Write((UInt16)c.Key);
+        br.Write((int)c.Value);
+      }
+    }
+    public void Deserialize(BinaryReader br)
+    {
+      BlockCounts.Clear();
+      int bcount = br.ReadInt32();
+      for (int ci = 0; ci < bcount; ci++)
+      {
+        ushort code = br.ReadUInt16();
+        int count = br.ReadInt32();
+
+        BlockCounts.Add(code, count);
+      }
+    }
   }
   //Density / Block units
   public class Drome : DromeNode
   {
-    public class DromeStats
-    {
-      public long BaseWorld_ms = 0;
-    }
-    public RegionState RegionState = new RegionState();
-    public Block[] Blocks = null;
-    public RegionState[] RegionStates = null;
+    public Grid3D<GRay> LightGrid = null;
+    public Grid3D<ushort> Blocks = new Grid3D<ushort>(World.DromeBlocksX, World.DromeBlocksY, World.DromeBlocksZ);
+
+    public int _lock = 0;
+    public bool Locked { get { return _lock > 0; } }
+    public void Lock() { _lock++; }
+    public void Unlock() { _lock--; }
+
+    private WeakReference<World> _world = null;
+    public BlockStats BlockStats = new BlockStats();
+    public RegionBlocks[] GlobRegionStates = null;
     public ivec3 Pos = new ivec3(0, 0, 0);
-    public GenState State = GenState.Created; //Note C# integral types are atomic.
-    public DromeStats Stats = new DromeStats();
+    public GenState GenState = GenState.Created; //Note C# integral types are atomic.
+    public static DromeNode Static_Hierarchy = null;
+
     public vec3 OriginR3
     {
       get
@@ -586,32 +1119,68 @@ namespace PirateCraft
                                    World.DromeWidthZ * 0.5f);
       }
     }
+    public int dbg_nCount_Empty_Leaves = 0;
     public int dbg_nCountLeaves = 0;
-    public int dbg_nCountSubs = 0;
+    public int dbg_nCountProcessed_Children = 0;
     public int dbg_nCountCulled = 0;
     public int dbg_nCountHave = 0;
-    public Drome(ivec3 pos, Int64 genframeStamp)
-    {
-      Pos = pos;
 
-      _box = new Box3f(
+    public static Box3f GetDromeBox(ivec3 pos)
+    {
+      return new Box3f(
         new vec3(
-          Pos.x * World.DromeWidthX,
-          Pos.y * World.DromeWidthY,
-          Pos.z * World.DromeWidthZ),
+          pos.x * World.DromeWidthX,
+          pos.y * World.DromeWidthY,
+          pos.z * World.DromeWidthZ),
         new vec3(
-          (Pos.x + 1) * World.DromeWidthX,
-          (Pos.y + 1) * World.DromeWidthY,
-          (Pos.z + 1) * World.DromeWidthZ
+          (pos.x + 1) * World.DromeWidthX,
+          (pos.y + 1) * World.DromeWidthY,
+          (pos.z + 1) * World.DromeWidthZ
         )
         );
     }
+    public Drome(World w, ivec3 pos, Int64 genframeStamp)
+    {
+      Pos = pos;
+      _world = new WeakReference<World>(w);
 
+      _box = GetDromeBox(pos);
+
+      if (Static_Hierarchy == null)
+      {
+        Static_Hierarchy = new DromeNode();
+        Static_Hierarchy.Subdivide_Static_Hierarchy(true);
+      }
+    }
+    public RegionBlocks GetRegionStateForDromeNodeLeaf(DromeNode d)
+    {
+      //We do not have any region states if we are an empty Drome.
+      //REturn the default "none" to signal to the system that we can cull everything.
+      if (GlobRegionStates == null)
+      {
+        return RegionBlocks.EmptyRegionState_Glob;
+      }
+      vec3 c = d.Box._min + (d.Box._max - d.Box._min) * 0.5f;
+      ivec3 gpos_global = World.R3toI3Glob(c);
+      ivec3 gpos_local = World.GlobGlobal_Z3_To_DromeLocal_Z3(gpos_global);
+      //we are a glob
+      var off = Drome.RegionStateOffset_FromLocalGlobPos(gpos_local);
+      Gu.Assert(off < Drome.DromeRegionStateCount);
+      var rs = GlobRegionStates[off];
+      return rs;
+    }
     public static int BlockOffset(ivec3 local_block_pos_in_drome)
     {
       int ret = World.DromeBlocksX * World.DromeBlocksY * local_block_pos_in_drome.z +
         World.DromeBlocksX * local_block_pos_in_drome.y +
         local_block_pos_in_drome.x;
+      return ret;
+    }
+    public static int BlockOffset(int local_x, int local_y, int local_z)
+    {
+      int ret = World.DromeBlocksX * World.DromeBlocksY * local_z +
+        World.DromeBlocksX * local_y +
+        local_x;
       return ret;
     }
     public static int RegionStateOffset_FromLocalBlockPos(ivec3 local_block_pos_in_drome)
@@ -630,57 +1199,91 @@ namespace PirateCraft
       int ret = World.DromeGlobsX * World.DromeGlobsY * dz + World.DromeGlobsX * dy + dx;
       return ret;
     }
-    public void Create_or_UpdateGlobForModifiedBlock(vec3 local_block_pos)
+    public static ivec3 R3toI3BlockLocal_Drome(vec3 R3)
     {
-      //Basically what this does is we drill down to the glob that was modified and create it.
-      //Then, the visibility update should catch the new glob and generate it.
-      Subdivide(this, local_block_pos);
-    }
-    public void DeleteGlobForModifiedBlock(vec3 local_block_pos)
-    {
-      //Same as above - we do a subdivision again. When we drill down to the given point, we'll determine if the glob is visible, or not.
-      //if it's not, it will get deleted automatically.
-      Subdivide(this, local_block_pos);
-    }
-    public void SetBlock(ivec3 local_block_pos_in_drome, Block block, bool bInitialGen_Dont_Queue_For_Update)
-    {
-      //We may be empty, in which case we need to reallocate our data.
-      //If the block is empty, though, then setting it to empty does nothing, as we are already empty.
-      if (block.IsEmpty() && RegionState.State == RegionState.Empty_AndNoData)
+      ivec3 bpos = World.R3ToI3BlockLocal_Any(R3, World.DromeWidthX, World.DromeWidthY, World.DromeWidthZ);
+      if (bpos.x < 0 || bpos.y < 0 || bpos.z < 0 || bpos.x >= World.DromeBlocksX || bpos.y >= World.DromeBlocksY || bpos.z >= World.DromeBlocksZ)
       {
+        Gu.DebugBreak();
+      }
+      return bpos;
+    }
+    public void Create_or_UpdateGlobForModifiedBlock(ModifiedBlock mb)
+    {
+      if (_world.TryGetTarget(out var w))
+      {
+        //Basically what this does is we drill down to the glob that was modified and create it.
+        //Then, the visibility update should catch the new glob and generate it.
+        DoLiterallyEverything(w, this, w.Player, null, mb);
+        //**TODO: subdivide neighbors as as well when this block borders other globs.
+      }
+    }
+    public void DeleteGlobForModifiedBlock(ModifiedBlock mb)
+    {
+      if (_world.TryGetTarget(out var w))
+      {
+        //Same as above - we do a subdivision again. When we drill down to the given point, we'll determine if the glob is visible, or not.
+        //if it's not, it will get deleted automatically.
+        DoLiterallyEverything(w, this, w.Player, null, mb);
+        //**TODO: subdivide neighbors as as well when this block borders other globs.
+      }
+    }
+    public const ushort InitialBlockValue = BlockItemCode.Air;//MUST CHANGE REGION STATE
+    public const int DromeBlockCount = World.DromeBlocksX * World.DromeBlocksY * World.DromeBlocksZ;
+    public const int DromeRegionStateCount = World.DromeGlobsX * World.DromeGlobsY * World.DromeGlobsZ;
+    public void AllocateBlocks()
+    {
+      Blocks.Allocate(Drome.InitialBlockValue);
+      //Blocks = new Block[Drome.DromeBlockCount];
+      //for (int bi = 0; bi < Drome.DromeBlockCount; bi++)
+      //{
+      //  Blocks[bi].Value = Drome.InitialBlockValue;
+      //}
+    }
+    public void AllocateRegionStates()
+    {
+      GlobRegionStates = new RegionBlocks[Drome.DromeRegionStateCount];
+    }
+    public bool HasBlockData()
+    {
+      return Blocks.Grid != null;
+    }
+    public void SetBlock(ivec3 local_block_pos_in_drome, ushort block, bool bInitialGen_Dont_DivideGlob)
+    {
+      if (Block.IsAir_Or_Missing(block) && this.BlockStats.RegionState == RegionState.Empty_AndNoData)
+      {
+        //Don't initialize the regionstates & blocks if we don't have to.
+        //This check literally makes this 10x faster
         return;
       }
-      if (Blocks == null)
+      //We may be empty, in which case we need to reallocate our data.
+      //If the block is empty, though, then setting it to empty does nothing, as we are already empty.
+      if (!HasBlockData())
       {
         //We cull blocks from empty globs to save memory.
-        Blocks = new Block[World.DromeBlocksX * World.DromeBlocksY * World.DromeBlocksZ];
-        RegionStates = new RegionState[World.DromeGlobsX * World.DromeGlobsY * World.DromeGlobsZ];
+        AllocateBlocks();
+        AllocateRegionStates();
       }
 
-      Block old = new Block(0);
-      if (!bInitialGen_Dont_Queue_For_Update)
-      {
-        old = GetBlock(local_block_pos_in_drome);
-      }
-      else
-      {
-        RegionState.UpdateInitialGenAddedBlock(block);
-        RegionStates[Drome.RegionStateOffset_FromLocalBlockPos(local_block_pos_in_drome)].UpdateInitialGenAddedBlock(block);
-      }
-      Blocks[Drome.BlockOffset(local_block_pos_in_drome)] = block;
+      ushort old = GetBlock(local_block_pos_in_drome);
+      Blocks.Set(local_block_pos_in_drome, block);
 
-      if (!bInitialGen_Dont_Queue_For_Update)
+      //See comments on drome.
+      BlockStats.UpdateBlockModified(old, block);
+      GlobRegionStates[Drome.RegionStateOffset_FromLocalBlockPos(local_block_pos_in_drome)].UpdateBlockModified(old, block);
+
+      if (!bInitialGen_Dont_DivideGlob)
       {
-        RegionState.UpdateBlockModified(old, block);
+
         int region_off = Drome.RegionStateOffset_FromLocalBlockPos(local_block_pos_in_drome);
 
-        bool solid_before = RegionStates[region_off].IsSolid;
-        bool empty_before = RegionStates[region_off].IsEmpty;
+        bool solid_before = GlobRegionStates[region_off].HasValues;
+        bool empty_before = GlobRegionStates[region_off].IsEmpty;
 
-        RegionStates[region_off].UpdateBlockModified(old, block);
+        GlobRegionStates[region_off].UpdateBlockModified(old, block);
 
-        bool solid_after = RegionStates[region_off].IsSolid;
-        bool empty_after = RegionStates[region_off].IsEmpty;
+        bool solid_after = GlobRegionStates[region_off].HasValues;
+        bool empty_after = GlobRegionStates[region_off].IsEmpty;
 
         vec3 block_pos_r3 = OriginR3 + new vec3(
             (float)local_block_pos_in_drome.x * World.BlockSizeX,
@@ -688,9 +1291,10 @@ namespace PirateCraft
             (float)local_block_pos_in_drome.z * World.BlockSizeZ
             );
 
+        ModifiedBlock mb = new ModifiedBlock(block_pos_r3, old, block);
         if (!empty_before && empty_after)
         {
-          DeleteGlobForModifiedBlock(block_pos_r3);
+          DeleteGlobForModifiedBlock(mb);
         }
         //else if (!solid_before && solid_after)
         //{
@@ -700,42 +1304,92 @@ namespace PirateCraft
         else
         {
           //we are solid
-          Create_or_UpdateGlobForModifiedBlock(block_pos_r3);
+          Create_or_UpdateGlobForModifiedBlock(mb);
         }
 
       }
     }
-    public Block GetBlock(ivec3 local_pos_drome)
+    public ushort GetBlock(ivec3 local_pos_drome)
     {
       //If we are empty, then we have deleted our Block[] data to save space. Return an empty block
-      if (RegionState.State == RegionState.Empty_AndNoData)
+      if (BlockStats.RegionState == RegionState.Empty_AndNoData)
       {
-        return new Block(BlockItemCode.Empty);
+        return BlockItemCode.Air;
       }
-      //This should not be necessary - if we have blocks we are allocated right?
-      //CheckOrAllocateDromeBlocks(d);
-
-      int off = Drome.BlockOffset(local_pos_drome);
-      return Blocks[off];
+      return Blocks.Get(local_pos_drome, IndexMode.Throw);
+      //int off = Drome.BlockOffset(local_pos_drome);
+      //return Blocks[off];
     }
+    public ushort GetBlock(int local_x, int local_y, int local_z)
+    {
+      //If we are empty, then we have deleted our Block[] data to save space. Return an empty block
+      if (BlockStats.RegionState == RegionState.Empty_AndNoData)
+      {
+        return BlockItemCode.Air;
+      }
+      return Blocks.Get(local_x, local_y, local_z, IndexMode.Throw);
+      //int off = Drome.BlockOffset(local_x, local_y, local_z);
+      //return Blocks[off];
+    }
+    public void SetBlock(vec3 pos_r3, ushort block)
+    {
+      ivec3 b_pos = R3toI3BlockLocal_Drome(pos_r3);
+      SetBlock(b_pos, block, false);
+      //  Subdivide(this, pos_r3); // ?
+    }
+
+
   }//class Drome
   public abstract class Walker
   {
     public vec3 StartPosR3; //start point from where we walked.
+                            // public vec3 MovementR3; //How much we move
+    float MaxDist2_R3 = float.MaxValue; // Maximum distance in R3
     public ivec3 PosZ3;
     public int MaxSteps;
-    public vec3 PosR3Center(vec3 drome_origin)
+    public int CurStep = 0;
+    public ushort BlockCode;
+    public bool Dead = false;
+    public ushort ExistingBlockOnly;//Missing = Any block, Air = air only, Value = Any non-air block, else - only the given block
+                                    //Minimax<int> Steps;
+    private Drome drome;
+    public vec3 PosR3Center()
     {
-      vec3 p = World.Z3BlockInDromeLocal_To_R3(drome_origin, PosZ3)
+      vec3 p = World.Z3BlockInDromeLocal_To_R3(drome.OriginR3, PosZ3)
         + new vec3((float)World.BlockSizeX * 0.5f, (float)World.BlockSizeY * 0.5f, (float)World.BlockSizeZ * 0.5f);
       return p;
     }
-    public abstract void Move();
-    public Walker(Drome d, int max_steps, ivec3 start_pos_local)
+    public virtual bool Move()
     {
+      if (!Dead)
+      {
+        float dist = (PosR3Center() - StartPosR3).length2();
+        if (dist > MaxDist2_R3)
+        {
+          Dead = true;
+        }
+        else
+        {
+          CurStep++;
+          if (CurStep >= MaxSteps)
+          {
+            Dead = true;
+          }
+        }
+      }
+      return Dead;
+    }
+    public Walker(Drome d, Minimax<int> steps, ivec3 start_pos_local, ushort blockcode, float max_dist2_r3, ushort existing)
+    {
+      Gu.Assert(d != null);
+      drome = d;
+      //Steps = steps;
+      MaxSteps = Random.Next(steps);
+      BlockCode = blockcode;
       PosZ3 = start_pos_local;
-      StartPosR3 = PosR3Center(d.OriginR3);
-      MaxSteps = max_steps;
+      StartPosR3 = PosR3Center();
+      MaxDist2_R3 = max_dist2_r3;
+      ExistingBlockOnly = existing;
     }
   }
   public class SnakeWalker : Walker
@@ -743,11 +1397,11 @@ namespace PirateCraft
     //This is cool for snake - like movement
     public vec3 Direction;
 
-    public SnakeWalker(Drome d, int max_steps, ivec3 start_pos_local, vec3 direction_normal) : base(d, max_steps, start_pos_local)
+    public SnakeWalker(Drome d, Minimax<int> steps, ivec3 start_pos_local, vec3 direction_normal, ushort block, float max_dist2_r3, ushort existing) : base(d, steps, start_pos_local, block, max_dist2_r3, existing)
     {
       Direction = direction_normal;
     }
-    public override void Move()
+    public override bool Move()
     {
       int move_blocks = 1;//blocks
                           //Move this guy statistically in the direction of his normal
@@ -767,17 +1421,19 @@ namespace PirateCraft
       {
         PosZ3.z += move_blocks * Math.Sign(Direction.z);
       }
+      return base.Move();
     }
   }
   public class RandomWalker : Walker
   {
     public Minimax<vec3> MovementProbability;
 
-    public RandomWalker(Drome d, int max_steps, ivec3 start_pos_local, Minimax<vec3> probability) : base(d, max_steps, start_pos_local)
+    public RandomWalker(Drome d, Minimax<int> steps, ivec3 start_pos_local, Minimax<vec3> probability, ushort blockcode, float max_dist2_r3, ushort existing) : base(d, steps, start_pos_local, blockcode, max_dist2_r3, existing)
     {
+      //max_dist2_r3 = the maximum distance SQUARED, in R3. Maxvalue means the walker can go forever (based on step count)
       MovementProbability = probability;
     }
-    public override void Move()
+    public override bool Move()
     {
       int move_blocks = 1;//blocks
                           //Move this guy statistically in the direction of his normal
@@ -802,22 +1458,158 @@ namespace PirateCraft
       {
         PosZ3.z += move_blocks * Math.Sign(rz);
       }
+      return base.Move();
     }
+  }
+  public enum BlockMeshType
+  {
+    Block,
+    Billboard,
+    Liquid
+  }
+  public enum TileVis
+  {
+    Opaque,
+    Transparent,
+    Decal
+  }
+  public class BlockFaceInfo
+  {
+    public FileLoc Image { get; private set; }
+    public MtTex UV { get; set; }
+    public TileVis Visibility { get; private set; }
+    public BlockFaceInfo(FileLoc loc, TileVis vis)
+    {
+      Image = loc;
+      Visibility = vis;
+    }
+  }
+  public class BlockTile
+  {
+    //Provides the visible information for a block. Images. Mesh type. Visibility.
+    public ushort Code { get; private set; } = 0;
+    public BlockFaceInfo[] FaceInfos { get; private set; } = new BlockFaceInfo[3];//top / side / bot
+    //TODO: variations
+    //For now we just have tile for this block, in the futre we can add dictionary<ushort, BFI[]> for changing block image on any type of block 
+    public BlockFaceInfo[] Growth_Infos_Side { get; set; } = null;//Growth info for growing plants. <block type, top/side/bot faces> tpChanges to the Mid face based on whether this block is on, top of the same, on side of same, or on bot of same
+    public Minimax<int> GrowthHeight = new Minimax<int>(1, 1);
+    public float MineTime_Pickaxe { get; private set; } = 4;
+    public BlockMeshType MeshType { get; private set; } = BlockMeshType.Block;
+
+    public MtTex[] GetUVPatch(BlockSide faceIdx, ushort b_above, ushort b_below)
+    {
+      if (FaceInfos == null)
+      {
+        return null;
+      }
+      Gu.Assert(FaceInfos.Length == 3);
+
+      MtTex side = FaceInfos[1].UV;
+
+      if ((faceIdx == BlockSide.Left || faceIdx == BlockSide.Right || faceIdx == BlockSide.Back || faceIdx == BlockSide.Front) && (Growth_Infos_Side != null))
+      {
+        Gu.Assert(Growth_Infos_Side.Length == 3);
+        //lrbt
+        if (b_above == Code && b_below != Code)
+        {
+          //bot
+          side = Growth_Infos_Side[0].UV;
+        }
+        else if (b_above == Code && b_below == Code)
+        {
+          //mid
+          side = Growth_Infos_Side[1].UV;
+        }
+        else if (b_above != Code && b_below == Code)
+        {
+          //top
+          side = Growth_Infos_Side[2].UV;
+        }
+        else
+        {
+          //Single block, now growth info - fall through to default block
+        }
+      }
+
+      Gu.Assert(side != null);
+
+      return new MtTex[]
+      {
+        FaceInfos[0].UV,
+        side,
+        FaceInfos[2].UV
+      };
+
+    }
+    public BlockTile(ushort code, BlockFaceInfo[] faces, float hardness_pickaxe, BlockMeshType meshType)
+    {
+      Gu.Assert(faces.Length == 3);
+      Code = code;
+      FaceInfos = faces;
+      MineTime_Pickaxe = hardness_pickaxe;
+      MeshType = meshType;
+    }
+  }
+  public class BlockItem
+  {
+    public FileLoc FileLoc { get; private set; }
+    public WorldObject WorldObject { get; private set; }
+    public float IsVisible(Camera3D cam, vec3 instance_pos)
+    {
+      //Check if block item bound box is within frust.
+      //NOTE - its within frustum and not within .. 
+      //Returns >=0 if the bound box is within the frustum, as the distance to the center of the bb.
+      //return <0 if bound box is outside frustum
+
+      //OK so .. blockobject instances need to also be updated .. 
+      // .. in that sense .. technikcally .. we need to have instances be worldobjects and share the mesh data.
+      //however .. no i don't want to do that. We have one object that we udated .. 
+
+      Box3f bi_box = new Box3f(instance_pos - WorldObject.BoundBox._min, instance_pos + WorldObject.BoundBox._max);
+      if (cam.Frustum.HasBox(bi_box))
+      {
+        //**TODO: instead of BB center we can return BB min value.
+        float fDist2 = bi_box.DistanceToCam2(cam);
+        return fDist2;
+      }
+      return -1.0f;
+    }
+    public BlockItem(ushort code, FileLoc loc, vec3 scale)
+    {
+      FileLoc = loc;
+      var objs = Gu.Resources.LoadObjects(loc);
+      WorldObject = objs[0];
+      WorldObject.Material = new Material(Gu.Resources.LoadShader("v_v3n3x2_BlockObject_Instanced", false, FileStorage.Embedded));
+    }
+  }
+  //sort block verts by material id
+  public class BlockVert
+  {
+    vec3 _v;
+    vec3 _c;
+    vec2 _x;
+    //vec3 p0, p1, p2, p3;
   }
   public class World
   {
+    #region Constants
+
+    public enum GlobCollection
+    {
+      Render, VisibleRender
+    }
+
     //These top variables are critical generation control variables.
     public int LimitYAxisGeneration = 0;//0 = off, >0 - limit globs generated along Y axis (faster generation)
     public const float MaxTotalGlobs = 4096 * 2 * 2 * 2;
     public const float MaxRenderGlobs = 4096;
-    public const int MaxAwarenessShells = 10;//keep this < Min(DromeGlobs) to prevent generating more dromes
     public int MaxGlobsToGeneratePerFrame_Sync = 32;//number of glob copy operations per render side frame. This can slow down / speed up rendering.
     public const float BlockSizeX = 8.0f;
     public const float BlockSizeY = 8.0f;
     public const float BlockSizeZ = 8.0f;
-    public const int GlobBlocksX = 16;
-    public const int GlobBlocksY = 16;
-    public const int GlobBlocksZ = 16;
+    public const int GlobBlocksX = 8;
+    public const int GlobBlocksY = 8;//Note: now this must be <=8 since we are using ushort
+    public const int GlobBlocksZ = 8;
     public const int GlobBlocks_Kernel_MarginX = 1;//Extra amount of blocks copied to the generator for neighbor information
     public const int GlobBlocks_Kernel_MarginY = 1;
     public const int GlobBlocks_Kernel_MarginZ = 1;
@@ -827,56 +1619,67 @@ namespace PirateCraft
     public const float GlobWidthX = GlobBlocksX * BlockSizeX;
     public const float GlobWidthY = GlobBlocksY * BlockSizeY;
     public const float GlobWidthZ = GlobBlocksZ * BlockSizeZ;
-    public const int DromeGlobsX = 16;
-    public const int DromeGlobsY = 16;
-    public const int DromeGlobsZ = 16;
+    public const int DromeGlobsX = 8;
+    public const int DromeGlobsY = 8;
+    public const int DromeGlobsZ = 8;
     public const int DromeBlocksX = GlobBlocksX * DromeGlobsX;
     public const int DromeBlocksY = GlobBlocksY * DromeGlobsY;
     public const int DromeBlocksZ = GlobBlocksZ * DromeGlobsZ;
     public const float DromeWidthX = GlobWidthX * DromeGlobsX;
     public const float DromeWidthY = GlobWidthY * DromeGlobsY;
     public const float DromeWidthZ = GlobWidthZ * DromeGlobsZ;
-    public long GlobAbandon_DeleteTime_ms = 1000 * 5; //X seconds
 
     public readonly vec3 BlockRadiusR3 = new vec3(BlockSizeX * 0.5f, BlockSizeY * 0.5f, BlockSizeZ * 0.5f);//Radius from center of glob to the corner.
     public readonly vec3 GlobRadiusR3 = new vec3(GlobWidthX * 0.5f, GlobWidthY * 0.5f, GlobWidthZ * 0.5f);//Radius from center of glob to the corner.
-    //public vec3 GlobDiameterR3 { get { return GlobRadiusR3 * 2; } }
-    public float RenderRadiusShell
+                                                                                                          //public vec3 GlobDiameterR3 { get { return GlobRadiusR3 * 2; } }
+    public float GenRadiusShell
     {
       get
       {
-        Gu.Assert(Player != null);
-        return (float)Player.Far / (float)MaxAwarenessShells;
+        return GlobRadiusR3.length();// * (float)DromeGlobsX * 0.5f;
       }
     }
+    public const long Abandon_DeleteTime_DromeNode_ms = 1000 * 5; // * X seconds
+    public const long Abandon_DeleteTime_Drome_ms = 1000 * 60; // Dromes stay in memory longer than their nodes. We need the scalar field data more often. When they are fully generated they can be discarded.
+    public float DeleteMaxDistance { get { return (GenRadiusShell * (float)_currentShell); } }//distance beyond which things are deleted
+    public float GenerateDistance { get { return (GenRadiusShell * (float)_currentShell); } } //distance under which things are generated
+    public float RenderDistance { get { return (GenRadiusShell) * _maxShells; /* (GlobWidthX * 16) * (GlobWidthX * 16); */ } }
+
+    #endregion
+
+    #region Members
 
     private int _currentShell = 1;
+    private const int _maxShells = 16;//keep this < Min(DromeGlobs) to prevent generating more dromes
+    private long _lastShellIncrementTimer_ms = 0;
+    private long _lastShellIncrementTimer_ms_Max = 500;
     private ivec3 playerLastGlob = new ivec3(0, 0, 0);
     private WorldObject dummy = new WorldObject("dummy_beginrender");
     private WorldObject _debugDrawLines = null;
     private WorldObject _debugDrawPoints = null;
     private Dictionary<DrawOrder, List<WorldObject>> _renderObs_Ordered = null;
-    private Dictionary<ivec3, Glob> _renderGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
-    private Dictionary<ivec3, Glob> _visibleRenderGlobs_Frame = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
-    private long _queueId = 1;
-    private MultiMap<double, QueuedGlobData_WithKernel> _globsToGenerate = new MultiMap<double, QueuedGlobData_WithKernel>(); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
-    private MultiMap<double, QueuedGlobData_WithKernel> _globsGenerated = new MultiMap<double, QueuedGlobData_WithKernel>(); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
-    private MultiMap<double, QueuedDromeData> _dromesToGenerate = new MultiMap<double, QueuedDromeData>();
-    private MultiMap<double, QueuedDromeData> _dromesGenerated = new MultiMap<double, QueuedDromeData>();
+    //private MultiMap<float, Glob> _visibleRenderGlobs_Frame = new MultiMap<float, Glob>(); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
+    //private Dictionary<BlockItem, SortedDictionary<float, vec3>> _visible_BlockObjects_Frame = new Dictionary<BlockItem, SortedDictionary<float, vec3>>();
+    private BlockWorldVisibleStuff _stuff = new BlockWorldVisibleStuff();
+    private int _globsGenerating = 0;
+    private int _globsGenerating_Max = 32;
+    private int _dromesGenerating = 0;
+    private int _dromesGenerating_Max = 16;
+
+    private MultiMap<float, QueuedGlobData_WithKernel> _queuedGlobs = new MultiMap<float, QueuedGlobData_WithKernel>(); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
+    private MultiMap<float, QueuedDromeData> _queuedDromes = new MultiMap<float, QueuedDromeData>(); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
 
     private Dictionary<string, WorldObject> Objects { get; set; } = new Dictionary<string, WorldObject>();
     private Dictionary<ivec3, Drome> _dromes = new Dictionary<ivec3, Drome>(new ivec3.ivec3EqualityComparer()); //All globs
 
     public int Dbg_N_OB_Culled = 0;
-    public int NumRenderGlobs { get { return _renderGlobs.Count; } }
-    public int NumVisibleRenderGlobs { get { return _visibleRenderGlobs_Frame.Count; } }
+    public int NumGenGlobs { get { return _globsGenerating; } }
+    public int NumGenDromes { get { return _dromesGenerating; } }
+    public int NumVisibleRenderGlobs { get { return _stuff.visible_globs.Count; } }
     public WorldObject SceneRoot { get; private set; } = new WorldObject("Scene_Root");
     public WorldObject Sky { get; set; } = null;
-
-    public enum GlobCollection
-    {
-      Render, VisibleRender
-    }
+    public Dictionary<ushort, BlockTile> BlockTiles { get; private set; } = null;
+    public Dictionary<ushort, BlockItem> BlockItems { get; private set; } = null;
 
     private Camera3D _player = null;
     public Camera3D Player
@@ -892,20 +1695,20 @@ namespace PirateCraft
       }
     }
 
-    //Thread GlobGenerator;
-    //object GlobMutex;
-
-    Material _worldMaterial = null;
-    //Texture2D _worldTexture = null;
-    //Texture2D _worldBump = null;
-    MegaTex _worldMegatex = new MegaTex("tex", true);
-    public string WorldSavePath = "";
-    public string WorldName = "";
+    private Material _worldMaterial_Op = null;
+    private Material _worldMaterial_Tp = null;
+    private MegaTex _worldMegatex = new MegaTex("tex", true);
     private const string SaveWorldVersion = "0.01";
     private const string SaveWorldHeader = "WorldFilev" + SaveWorldVersion;
     private const int DromeFileVersion = 1;
-    private double AutoSaveTimeoutSeconds = 5;//
+    private double AutoSaveTimeoutSeconds = 5;
     private double AutoSaveTimeout = 0;
+
+    public string WorldSavePath = "";
+    public string WorldName = "";
+
+    #endregion
+
     public World()
     {
     }
@@ -940,59 +1743,22 @@ namespace PirateCraft
 
       InitWorldDiskFile(delete_world_start_fresh);
 
-      for (int i = 0; i < 1; ++i)
-      {
-        Task.Factory.StartNew(() =>
-        {
-          while (true)
-          {
-            TopologizeGlobs_Async();
-            System.Threading.Thread.Sleep(1);
-          }
-        });
-      }
-
-      for (int i = 0; i < 3; ++i)
-      {
-        Task.Factory.StartNew(() =>
-        {
-          while (true)
-          {
-            GenerateDromes_Async();
-            System.Threading.Thread.Sleep(1);
-          }
-        });
-      }
-
-      //for (int i = 0; i < 1; ++i)
-      //{
-      //  Task.Factory.StartNew(() =>
-      //  {
-      //    while (true)
-      //    {
-      //      CleanGlobs_Async();
-      //    }
-      //  });
-      //}
-
       Gu.Log.Info("Building initail grid");
-      BuildWorldGrid(player.World.extractTranslation(), RenderRadiusShell * 3, true);
+      BuildDromeGrid(Player.World.extractTranslation(), GenRadiusShell, true);
       //I'm assuming since this is cube voxesl we're going to do physics on the integer grid, we don't need triangle data then.
       WaitForAllDromesToGenerate();
-      BuildWorldGrid(player.World.extractTranslation(), RenderRadiusShell * 3, true);
+      UpdateLiterallyEverything_Blockish(Player); // This will generate the globs
       WaitForAllGlobsToGenerate();
     }
     public void Update(double dt, Camera3D cam)
     {
       Gu.Assert(Player != null);
 
-      if (Gu.Context.FrameStamp % 3 == 0)
-      {
-        BuildWorld();
-      }
+      BuildWorld();
       UpdateObjects(dt);
       CollectVisibleObjects(cam);
-      CollectVisibleGlobs(cam);
+      UpdateLiterallyEverything_Blockish(cam);
+      LaunchGlobAndDromeQueues();
       AutoSaveWorld(dt);
     }
     private const int MaxInitialGenerationWaitTime_ms = 1000 * 15;
@@ -1002,18 +1768,19 @@ namespace PirateCraft
       st.Start();
       while (true)
       {
-        FinishGeneratingGlobsAndDromes_RenderThread();
+        LaunchGlobAndDromeQueues();
+        Gu.Context.Gpu.ExecuteCallbacks_RenderThread(Gu.Context);
 
         bool genning = false;
         foreach (var d in _dromes.Values)
         {
-          if (d.State != GenState.Ready)
+          if (d.GenState != GenState.Ready)
           {
             genning = true;
           }
         }
 
-        if (genning == false && _dromesToGenerate.Count == 0 && _dromesGenerated.Count == 0)
+        if (genning == false)
         {
           break;
         }
@@ -1033,18 +1800,10 @@ namespace PirateCraft
       st.Start();
       while (true)
       {
-        FinishGeneratingGlobsAndDromes_RenderThread();
+        LaunchGlobAndDromeQueues();
+        Gu.Context.Gpu.ExecuteCallbacks_RenderThread(Gu.Context);
 
-        //bool genning = false;
-        //foreach (var g in _globs.Values)
-        //{
-        //  if (g.State != GenState.Ready)
-        //  {
-        //    genning = true;
-        //  }
-        //}
-
-        if (_globsToGenerate.Count == 0 && _globsGenerated.Count == 0)
+        if (_globsGenerating == 0)
         {
           break;
         }
@@ -1123,7 +1882,53 @@ namespace PirateCraft
       foreach (var ob in Objects.Values)
       {
         ob.Update(dt, ref dummy);
+        if (ob.Collides)
+        {
+          CollideOB(ob, dt);
+        }
       }
+    }
+    public float Gravity { get; private set; } = -9.8f;
+    private void CollideOB(WorldObject ob, double dt)
+    {
+      //Pending "rod intersect" tests
+
+      //if (ob.Velocity.length2() > (WorldObject.MaxVelocity_Frame * WorldObject.MaxVelocity_Frame))
+      //{
+      //  ob.Velocity = ob.Velocity.normalized() * WorldObject.MaxVelocity_Frame;
+      //}
+
+      //while (true)
+      //{
+      //  PickRay3D prop = new PickRay3D(ob.Position, ob.Position);
+      //  PickedBlock b = RaycastBlock(prop);
+      //  if (b.Hit)
+      //  {
+      //    //yeah RaycastBlock will need to use a sphere/something
+      //    float height = 8;//Yeah ok.
+
+      //    vec3 dir_n = prop.Dir.normalized();
+      //    vec3 n = b.GetHitNormal_Block();
+      //    ob.Position = b.HitPos + n * 0.0002f;// prop.Origin + prop.Dir * _t
+      //    vec3 reflected = ob.Velocity.reflect(n);
+
+      //    //reflect
+      //    ob.Velocity = new vec3(0);
+      //  }
+      //  else
+      //  {
+      //    ob.Velocity += Gravity * (float)dt;
+
+      //    if (ob.Velocity.length2() > (WorldObject.MaxVelocity_Frame * WorldObject.MaxVelocity_Frame))
+      //    {
+      //      ob.Velocity = ob.Velocity.normalized() * WorldObject.MaxVelocity_Frame;
+      //    }
+
+      ob.Position += ob.Velocity;
+      //  }
+      //}
+
+
     }
     private void CollectVisibleObjects(Camera3D camera)
     {
@@ -1139,34 +1944,47 @@ namespace PirateCraft
       }
       CollectObjects(camera, SceneRoot);
     }
-    private void CollectVisibleGlobs(Camera3D cam)
+    private void UpdateLiterallyEverything_Blockish(Camera3D cam)
     {
-      //Get All Grids
-      //Well this is broken. Fix it later.
-      //SweepGridFrustum((ivec3 node_ipos, Box3f node_box) =>
-      //{
-      //   var glob = GetGlobAtPos(node_ipos);
-      //   if (glob != null)
-      //   {
-      //      Frustum frust = cam.Frustum;
-      //      if (cam.Frustum.HasBox(node_box))
-      //      {
-      //         _visibleRenderGlobs.Add(node_ipos, glob);
-      //      }
-      //   }
-      //}, cam.Frustum, MaxRenderDistance);gu
-
-      //Honestly, this isn't too slow. We usually have maybe 500 globs visible at a time.
-      _visibleRenderGlobs_Frame.Clear();
-      foreach (var g in _renderGlobs)
+      _stuff.Clear();
+      List<ivec3> to_unload = new List<ivec3>();
+      //foreach (var kvp in _dromes)
+      foreach (var kvp in _dromes)
       {
-        if (cam.Frustum.HasBox(GetGlobBoxGlobalI3(g.Key)))
+        var the_drome = kvp.Value;
+        //This is assuming we only gen/load dromes once. if we do some other funky stuff we need a lock.
+        if (the_drome.GenState == GenState.Ready)
         {
-          g.Value.LastVisible_ms = Gu.Milliseconds(); //we're .. uuh uh .uh uh. uh.. visible.
-          _visibleRenderGlobs_Frame.Add(g.Key, g.Value);
+          if (DromeNode.IsVisible(this, Player, the_drome.Box))
+          {
+            the_drome.DoLiterallyEverything(this, the_drome, Player, _stuff, null);
+          }
+          else if (Drome_or_Node_Can_Delete_Distance(the_drome.Box) && ((Gu.Milliseconds() - the_drome.LastVisible_ms) > World.Abandon_DeleteTime_Drome_ms))
+          {
+            //Delete if we are invisible & not referenced
+            if (the_drome.Locked == false)
+            {
+              to_unload.Add(kvp.Key);
+            }
+          }
+
         }
       }
 
+      //Dromes we generated within the glob generator (since we are iterating dromes above, we can't modify the collection)
+      foreach (var scalar_field_z3 in _scalarFieldsNeeded)
+      {
+        QueueDrome(scalar_field_z3);
+      }
+      _scalarFieldsNeeded.Clear();
+
+      //Unload / or / remove dromes.. here we go...
+      foreach (var key in to_unload)
+      {
+        // ** Dromes should rarely get unloaded. We do need them to stay resident in memory often now that we have made generation seamless (so long as tehy are there).
+        Gu.Log.Info("Unloading drome .. " + key.ToString());
+        _dromes.Remove(key);
+      }
     }
     private void AutoSaveWorld(double dt)
     {
@@ -1187,6 +2005,7 @@ namespace PirateCraft
       //Render to this camera.
       camera.BeginRender();
       {
+        //First World Objects (sky)
         if (_renderObs_Ordered.Keys.Contains(DrawOrder.First))
         {
           foreach (var ob in _renderObs_Ordered[DrawOrder.First])
@@ -1194,7 +2013,7 @@ namespace PirateCraft
             DrawObMesh(ob, Delta, camera);
           }
         }
-        //Objects
+        //Second World Objects
         if (_renderObs_Ordered.Keys.Contains(DrawOrder.Mid))
         {
           foreach (var ob in _renderObs_Ordered[DrawOrder.Mid])
@@ -1206,7 +2025,7 @@ namespace PirateCraft
         //Globs
         List<MeshData> visible_op = new List<MeshData>();
         List<MeshData> visible_tp = new List<MeshData>();
-        foreach (var g in _visibleRenderGlobs_Frame)
+        foreach (var g in _stuff.visible_globs)
         {
           //No PVS, render all at first
           if (g.Value.Opaque != null)
@@ -1219,18 +2038,54 @@ namespace PirateCraft
           }
         }
 
-        _worldMaterial.BeginRender(Delta, camera, dummy);
-        foreach (var md in visible_op)
+        _worldMaterial_Op.Draw(Delta, visible_op.ToArray(), camera, dummy);
+        float min = 0;
+        float max = 1;
+        int steps = 4;
         {
-          md.Draw();
+          //need 2 zbuffers. we won't getinto MRT until later
+          // GL.DepthRange(0.75f, 1.0f);
+          // _worldMaterial_Tp.Draw(Delta, visible_tp.ToArray(), camera, dummy);
+          //  GL.DepthRange(0.50f, 0.75f);
+          // _worldMaterial_Tp.Draw(Delta, visible_tp.ToArray(), camera, dummy);
+          // GL.DepthRange(0.25f, 0.50f);
+          //_worldMaterial_Tp.Draw(Delta, visible_tp.ToArray(), camera, dummy);
+          // GL.DepthRange(0.0f, 0.25f);
+          _worldMaterial_Tp.Draw(Delta, visible_tp.ToArray(), camera, dummy);
+
+
         }
-        //HACK: this will change when we do the materials.
-        GL.Disable(EnableCap.CullFace);
-        foreach (var md in visible_tp)
+
+        //add worldobject to the scene
+        //set to object invisible
+        //set instances to visible.
+        //update the worldobject normally
+        //then draw the worldobject normally.
+
+        //problem is invalid boundbox and draw routine since block objects can have components.
+        //we still need a better instancing system
+
+        //Block Objects DrawBlockObjects
+        foreach (var ite in _stuff.visible_blockitems)
         {
-          md.Draw();
+          Box3f dummy = Box3f.Zero;
+          dummy.genResetLimits();
+          ite.Key.WorldObject.Update(Delta, ref dummy);
+          if (ite.Value.Count > 0)
+          {
+            BlockItem bi = ite.Key;
+            //We could probably remove this from the loop
+            mat4[] instances = new mat4[ite.Value.Count];
+            int i_inst = 0;
+            foreach (var kvp in ite.Value)
+            {
+              //we are iterating by distance here so we are automatically sorted
+              instances[i_inst] = mat4.getTranslation(kvp.Value);
+              i_inst++;
+            }
+            bi.WorldObject.Material.Draw(Delta, bi.WorldObject.Mesh, camera, bi.WorldObject, instances);
+          }
         }
-        _worldMaterial.EndRender();
 
       }
 
@@ -1258,17 +2113,17 @@ namespace PirateCraft
         }
       }
 
-      if (Gu.Context.DebugDraw.Lines.Count > 0)
+      if (Gu.Context.DebugDraw.LinePoints.Count > 0)
       {
         GL.LineWidth(1.5f);
         Gpu.CheckGpuErrorsDbg();
         if (_debugDrawLines == null)
         {
-          _debugDrawLines = CreateAndAddObject("debug_lines", null, new Material(Gu.ResourceManager.LoadShader("v_v3c4_debugdraw", false)));
+          _debugDrawLines = CreateAndAddObject("debug_lines", null, new Material(Gu.Resources.LoadShader("v_v3c4_debugdraw", false, FileStorage.Embedded)));
           RemoveObject(_debugDrawLines.Name);//Doesn't actually destroy it
-          _debugDrawLines.Mesh = new MeshData("Debugasfd", PrimitiveType.Lines, DebugDraw.VertexFormat);
+          _debugDrawLines.Mesh = new MeshData("Debugasfd", PrimitiveType.Lines, DebugDraw.VertexFormat, IndexFormatType.Uint32);
         }
-        _debugDrawLines.Mesh.CreateBuffers(Gpu.GetGpuDataPtr(Gu.Context.DebugDraw.Lines.ToArray()), null, false);
+        _debugDrawLines.Mesh.CreateBuffers(Gpu.GetGpuDataPtr(Gu.Context.DebugDraw.LinePoints.ToArray()), Gpu.GetGpuDataPtr(Gu.Context.DebugDraw.LineInds.ToArray()), false);
         DrawObMesh(_debugDrawLines, Delta, camera);
       }
       if (Gu.Context.DebugDraw.Points.Count > 0)
@@ -1277,7 +2132,7 @@ namespace PirateCraft
         Gpu.CheckGpuErrorsDbg();
         if (_debugDrawPoints == null)
         {
-          _debugDrawPoints = CreateAndAddObject("debug_points", null, new Material(Gu.ResourceManager.LoadShader("v_v3c4_debugdraw", false)));
+          _debugDrawPoints = CreateAndAddObject("debug_points", null, new Material(Gu.Resources.LoadShader("v_v3c4_debugdraw", false, FileStorage.Embedded)));
           RemoveObject(_debugDrawPoints.Name);//Doesn't actually destroy it
           _debugDrawPoints.Mesh = new MeshData("Debugds", PrimitiveType.Points, DebugDraw.VertexFormat);
         }
@@ -1309,70 +2164,145 @@ namespace PirateCraft
     {
       if (ob.Mesh != null)
       {
-        ob.Material.BeginRender(Delta, camera, ob);
-        ob.Mesh.Draw();
-        ob.Material.EndRender();
+        ob.Material.Draw(Delta, new MeshData[] { ob.Mesh }, camera, ob);
       }
       else
       {
         //this is technically an error
       }
     }
-
-    private Dictionary<ushort, List<FileLoc>> _blockTiles;
-    private Dictionary<ushort, List<MtTex>> _tileUVs;
+    private BlockTile AddBlockTile(ushort code, BlockFaceInfo[] faces, float hardness_pickaxe, BlockMeshType meshType)
+    {
+      if (BlockTiles == null)
+      {
+        BlockTiles = new Dictionary<ushort, BlockTile>();
+      }
+      var bt = new BlockTile(code, faces, hardness_pickaxe, meshType);
+      BlockTiles.Add(code, bt);
+      return bt;
+    }
+    private void AddBlockItem(ushort code, FileLoc file, vec3 scale)
+    {
+      if (BlockItems == null)
+      {
+        BlockItems = new Dictionary<ushort, BlockItem>();
+      }
+      BlockItems.Add(code, new BlockItem(code, file, scale));
+    }
+    private class HardnessValue
+    {
+      public const float Leaf = 0.1716f;
+      public const float Dirt = 0.9716f;
+      public const float Wood = 3.201f;
+      public const float Gravel = 2.482f;
+      public const float Rock = 4.15f;
+      public const float DeepRock = 7.89f;
+      public const float Diamond = 12.51f;
+      public const float Carbide = 21.2101f;
+      public const float Water = 1;
+    }
+    public BlockFaceInfo[] MakeFaces_x3(TileImage topsidebot_img, TileVis topsidebot_vis = TileVis.Opaque)
+    {
+      //Makes a block with 3 faces having all the same texture
+      return new BlockFaceInfo[]
+      {
+        new BlockFaceInfo(GetTileFile(topsidebot_img), topsidebot_vis),
+        new BlockFaceInfo(GetTileFile(topsidebot_img), topsidebot_vis),
+        new BlockFaceInfo(GetTileFile(topsidebot_img), topsidebot_vis)
+      };
+    }
+    public BlockFaceInfo[] MakeFaces(TileImage top_img, TileVis top_vis, TileImage sid_img, TileVis sid_vis, TileImage bot_img, TileVis bot_vis)
+    {
+      //make a block with 3 texture faces
+      return new BlockFaceInfo[]
+      {
+        new BlockFaceInfo(GetTileFile(top_img), top_vis),
+        new BlockFaceInfo(GetTileFile(sid_img), sid_vis),
+        new BlockFaceInfo(GetTileFile(bot_img), bot_vis)
+      };
+    }
     private void CreateWorldMaterial()
     {
       //_blockTiles - Manual array that specifies which tiles go on the top, side, bottom
       //The tiles are specified by FileLoc structure which must be a class type.
       //This is used to index into the megatex to find the generated UV coordinates.
-      _blockTiles = new Dictionary<ushort, List<FileLoc>>()
-         {
-            { BlockItemCode.Grass, new List<FileLoc>(){ GetTileFile(TileImage.Grass), GetTileFile(TileImage.GrassSide), GetTileFile(TileImage.Dirt) } },
-            { BlockItemCode.Dirt, new List<FileLoc>(){ GetTileFile(TileImage.Dirt), GetTileFile(TileImage.Dirt), GetTileFile(TileImage.Dirt) } },
-            { BlockItemCode.Brick, new List<FileLoc>(){ GetTileFile(TileImage.Brick), GetTileFile(TileImage.Brick), GetTileFile(TileImage.Brick) } },
-            { BlockItemCode.Brick2, new List<FileLoc>(){ GetTileFile(TileImage.Brick2), GetTileFile(TileImage.Brick2), GetTileFile(TileImage.Brick2) } },
-            { BlockItemCode.Gravel, new List<FileLoc>(){ GetTileFile(TileImage.Gravel), GetTileFile(TileImage.Gravel), GetTileFile(TileImage.Gravel) } },
-            { BlockItemCode.Sand, new List<FileLoc>(){ GetTileFile(TileImage.Sand), GetTileFile(TileImage.Sand), GetTileFile(TileImage.Sand) } },
-            { BlockItemCode.Cedar_Needles, new List<FileLoc>(){ GetTileFile(TileImage.Cedar_Needles), GetTileFile(TileImage.Cedar_Needles), GetTileFile(TileImage.Cedar_Needles) } },
-            { BlockItemCode.Cedar, new List<FileLoc>(){ GetTileFile(TileImage.Cedar_Top), GetTileFile(TileImage.Cedar), GetTileFile(TileImage.Cedar_Top) } },
-            { BlockItemCode.Feldspar, new List<FileLoc>(){ GetTileFile(TileImage.Feldspar), GetTileFile(TileImage.Feldspar), GetTileFile(TileImage.Feldspar) } },
-            { BlockItemCode.Tussock , new List<FileLoc>(){ GetTileFile(TileImage.Blank), GetTileFile(TileImage.Tussock), GetTileFile(TileImage.Blank) } },
-            { BlockItemCode.Dandilion , new List<FileLoc>(){ GetTileFile(TileImage.Blank), GetTileFile(TileImage.Dandilion), GetTileFile(TileImage.Blank) } },
-         };
 
-      //Create empty array that matches BlockTiles for the tile UVs
-      _tileUVs = new Dictionary<ushort, List<MtTex>>();
-      foreach (var block in _blockTiles)
-      {
-        List<MtTex> texs = new List<MtTex>();
-        _tileUVs.Add(block.Key, texs);
-        foreach (var floc in block.Value)
-        {
-          texs.Add(null);
-        }
-        //Count must be 3 for all sides of the block.
-        Gu.Assert(texs.Count == 3);
-      }
+      //solid blocks
+      AddBlockTile(BlockItemCode.Grass, MakeFaces(TileImage.Grass, TileVis.Opaque, TileImage.GrassSide, TileVis.Opaque, TileImage.Dirt, TileVis.Opaque), HardnessValue.Dirt, BlockMeshType.Block);
+      AddBlockTile(BlockItemCode.Dirt, MakeFaces_x3(TileImage.Dirt), HardnessValue.Dirt, BlockMeshType.Block);
+      AddBlockTile(BlockItemCode.Brick, MakeFaces_x3(TileImage.Brick), HardnessValue.Gravel, BlockMeshType.Block);
+      AddBlockTile(BlockItemCode.Brick2, MakeFaces_x3(TileImage.Brick2), HardnessValue.Gravel, BlockMeshType.Block);
+      AddBlockTile(BlockItemCode.Gravel, MakeFaces_x3(TileImage.Gravel), HardnessValue.Gravel, BlockMeshType.Block);
+      AddBlockTile(BlockItemCode.Sand, MakeFaces_x3(TileImage.Sand), HardnessValue.Dirt, BlockMeshType.Block);
+      AddBlockTile(BlockItemCode.Cedar_Needles, MakeFaces_x3(TileImage.Cedar_Needles, TileVis.Decal), HardnessValue.Leaf, BlockMeshType.Block);
+      AddBlockTile(BlockItemCode.Cedar, MakeFaces_x3(TileImage.Cedar), HardnessValue.Wood, BlockMeshType.Block);
+      AddBlockTile(BlockItemCode.Feldspar, MakeFaces_x3(TileImage.Feldspar), HardnessValue.Rock, BlockMeshType.Block);
+      AddBlockTile(BlockItemCode.Feldspar_Coal, MakeFaces_x3(TileImage.Feldspar_Coal), HardnessValue.Rock, BlockMeshType.Block);
+      AddBlockTile(BlockItemCode.Marble_Green, MakeFaces_x3(TileImage.Marble_Green), HardnessValue.DeepRock, BlockMeshType.Block);
+      AddBlockTile(BlockItemCode.Marble_White, MakeFaces_x3(TileImage.Marble_White), HardnessValue.DeepRock, BlockMeshType.Block);
+      AddBlockTile(BlockItemCode.Clay, MakeFaces_x3(TileImage.Clay), HardnessValue.Wood, BlockMeshType.Block);
+      AddBlockTile(BlockItemCode.RedClay, MakeFaces_x3(TileImage.RedClay), HardnessValue.Wood, BlockMeshType.Block);
+
+      //liquid
+      AddBlockTile(BlockItemCode.Water, MakeFaces_x3(TileImage.Water, TileVis.Transparent), HardnessValue.Water, BlockMeshType.Liquid);
+
+      //billboard
+      var t = AddBlockTile(BlockItemCode.Tussock, MakeFaces_x3(TileImage.Tussock), HardnessValue.Leaf, BlockMeshType.Billboard);
+      t.Growth_Infos_Side = new BlockFaceInfo[3] {
+        new BlockFaceInfo(GetTileFile(TileImage.Tussock_Stalk_Bot), TileVis.Decal),
+        new BlockFaceInfo(GetTileFile(TileImage.Tussock_Stalk_Mid), TileVis.Decal),
+        new BlockFaceInfo(GetTileFile(TileImage.Tussock_Stalk_Top), TileVis.Decal)
+      };
+      t.GrowthHeight = new Minimax<int>(1, 3);
+
+      AddBlockTile(BlockItemCode.Dandilion, MakeFaces_x3(TileImage.Dandilion), HardnessValue.Leaf, BlockMeshType.Billboard);
+      AddBlockTile(BlockItemCode.Seaweed, MakeFaces_x3(TileImage.Seaweed), HardnessValue.Leaf, BlockMeshType.Billboard);
+      AddBlockTile(BlockItemCode.RosePink, MakeFaces_x3(TileImage.RosePink), HardnessValue.Leaf, BlockMeshType.Billboard);
+      AddBlockTile(BlockItemCode.RoseRed, MakeFaces_x3(TileImage.RoseRed), HardnessValue.Leaf, BlockMeshType.Billboard);
+
+      //mesh objs
+      AddBlockItem(BlockItemCode.Torch, new FileLoc("torch.glb", FileStorage.Embedded), new vec3(1, 1, 1));
 
       //Create the atlas.
       //Must be called after context is set.
       foreach (var resource in WorldStaticData.TileImages)
       {
         MtTexPatch p = _worldMegatex.getTex(resource.Value);
-        if (p.getTexs().Count > 0)
+
+        if (p == null)
+        {
+          Gu.Log.Error("Tex patch " + resource.Value.QualifiedPath + " was not found in the megatex. Check the filename, and make sure it's embedded (or on disk).");
+          Gu.DebugBreak();
+        }
+        else if (p.getTexs().Count > 0)
         {
           MtTex mtt = p.getTexs()[0];
-          foreach (var block in _blockTiles)
+          foreach (var block in BlockTiles)
           {
-            //It's late.
-            for (int ifloc = 0; ifloc < block.Value.Count; ifloc++)
+            //Block Faces
+            Gu.Assert(block.Value.FaceInfos != null && block.Value.FaceInfos.Length == 3);
+            foreach (var fi in block.Value.FaceInfos)
             {
-              if (block.Value[ifloc] == resource.Value)
+              //This is a special comparision with a qualified path.
+              if (fi.Image == resource.Value)
               {
-                _tileUVs[block.Key][ifloc] = mtt;
+                fi.UV = mtt;
               }
             }
+
+            //Growth Infos - changes to block faces for growing plants.
+            if (block.Value.Growth_Infos_Side != null)
+            {
+              foreach (var fi in block.Value.Growth_Infos_Side)
+              {
+                //This is a special comparision with a qualified path.
+                if (fi.Image == resource.Value)
+                {
+                  fi.UV = mtt;
+                }
+              }
+            }
+
           }
         }
         else
@@ -1384,38 +2314,24 @@ namespace PirateCraft
       }
       _worldMegatex.loadImages();
       var maps = _worldMegatex.compile(true);
-      _worldMaterial = new Material(Shader.DefaultDiffuse(), maps.Albedo, maps.Normal);
+      var s = Gu.Resources.LoadShader("v_Glob", false, FileStorage.Embedded);
+
+      _worldMaterial_Op = new Material(s, maps.Albedo, maps.Normal);
+      _worldMaterial_Tp = new Material(s, maps.Albedo, maps.Normal);
+      _worldMaterial_Tp.GpuRenderState.Blend = true;
+      _worldMaterial_Tp.GpuRenderState.DepthTest = true;
+      _worldMaterial_Tp.GpuRenderState.CullFace = false;
     }
 
     #endregion
 
-    #region Private: Globs
+    #region Private: Globs & Dromes
 
     private void BuildWorld()
     {
-      //Gen Visible Globs
-     // MultiMap<float, Glob> gg = new MultiMap<float, Glob>();
-      foreach (var kvp in _dromes)
-      {
-        if (Player.Frustum.HasBox(kvp.Value.Box))
-        {
-          kvp.Value.CollectVisibleGlobs_Or_GenThem(this, kvp.Value, Player, null);
-        }
-      }
-      //So the renderglobs should automatically get updated with the globs once generation finishes.
-      //_renderGlobs.Clear();
-      //foreach(var kvp in gg)
-      //{
-      //  _renderGlobs.Add(kvp.Value);
-      //}
-
-
       UpdateGenerationShell();
-      BuildWorldGrid(Player.World.extractTranslation(), RenderRadiusShell * (float)_currentShell);
-      FinishGeneratingGlobsAndDromes_RenderThread();
-      CleanGlobs();
+      BuildDromeGrid(Player.World.extractTranslation(), GenerateDistance);
     }
-    long _lastShellIncrementTimer = 0;
     private void UpdateGenerationShell()
     {
       ivec3 newPlayerGlob = R3toI3Glob(Player.Position);
@@ -1424,115 +2340,69 @@ namespace PirateCraft
         _currentShell = 1;
         playerLastGlob = newPlayerGlob;
       }
-      else if ((_currentShell < MaxAwarenessShells) && (Gu.Milliseconds() - _lastShellIncrementTimer) > 1000)
+      else if ((_currentShell < _maxShells) && ((Gu.Milliseconds() - _lastShellIncrementTimer_ms) >= _lastShellIncrementTimer_ms_Max))
       {
         //Pretty sure integrals are atomic but on list.. not sure
-        if (_globsToGenerate.Count == 0)
+        if (_globsGenerating == 0 && _dromesGenerating == 0)
         {
           //Only increase shell if we're done generating for this particular shell.
           _currentShell++;
-          _lastShellIncrementTimer = Gu.Milliseconds();
+          _lastShellIncrementTimer_ms = Gu.Milliseconds();
         }
       }
     }
-    private void FinishGeneratingGlobsAndDromes_RenderThread()
+    private void FinishGeneratingGlob_Sync(QueuedGlobData_WithKernel qgd)
     {
-      FinishGeneratingDromes_RenderThread();
-      FinishGeneratingGlobs_Sync();
-    }
-    private void FinishGeneratingDromes_RenderThread()
-    {
-      lock (_dromesGenerated)
-      {
-        foreach (var kvp in _dromesGenerated)
-        {
-          var qdd = kvp.Value;
-          qdd.drome.State = GenState.Ready;
-          SaveDrome(qdd.drome);
-        }
-        _dromesGenerated.Clear();
-      }
-    }
-    private void FinishGeneratingGlobs_Sync()
-    {
-      if (_globsGenerated.Count == 0)
+      var glob = qgd.MyGlob;
+      var id = System.Threading.Thread.CurrentThread.ManagedThreadId;
+
+      if (qgd.MyGlob.State == GenState.Deleted)
       {
         return;
       }
-      //Create the mesh (gpu) and add/remove from renderglobs.
-      MultiMap<double, QueuedGlobData_WithKernel> finished;
 
-      lock (_globsGenerated)
+      bool globTopologyBefore = glob.Opaque != null || glob.Transparent != null;
+      glob.Opaque = null;
+      glob.Transparent = null;
+
+      if (qgd.async_inds_op != null && qgd.async_inds_op.Count > 0)
       {
-        finished = new MultiMap<double, QueuedGlobData_WithKernel>(_globsGenerated);
-        _globsGenerated.Clear();
-      }
-
-      foreach (var kvp in finished)
-      {
-        var qgd = kvp.Value;
-        var glob = qgd.glob;
-
-        if (qgd.glob.State == GenState.Deleted)
-        {
-          continue;
-        }
-        //if (!_globs.ContainsKey(qgd.glob.Pos))
-        //{
-        //  //The glob was deleted. This isn't a thread safe operation (yet).
-        //  continue;
-        //}
-
-        //if(glob.QueueId != qgd.QueueId)
-        //{
-        //  //Discard - w
-        //  continue;
-        //}
-
-        //This only needs to be called for new dromes.
-        //  StitchGlobTopology(glob);
-
-        bool globTopologyBefore = glob.Opaque != null || glob.Transparent != null;
-        glob.Opaque = null;
-        glob.Transparent = null;
-
-        if (qgd.async_inds_op.Count > 0)
-        {
-          glob.Opaque = new MeshData("", OpenTK.Graphics.OpenGL4.PrimitiveType.Triangles,
-             v_v3n3x2.VertexFormat, Gpu.GetGpuDataPtr(qgd.async_verts.ToArray()),
-             IndexFormatType.Uint32, Gpu.GetGpuDataPtr(qgd.async_inds_op.ToArray())
-             );
-        }
-        if (qgd.async_inds_tp.Count > 0)
-        {
-          //This is unnecessary I mean, just a separate index buffer would be ok. For now this is my hack.
-          glob.Transparent = new MeshData("", OpenTK.Graphics.OpenGL4.PrimitiveType.Triangles,
-             v_v3n3x2.VertexFormat, Gpu.GetGpuDataPtr(qgd.async_verts.ToArray()),
-             IndexFormatType.Uint32, Gpu.GetGpuDataPtr(qgd.async_inds_tp.ToArray())
-             );
-        }
-        //Avoid memory leaks
+        glob.Opaque = new MeshData("", OpenTK.Graphics.OpenGL4.PrimitiveType.Triangles,
+           v_v3c3n3x2u1.VertexFormat, Gpu.GetGpuDataPtr(qgd.async_verts.ToArray()),
+           IndexFormatType.Uint16, Gpu.GetGpuDataPtr(qgd.async_inds_op.ToArray())
+           );
+        qgd.async_inds_op.Clear();
         qgd.async_inds_op = null;
-        qgd.async_inds_tp = null;
-        qgd.async_verts = null;
-
-        //Update RenderGlobs
-        bool globTopologyAfter = glob.Opaque != null || glob.Transparent != null;
-        if (globTopologyBefore && !globTopologyAfter)
-        {
-          _renderGlobs.Remove(glob.Pos);
-        }
-        else if (!globTopologyBefore && globTopologyAfter)
-        {
-          _renderGlobs.Remove(glob.Pos);
-          _renderGlobs.Add(glob.Pos, glob);
-        }
-
-
-        glob.State = GenState.Ready;
       }
+      if (qgd.async_inds_tp != null && qgd.async_inds_tp.Count > 0)
+      {
+        //This is unnecessary I mean, just a separate index buffer would be ok. For now this is my hack.
+        glob.Transparent = new MeshData("", OpenTK.Graphics.OpenGL4.PrimitiveType.Triangles,
+           v_v3c3n3x2u1.VertexFormat, Gpu.GetGpuDataPtr(qgd.async_verts.ToArray()),
+           IndexFormatType.Uint16, Gpu.GetGpuDataPtr(qgd.async_inds_tp.ToArray())
+           );
+        qgd.async_inds_tp.Clear();
+        qgd.async_inds_tp = null;
+      }
+
+      //Copy items
+      if (qgd._blockitems != null && qgd._blockitems.Count > 0)
+      {
+        glob.BlockItems = qgd._blockitems;
+        qgd._blockitems = null;
+      }
+
+      qgd.ScalarFields.Unlock();
+
+
+      //Avoid memory leaks
+      qgd.async_verts?.Clear();
+      qgd.async_verts = null;
+      qgd = null;
+
+      glob.State = GenState.Ready;
     }
-    private void BuildWorldGrid(vec3 origin, float awareness_radius, bool logprogress = false)
+    private void BuildDromeGrid(vec3 origin, float awareness_radius, bool logprogress = false)
     {
       List<Glob> newGlobs = new List<Glob>();
 
@@ -1566,37 +2436,47 @@ namespace PirateCraft
         dbg_current_drome++;
         if (logprogress)
         {
-          if (dbg_current_drome % 1 == 0)
-          {
-            Gu.Log.Info("Drome " + dbg_current_drome + "/" + count);
-          }
+          Gu.Log.Info("Drome " + dbg_current_drome + "/" + count);
         }
 
         ivec3 dpos = new ivec3(x, y, z);
         Drome d;
-        if (!_dromes.TryGetValue(dpos, out d))
-        {
-          d = GenerateOrLoadDrome(dpos);
-        }
 
-        //if (d.State == GenState.Ready)
-        //{
-        //  TopologizeDromeGlobs(d, awareness, logprogress);
-        //}
+        if (Drome_Can_Generate_Distance(Drome.GetDromeBox(dpos)))
+        {
+          if (!_dromes.TryGetValue(dpos, out d))
+          {
+            d = QueueDrome(dpos);
+          }
+        }
 
         return true;
       });
     }
-
-    public int dbg_nSkippedStitch = 0;
-    public int dbg_nEmptyNoData = 0;
-    private UInt16 CreateBlock(ushort item, vec3 world_pos)
+    public bool Drome_or_Node_Can_Delete_Distance(Box3f drome_box)
     {
-      //Coming in we have just value/empty blocks now generate the block type.
-      if (item != BlockItemCode.Empty)
+      return !Box_IsWithin_Distance(drome_box, DeleteMaxDistance);
+    }
+    public bool Drome_Can_Generate_Distance(Box3f drome_box)
+    {
+      return Box_IsWithin_Distance(drome_box, GenerateDistance);
+    }
+    public bool Box_IsWithin_Distance(Box3f box, float genDistance)
+    {
+      //return true if the box's dist to camera is less than gen distnace
+      float dist_cam2 = box.DistanceToCam2(Player);
+
+      if (dist_cam2 < (genDistance * genDistance))
       {
-        //Testing..
-        //We have stuff. Default to grassy grass.
+        return true;
+      }
+      return false;
+    }
+    private ushort CreateBlock(float solid, vec3 world_pos)
+    {
+      ushort item = BlockItemCode.Air;
+      if (solid > 0)
+      {
         if (world_pos.y < BlockSizeY * -10)
         {
           item = BlockItemCode.Feldspar;
@@ -1611,39 +2491,18 @@ namespace PirateCraft
         }
         else
         {
-          //if (block_index.y < GlobBlocksY)
-          //{
-          //   GetBlock(g, block_index);
-          //}
-          //else
-          //{
-
-          //}
           item = BlockItemCode.Grass;
         }
       }
-      //  Random.Next() > 0.3f ?
-      //BlockItemCode.Grass :
-      //(Random.Next() > 0.6f ? BlockItemCode.Brick2 : BlockItemCode.Brick);
-      return item;
-    }
-    private Drome GenerateOrLoadDrome(ivec3 dromePos)
-    {
-      Drome drome = null;
-      _dromes.TryGetValue(dromePos, out drome);
-      if (drome == null)
+      else
       {
-        drome = TryLoadDrome(dromePos);
-        if (drome == null)
+        if (world_pos.y <= -1)
         {
-          drome = GenerateDrome(dromePos);
-        }
-        else
-        {
-          drome.Subdivide(drome);
+          item = BlockItemCode.Water;
         }
       }
-      return drome;
+
+      return item;
     }
     private string GetDromeFileName(ivec3 gpos)
     {
@@ -1660,78 +2519,98 @@ namespace PirateCraft
       string worldfile = WorldName + ".world";
       return System.IO.Path.Combine(WorldSavePath, worldfile);
     }
-    private Drome GenerateDrome(ivec3 gpos)
-    {
-      Drome d = new Drome(gpos, Gu.Context.FrameStamp);
-      d.RegionState.Reset();
-      QueuedDromeData qdd = new QueuedDromeData();
-      qdd.drome = d;
-      qdd.QueueId = _queueId++;
-      double dist = (double)(float)(d.CenterR3 - Player.Position).length();
-      qdd.DistanceToPlayer = dist;
-      _dromes.Add(gpos, d);
-      lock (_dromesToGenerate)
-      {
-        _dromesToGenerate.Add(dist, qdd);
-      }
 
-      return d;
-    }
+    #region Drome Generation
+
     private void GenerateDrome_Async(QueuedDromeData qdd)
     {
       Drome d = qdd.drome;
-      d.State = GenState.GenStart;
+      d.GenState = GenState.GenStart;
       {
         GenerateBaseWorld(d);
 
-        //Crust layer.
-        var seeds = PlantSeeds(d, 0.07f, new List<ushort>() { BlockItemCode.Grass, BlockItemCode.Dirt });
+        //Instead of D, now we should pass the kernel
+        MakeOre(d, new Minimax<int>(0, (int)((float)(World.DromeBlocksY - 1) * (9.0f / 10.0f))), .0006f, new Minimax<int>(4, 32), BlockItemCode.Feldspar_Coal, BlockItemCode.Land);
+        MakeOre(d, new Minimax<int>(0, (int)((float)(World.DromeBlocksY - 1) * (2.0f / 3.0f))), .0001f, new Minimax<int>(4, 10), BlockItemCode.Marble_White, BlockItemCode.Land);
+        MakeOre(d, new Minimax<int>(0, (int)((float)(World.DromeBlocksY - 1) * (2.0f / 3.0f))), .0001f, new Minimax<int>(2, 8), BlockItemCode.Marble_Green, BlockItemCode.Land);
+        MakeOre(d, new Minimax<int>(0, (int)((float)(World.DromeBlocksY - 1) * (2.0f / 3.0f))), .0004f, new Minimax<int>(2, 8), BlockItemCode.Clay, BlockItemCode.Land);
+        MakeOre(d, new Minimax<int>(0, (int)((float)(World.DromeBlocksY - 1) * (2.0f / 3.0f))), .0004f, new Minimax<int>(2, 8), BlockItemCode.RedClay, BlockItemCode.Land);
+
+        List<ivec3> seeds;
+
+        seeds = PlantSeeds(d, 0.07f, new List<ushort>() { BlockItemCode.Grass, BlockItemCode.Dirt }, false, new List<ushort> { BlockItemCode.Cedar_Needles });
         GrowTrees(d, seeds);
 
-        seeds = PlantSeeds(d, 0.7f, new List<ushort>() { BlockItemCode.Grass, BlockItemCode.Dirt });
-        foreach (var grass in seeds)
+        seeds = PlantSeeds(d, 0.7f, new List<ushort>() { BlockItemCode.Grass, BlockItemCode.Dirt }, false, new List<ushort> { BlockItemCode.Cedar_Needles });
+        GrowSeeds(d, seeds, BlockItemCode.Tussock);
+
+        seeds = PlantSeeds(d, 0.04f, new List<ushort>() { BlockItemCode.Grass, BlockItemCode.Dirt }, false, new List<ushort> { BlockItemCode.Cedar_Needles });
+        GrowSeeds(d, seeds, BlockItemCode.Dandilion);
+
+        seeds = PlantSeeds(d, 0.02f, new List<ushort>() { BlockItemCode.Grass, BlockItemCode.Dirt }, false, new List<ushort> { BlockItemCode.Cedar_Needles });
+        GrowSeeds(d, seeds, BlockItemCode.RoseRed);
+
+        seeds = PlantSeeds(d, 0.02f, new List<ushort>() { BlockItemCode.Grass, BlockItemCode.Dirt }, false, new List<ushort> { BlockItemCode.Cedar_Needles });
+        GrowSeeds(d, seeds, BlockItemCode.RosePink);
+
+        seeds = PlantSeeds(d, 0.02f, new List<ushort>() { BlockItemCode.Sand }, false);
+        GrowSeeds(d, seeds, BlockItemCode.Seaweed);
+
+        if (d.BlockStats.RegionState == RegionState.Empty_AndNoData)
         {
-          if (IsBlockInsideDromeBounds(grass))
-          {
-            Block b = d.GetBlock(grass);
-            if (b.IsEmpty())
-            {
-              d.SetBlock(grass, new Block(BlockItemCode.Tussock), true);
-            }
-          }
+          //Free empty regions.
+          d.Blocks.Grid = null;
         }
 
-        seeds = PlantSeeds(d, 0.18f, new List<ushort>() { BlockItemCode.Grass, BlockItemCode.Dirt });
-        foreach (var flower in seeds)
-        {
-          if (IsBlockInsideDromeBounds(flower))
-          {
-            Block b = d.GetBlock(flower);
-            if (b.IsEmpty())
-            {
-              d.SetBlock(flower, new Block(BlockItemCode.Dandilion), true);
-            }
-          }
-        }
-
-        //Subdivide
-        d.Subdivide(d);
-        //2048 leaves is the wanswer. this is invalid.
+        //LightDrome_Async(d);
 
       }
-      d.State = GenState.GenEnd;
+      d.GenState = GenState.GenEnd;
 
-      lock (_dromesGenerated)
+    }
+    private void GrowSeeds(Drome d, List<ivec3> seeds, ushort item)
+    {
+      int growthHeight = 1;
+
+      ivec3 growth_pos;
+      foreach (var seed_pos in seeds)
       {
-        _dromesGenerated.Add(qdd.DistanceToPlayer, qdd);
-      }
+        if (BlockTiles.TryGetValue(item, out BlockTile bt))
+        {
+          growthHeight = Random.Next(bt.GrowthHeight);
+          if (growthHeight == 1)
+          {
+            int n = 0;
+            n++;
+          }
+          if (growthHeight > 1)
+          {
+            int n = 0;
+            n++;
+          }
+          Gu.Assert(growthHeight > 0);
+        }
 
+        for (int gy = 0; gy < growthHeight; gy++)
+        {
+          growth_pos = seed_pos;
+          growth_pos.y += gy; //start at 1, because the growth height will be between [1, n]. Seed Pos is zero. So we want to add 0, 1, 2, .. 
+
+          if (IsBlockInsideDromeBounds(growth_pos))
+          {
+            ushort b = d.GetBlock(growth_pos);
+            if (Block.IsAir_Or_Missing(b)) // TODO: we can override blocks if some are more "dominant"
+            {
+              d.SetBlock(growth_pos, item, true);
+            }
+
+          }
+
+        }
+      }
     }
     private void GenerateBaseWorld(Drome d)
     {
-      System.Diagnostics.Stopwatch s = new System.Diagnostics.Stopwatch();
-      s.Start();
-
       vec3 dromeOriginR3 = d.OriginR3;
       for (int z = 0; z < DromeBlocksZ; z++)
       {
@@ -1744,17 +2623,14 @@ namespace PirateCraft
                x * BlockSizeX + BlockSizeX * 0.5f,
                y * BlockSizeY + BlockSizeY * 0.5f,
                z * BlockSizeZ + BlockSizeZ * 0.5f);
-            ushort dens = Density(block_world);
-            UInt16 created_value = CreateBlock(dens, block_world);
-            var block = new Block(created_value);
-            d.SetBlock(new ivec3(x, y, z), block, true);
+            float dens = Density(block_world);
+            ushort created_value = CreateBlock(dens, block_world);
+            d.SetBlock(new ivec3(x, y, z), created_value, true);
           }
         }
       }
-      s.Stop();
-      d.Stats.BaseWorld_ms = s.ElapsedMilliseconds;
     }
-    private List<ivec3> PlantSeeds(Drome d, float density01, List<ushort> allowedSoilTypes)
+    private List<ivec3> PlantSeeds(Drome d, float density01, List<ushort> allowedSoilTypes, bool water, List<ushort> skipDrop = null)
     {
       List<ivec3> planted = new List<ivec3>();
       int seeds = (int)((float)DromeBlocksX * (float)DromeBlocksZ * density01);
@@ -1762,7 +2638,7 @@ namespace PirateCraft
       {
         int rx = (int)Random.Next(0, DromeBlocksX - 1);
         int rz = (int)Random.Next(0, DromeBlocksZ - 1);
-        ivec3 v = DropBlock(d, rx, rz, allowedSoilTypes);
+        ivec3 v = DropBlock(d, rx, rz, allowedSoilTypes, water, skipDrop);
         if (v.x >= 0)
         {
           planted.Add(v);
@@ -1770,7 +2646,30 @@ namespace PirateCraft
       }
       return planted;
     }
-    private ivec3 DropBlock(Drome d, int x, int z, List<ushort> target_types)
+    private void MakeOre(Drome d, Minimax<int> ore_height, float density01, Minimax<int> steps, ushort ore_block_code, ushort existingBlock)
+    {
+      List<Walker> walkers = new List<Walker>();
+      List<ivec3> ore_seeds = new List<ivec3>();
+      int seeds = (int)((float)DromeBlocksX * (float)DromeBlocksY * (float)DromeBlocksZ * density01);
+      ivec3 ore_pos;
+      var probabilitye = new Minimax<vec3>(new vec3(-1, -1, -1), new vec3(1, 1, 1));
+
+      for (int iseed = 0; iseed < seeds; iseed++)
+      {
+        ore_pos.x = (int)Random.Next(0, DromeBlocksX - 1);
+        ore_pos.z = (int)Random.Next(0, DromeBlocksZ - 1);
+        ore_pos.y = Random.Next(ore_height);
+
+        if (!Block.IsAir_Or_Missing(d.GetBlock(ore_pos)))
+        {
+          walkers.Add(new RandomWalker(d, steps, ore_pos, probabilitye, ore_block_code, (World.GlobWidthX * World.GlobWidthX), existingBlock));
+          ore_seeds.Add(ore_pos);
+        }
+      }
+      SimulateWalkers(d, walkers);
+
+    }
+    private ivec3 DropBlock(Drome d, int x, int z, List<ushort> target_soil_types, bool water, List<ushort> skipDrop)
     {
       //Doesn't actually set the block. Just drop from the top to the given ground.
       //target block is the allowed block we can drop onto (soil for planting, sand .. )
@@ -1778,18 +2677,41 @@ namespace PirateCraft
       {
         var cpos = new ivec3(x, dy, z);
         var npos = new ivec3(x, dy - 1, z);
+
         if (IsBlockInsideDromeBounds(cpos) && IsBlockInsideDromeBounds(npos))
         {
-          Block cur = d.GetBlock(cpos);
-          if (!cur.IsEmpty())
+          ushort this_blk = d.GetBlock(cpos);
+          if ((skipDrop != null) && (skipDrop.Contains(this_blk)))
           {
-            //First block from top is empty. This is a planting algorithm, so we dont want to go into caves.
-            break;
+            // this is a block we want to generate past, such as tree leaves - keep droppin
           }
-          Block next = d.GetBlock(npos);
-          if (cur.IsEmpty() && !next.IsEmpty())
+          else if (water)
           {
-            if (target_types.Contains(next.Value))
+            if ((this_blk != BlockItemCode.Water) && (!Block.IsAir_Or_Missing(this_blk)))
+            {
+              break;
+            }
+            else
+            {
+              //we are a water item, and we're in water - keep droppin
+            }
+          }
+          else
+          {
+            if (!Block.IsAir_Or_Missing(this_blk))
+            {
+              break;
+            }
+            else
+            {
+              //air - keep droppin
+            }
+          }
+
+          ushort soil = d.GetBlock(npos);
+          if (!Block.IsAir_Or_Missing(soil))
+          {
+            if (target_soil_types.Contains(soil))
             {
               return cpos;
             }
@@ -1825,7 +2747,7 @@ namespace PirateCraft
         pos.y += y;
         if (IsBlockInsideDromeBounds(pos))
         {
-          d.SetBlock(pos, new Block(BlockItemCode.Cedar), true);
+          d.SetBlock(pos, BlockItemCode.Cedar, true);
         }
         else
         {
@@ -1838,86 +2760,186 @@ namespace PirateCraft
       float maxdist2 = (float)Math.Pow(World.BlockSizeX * 3, 2);
 
       List<Walker> walkers = new List<Walker>();
-      var mm = new Minimax<vec3>(new vec3(-1, -0.1f, -1), new vec3(1, 1, 1));
-      walkers.Add(new RandomWalker(d, 5, pos, mm));
-      walkers.Add(new RandomWalker(d, 5, pos, mm));
-      walkers.Add(new RandomWalker(d, 5, pos, mm));
-      walkers.Add(new RandomWalker(d, 5, pos, mm));
-      walkers.Add(new RandomWalker(d, 5, pos, mm));
+      Minimax<int> steps = new Minimax<int>(2, 5);
+      var probabilitye = new Minimax<vec3>(new vec3(-1, -0.1f, -1), new vec3(1, 1, 1));
+      walkers.Add(new RandomWalker(d, steps, pos, probabilitye, BlockItemCode.Cedar_Needles, maxdist2, BlockItemCode.Air));
+      walkers.Add(new RandomWalker(d, steps, pos, probabilitye, BlockItemCode.Cedar_Needles, maxdist2, BlockItemCode.Air));
+      walkers.Add(new RandomWalker(d, steps, pos, probabilitye, BlockItemCode.Cedar_Needles, maxdist2, BlockItemCode.Air));
+      walkers.Add(new RandomWalker(d, steps, pos, probabilitye, BlockItemCode.Cedar_Needles, maxdist2, BlockItemCode.Air));
+      walkers.Add(new RandomWalker(d, steps, pos, probabilitye, BlockItemCode.Cedar_Needles, maxdist2, BlockItemCode.Air));
+      SimulateWalkers(d, walkers);
+    }
+    private void SimulateWalkers(Drome d, List<Walker> walkers)
+    {
+      //simulate walkers until they reach maxdist2
 
+      vec3 d_origin = d.OriginR3;
       int dbg_nCountWhile = 0;
       while (walkers.Count > 0)
       {
         for (int iwalker = walkers.Count - 1; iwalker >= 0; iwalker--)
         {
-
           Walker p = walkers[0];
-          float len2 = (p.PosR3Center(d_origin) - p.StartPosR3).length2();
-          if (len2 >= maxdist2)
+          if (p.Move())
           {
             walkers.RemoveAt(0);
             break;
           }
-          p.Move();
-
-          if (IsBlockInsideDromeBounds(p.PosZ3))
+          else if (IsBlockInsideDromeBounds(p.PosZ3))
           {
-            d.SetBlock(p.PosZ3, new Block(BlockItemCode.Cedar_Needles), true);
+            ushort cur_block = d.GetBlock(p.PosZ3);
+            bool yes_we_can =
+             (p.ExistingBlockOnly == BlockItemCode.Missing) || // any block
+             ((p.ExistingBlockOnly == BlockItemCode.Land) && (cur_block != BlockItemCode.Air && cur_block != BlockItemCode.Water)) || //Only solid blocks
+             ((p.ExistingBlockOnly == BlockItemCode.Water) && (cur_block != BlockItemCode.Air && cur_block != BlockItemCode.Land)) || //Only water blocks
+             (cur_block == p.ExistingBlockOnly); // only the given blocks.
+
+            if (yes_we_can)
+            {
+              d.SetBlock(p.PosZ3, p.BlockCode, true);
+            }
           }
 
         }
 
         dbg_nCountWhile++;
       }
+    }
+
+    private void LightDrome_Async(Drome d)
+    {
+      ///do this only once we've set up the glob shader
+
+      vec3 sun_color = vec4.FromHex("#FFD70000").xyz();
+      vec3 sun_dir = new vec3(-1, -1, -1).normalized();
+      vec3 sun_dir_n = sun_dir.normalized();
+
+      //Technically this should be vertex lighting, but for now we are doing just faces.
+      d.LightGrid = new Grid3D<GRay>(DromeBlocksX, DromeBlocksY, DromeBlocksZ);
+      d.LightGrid.Allocate(default(GRay));
+
+      //this wont work. it will light up underground shit, and caves
+      int xstart = sun_dir.x > 0 ? 0 : World.DromeBlocksX - 1;
+      int xend = World.DromeBlocksX - xstart - 1;
+      int xinc = xstart > xend ? -1 : 1;
+      //int ystart = sun_dir.y > 0 ? World.DromeBlocksY - 1 : 0;
+      //int zstart = sun_dir.z > 0 ? World.DromeBlocksZ - 1 : 0;
+
+      // ** This is just for X axis -- Y and Z need to be done... But its' not workign yet
+      GRay cur_ray;
+      float div = 0;
+      for (int yi = 0; yi < d.LightGrid.SizeY; yi++)
+      {
+        for (var zi = 0; zi < d.LightGrid.SizeZ; zi++)
+        {
+          //multiply by normal based on the percentage of light in each direction
+          d.LightGrid.Set(xstart, yi, zi, new GRay(sun_color, sun_dir));
+
+          for (int xi = xstart + xinc; xi != (xend + xinc); xi += xinc) //xstart+xinc = 1 - we skip the first block since we just set it
+          {
+            div = 1.0f; // full light
+
+            //get previous block ray
+            cur_ray = d.LightGrid.Get(xi - xinc, yi, zi, IndexMode.Throw);
+
+            if (d.HasBlockData())
+            {
+              ushort b0 = d.Blocks.Get(xi, yi, zi, IndexMode.Clamp);
+
+              //ushort b_next = d.Blocks.Get(xi+xinc, yi, zi, IndexMode.Clamp).Value;
+
+              //if (Block.IsSolidBlockNotTransparent(b_next))
+              //{
+              //  //reflect the ray
+              //}
+
+
+              if (Block.IsSolidBlockNotDecal_OrWater(b0))
+              {
+                div = 0;
+              }
+              else
+              {
+                ushort b1 = d.Blocks.Get(xi, yi - 1, zi, IndexMode.Clamp);
+                ushort b2 = d.Blocks.Get(xi, yi + 1, zi, IndexMode.Clamp);
+                ushort b3 = d.Blocks.Get(xi, yi, zi - 1, IndexMode.Clamp);
+                ushort b4 = d.Blocks.Get(xi, yi, zi + 1, IndexMode.Clamp);
+
+                int bn = 0;
+                if (Block.IsSolidBlockNotDecal_OrWater(b1))
+                {
+                  bn += 1;
+                }
+                if (Block.IsSolidBlockNotDecal_OrWater(b2))
+                {
+                  bn += 1;
+                }
+                if (Block.IsSolidBlockNotDecal_OrWater(b3))
+                {
+                  bn += 1;
+                }
+                if (Block.IsSolidBlockNotDecal_OrWater(b4))
+                {
+                  bn += 1;
+                }
+                //God my brain .. not wroking
+                // bn = 0 -> sub = 0
+                // bn = 1 -> sub = 0
+                // bn = 2 -> sub = 1/32 * 3 //greater value = less flloff
+                // bn = 3 -> sub = 1/32 * 2
+                // bn = 4 -> sub = 1/32 * 1
+                // We do not sub for 1 block, only for 2-4
+                if (bn == 0 || bn == 1)
+                {
+                }
+                else if (bn == 2)
+                {
+                  div = 1.0f - 1.0f / 32.0f * 3;
+                }
+                else if (bn == 3)
+                {
+                  div = 1.0f - 1.0f / 32.0f * 2;
+                }
+                else if (bn == 4)
+                {
+                  div = 1.0f - 1.0f / 32.0f * 1;
+                }
+
+              }
+            }
+
+            cur_ray.Dir *= div;
+
+            //alter ray intensity
+            float min_ambient = 0.0125f;
+            if (cur_ray.Dir.length2() < (min_ambient * min_ambient))
+            {
+              //Ambient lighting.
+              cur_ray.Dir = cur_ray.Dir.normalized() * min_ambient;
+            }
+            d.LightGrid.Set(xi, yi, zi, cur_ray, IndexMode.Throw);
+
+          }
+        }
+      }
 
     }
+    #endregion
+
     private bool IsBlockInsideDromeBounds(ivec3 block_pos)
     {
       return block_pos.x >= 0 && block_pos.y >= 0 && block_pos.z >= 0 &&
         block_pos.x < DromeBlocksX && block_pos.y < DromeBlocksY && block_pos.z < DromeBlocksZ;
     }
-    private Drome FindDromeI3(ivec3 pos, bool null_if_not_gen = true)
+    public Drome FindDromeI3(ivec3 pos, bool null_if_not_gen = true)
     {
       Drome d = null;
       _dromes.TryGetValue(pos, out d);
-      if (d != null && null_if_not_gen && d.State != GenState.Ready)
+      if (d != null && null_if_not_gen && d.GenState != GenState.Ready)
       {
         return null;
       }
       return d;
-    }
-    private Glob FindGlobI3(ivec3 pos, GlobCollection c)
-    {
-      Glob g = null;
-      if (c == GlobCollection.Render)
-      {
-        _renderGlobs.TryGetValue(pos, out g);
-      }
-      else if (c == GlobCollection.VisibleRender)
-      {
-        _visibleRenderGlobs_Frame.TryGetValue(pos, out g);
-      }
-      else
-      {
-        Gu.BRThrowNotImplementedException();
-      }
-      return g;
-    }
-    private Glob GetNeighborGlob(Glob g, int i, GlobCollection c)
-    {
-      //Gets neighbor i=left,right,bottom,top,back,front
-      vec3[] glob_offs = new vec3[] {
-            new vec3(-World.GlobWidthX, 0, 0),
-            new vec3(World.GlobWidthX, 0, 0),
-            new vec3(0, -World.GlobWidthY, 0),
-            new vec3(0, World.GlobWidthY, 0),
-            new vec3(0, 0, -World.GlobWidthZ),
-            new vec3(0, 0, World.GlobWidthZ),
-         };
-      vec3 glob_center_R3 = g.OriginR3 + new vec3(World.GlobWidthX * 0.5f, World.GlobWidthY * 0.5f, World.GlobWidthZ * 0.5f);
-      vec3 neighbor_center_R3 = glob_center_R3 + glob_offs[i];
-      Glob ret = FindGlobR3(neighbor_center_R3, c);
-      return ret;
     }
     private void StitchGlobTopology(Glob g)
     {
@@ -1931,70 +2953,26 @@ namespace PirateCraft
       //  }
       //}
     }
-    private void GenerateDromes_Async()
-    {
-      List<QueuedDromeData> tops = GrabFromDromes(1);
-      foreach (QueuedDromeData qgd in tops)
-      {
-        GenerateDrome_Async(qgd);
-      }
-    }
-    private void TopologizeGlobs_Async()
-    {
-      List<QueuedGlobData_WithKernel> tops = GrabFromTopo(32);
-
-      foreach (QueuedGlobData_WithKernel qgd in tops)
-      {
-        //TODO: - add this back
-        //  Gu.Log.Warn("Commented out density state optimizations until we index into the drome array for states");
-        //   if (g.DensityState != Glob.GlobDensityState.Empty_AndNoData)
-        {
-          TopologizeGlob(qgd);
-          //   dbg_nEmptyNoData++;
-        }
-        //  else
-        {
-          //The block is empty, the inside of the block has no topology. No data.
-          // g.Blocks = null;
-        }
-        //   if (g.DensityState != Glob.GlobDensityState.SolidBlocksOnly)
-        {
-          //No neighboring blocks would be visible, so stitchin gisn't needed
-          //   dbg_nSkippedStitch++;
-        }
-      }
-      //lock (_globsToTopo_LockObject)
-      //{
-      // // _globsToTopo.Clear();
-      //}
-    }
     private void TopologizeGlob(QueuedGlobData_WithKernel qgd)
     {
-      //    6    7
-      // 2    3
-      //    4    5
-      // 0    1
-      //Mesh
-      List<v_v3n3x2> async_verts = new List<v_v3n3x2>();
-      List<uint> async_inds_op = new List<uint>();
-      List<uint> async_inds_tp = new List<uint>();
-
-      ivec3[] n_off = new ivec3[]
-      {
-        new ivec3(-1, 0, 0),
-        new ivec3( 1, 0, 0),
-        new ivec3( 0,-1, 0),
-        new ivec3( 0, 1, 0),
-        new ivec3( 0, 0,-1),
-        new ivec3( 0, 0, 1),
-      };
-
-      Block our_block;
-      vec2[] texs = new vec2[4];
-      List<MtTex> patches = new List<MtTex>();
-      Block b_n;
-      var glob = qgd.glob;
+      var glob = qgd.MyGlob;
       ivec3 block_off_glob = new ivec3();
+      Drome drome = null;
+
+      if (!glob.Drome.TryGetTarget(out drome))
+      {
+        return;
+      }
+      if (drome.BlockStats.RegionState == RegionState.Empty_AndNoData)
+      {
+        return;
+      }
+      if (drome.Blocks.Grid == null)
+      {
+        //This shouldn't happen. Only nullify grids when our region state is empty.
+        Gu.DebugBreak();
+        return;
+      }
 
       if (glob.State != GenState.Deleted)
       {
@@ -2002,119 +2980,93 @@ namespace PirateCraft
       }
 
       //Iterate over a glob topology unit, note the blocks in the queued data have extra padding for neighbor information.
-      for (int z = 0; z < GlobBlocksZ; z++)
+      for (int gblock_z = 0; gblock_z < GlobBlocksZ; gblock_z++)
       {
-        for (int y = 0; y < GlobBlocksY; y++)
+        for (int gblock_y = 0; gblock_y < GlobBlocksY; gblock_y++)
         {
-          for (int x = 0; x < GlobBlocksX; x++)
+          for (int gblock_x = 0; gblock_x < GlobBlocksX; gblock_x++)
           {
-            block_off_glob.construct(x, y, z);
-            our_block = qgd.GetBlock_Kernel(
-              x + GlobBlocks_Kernel_MarginX,
-              y + GlobBlocks_Kernel_MarginY,
-              z + GlobBlocks_Kernel_MarginZ);
+            block_off_glob.construct(gblock_x, gblock_y, gblock_z);
 
-            if (our_block.IsEmpty())
+            //we really need neighbor information.
+            ushort our_block = qgd.GetBlock_Glob_Drome(
+              gblock_x,
+              gblock_y,
+              gblock_z);
+
+            if (Block.IsAir_Or_Missing(our_block))
             {
               continue;
             }
 
-            patches = null;
-            _tileUVs.TryGetValue(our_block.Value, out patches);
+            vec3 block_pos_rel_R3 = new vec3(World.BlockSizeX * gblock_x, World.BlockSizeY * gblock_y, World.BlockSizeZ * gblock_z);
+            vec3 block_pos_rel_R3_Center = block_pos_rel_R3 + new vec3(World.BlockSizeX * 0.5f, World.BlockSizeY * 0.5f, World.BlockSizeZ * 0.5f);
+            vec3 block_pos_abs_R3_Center = block_pos_rel_R3_Center + glob.OriginR3;
 
-            for (int face = 0; face < 6; ++face)
+            if (Block.IsMeshItem(our_block))
             {
-              //Bottom left corner
-              //This is the exact block center location in R3. It's less efficent but it's easier to use
-              vec3 block_pos_rel_R3 = new vec3(World.BlockSizeX * x, World.BlockSizeY * y, World.BlockSizeZ * z);
-              //vec3 block_pos_rel_R3_Center = block_pos_rel_R3 + new vec3(World.BlockSizeX * 0.5f, World.BlockSizeY * 0.5f, World.BlockSizeZ * 0.5f);
-              //vec3 block_pos_abs_R3_Center = block_pos_rel_R3_Center + glob.OriginR3;
-              //vec3 block_pos_abs_R3_Center_Neighbor = block_pos_abs_R3_Center + face_offs[face];
-
-              b_n = qgd.GetBlock_Kernel(
-                x + GlobBlocks_Kernel_MarginX + n_off[face].x,
-                y + GlobBlocks_Kernel_MarginY + n_off[face].y,
-                z + GlobBlocks_Kernel_MarginZ + n_off[face].z
-                );
-
-              if (!b_n.IsSolidBlockNotTransparent())
+              BlockItem bi = null;
+              if (BlockItems.TryGetValue(our_block, out bi))
               {
-                uint foff = (uint)async_verts.Count;
+                List<vec3> vecs = null;
+                if (qgd._blockitems == null)
+                {
+                  qgd._blockitems = new Dictionary<BlockItem, List<vec3>>();
+                }
+                if (!qgd._blockitems.TryGetValue(bi, out vecs))
+                {
+                  vecs = new List<vec3>();
+                  qgd._blockitems.Add(bi, vecs);
+                }
+                vecs.Add(block_pos_abs_R3_Center);
+              }
+              else
+              {
+                Gu.Log.Error("The block item for code '" + our_block + "' was not found ");
+              }
+            }
+            else if (BlockTiles.TryGetValue(our_block, out BlockTile bt))
+            {
+              if (qgd.async_verts == null)
+              {
+                qgd.async_verts = new List<v_v3c3n3x2u1>();
+              }
+              if (qgd.async_inds_op == null)
+              {
+                qgd.async_inds_op = new List<ushort>();
+              }
+              if (qgd.async_inds_tp == null)
+              {
+                qgd.async_inds_tp = new List<ushort>();
+              }
 
-                //b.Value
-                if (patches != null && patches.Count == 3)
-                {
-                  if ((face == 0) || (face == 1) || (face == 4) || (face == 5))
-                  {
-                    //LRAF
-                    texs[0] = new vec2(patches[BlockTileUVSide.Side].uv0.x, patches[BlockTileUVSide.Side].uv0.y);
-                    texs[1] = new vec2(patches[BlockTileUVSide.Side].uv1.x, patches[BlockTileUVSide.Side].uv0.y);
-                    texs[2] = new vec2(patches[BlockTileUVSide.Side].uv0.x, patches[BlockTileUVSide.Side].uv1.y);
-                    texs[3] = new vec2(patches[BlockTileUVSide.Side].uv1.x, patches[BlockTileUVSide.Side].uv1.y);
-                  }
-                  else if (face == 2)
-                  {
-                    //B
-                    texs[0] = new vec2(patches[BlockTileUVSide.Bottom].uv0.x, patches[BlockTileUVSide.Bottom].uv0.y);
-                    texs[1] = new vec2(patches[BlockTileUVSide.Bottom].uv1.x, patches[BlockTileUVSide.Bottom].uv0.y);
-                    texs[2] = new vec2(patches[BlockTileUVSide.Bottom].uv0.x, patches[BlockTileUVSide.Bottom].uv1.y);
-                    texs[3] = new vec2(patches[BlockTileUVSide.Bottom].uv1.x, patches[BlockTileUVSide.Bottom].uv1.y);
-                  }
-                  else if (face == 3)
-                  {
-                    //T
-                    texs[0] = new vec2(patches[BlockTileUVSide.Top].uv0.x, patches[BlockTileUVSide.Top].uv0.y);
-                    texs[1] = new vec2(patches[BlockTileUVSide.Top].uv1.x, patches[BlockTileUVSide.Top].uv0.y);
-                    texs[2] = new vec2(patches[BlockTileUVSide.Top].uv0.x, patches[BlockTileUVSide.Top].uv1.y);
-                    texs[3] = new vec2(patches[BlockTileUVSide.Top].uv1.x, patches[BlockTileUVSide.Top].uv1.y);
-                  }
+              ushort b_above = qgd.GetBlock_Glob_Drome(gblock_x, gblock_y + 1, gblock_z);
+              ushort b_below = qgd.GetBlock_Glob_Drome(gblock_x, gblock_y - 1, gblock_z);
 
-                }
-                else
-                {
-                  //The Top/Side/Bot tile images could not be found (were not created) - default to the whole megatexture [0,1]
-                  texs[0] = WorldStaticData.bx_verts_face[face, 0]._x;
-                  texs[1] = WorldStaticData.bx_verts_face[face, 1]._x;
-                  texs[2] = WorldStaticData.bx_verts_face[face, 2]._x;
-                  texs[3] = WorldStaticData.bx_verts_face[face, 3]._x;
-                }
-
-                //Verts + Indexes
-                vec3 block_pos_abs_R3 = block_pos_rel_R3 + glob.OriginR3;
-                for (int vi = 0; vi < 4; ++vi)
-                {
-                  async_verts.Add(new v_v3n3x2()
-                  {
-                    _v = WorldStaticData.bx_verts_face[face, vi]._v + block_pos_abs_R3,
-                    _n = WorldStaticData.bx_verts_face[face, vi]._n,
-                    _x = texs[vi],
-                  });
-                }
-
-                if (!our_block.IsTransparentOr2Sided())
-                {
-                  for (int ii = 0; ii < 6; ++ii)
-                  {
-                    async_inds_op.Add(foff + WorldStaticData.bx_face_inds[ii]);
-                  }
-                }
-                else
-                {
-                  for (int ii = 0; ii < 6; ++ii)
-                  {
-                    async_inds_tp.Add(foff + WorldStaticData.bx_face_inds[ii]);
-                  }
-                }
+              if (bt.MeshType == BlockMeshType.Billboard)
+              {
+                TopologizeGlob_Billboard(drome, glob, bt, block_pos_rel_R3, our_block, b_above, b_below, qgd, gblock_x, gblock_y, gblock_z);
+              }
+              else if (bt.MeshType == BlockMeshType.Block)
+              {
+                TopologizeGlob_Block(drome, glob, bt, block_pos_rel_R3, our_block, b_above, b_below, qgd, gblock_x, gblock_y, gblock_z);
+              }
+              else if (bt.MeshType == BlockMeshType.Liquid)
+              {
 
               }
+
+            }
+            else
+            {
+              //Could not find block tile
+              Gu.Log.Error("Could not find block tile for code '" + our_block + "' ");
+              Gu.DebugBreak();
             }
 
           }
         }
       }
-      qgd.async_verts = async_verts;
-      qgd.async_inds_op = async_inds_op;
-      qgd.async_inds_tp = async_inds_tp;
       qgd.CopiedBlocks = null;
 
       if (glob.State != GenState.Deleted)
@@ -2122,13 +3074,158 @@ namespace PirateCraft
         glob.State = GenState.GenEnd;
       }
 
-      lock (_globsGenerated)
+    }
+    private void TopologizeGlob_Billboard(Drome drome, Glob glob, BlockTile bt, vec3 block_pos_rel_R3, ushort our_block, ushort b_above, ushort b_below, QueuedGlobData_WithKernel qgd, int gblock_x, int gblock_y, int gblock_z)
+    {
+      MtTex[] patches = bt.GetUVPatch(BlockSide.Left, b_above, b_below); //Just pass Zero here, because all the side faces for billboards are the same for now
+
+      for (int iface = 0; iface < 2; ++iface)
       {
-        _globsGenerated.Add(qgd.DistanceToPlayer, qgd);
+        //Texs are the same for billboards regardless of which face. But it should be side.
+        uint foff = (uint)qgd.async_verts.Count;
+        vec2[] texs = new vec2[4];
+        texs[0] = new vec2(patches[BlockTileUVSide.Side].uv0.x, patches[BlockTileUVSide.Side].uv0.y);
+        texs[1] = new vec2(patches[BlockTileUVSide.Side].uv1.x, patches[BlockTileUVSide.Side].uv0.y);
+        texs[2] = new vec2(patches[BlockTileUVSide.Side].uv0.x, patches[BlockTileUVSide.Side].uv1.y);
+        texs[3] = new vec2(patches[BlockTileUVSide.Side].uv1.x, patches[BlockTileUVSide.Side].uv1.y);
+
+        Light_And_AddBlockFaceV4I6(iface, gblock_x, gblock_y, gblock_z, drome, glob, qgd, our_block, block_pos_rel_R3, WorldStaticData.bb_verts_face_zup, WorldStaticData.bb_face_inds_zup, texs);
+      }
+    }
+    private void TopologizeGlob_Block(Drome drome, Glob glob, BlockTile bt, vec3 block_pos_rel_R3, ushort our_block, ushort b_above, ushort b_below, QueuedGlobData_WithKernel qgd, int gblock_x, int gblock_y, int gblock_z)
+    {
+      //    6    7
+      // 2    3
+      //    4    5
+      // 0    1
+
+
+      for (int iface = 0; iface < 6; ++iface)
+      {
+        //TODO: remove the "default" condition in grid. very slow. Replace with "global drome" code
+        ushort b_n = qgd.GetBlock_Glob_Drome(
+          gblock_x + WorldStaticData.n_off[iface].x,
+          gblock_y + WorldStaticData.n_off[iface].y,
+          gblock_z + WorldStaticData.n_off[iface].z);
+
+        //for some weird reason we have to include missing blocks for water..
+        if (
+          (Block.IsAir_Or_Missing(b_n) || (Block.IsTransparent(b_n) && !Block.IsTransparent(our_block))) || //Solid blocks - don't gen missing, but if it's air, or water, gen.
+          (Block.IsDecalOr2Sided(b_n) && !Block.IsTransparent(our_block)) || //always topo next to decals (for now)
+          Block.IsMeshItem(b_n) || //always topo next to meshes (for now)
+          (Block.IsAir_Or_Missing(b_n) && Block.IsTransparent(our_block)))
+        {
+          MtTex[] patches;
+          if (bt.Growth_Infos_Side != null)
+          {
+
+          }
+
+          patches = bt.GetUVPatch((BlockSide)iface, b_above, b_below);
+
+          vec2[] texs = new vec2[4];
+          //b.Value
+          if (bt.FaceInfos != null && bt.FaceInfos.Length == 3)
+          {
+            if ((iface == 0) || (iface == 1) || (iface == 4) || (iface == 5))
+            {
+              //LRAF
+              texs[0] = new vec2(patches[BlockTileUVSide.Side].uv0.x, patches[BlockTileUVSide.Side].uv0.y);
+              texs[1] = new vec2(patches[BlockTileUVSide.Side].uv1.x, patches[BlockTileUVSide.Side].uv0.y);
+              texs[2] = new vec2(patches[BlockTileUVSide.Side].uv0.x, patches[BlockTileUVSide.Side].uv1.y);
+              texs[3] = new vec2(patches[BlockTileUVSide.Side].uv1.x, patches[BlockTileUVSide.Side].uv1.y);
+            }
+            else if (iface == 2)
+            {
+              //B
+              texs[0] = new vec2(patches[BlockTileUVSide.Bottom].uv0.x, patches[BlockTileUVSide.Bottom].uv0.y);
+              texs[1] = new vec2(patches[BlockTileUVSide.Bottom].uv1.x, patches[BlockTileUVSide.Bottom].uv0.y);
+              texs[2] = new vec2(patches[BlockTileUVSide.Bottom].uv0.x, patches[BlockTileUVSide.Bottom].uv1.y);
+              texs[3] = new vec2(patches[BlockTileUVSide.Bottom].uv1.x, patches[BlockTileUVSide.Bottom].uv1.y);
+            }
+            else if (iface == 3)
+            {
+              //T
+              texs[0] = new vec2(patches[BlockTileUVSide.Top].uv0.x, patches[BlockTileUVSide.Top].uv0.y);
+              texs[1] = new vec2(patches[BlockTileUVSide.Top].uv1.x, patches[BlockTileUVSide.Top].uv0.y);
+              texs[2] = new vec2(patches[BlockTileUVSide.Top].uv0.x, patches[BlockTileUVSide.Top].uv1.y);
+              texs[3] = new vec2(patches[BlockTileUVSide.Top].uv1.x, patches[BlockTileUVSide.Top].uv1.y);
+            }
+
+          }
+          else
+          {
+            //The Top/Side/Bot tile images could not be found (were not created) - default to the whole megatexture [0,1]
+            texs[0] = WorldStaticData.bx_verts_face[iface, 0]._x;
+            texs[1] = WorldStaticData.bx_verts_face[iface, 1]._x;
+            texs[2] = WorldStaticData.bx_verts_face[iface, 2]._x;
+            texs[3] = WorldStaticData.bx_verts_face[iface, 3]._x;
+          }
+
+          Light_And_AddBlockFaceV4I6(iface, gblock_x, gblock_y, gblock_z, drome, glob, qgd, our_block, block_pos_rel_R3, WorldStaticData.bx_verts_face, WorldStaticData.bx_face_inds, texs);
+
+        }
+      }
+    }
+
+    private void Light_And_AddBlockFaceV4I6(int iface,
+      int gblock_x, int gblock_y, int gblock_z,
+      Drome drome, Glob glob, QueuedGlobData_WithKernel qgd, ushort our_block, vec3 block_pos_rel_R3,
+      v_v3n3x2[,] verts_face, uint[] inds_face, vec2[] texs_face)
+    {
+      uint foff = (uint)qgd.async_verts.Count;
+
+      Gu.Assert(iface < 6);
+      Gu.Assert(iface < verts_face.Length); //I think the lenght of md arrays is the rank index.
+      Gu.Assert(inds_face.Length == 6);
+      Gu.Assert(texs_face.Length == 4);
+
+      //Light
+      vec3 color;
+      if (drome != null && drome.LightGrid != null)
+      {
+        //Get the neighboring GRay (or clamp) to get this ray. Then reflect the incoming light ray off the surface and multiply by color to compute the color
+        //No visibility is used here (kinda sucks). this is jsut .. forever .. and again
+        //FUN!
+        GRay g = drome.LightGrid.Get(gblock_x + WorldStaticData.n_off[iface].x, gblock_y + WorldStaticData.n_off[iface].y, gblock_z + WorldStaticData.n_off[iface].z);
+        color = g.Color * WorldStaticData.bx_norms[iface].dot(g.Dir.reflect(WorldStaticData.bx_norms[iface]));
+      }
+      else
+      {
+        color = new vec3(1, 1, 1);
       }
 
+
+      //Verts + Indexes
+      vec3 block_pos_abs_R3 = block_pos_rel_R3 + glob.OriginR3;
+      for (int vi = 0; vi < 4; ++vi)
+      {
+        qgd.async_verts.Add(new v_v3c3n3x2u1()
+        {
+          _v = verts_face[iface, vi]._v + block_pos_abs_R3,
+          _c = color,
+          _n = verts_face[iface, vi]._n,
+          _x = texs_face[vi],
+          _u = 0//TODO: material id
+        });
+      }
+
+      if (!Block.IsTransparent(our_block) && !Block.IsDecalOr2Sided(our_block))
+      {
+        for (int ii = 0; ii < 6; ++ii)
+        {
+          qgd.async_inds_op.Add(Convert.ToUInt16(foff + inds_face[ii]));
+        }
+      }
+      else
+      {
+        for (int ii = 0; ii < 6; ++ii)
+        {
+          qgd.async_inds_tp.Add(Convert.ToUInt16(foff + inds_face[ii]));
+        }
+      }
     }
-    private UInt16 Density(vec3 world_pos)
+    private float Density(vec3 world_pos)
     {
       float d = -world_pos.y;
 
@@ -2143,127 +3240,8 @@ namespace PirateCraft
         d = d + (sign) * MathUtils.cosf(world_pos.x / World.BlockSizeX * 0.1f * f) * 3 * a + (sign) * MathUtils.sinf(world_pos.z / World.BlockSizeZ * 0.1f * f) * 3 * a * BlockSizeY;
       }
 
-      ushort item = BlockItemCode.Empty;
-      if (d > 0)
-      {
-        item = BlockItemCode.Value;
-      }
-
-      return item;
+      return d;
     }
-    private void CleanGlobs()
-    {
-      //if a glob is X units from player ... 
-      // If a glob has been invisible for Y units ...
-      // Delete topology.
-      var awar_len2 = Math.Pow(Player.Far, 2); // far render distance is the limit to our fun, here, like minecraft
-
-      List<Glob> toDelete = new List<Glob>();
-
-      //var cur_ms = Gu.Milliseconds();
-      //foreach (var kvp in _globs)
-      //{
-      //  var ms = kvp.Value.LastVisible_ms - cur_ms;
-      //  if (ms >= GlobAbandon_DeleteTime_ms)
-      //  {
-      //    var g_dist2 = (kvp.Value.CenterR3 - this.Player.Position).length2();
-      //    if (g_dist2 > awar_len2)
-      //    {
-      //      toDelete.Add(kvp.Value);
-      //    }
-      //  }
-      //}
-
-      //foreach (var g in toDelete)
-      //{
-      //  g.Opaque?.Dispose();
-      //  g.Transparent?.Dispose();
-      //  if (g.State == GenState.Ready)
-      //  {
-      //    g.State = GenState.Deleted;
-      //    _globs.Remove(g.Pos);
-      //  }
-      //}
-      //toDelete.Clear();
-
-    }
-    //private void SweepGridFrustum(Action<ivec3, Box3f> func, Frustum pf, float fMaxDist)
-    //{
-    //  vec3 cp = pf.NearCenter;
-    //  int iDebugSweepCount = 0;
-    //  List<ivec3> toCheck = new List<ivec3>();
-    //  HashSet<ivec3> dchecked = new HashSet<ivec3>();
-
-    //  int nPotentialGlobs = (int)((fMaxDist / GlobWidthX) * (fMaxDist / GlobWidthY) * (fMaxDist / GlobWidthZ));
-    //  int nMaxPotentialGlobs = 5000;
-    //  if (nPotentialGlobs > nMaxPotentialGlobs)
-    //  {
-    //    //This is technically an error, but we may also just hard limit the sweep routine if we weant.
-    //    Gu.Log.WarnCycle("Warning: potential number of globs " + nPotentialGlobs + " exceeds " + nMaxPotentialGlobs);
-    //    Gu.DebugBreak();
-    //  }
-
-    //  float fMaxDist2 = fMaxDist * fMaxDist;
-
-    //  //Seed
-    //  toCheck.Add(R3toI3Glob(cp));
-
-    //  while (toCheck.Count > 0)
-    //  {
-    //    ivec3 vi = toCheck[0];
-    //    toCheck.RemoveAt(0);// erase(toCheck.begin() + 0);
-    //    iDebugSweepCount++;
-
-    //    if (!dchecked.Contains(vi))
-    //    {
-    //      //TODO: fix this because we're getting stack overflows
-    //      dchecked.Add(new ivec3(vi.x, vi.y, vi.z));
-
-    //      // if the grid right here intersects the frustum
-    //      Box3f box = GetGlobBoxGlobalI3(vi);
-
-    //      vec3 node_center = box.center();
-
-    //      float fDist2 = (pf.NearCenter - node_center).length2();
-
-    //      if (fDist2 < fMaxDist2)
-    //      {
-    //        if (pf.HasBox(box))
-    //        {
-    //          func(vi, box);
-
-    //          //Sweep Neighbors
-    //          vec3[] n = new vec3[6];
-    //          for (int ni = 0; ni < 6; ++ni)
-    //          {
-    //            n[ni] = node_center + WorldStaticData.GlobNeighborOffsets[ni];
-
-    //          }
-
-    //          toCheck.Add(R3toI3Glob(n[0]));
-    //          toCheck.Add(R3toI3Glob(n[1]));
-    //          toCheck.Add(R3toI3Glob(n[2]));
-    //          toCheck.Add(R3toI3Glob(n[3]));
-    //          toCheck.Add(R3toI3Glob(n[4]));
-    //          toCheck.Add(R3toI3Glob(n[5]));
-    //        }
-    //        else
-    //        {
-    //          int nnn = 0;
-    //          nnn++;
-    //        }
-    //      }
-    //      else
-    //      {
-    //        int nnn = 0;
-    //        nnn++;
-    //      }
-    //    }
-    //  }
-
-    //  dchecked.Clear();
-
-    //}
     public Drome GetDromeForGlob(Glob g)
     {
       Drome ret = null;
@@ -2271,27 +3249,147 @@ namespace PirateCraft
       _dromes.TryGetValue(dvi, out ret);
       return ret;
     }
-
-    public void QueueForTopo(Glob g)
+    public void SetBlock(vec3 pos_r3, ushort b)
     {
-      //priority is no longer needed when sorting by distance
-      QueuedGlobData_WithKernel qgd = new QueuedGlobData_WithKernel();
-      qgd.glob = g;
-      qgd.QueueId = _queueId++;
-      g.QueueId = qgd.QueueId;
-      CopyGlobBlocks_Sync(g.Drome, qgd);
-
-      double dist = (qgd.glob.CenterR3 - Player.Position).length();
-      qgd.DistanceToPlayer = dist;
-
-      lock (_globsToGenerate)
+      //ivec3 block_i3 = R3ToI3BlockGlobal(pt);
+      foreach (var d in _dromes)
       {
-        _globsToGenerate.Add(dist, qgd);
+        if (d.Value.Box.containsPointBottomLeftInclusive(pos_r3))
+        {
+          d.Value.SetBlock(pos_r3, b);
+        }
       }
     }
-    public void CopyGlobBlocks_Sync(Drome drome_in, QueuedGlobData_WithKernel qgd)
+    private Drome QueueDrome(ivec3 gpos)
     {
-      ivec3 block_off_drome = GlobOffsetInDrome_LocalZ3(qgd.glob.Pos) * new ivec3(World.GlobBlocksX, World.GlobBlocksY, World.GlobBlocksZ);
+      //Queue drome for scalar field generation
+      Drome drome = null;
+      _dromes.TryGetValue(gpos, out drome);
+      if (drome == null)
+      {
+        drome = new Drome(this, gpos, Gu.Context.FrameStamp);
+
+        QueuedDromeData qdd = new QueuedDromeData();
+        qdd.drome = drome;
+        qdd.gpos = gpos;
+        double dist = (double)(float)(drome.CenterR3 - Player.Position).length();
+        qdd.DistanceToPlayer = dist;
+        _dromes.Add(gpos, drome);
+
+        _queuedDromes.Add((float)dist, qdd);
+      }
+      return drome;
+    }
+    public Glob QueueGlob(Glob oldGlob, Drome d, ivec3 gpos_glob_global_z3)
+    {
+      //Queue glob for triangle topology.
+      //Create a new glob if we are ready to generate it (everything is locked).
+      //Returns null if the required dromes (scalar fields) could not be locked
+      Gu.Assert(d != null);
+
+      var needed_dromes = GetRequiredScalarFields_or_GenerateThem(d, gpos_glob_global_z3);
+      if (needed_dromes == null)
+      {
+        //Return null so that the requested Glob is not yet set, and we will generate it later.
+        return null;
+      }
+      else
+      {
+        needed_dromes.Lock();
+      }
+
+      Glob g = new Glob(gpos_glob_global_z3, Gu.Context.FrameStamp, d);
+
+      if (oldGlob != null)
+      {
+        //Save the mesh data, or else we get a flicker while the glob is generating.
+        g.Opaque = oldGlob.Opaque;
+        g.Transparent = oldGlob.Transparent;
+        g.BlockItems = oldGlob.BlockItems;
+        oldGlob = null;
+      }
+
+      //priority is no longer needed when sorting by distance
+      QueuedGlobData_WithKernel qgd = new QueuedGlobData_WithKernel();
+      qgd.ScalarFields = needed_dromes;
+      qgd.MyGlob = g;
+      d.Lock();
+      //    CopyGlobBlocks_Sync(d, qgd);
+      qgd._blockitems = new Dictionary<BlockItem, List<vec3>>();//completely new. do not copy .. we generate it.
+
+      double dist = (qgd.MyGlob.CenterR3 - Player.Position).length();
+      qgd.DistanceToPlayer = dist;
+
+      _queuedGlobs.Add((float)dist, qgd);
+
+      return g;
+    }
+    private void LaunchGlobAndDromeQueues()
+    {
+      WindowContext wc = Gu.Context;
+      while (_queuedGlobs.Count > 0)
+      {
+        if (_globsGenerating >= _globsGenerating_Max)
+        {
+          break;
+        }
+        var kvp = _queuedGlobs.First();
+        _queuedGlobs.Remove(kvp);
+        _globsGenerating++;
+
+        var qgd = kvp.Value;
+
+        ThreadPool.QueueUserWorkItem(stateinfo =>
+        {
+          TopologizeGlob(qgd);
+          Gu.Context.Gpu.Post_To_RenderThread(wc, x =>
+          {
+            FinishGeneratingGlob_Sync(qgd);
+            _globsGenerating--;
+          });
+        });
+      }
+
+
+      while (_queuedDromes.Count > 0)
+      {
+        if (_dromesGenerating >= _dromesGenerating_Max)
+        {
+          break;
+        }
+        var kvp = _queuedDromes.First();
+        _queuedDromes.Remove(kvp);
+
+        _dromesGenerating++;
+
+        var qdd = kvp.Value;
+
+        ThreadPool.QueueUserWorkItem(info =>
+        {
+          //We're doing file operations on another thread eeww
+          var drome = TryLoadDrome(qdd.gpos);
+          if (drome == null)
+          {
+            GenerateDrome_Async(qdd);
+            SaveDrome(qdd.drome);
+            drome = qdd.drome;
+          }
+
+          drome.LastVisible_ms = Gu.Milliseconds();
+
+          Gu.Context.Gpu.Post_To_RenderThread(wc, x =>
+          {
+            _dromesGenerating--;
+            qdd.drome.GenState = GenState.Ready;
+          });
+        });
+
+      }
+
+    }
+    private void CopyGlobBlocks_Sync(Drome drome_in, QueuedGlobData_WithKernel qgd)
+    {
+      ivec3 block_off_drome = GlobGlobal_Z3_To_DromeLocal_Z3(qgd.MyGlob.Pos) * new ivec3(World.GlobBlocksX, World.GlobBlocksY, World.GlobBlocksZ);
 
       //We don't support for kernels that span > +/-1 neighbor drome (dromes are massive anyway, there'd be no point)
       Gu.Assert(GlobBlocks_Kernel_MarginX < DromeBlocksX); //This would be a massive kernel..
@@ -2299,7 +3397,7 @@ namespace PirateCraft
       Gu.Assert(GlobBlocks_Kernel_MarginZ < DromeBlocksZ);
 
       //Copy a "kernel" to the given glob data. uigh..
-      qgd.CopiedBlocks = new Block[World.GlobBlocksX_Gen_Kernel * World.GlobBlocksY_Gen_Kernel * World.GlobBlocksZ_Gen_Kernel];
+      qgd.CopiedBlocks = new ushort[World.GlobBlocksX_Gen_Kernel * World.GlobBlocksY_Gen_Kernel * World.GlobBlocksZ_Gen_Kernel];
       for (int z = 0; z < World.GlobBlocksZ_Gen_Kernel; z++)
       {
         for (int y = 0; y < World.GlobBlocksY_Gen_Kernel; y++)
@@ -2365,7 +3463,7 @@ namespace PirateCraft
               drome_n_or_cur = FindDromeI3(drome_in.Pos + d_or_n_off);
               if (drome_n_or_cur != null)
               {
-                if (drome_n_or_cur.State != GenState.Ready)
+                if (drome_n_or_cur.GenState != GenState.Ready)
                 {
                   drome_n_or_cur = null;
                 }
@@ -2377,47 +3475,90 @@ namespace PirateCraft
             }
 
             int qoff = QueuedGlobData_WithKernel.Kernel_Offset(x, y, z);
-            if (drome_n_or_cur != null)
+            if (drome_n_or_cur != null && drome_n_or_cur.HasBlockData())
             {
-              int doff = Drome.BlockOffset(d_or_n_block_off);
-              qgd.CopiedBlocks[qoff] = drome_n_or_cur.Blocks[doff];
+              //int doff = Drome.BlockOffset(d_or_n_block_off);
+              //qgd.CopiedBlocks[qoff] = drome_n_or_cur.Blocks[doff];
+
+              qgd.CopiedBlocks[qoff] = drome_n_or_cur.Blocks.Get(d_or_n_block_off);
+
             }
             else
             {
-              qgd.CopiedBlocks[qoff] = Block.Empty;
+              qgd.CopiedBlocks[qoff] = BlockItemCode.Missing;
             }
           }
         }
       }
 
     }
-    public List<QueuedGlobData_WithKernel> GrabFromTopo(int max_per_step)
+    List<ivec3> _scalarFieldsNeeded = new List<ivec3>();
+    private DromeKernel GetRequiredScalarFields_or_GenerateThem(Drome d, ivec3 gpos_glob_global_z3)
     {
-      List<QueuedGlobData_WithKernel> ret = new List<QueuedGlobData_WithKernel>();
-      lock (_globsToGenerate)
+      //Get a kernel of up to 8 dromes required to seamlessly iterate a scalar field.
+      //  This returns 27, however we only ever get 8 max (1=center, 2=face, 4=edge, 8=corner)
+      DromeKernel dk = new DromeKernel();
+      ivec3 my_pos = d.Pos;
+      ivec3 glob_local_z3 = GlobGlobal_Z3_To_DromeLocal_Z3(gpos_glob_global_z3);
+
+      //Add into the C27
+
+      for (int z = -1; z <= 1; z++)
       {
-        for (int i = 0; i < max_per_step && i < _globsToGenerate.Count; i++)
+        for (int y = -1; y <= 1; y++)
         {
-          var kvp = _globsToGenerate.First();
-          ret.Add(kvp.Value);
-          _globsToGenerate.Remove(kvp);
+          for (int x = -1; x <= 1; x++)
+          {
+            //drome neighbor offset -1, 0, 1 along each axis
+            int dx = 0, dy = 0, dz = 0;
+            if ((x == -1) && (glob_local_z3.x == 0))
+            {
+              dx = x;
+            }
+            else if ((x == 1) && (glob_local_z3.x == World.DromeGlobsX - 1))
+            {
+              dx = x;
+            }
+
+            if ((y == -1) && (glob_local_z3.y == 0))
+            {
+              dy = y;
+            }
+            else if ((y == 1) && (glob_local_z3.y == World.DromeGlobsY - 1))
+            {
+              dy = y;
+            }
+
+            if ((z == -1) && (glob_local_z3.z == 0))
+            {
+              dz = z;
+            }
+            else if ((z == 1) && (glob_local_z3.z == World.DromeGlobsZ - 1))
+            {
+              dz = z;
+            }
+
+            if (dk.Get(dx + 1, dy + 1, dz + 1) == null)
+            {
+              ivec3 n_off = my_pos + new ivec3(dx, dy, dz);
+              Drome d_n = FindDromeI3(n_off, true);
+              if (d_n == null)
+              {
+                //The drome was not loaded. Queue it so we have it, and generate this glob later.
+                _scalarFieldsNeeded.Add(n_off);
+                return null;
+              }
+              else
+              {
+                dk.Set(dx + 1, dy + 1, dz + 1, d_n);
+              }
+            }
+
+          }
         }
       }
-      return ret;
-    }
-    public List<QueuedDromeData> GrabFromDromes(int max_per_step)
-    {
-      List<QueuedDromeData> ret = new List<QueuedDromeData>();
-      lock (_dromesToGenerate)
-      {
-        for (int i = 0; i < max_per_step && i < _dromesToGenerate.Count; i++)
-        {
-          var kvp = _dromesToGenerate.First();
-          ret.Add(kvp.Value);
-          _dromesToGenerate.Remove(kvp);
-        }
-      }
-      return ret;
+
+      return dk;
     }
 
 
@@ -2450,19 +3591,19 @@ namespace PirateCraft
       v.z = (int)Math.Floor(pt.z / BlockSizeZ);
       return v;
     }
-    private Block? FindBlockR3_Drome(vec3 R3_pos)
+    private ushort? FindBlockR3_Drome(vec3 R3_pos)
     {
       Drome d = FindDromeR3(R3_pos);
       if (d == null)
       {
         return null;
       }
-      if (d.State != GenState.Ready)
+      if (d.GenState != GenState.Ready)
       {
         return null;
       }
-      ivec3 bpos = R3toI3BlockLocal_Drome(R3_pos);
-      Block b = d.GetBlock(bpos);
+      ivec3 bpos = Drome.R3toI3BlockLocal_Drome(R3_pos);
+      ushort b = d.GetBlock(bpos);
 
       return b;
     }
@@ -2479,7 +3620,7 @@ namespace PirateCraft
       }
       return bpos;
     }
-    private static ivec3 R3ToI3BlockLocal_Any(vec3 R3, float cont_w_x, float cont_w_y, float cont_w_z)
+    public static ivec3 R3ToI3BlockLocal_Any(vec3 R3, float cont_w_x, float cont_w_y, float cont_w_z)
     {
       vec3 bpos = new vec3(
        R3toI3BlockComp(R3.x, cont_w_x, BlockSizeX),
@@ -2498,15 +3639,6 @@ namespace PirateCraft
       }
       return bpos;
     }
-    private static ivec3 R3toI3BlockLocal_Drome(vec3 R3)
-    {
-      ivec3 bpos = R3ToI3BlockLocal_Any(R3, DromeWidthX, DromeWidthY, DromeWidthZ);
-      if (bpos.x < 0 || bpos.y < 0 || bpos.z < 0 || bpos.x >= World.DromeBlocksX || bpos.y >= World.DromeBlocksY || bpos.z >= World.DromeBlocksZ)
-      {
-        Gu.DebugBreak();
-      }
-      return bpos;
-    }
     public static ivec3 R3toI3Glob(vec3 R3)
     {
       //v3toi3Node
@@ -2516,12 +3648,12 @@ namespace PirateCraft
          (int)Math.Floor(R3.z / World.GlobWidthZ));
       return gpos;
     }
-    private Glob FindGlobR3(vec3 R3_pos, GlobCollection c)
-    {
-      ivec3 gpos = R3toI3Glob(R3_pos);
+    //private Glob FindGlobR3(vec3 R3_pos, GlobCollection c)
+    //{
+    //  ivec3 gpos = R3toI3Glob(R3_pos);
 
-      return FindGlobI3(gpos, c);
-    }
+    //  return FindGlobI3(gpos, c);
+    //}
     private Drome FindDromeR3(vec3 R3_pos)
     {
       ivec3 dpos = R3toI3Drome(R3_pos);
@@ -2551,10 +3683,11 @@ namespace PirateCraft
     {
       return GetBlockBoxLocal(b.Drome, b.BlockPosLocal, padding);
     }
-    private static Box3f GetBlockBoxLocal(Drome d, ivec3 local, float padding)
+    private static Box3f GetBlockBoxLocal(Drome d, ivec3 local, float padding = 0)
     {
       //padding is an extra boundary we add to the box so it doesn't exactly coincide with the mesh geometry. Used for rendering.
       Gu.Assert(d != null);
+
       Box3f box = new Box3f();
       box._min = d.OriginR3 + local.toVec3() * new vec3(BlockSizeX, BlockSizeY, BlockSizeZ);
       box._max.x = box._min.x + BlockSizeX;
@@ -2562,10 +3695,9 @@ namespace PirateCraft
       box._max.z = box._min.z + BlockSizeZ;
       box._max += padding;
       box._min += padding;
-
       return box;
     }
-    private static Box3f GetBlockBoxGlobalR3(vec3 pt)
+    public static Box3f GetBlockBoxGlobalR3(vec3 pt, float padding = 0)
     {
       //Snap the point pt to the block grid, and return the bound box of that block
       Box3f box = new Box3f();
@@ -2573,6 +3705,8 @@ namespace PirateCraft
       box._max.x = box._min.x + BlockSizeX;
       box._max.y = box._min.y + BlockSizeY;
       box._max.z = box._min.z + BlockSizeZ;
+      box._max += padding;
+      box._min += padding;
       return box;
     }
     private static ivec3 GlobPosToDromePos(ivec3 globPos)
@@ -2595,8 +3729,9 @@ namespace PirateCraft
       }
       return bpos;
     }
-    public static ivec3 GlobOffsetInDrome_LocalZ3(ivec3 pos_glob_global_z3)
+    public static ivec3 GlobGlobal_Z3_To_DromeLocal_Z3(ivec3 pos_glob_global_z3)
     {
+      //Convert 
       ivec3 r = new ivec3(
         GlobOffsetInDrome_LocalZ3_Comp(pos_glob_global_z3.x, DromeGlobsX),
         GlobOffsetInDrome_LocalZ3_Comp(pos_glob_global_z3.y, DromeGlobsY),
@@ -2607,7 +3742,7 @@ namespace PirateCraft
     }
     private static ivec3 LocalGlobBlockPos_To_LocalDromeBlockPos(ivec3 glob_pos_z3_global, ivec3 glob_block_pos_local)
     {
-      ivec3 glob_off_local = GlobOffsetInDrome_LocalZ3(glob_pos_z3_global);
+      ivec3 glob_off_local = GlobGlobal_Z3_To_DromeLocal_Z3(glob_pos_z3_global);
 
       Gu.Assert(
         glob_off_local.x >= 0 && glob_off_local.y >= 0 && glob_off_local.z >= 0 &&
@@ -2630,24 +3765,41 @@ namespace PirateCraft
 
     #endregion
 
-    public class PickedBlock
+    public PickedBlock RaycastBlock_2(PickRay3D pr)
     {
-      public bool Hit = false;
-      //public Glob Glob;
-      public Drome Drome;
-      public Block Block;
-      public ivec3 BlockPosLocal;
-      public vec3 HitPos;
-      public vec3 HitNormal;
+      //Less buggy raycasting using BVH. Also, faster. Usually ~20 checks until we hit a block.
+      //This works for rays and e-beams
+      PickedBlock pb = new PickedBlock();
+      pb.AddPickedBlockBoxes_Debug = true;
+
+      //create list of dromes sorted by distance from the ray.
+      MultiMap<float, Drome> dlist = new MultiMap<float, Drome>();
+      foreach (var d in _dromes)
+      {
+        BoxAAHit bh = new BoxAAHit();
+        if (d.Value.Box.LineOrRayIntersectInclusive_EasyOut(pr, ref bh))
+        {
+          dlist.Add((float)bh._t, d.Value);
+        }
+      }
+
+      foreach (var d in dlist)
+      {
+        d.Value.RaycastBlockBVH(d.Value, pr, ref pb);
+      }
+
+      return pb;
     }
     public PickedBlock RaycastBlock(PickRay3D pr)
     {
+      //This algorithm sucks. We need to make a new one.
+      //@param radius - if we are raycasting a sphere. Otherwise 0 for points.
       //Pick Block/blocks in the world.
       //  We use an inclusive box test just for the hit, but not for the recursion i.e ray ends up on an edge and we recur to 2 blocks and end up with a lot of duplicates.
       //  This algorithm.. isn't the best we should use a 3d line drawing algorithm to avoid duplicate checks. stepx stepx stepy stepx .. 
       //TODO: much faster if we marched the drome/glob first, then the blocks. We do only blocks
       PickedBlock pb = new PickedBlock();
-      pb.Hit = false;
+      pb.IsHit = false;
       //Snap point to block center
       vec3 center = R3ToI3BlockGlobal(pr.Origin).toVec3() *
          new vec3(BlockSizeX, BlockSizeY, BlockSizeZ) +
@@ -2669,15 +3821,21 @@ namespace PirateCraft
           dbg_checkarrmaxsiz = toCheck.Count;
         }
 
-        vec3 cpos = toCheck[0]; //position of block
+        vec3 cpos_r3 = toCheck[0]; //center of current block as we march along this ray, Bresenham-style
         toCheck.RemoveAt(0);
-        if ((pr.Project(cpos) - pr.Origin).length2() > (pr.Length * pr.Length))
+
+        vec3 cpos_proj = pr.Project(cpos_r3);
+        float cpos_proj_len2 = (cpos_proj - pr.Origin).length2();
+        float cpos_ortho_len2 = (cpos_r3 - cpos_proj).length2();
+        //TODO: Error: radius . radius is not r^2 here - ellipsoid radius is not r dot r for ortho_len_2, it chage
+        if (cpos_proj_len2 > pr.Length * pr.Length)
         {
-          //We are beyond the ray.
+          //We are beyond the ray, or,
+          // we checked a block that was further along the ray than the current minimum hit distance.
           break;
         }
 
-        ivec3 iglob = R3toI3Drome(cpos);
+        ivec3 iglob = R3toI3Drome(cpos_r3);
         if ((cur_drome == null && already_checked_glob == false) || (icur_drome != iglob))
         {
           cur_drome = FindDromeI3(iglob);
@@ -2686,29 +3844,34 @@ namespace PirateCraft
           dbg_nglobcheck++;
         }
 
-        if ((cur_drome != null) && (cur_drome.Blocks != null) && (cur_drome.RegionState.State != RegionState.Empty_AndNoData))
+        if ((cur_drome != null) && (cur_drome.Blocks != null) && (cur_drome.BlockStats.RegionState != RegionState.Empty_AndNoData))
         {
           dbg_nblockcheck++;
-          ivec3 b3i = R3toI3BlockLocal_Drome(cpos);
-          Block b = cur_drome.GetBlock(b3i);
-          if (!b.IsEmpty())
+          ivec3 b3i = Drome.R3toI3BlockLocal_Drome(cpos_r3);
+          ushort b = cur_drome.GetBlock(b3i);
+          if (!Block.IsAir_Or_Missing(b))
           {
-            pb.Drome = cur_drome;
-            pb.Block = b;
-            pb.BlockPosLocal = b3i;
-            var blockbox = GetBlockBoxGlobalR3(cpos);
-
+            //b.IsEmpty()==false is sufficient for a hit. (drome,i3) is sufficient for the information too.
+            //You don't need the other data than for more information.
+            var blockbox = GetBlockBoxGlobalR3(cpos_r3);
             if (blockbox.LineOrRayIntersectInclusive_EasyOut(pr, ref bh))
             {
-              pb.HitPos = pr.Origin + pr.Dir * bh._t;
-              pb.HitNormal = -pr.Dir;
-              pb.Hit = true;
+              pb.Drome = cur_drome;
+              pb.Block = b;
+              pb.BlockPosLocal = b3i;
+              pb._t = (float)bh._t;
+              pb.HitPos = pr.Origin + pr.Dir * (float)bh._t;
+              pb.Block_Center = cpos_r3;
+              pb.HitNormal_Ray = -pr.Dir;
+              pb.IsHit = true;
               break;
             }
             else
             {
               //Error - we did in fact collilde with this block but the box says otherwise
               Gu.DebugBreak();
+              int n = 0;
+              n++;
             }
           }
         }
@@ -2717,7 +3880,7 @@ namespace PirateCraft
         {
           if (dir_test)
           {
-            vec3 n_pos = cpos + n_offset;
+            vec3 n_pos = cpos_r3 + n_offset;
             Box3f b = GetBlockBoxGlobalR3(n_pos);
             if (b.LineOrRayIntersectInclusive_EasyOut(pr, ref bh))
             {
@@ -2725,16 +3888,13 @@ namespace PirateCraft
               {
                 toCheck.Add(n_pos);
               }
-              else
-              {
-                //Gu.DebugBreak().. 
-              }
             }
           }
         };
 
         //This is technically broken since we traverse >1 block sometimes with exclusive ray-box tests. The Contains() prevents it from blowing up.
         //** Technically speaking we should only go to one one block if we want to fix this algorithm.
+
         recur_neighbor_by_dir(pr.Dir.x < 0, WorldStaticData.BlockNeighborOffsets[0]);
         recur_neighbor_by_dir(pr.Dir.x > 0, WorldStaticData.BlockNeighborOffsets[1]);
         recur_neighbor_by_dir(pr.Dir.y < 0, WorldStaticData.BlockNeighborOffsets[2]);
@@ -2843,48 +4003,26 @@ namespace PirateCraft
           br.Write((Int32)d.Pos.x);
           br.Write((Int32)d.Pos.y);
           br.Write((Int32)d.Pos.z);
-          d.RegionState.Serialize(br);
+          d.BlockStats.Serialize(br);
+          d.Blocks.Serialize(br);
 
-
-          // br.Write((Int32)d.DensityState);
-          //if (d.GlobRegionStates == null)
-          //{
-          //  br.Write((Int32)0);
-          //}
-          //else
-          //{
-          //  var byteArr = new byte[Marshal.SizeOf(typeof(Block)) * d.GlobRegionStates.Length];
-          //  var pinnedHandle = GCHandle.Alloc(d.GlobRegionStates, GCHandleType.Pinned);
-          //  Marshal.Copy(pinnedHandle.AddrOfPinnedObject(), byteArr, 0, byteArr.Length);
-          //  pinnedHandle.Free();
-          //  br.Write((Int32)byteArr.Length);
-          //  br.Write(byteArr);
-          //}
-          //  br.Write((Int32)d.Solid);
-          //  br.Write((Int32)d.Empty);
-          // br.Write((Int32)d.Items);
-          if (d.Blocks == null)
+          if (d.GlobRegionStates == null)
           {
             br.Write((Int32)0);
           }
           else
           {
-
-            var byteArr = new byte[Marshal.SizeOf(typeof(Block)) * d.Blocks.Length];
-            var pinnedHandle = GCHandle.Alloc(d.Blocks, GCHandleType.Pinned);
+            var byteArr = new byte[Marshal.SizeOf(typeof(RegionBlocks)) * d.GlobRegionStates.Length];
+            var pinnedHandle = GCHandle.Alloc(d.GlobRegionStates, GCHandleType.Pinned);
             Marshal.Copy(pinnedHandle.AddrOfPinnedObject(), byteArr, 0, byteArr.Length);
             pinnedHandle.Free();
-            byte[] compressed = Compress(byteArr);
-
+            byte[] compressed = Gu.Compress(byteArr);
             br.Write((Int32)compressed.Length);
             br.Write(compressed);
-
           }
 
           br.Write(DromeFooter);
-
           br.Close();
-
         }
 
       }
@@ -2910,7 +4048,7 @@ namespace PirateCraft
       {
         if (File.Exists(dromefn))
         {
-          d = new Drome(new ivec3(0, 0, 0), Gu.Context.FrameStamp);
+          d = new Drome(this, new ivec3(0, 0, 0), Gu.Context.FrameStamp);
 
           var enc = Encoding.GetEncoding("iso-8859-1");
 
@@ -2927,24 +4065,27 @@ namespace PirateCraft
             d.Pos.x = br.ReadInt32();
             d.Pos.y = br.ReadInt32();
             d.Pos.z = br.ReadInt32();
-            d.RegionState.Deserialize(br);
+            d.BlockStats.Deserialize(br);
+
+            d.AllocateBlocks();
+            d.Blocks.Deserialize(br);
 
             int compressed_count = br.ReadInt32();
             if (compressed_count == 0)
             {
-              d.Blocks = null;
+              d.GlobRegionStates = null;
             }
             else
             {
               var compressed = br.ReadBytes(compressed_count);
 
-              byte[] decompressed = Decompress(compressed);
-              var numStructs = decompressed.Length / Marshal.SizeOf(typeof(Block));
+              byte[] decompressed = Gu.Decompress(compressed);
+              var numStructs = decompressed.Length / Marshal.SizeOf(typeof(RegionBlocks));
 
-              Gu.Assert(numStructs == DromeBlocksX * DromeBlocksY * DromeBlocksZ);
+              Gu.Assert(numStructs == Drome.DromeRegionStateCount);
 
-              d.Blocks = new Block[numStructs];
-              var pinnedHandle = GCHandle.Alloc(d.Blocks, GCHandleType.Pinned);
+              d.GlobRegionStates = new RegionBlocks[numStructs];
+              var pinnedHandle = GCHandle.Alloc(d.GlobRegionStates, GCHandleType.Pinned);
               Marshal.Copy(decompressed, 0, pinnedHandle.AddrOfPinnedObject(), decompressed.Length);
               pinnedHandle.Free();
             }
@@ -2966,26 +4107,7 @@ namespace PirateCraft
       }
       return d;
     }
-    public static byte[] Compress(byte[] data)
-    {
-      MemoryStream output = new MemoryStream();
-      using (DeflateStream dstream = new DeflateStream(output, CompressionLevel.Optimal))
-      {
-        dstream.Write(data, 0, data.Length);
-      }
-      return output.ToArray();
-    }
 
-    public static byte[] Decompress(byte[] data)
-    {
-      MemoryStream input = new MemoryStream(data);
-      MemoryStream output = new MemoryStream();
-      using (DeflateStream dstream = new DeflateStream(input, CompressionMode.Decompress))
-      {
-        dstream.CopyTo(output);
-      }
-      return output.ToArray();
-    }
     #endregion
 
 

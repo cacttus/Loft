@@ -7,48 +7,46 @@ using System.Threading;
 
 namespace PirateCraft
 {
-   public abstract class OpenGLResource : IDisposable
-   {
-      bool _disposed = false;
-      protected int _glId;
-      public int GetGlId() { return _glId; }
-      WindowContext _context = null;//the created context
-      public OpenGLResource()
+  public abstract class OpenGLResource : IDisposable
+  {
+    bool _disposed = false;
+    protected int _glId;
+    public int GetGlId() { return _glId; }
+    WindowContext _context = null;
+
+    public abstract void Dispose_OpenGL_RenderThread();
+
+    public OpenGLResource()
+    {
+      //The context that existed when this was created.
+      Gu.Assert(Gu.Context != null);
+      _context = Gu.Context;
+    }
+    public void Dispose()
+    {
+      _disposed = true;
+      //Gu.Log.Warn("OpenGL Object wasn't disposed before being finalized. Must call Dispose() to release GPU resources.");
+      var that = this;
+      if (Thread.CurrentThread.ManagedThreadId != _context?.Gpu.RenderThreadID)
       {
-         //This is .. iffy
-         Gu.Assert(Gu.Context != null);
-         _context = Gu.Context;
+        _context?.Gpu.Post_To_RenderThread(_context, (WindowContext wc) =>
+        {
+          that.Dispose_OpenGL_RenderThread();
+        });
       }
-      public virtual void Dispose()
+      else
       {
-         _disposed = true;
-         GC.SuppressFinalize(this);
+        Dispose_OpenGL_RenderThread();
       }
-      //public void Dispose()
-      //{
-      //   //For some reason this causes issues I don't know why.
-      //   Dispose(false); //true: safe to free managed resources
-      //   GC.SuppressFinalize(this);
-      //}
-      //protected void Dispose(Boolean isFinalizer)
-      //{
-      //   if (!isFinalizer)
-      //   {
-      //      Free();
-      //   }
-      //   _disposed = true;
-      //}
-      ~OpenGLResource()
+      GC.SuppressFinalize(this);
+    }
+    ~OpenGLResource()
+    {
+      if (!_disposed)
       {
-         if (!_disposed)
-         {
-            //Gu.Log.Warn("OpenGL Object wasn't disposed before being finalized. Must call Dispose() to release GPU resources.");
-            var that = this;
-            Gpu.RegisterFreeGPUMemory(_context, (WindowContext wc) =>
-            {
-               that.Dispose();
-            });
-         }
+        Dispose();
+
       }
-   }
+    }
+  }
 }

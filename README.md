@@ -3,6 +3,12 @@
 
 ![Preview](./screenshot3.png)
 
+# Setup
+* Make sure to install OpenAL 
+	* Windows google the openAL installer and run the installer
+	* Linux install via package manager
+	TODO: we can add the DLL here for windows .. Linux .. 
+
 # How to Run
 
 1. Visual Studio

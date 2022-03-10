@@ -73,6 +73,24 @@ namespace PirateCraft
       }
       Data = newData;
     }
+    public void FlipBA()
+    {
+      byte[] newData = new byte[Data.Length];
+
+      for (int i = 0; i < newData.Length; i += 4)
+      {
+        //Argb -> Rgba
+        var r = Data[i + 0];//This is correct
+        var g = Data[i + 1];
+        var b = Data[i + 2];
+        var a = Data[i + 3];
+        newData[i + 0] = r;
+        newData[i + 1] = g;
+        newData[i + 2] = b;
+        newData[i + 3] = a;
+      }
+      Data = newData;
+    }
     public void init(int w, int h, byte[] data)
     {
       Width = w;

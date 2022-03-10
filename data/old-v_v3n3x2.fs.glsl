@@ -25,6 +25,8 @@ uniform float _ufLightModel_GGX_Y;
 uniform float _ufNormalMap_Blend;
 
 
+uniform mat4[] _ufInstanceData;
+
 out vec4 _psColorOut;
 
 mat3 getLightMatrix(in vec3 planeNormal, in vec3 planeVertex){

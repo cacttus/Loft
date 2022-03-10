@@ -88,6 +88,7 @@ namespace PirateCraft
     WorldObject sword = null;
     WorldObject left_hand = null;
     WorldObject right_hand = null;
+    bool _bInitialized = true;
     /*
      * base((int)(1920 * scale), (int)(1080 * scale),
     GraphicsMode.Default, "Test", GameWindowFlags.Default,
@@ -95,14 +96,14 @@ namespace PirateCraft
      * */
     public MainWindow() : base(
        new GameWindowSettings()
-       {
+       {  
          IsMultiThreaded = false,
          RenderFrequency = 0,
          UpdateFrequency = 0
        }
     , new NativeWindowSettings()
     {
-      Profile = ContextProfile.Core,
+      Profile = ContextProfile.Compatability,
       Flags = ContextFlags.Default,
       AutoLoadBindings = true,
       APIVersion = new Version(4, 6),
@@ -114,7 +115,7 @@ namespace PirateCraft
       Location = new OpenTK.Mathematics.Vector2i(200, 200),
       Size = new OpenTK.Mathematics.Vector2i((int)(1920 * scale), (int)(1080 * scale)),
       NumberOfSamples = 0, //TODO:
-        StencilBits = 8,
+      StencilBits = 8,
       DepthBits = 24,
       RedBits = 8,
       GreenBits = 8,
@@ -128,8 +129,11 @@ namespace PirateCraft
     }
     protected override void OnResize(ResizeEventArgs e)
     {
-      _camera.Viewport_Width = e.Width;
-      _camera.Viewport_Height = e.Height;
+      if (_bInitialized)
+      {
+        _camera.Viewport_Width = e.Width;
+        _camera.Viewport_Height = e.Height;
+      }
     }
     protected override void OnMouseMove(MouseMoveEventArgs e)
     {
@@ -139,13 +143,36 @@ namespace PirateCraft
     {
       base.OnFocusedChanged(e);
     }
+    protected override void OnLoad()
+    {
+      //The synchronization context isn't present here. Luckily OpenTK gives us this neat callback that gets called after it is initialized.
+   //   RenderThreadStarted += () =>
+      {
+        InitializeEverything();
+      };
+    }
+    protected override void OnUpdateFrame(FrameEventArgs e)
+    {
+      if (_bInitialized)
+      {
+        UpdateFrame(e);
+      }
+    }
+    protected override void OnRenderFrame(FrameEventArgs e)
+    {
+      if (_bInitialized)
+      {
+        RenderFrame();
+      }
+    }
+
     private void InitHandObjects()
     {
       vec3 right_pos = new vec3(3.0f, -2.1f, 4.5f);
       vec3 left_pos = new vec3(-3.0f, -2.1f, 4.5f);
 
       List<WorldObject> objs;
-      objs = Gu.ResourceManager.LoadObjects(new FileLoc("pick.glb", FileStorage.Embedded));
+      objs = Gu.Resources.LoadObjects(new FileLoc("pick.glb", FileStorage.Embedded));
       if (objs?.Count > 0)
       {
         pick = objs[0];
@@ -165,7 +192,7 @@ namespace PirateCraft
 
         _camera.AddChild(pick);
       }
-      objs = Gu.ResourceManager.LoadObjects(new FileLoc("sword.glb", FileStorage.Embedded));
+      objs = Gu.Resources.LoadObjects(new FileLoc("sword.glb", FileStorage.Embedded));
       if (objs?.Count > 0)
       {
         sword = objs[0];
@@ -196,11 +223,11 @@ namespace PirateCraft
       Crosshair.Material = crosshair_mat;
       _camera.AddChild(Crosshair);
     }
-    protected override void OnLoad()
+    private void InitializeEverything()
     {
       try
       {
-        Gu.Init(this);
+        Gu.Init_RenderThread_Only(this);
 
         //Cameras
         _camera = Gu.World.CreateCamera("Camera-001", this.Size.X, this.Size.Y,
@@ -212,6 +239,28 @@ namespace PirateCraft
            ));
 
         _camera.Far = 2000.0f;
+
+        //string embedded_fil1e = "route110.ogg";
+        //   Gu.Context. Audio.Play(new FileLoc(embedded_fil1e, FileStorage.Embedded));
+
+        ////Test sound
+        //while (true)
+        //{
+        //  int r = Random.NextInt(0, 4);
+        //  string embedded_file = "rock";
+        //  if (r == 0) { embedded_file += "_1.ogg"; }
+        //  if (r == 1) { embedded_file += "_2.ogg"; }
+        //  if (r == 2) { embedded_file += "_3.ogg"; }
+        //  if (r == 3) { embedded_file += "_4.ogg"; }
+        //  if (r == 4) { embedded_file += "_5.ogg"; }
+
+        //  var x = Gu.Context. Audio.Play(new FileLoc(embedded_file, FileStorage.Embedded));
+        //  x.Loop = false;
+        //  // Gu.Context.Audio.Update();
+        //  System.Threading.Thread.Sleep(5000);
+        //  int n = 0;
+        //  n++;
+        //}
 
         Gu.World.Initialize(_camera, "Boogerton", DELETE_WORLD_START_FRESH, 2);
 
@@ -225,46 +274,92 @@ namespace PirateCraft
       }
       catch (Exception ex)
       {
-        Gu.Log.Error("Failed to initialize engine. Errors occured: " + ex.ToString());
+        Gu.Log.Error("Failed to initialize engine. Errors occured: " + ex.ToString() + ex.InnerException?.ToString());
         System.Environment.Exit(0);
       }
+    }
+    private void PlayDropSound()
+    {
+      Gu.Context.Audio.Play(new FileLoc("wood_1.ogg", FileStorage.Embedded));
+    }
+    private void PlayMinedSound()
+    {
+      Gu.Context.Audio.Play(new FileLoc("mined.ogg", FileStorage.Embedded));
+    }
+    private void PlayPickSound(ushort bc)
+    {
+      string embedded_file = "";
+      int num = 0;
+      if (bc == BlockItemCode.Brick ||
+          bc == BlockItemCode.Brick2 ||
+          bc == BlockItemCode.Feldspar ||
+          bc == BlockItemCode.Gravel
+               )
+      {
+        embedded_file = "rock";
+        num = 5;
+      }
+      else if (bc == BlockItemCode.Dirt ||
+               bc == BlockItemCode.Grass ||
+               bc == BlockItemCode.Cedar ||
+               bc == BlockItemCode.Cedar_Needles
+               )
+      {
+        embedded_file = "wood";
+        num = 4;
+      }
+      else if (bc == BlockItemCode.Sand
+               )
+      {
+        embedded_file = "glass";
+        num = 5;
+      }
+      else
+      {
+        embedded_file = "rock";
+        num = 5;
+      }
+      int r = Random.NextInt(1, num);
+      embedded_file += "_" + r.ToString() + ".ogg";
+
+      var x = Gu.Context.Audio.Play(new FileLoc(embedded_file, FileStorage.Embedded));
     }
     private void CreateDebugObjects()
     {
       //Textures
-      Texture2D noise = Noise3D.TestNoise();
-      Texture2D peron = Gu.ResourceManager.LoadTexture(new FileLoc("main char.png", FileStorage.Embedded), true, TexFilter.Bilinear);
-      Texture2D grass = Gu.ResourceManager.LoadTexture(new FileLoc("grass_base.png", FileStorage.Embedded), true, TexFilter.Bilinear);
-      Texture2D mclovin = Gu.ResourceManager.LoadTexture(new FileLoc("mclovin.jpg", FileStorage.Embedded), true, TexFilter.Nearest);
-      Texture2D usopp = Gu.ResourceManager.LoadTexture(new FileLoc("usopp.jpg", FileStorage.Embedded), true, TexFilter.Bilinear);
-      Texture2D hogback = Gu.ResourceManager.LoadTexture(new FileLoc("hogback.jpg", FileStorage.Embedded), true, TexFilter.Trilinear);
-      Texture2D sky1 = Gu.ResourceManager.LoadTexture(new FileLoc("hdri_sky2.jpg", FileStorage.Embedded), true, TexFilter.Trilinear);
+   //   Texture2D noise = Noise3D.TestNoise();
+      Texture2D peron = Gu.Resources.LoadTexture(new FileLoc("main char.png", FileStorage.Embedded), true, TexFilter.Bilinear);
+      Texture2D grass = Gu.Resources.LoadTexture(new FileLoc("grass_base.png", FileStorage.Embedded), true, TexFilter.Bilinear);
+      Texture2D mclovin = Gu.Resources.LoadTexture(new FileLoc("mclovin.jpg", FileStorage.Embedded), true, TexFilter.Nearest);
+      Texture2D usopp = Gu.Resources.LoadTexture(new FileLoc("usopp.jpg", FileStorage.Embedded), true, TexFilter.Bilinear);
+      Texture2D hogback = Gu.Resources.LoadTexture(new FileLoc("hogback.jpg", FileStorage.Embedded), true, TexFilter.Trilinear);
+      Texture2D sky1 = Gu.Resources.LoadTexture(new FileLoc("hdri_sky2.jpg", FileStorage.Embedded), true, TexFilter.Trilinear);
 
       //Objects
       //Integrity test of GPU memory.
-      for (int i = 0; i < 100; ++i)
-      {
-        Gu.World.CreateAndAddObject("BoxMesh", MeshData.GenBox(1, 1, 1), new Material(Shader.DefaultDiffuse(), noise));
-      }
-      for (int i = 1; i < 100; ++i)
-      {
-        Gu.World.RemoveObject("BoxMesh-" + i.ToString());
-      }
+      //for (int i = 0; i < 100; ++i)
+      //{
+      //  Gu.World.CreateAndAddObject("BoxMesh", MeshData.GenBox(1, 1, 1), new Material(Shader.DefaultDiffuse(), noise));
+      //}
+      //for (int i = 1; i < 100; ++i)
+      //{
+      //  Gu.World.RemoveObject("BoxMesh-" + i.ToString());
+      //}
       Gu.World.CreateAndAddObject("TextureFront", MeshData.GenTextureFront(_camera, 0, 0, this.Size.X, this.Size.Y), new Material(Shader.DefaultDiffuse(), peron));
       Gu.World.CreateAndAddObject("Plane.", MeshData.GenPlane(10, 10), new Material(Shader.DefaultDiffuse(), grass));
-      _boxMeshThing = Gu.World.FindObject("BoxMesh");
-      _boxMeshThing.Position = new vec3(0, _boxMeshThing.BoundBoxMeshBind.Height() * 0.5f, 0);
+    //  _boxMeshThing = Gu.World.FindObject("BoxMesh");
+      //_boxMeshThing.Position = new vec3(0, _boxMeshThing.BoundBoxMeshBind.Height() * 0.5f, 0);
 
-      Sphere_Rotate_Quat_Test = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test", MeshData.GenSphere(), new Material(Shader.DefaultDiffuse(), mclovin));
-      Sphere_Rotate_Quat_Test2 = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test2", MeshData.GenSphere(), new Material(Shader.DefaultDiffuse(), usopp));
-      Sphere_Rotate_Quat_Test3 = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test3", MeshData.GenSphere(), new Material(Shader.DefaultDiffuse(), hogback));
+      Sphere_Rotate_Quat_Test = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test", MeshData.GenSphere(1), new Material(Shader.DefaultDiffuse(), mclovin));
+      Sphere_Rotate_Quat_Test2 = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test2", MeshData.GenEllipsoid(new vec3(1.9f, 1, 1.5f)), new Material(Shader.DefaultDiffuse(), usopp));
+      Sphere_Rotate_Quat_Test3 = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test3", MeshData.GenEllipsoid(new vec3(1, 4, 4)), new Material(Shader.DefaultDiffuse(), hogback));
 
       //TODO: sky shader. 
-     // Material sky_mat = new Material(Shader.DefaultDiffuse(), sky1);
-     // sky_mat.GpuRenderState.DepthTest = false;//Disable depth test.
-     // Gu.World.Sky = Gu.World.CreateObject("sky", MeshData.GenSphere(128, 128, 400, true, true), sky_mat);
-     // Gu.World.Sky.Mesh.DrawOrder = DrawOrder.First;
-     // Gu.World.Sky.Constraints.Add(new FollowConstraint(_camera, FollowConstraint.FollowMode.Snap));
+      // Material sky_mat = new Material(Shader.DefaultDiffuse(), sky1);
+      // sky_mat.GpuRenderState.DepthTest = false;//Disable depth test.
+      // Gu.World.Sky = Gu.World.CreateObject("sky", MeshData.GenSphere(128, 128, 400, true, true), sky_mat);
+      // Gu.World.Sky.Mesh.DrawOrder = DrawOrder.First;
+      // Gu.World.Sky.Constraints.Add(new FollowConstraint(_camera, FollowConstraint.FollowMode.Snap));
 
       //Animation test
       var cmp = new AnimationComponent();
@@ -275,10 +370,10 @@ namespace PirateCraft
       cmp.KeyFrames.Add(new Keyframe(3, mat3.getRotation(raxis, (float)(MathUtils.M_PI_2 + MathUtils.M_PI_2 * 0.5 - 0.004)).toQuat(), KeyframeInterpolation.Slerp, new vec3(1, 0, 0), KeyframeInterpolation.Ease)); ;
       cmp.KeyFrames.Add(new Keyframe(4, mat3.getRotation(raxis, (float)(MathUtils.M_PI * 2 - 0.006)).toQuat(), KeyframeInterpolation.Slerp, new vec3(0, 0, 0), KeyframeInterpolation.Ease)); ;
       cmp.Play();
-      _boxMeshThing.Components.Add(cmp);
+      Sphere_Rotate_Quat_Test.Components.Add(cmp);
 
       //Some fun parenting stuff.
-      Sphere_Rotate_Quat_Test.AddChild(Sphere_Rotate_Quat_Test2.AddChild(Sphere_Rotate_Quat_Test3.AddChild(_boxMeshThing)));
+    //  Sphere_Rotate_Quat_Test.AddChild(Sphere_Rotate_Quat_Test2.AddChild(Sphere_Rotate_Quat_Test3.AddChild(_boxMeshThing)));
     }
     private void TestFonts()
     {
@@ -305,15 +400,18 @@ namespace PirateCraft
         Console.WriteLine(ex.ToString());
       }
     }
-
-    protected override void OnUpdateFrame(FrameEventArgs e)
+    private void UpdateFrame(FrameEventArgs e)
     {
       float chary = this._camera.Position.y;
-      Title = $"(CharY = {chary}) (Vsync: {VSync}) FPS: {1f / e.Time:0} " +
-         $"Render G: {Gu.World.NumRenderGlobs} Visible G: {Gu.World.NumVisibleRenderGlobs} " +
-         $"Elements_Frame:{MeshData.dbg_numDrawElements_Frame} Arrays_Frame: {MeshData.dbg_numDrawArrays_Frame} " +
+      Title = $"(Cam = {_camera.Position.ToString()}) FPS: {(int)Gu.Context.Fps}  " +
+         $"nyugs b: {Box3f.nugs} " +
+         $"Visible Glob: {Gu.World.NumVisibleRenderGlobs} " +
+         $"Gen Glob: {Gu.World.NumGenGlobs} " +
+         $"Gen Drome: {Gu.World.NumGenDromes} " +
+         $"DrawElements_Frame:{MeshData.dbg_numDrawElements_Frame} Arrays_Frame: {MeshData.dbg_numDrawArrays_Frame} " +
          $"OBs culled:{Gu.World.Dbg_N_OB_Culled} " +
-         $"Mouse:{Gu.Mouse.Pos.x},{Gu.Mouse.Pos.y} "
+         $"Mouse:{Gu.Mouse.Pos.x},{Gu.Mouse.Pos.y} " +
+         $"Cap Hit:{CapsuleHit} "
          ;
 
       Gu.Context.DebugDraw.BeginFrame();
@@ -352,17 +450,24 @@ namespace PirateCraft
         return;
       }
 
-      if (Gu.Context.PCKeyboard.Press(Keys.D1))
-      {
-        // _boxMeshThing.Mesh.BeginEdit(0, 1);
-        // MeshVert v= _boxMeshThing.Mesh.EditVert(0);
-        // _boxMeshThing.Mesh.EndEdit();
-      }
       if (Gu.Keyboard.PressOrDown(Keys.Escape))
       {
         Close();
       }
-      float speed = 20.7f;
+
+      Movement();
+
+      DebugKeyboard();
+
+      EditBlocks();
+
+      TestEllipsoid_Box();
+
+    }
+    bool CapsuleHit = false;
+    private void Movement()
+    {
+      float speed = World.BlockSizeX * 6.0f;
 
       float speedMul = 1;
       if (Gu.Keyboard.PressOrDown(Keys.LeftControl) || Gu.Keyboard.PressOrDown(Keys.RightControl))
@@ -371,27 +476,32 @@ namespace PirateCraft
       }
       if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.Q }))
       {
-        _camera.Position += _camera.BasisY * speed * (float)Gu.Context.Delta * speedMul;
+        _camera.Velocity += _camera.BasisY * speed * (float)Gu.Context.Delta * speedMul;
       }
       if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.E }))
       {
-        _camera.Position -= _camera.BasisY * speed * (float)Gu.Context.Delta * speedMul;
+        _camera.Velocity -= _camera.BasisY * speed * (float)Gu.Context.Delta * speedMul;
       }
       if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.Up, Keys.W }))
       {
-        _camera.Position += _camera.BasisZ * speed * (float)Gu.Context.Delta * speedMul;
+        _camera.Velocity += _camera.BasisZ * speed * (float)Gu.Context.Delta * speedMul;
       }
       if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.Down, Keys.S }))
       {
-        _camera.Position -= _camera.BasisZ * speed * (float)Gu.Context.Delta * speedMul;
+        _camera.Velocity -= _camera.BasisZ * speed * (float)Gu.Context.Delta * speedMul;
       }
       if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.Right, Keys.D }))
       {
-        _camera.Position += _camera.BasisX * speed * Gu.CoordinateSystemMultiplier * (float)Gu.Context.Delta * speedMul;
+        _camera.Velocity += _camera.BasisX * speed * Gu.CoordinateSystemMultiplier * (float)Gu.Context.Delta * speedMul;
       }
       if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.Left, Keys.A }))
       {
-        _camera.Position -= _camera.BasisX * speed * Gu.CoordinateSystemMultiplier * (float)Gu.Context.Delta * speedMul;
+        _camera.Velocity -= _camera.BasisX * speed * Gu.CoordinateSystemMultiplier * (float)Gu.Context.Delta * speedMul;
+      }
+      if (_camera.Collides == false)
+      {
+        _camera.Position += _camera.Velocity;
+        _camera.Velocity = new vec3(0);
       }
       if (Gu.Keyboard.Press(Keys.I))
       {
@@ -406,38 +516,59 @@ namespace PirateCraft
           CursorVisible = false;
         }
       }
+      if (InputState == InputState.World)
+      {
+        _FPSRotator.DoRotate(_camera, this);
+      }
+      else if (InputState == InputState.Inventory)
+      {
+        //do inventory
+      }
+      else
+      {
+        Gu.BRThrowNotImplementedException();
+      }
+    }
+    int mode = 0;
+    private void DebugKeyboard()
+    {
       if (Gu.Keyboard.Press(Keys.F1))
       {
         Gu.Context.DebugDraw.DrawBoundBoxes = !Gu.Context.DebugDraw.DrawBoundBoxes;
       }
       if (Gu.Keyboard.Press(Keys.F2))
       {
-        VSync = (VSync==VSyncMode.Off) ? VSyncMode.On : VSyncMode.Off;
+        VSync = (VSync == VSyncMode.Off) ? VSyncMode.On : VSyncMode.Off;
       }
-      if (Gu.Keyboard.Press(Keys.F11))
+      if (Gu.Keyboard.Press(Keys.F3))
       {
-        if(this.WindowState == WindowState.Fullscreen)
+        if (mode == 0)
         {
-          WindowState = WindowState.Normal;
+
+          GL.PolygonMode(MaterialFace.Front, PolygonMode.Line);
+          mode = 1;
         }
-        else
+        else if (mode == 1)
         {
-          WindowState = WindowState.Fullscreen;
+          GL.PolygonMode(MaterialFace.Front, PolygonMode.Fill);
+          mode = 0;
         }
+
       }
-      if (Gu.Keyboard.Press(Keys.D1))
+      if (Gu.Keyboard.Press(Keys.F4))
       {
         Material.DefaultDiffuse().Shader.lightingModel = ((Material.DefaultDiffuse().Shader.lightingModel + 1) % 3);
       }
-      if (Gu.Keyboard.PressOrDown(Keys.D2))
+      if (Gu.Keyboard.Press(Keys.F5))
       {
-        Material.DefaultDiffuse().Shader.GGX_X = (Material.DefaultDiffuse().Shader.GGX_X + 0.01f) % 3.0f;
+        Box3f.nugs = (Box3f.nugs + 1) % Box3f.maxnugs;
+        //Material.DefaultDiffuse().Shader.GGX_X = (Material.DefaultDiffuse().Shader.GGX_X + 0.01f) % 3.0f;
       }
-      if (Gu.Keyboard.PressOrDown(Keys.D3))
-      {
-        Material.DefaultDiffuse().Shader.GGX_Y = (Material.DefaultDiffuse().Shader.GGX_Y + 0.01f) % 3.0f;
-      }
-      if (Gu.Keyboard.Press(Keys.D4))
+      //if (Gu.Keyboard.PressOrDown(Keys.F6))
+      //{
+      //  Material.DefaultDiffuse().Shader.GGX_Y = (Material.DefaultDiffuse().Shader.GGX_Y + 0.01f) % 3.0f;
+      //}
+      if (Gu.Keyboard.Press(Keys.F7))
       {
         meshIdx = (meshIdx + 1) % 3;
         if (meshIdx == 0)
@@ -453,14 +584,80 @@ namespace PirateCraft
           _boxMeshThing.Mesh = MeshData.GenSphere(32, 32, 1, false);
         }
       }
-      if (Gu.Keyboard.PressOrDown(Keys.D6))
+      if (Gu.Keyboard.PressOrDown(Keys.F8))
+      {
+        _camera.Collides = !_camera.Collides;
+        _camera.HasGravity = !_camera.HasGravity;
+      }
+      if (Gu.Keyboard.PressOrDown(Keys.F9))
       {
         Material.DefaultDiffuse().Shader.nmap += 0.01f;
         Material.DefaultDiffuse().Shader.nmap = Material.DefaultDiffuse().Shader.nmap % 1;
       }
+      if (Gu.Keyboard.Press(Keys.F11))
+      {
+        if (this.WindowState == WindowState.Fullscreen)
+        {
+          WindowState = WindowState.Normal;
+        }
+        else
+        {
+          WindowState = WindowState.Fullscreen;
+        }
+      }
 
-      //Project ray and hit box.
-      //vec2 projec_pos = Gu.Mouse.Pos;
+    }
+    float PickaxeStrength = 1;//Number of seconds it takes to mine 1 unit of strength
+    ivec3? editing_block = null;
+    float Curblock_Mine_Time = -1;
+    float PickSound_Time = 0.4f;
+    float PickSound_Time_Max = 0.4f;
+    float MaxEditDistance_Block = World.BlockSizeX * 300.0f;
+    void UpdateMineBlock(PickedBlock? b)
+    {
+      Gu.Assert(b != null);
+      if (editing_block == null || (editing_block.Value != b.BlockPosLocal))
+      {
+        if (Gu.World.BlockTiles.TryGetValue(b.Block, out var tile))
+        {
+          Curblock_Mine_Time = tile.MineTime_Pickaxe;
+          PickSound_Time = PickSound_Time_Max;
+
+          editing_block = b.BlockPosLocal;
+        }
+      }
+
+      if (editing_block != null)
+      {
+        Curblock_Mine_Time -= (float)Gu.Context.Delta * PickaxeStrength;
+        PickSound_Time -= (float)Gu.Context.Delta;
+
+        if (Curblock_Mine_Time <= 0)
+        {
+          PlayMinedSound();
+          b.Drome.SetBlock(b.BlockPosLocal, BlockItemCode.Air, false);
+          StopMineBlock();
+        }
+        else
+        {
+          if (PickSound_Time <= 0)
+          {
+            PlayPickSound(b.Block);
+            PickSound_Time = PickSound_Time_Max;
+          }
+        }
+      }
+
+    }
+    void StopMineBlock()
+    {
+      editing_block = null;
+      Curblock_Mine_Time = -1;
+    }
+    private vec2 Get_Interaction_Pos()
+    {
+      //Depending on game mode
+      //Returns either world editing projection position, or, the mouse position if we are in inventory
       vec2 projec_pos = new vec2(0, 0);
       if (this.InputState == InputState.Inventory)
       {
@@ -474,12 +671,45 @@ namespace PirateCraft
       {
         Gu.Log.Error("Invalid projection position for raycast blocks.");
       }
-      Line3f proj_pt = _camera.Frustum.ProjectPoint(projec_pos, TransformSpace.World, 0.001f);
-      var b = Gu.World.RaycastBlock(new PickRay3D(proj_pt));
-      if (b.Hit)
+      return projec_pos;
+    }
+    private Box3f GetPicked_MineBlock_Box(PickedBlock b)
+    {
+      return World.GetBlockBox(b, 0.01f);
+    }
+    private Box3f GetPicked_PlaceBlock_Box(PickedBlock b)
+    {
+      vec3 dir_n = b.GetHitNormal_Block();
+      var neighbor = b.HitPos + dir_n * new vec3(World.BlockSizeX * 0.5f, World.BlockSizeY * 0.5f, World.BlockSizeZ * 0.5f);
+      return World.GetBlockBoxGlobalR3(neighbor, 0.01f);
+    }
+    private void EditBlocks()
+    {
+      //Project ray and hit box.
+      //vec2 projec_pos = Gu.Mouse.Pos;
+      vec2 projec_pos = Get_Interaction_Pos();
+
+      Line3f proj_pt = _camera.Frustum.ScreenToWorld(projec_pos, TransformSpace.World, 0.001f, MaxEditDistance_Block);
+      var pr = new PickRay3D(proj_pt);
+      var b = Gu.World.RaycastBlock(pr);
+
+      vec3? block_center = null;
+      if (b.IsHit)
       {
+        if (Gu.Keyboard.PressOrDown(Keys.LeftControl))
+        {
+          //get center of neighbor block
+          var box = GetPicked_PlaceBlock_Box(b);
+          block_center = box.center();
+          Gu.Context.DebugDraw.Box(box, new vec4(.1014f, .155f, .0915f, 1));
+        }
+        else
+        {
+          var box = GetPicked_MineBlock_Box(b);
+          block_center = box.center();
+          Gu.Context.DebugDraw.Box(box, new vec4(.1014f, .155f, .0915f, 1));
+        }
         //  Gu.Context.DebugDraw.Point(b.HitPos + b.HitNormal * 0.1f, new vec4(1, 0, 0, 1));
-        Gu.Context.DebugDraw.Box(World.GetBlockBox(b, 0.01f), new vec4(.1014f, .155f, .0915f, 1));
       }
 
       //Play mine animation if we press
@@ -491,9 +721,26 @@ namespace PirateCraft
         }
         if (b != null)
         {
-          if (b.Drome != null)
+          if (b.IsHit && b.Drome != null)
           {
-            b.Drome.SetBlock(b.BlockPosLocal, Block.Empty, false);
+
+            if (Gu.Keyboard.PressOrDown(Keys.LeftControl)) //Press only for placement.
+            {
+              if (Gu.Mouse.Press(MouseButton.Left))
+              {
+                //Just being lazy.
+                if (block_center != null)
+                {
+                  PlayDropSound();
+                  Gu.World.SetBlock(block_center.Value, BlockItemCode.Feldspar);
+                }
+              }
+
+            }
+            else
+            {
+              UpdateMineBlock(b);
+            }
           }
         }
       }
@@ -501,20 +748,80 @@ namespace PirateCraft
       {
         pick.GrabFirstAnimation().Repeat = false;
       }
-      if (InputState == InputState.World)
+
+      if (b.IsHit && b.Drome!=null && Gu.Mouse.Press(MouseButton.Right))
       {
-        _FPSRotator.DoRotate(_camera, this);
-      }
-      else if (InputState == InputState.Inventory)
-      {
-        //do inventory
-      }
-      else
-      {
-        Gu.BRThrowNotImplementedException();
+        var box = GetPicked_PlaceBlock_Box(b);
+        block_center = box.center();
+        Gu.World.SetBlock(block_center.Value, BlockItemCode.Torch);
       }
     }
-    protected override void OnRenderFrame(FrameEventArgs e)
+    private void TestEllipsoid_Box()
+    {
+      //Testing ellipsoid Ray
+      //do a bunch of lines in the world and test for collisions
+      var proj_pos = Get_Interaction_Pos();
+      List<Line3f> lines = new List<Line3f>()
+      {
+     //  new Line3f(new vec3(0,20,10),new vec3(10,-100,10)),
+     //   new Line3f(new vec3(20,20,10),new vec3(20,100,10)),
+
+        new Line3f(new vec3(50,20,50),new vec3(-40,-50,-60)),
+        new Line3f(new vec3(-50,20,-50),new vec3(40,-50,60)),
+        new Line3f(new vec3(-50,20,50),new vec3(40,-50,-60)),
+        new Line3f(new vec3(50,20,-50),new vec3(-40,-50,60)),
+
+        new Line3f(new vec3(-50,20,0),new vec3(40,-50,0)),
+        new Line3f(new vec3(50,20,0),new vec3(-40,-50,0)),
+        new Line3f(new vec3(0,20,-50),new vec3(0,-50,40)),
+        new Line3f(new vec3(0,20,50),new vec3(0,-50,-40)),
+
+      //  new Line3f(new vec3(40,20,10),new vec3(-40,20,10)),
+     //  new Line3f(new vec3(41,19,10),new vec3(81,19,10)),
+      };
+      vec3 ellipsoid_r = new vec3(5, 10, 5);
+
+      foreach (var projected_point in lines)
+      {
+        //_camera.Frustum.ProjectPoint(proj_pos, TransformSpace.World, 0.001f, MaxEditDistance_Block );
+        var pick_ray = new PickRay3D(projected_point, ellipsoid_r);
+        var picked_block = Gu.World.RaycastBlock_2(pick_ray);
+
+        Gu.Context.DebugDraw.Line(projected_point.p0, projected_point.p1, new vec4(1, 0, 1, 1));
+
+        if (picked_block.PickedBlockBoxes_Debug != null)
+        {
+          foreach (var box in picked_block.PickedBlockBoxes_Debug)
+          {
+            Gu.Context.DebugDraw.Box(box, new vec4(1, 1, 0, 1));
+          }
+        }
+
+        CapsuleHit = false;
+        if (picked_block.IsHit)
+        {
+          var blockbox = World.GetBlockBoxGlobalR3(picked_block.Block_Center);
+          Gu.Context.DebugDraw.Box(blockbox, new vec4(1, 0, 0, 1));
+
+          vec3 e_pos = pick_ray.Origin + pick_ray.Dir * (float)picked_block._t;
+          Gu.Context.DebugDraw.Ellipsoid(32, 32, ellipsoid_r, e_pos, new vec4(0.4f, 0.02f, 0.76f, 1));
+          Gu.Context.DebugDraw.Point(e_pos, new vec4(0, .2f, 1, 1));
+
+          //second test . i guess 
+          BoxAAHit b = new BoxAAHit();
+          if (blockbox.LineOrRayIntersectInclusive_EasyOut(pick_ray, ref b)) // Ellipsoid_Collide_With_Velocity(pick_ray, ref b))
+          {
+             e_pos = pick_ray.Origin + pick_ray.Dir * (float)b._t;
+            Gu.Context.DebugDraw.Ellipsoid(32, 32, ellipsoid_r, e_pos, new vec4(.987f, .79f, .00313f, 1));
+            Gu.Context.DebugDraw.Point(e_pos, new vec4(1, 0, 0, 1));
+
+            CapsuleHit = true;
+          }
+        }
+      }
+    }
+
+    private void RenderFrame()
     {
       Gu.Context.Renderer.BeginRender(this, new vec4(.3f, .3f, .3f, 1));
       {
@@ -525,8 +832,7 @@ namespace PirateCraft
 
       Gu.Context.DebugDraw.EndFrame();
 
-      //GC.Collect();
-      Gpu.FreeGPUMemory(Gu.Context);
+      Gu.Context.Gpu.ExecuteCallbacks_RenderThread(Gu.Context);
     }
   }
   class MainClass

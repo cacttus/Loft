@@ -140,10 +140,35 @@ namespace PirateCraft
   {
     //The name here has to be unique or it will cause conflicts.
     public static FileLoc Generated = new FileLoc("<generated>", FileStorage.Generated);
-
     public FileStorage FileStorage { get; private set; } = FileStorage.Disk;
     public string RawPath { get; private set; } = "";
 
+    public byte[] GetBytes()
+    {
+      byte[] bytes = null;
+      using (var fs = GetStream())
+      {
+        if (fs != null)
+        {
+          byte[] buffer = new byte[16 * 1024];
+          using (MemoryStream ms = new MemoryStream())
+          {
+            int read = 0;
+            while ((read = fs.Read(buffer, 0, buffer.Length)) > 0)
+            {
+              ms.Write(buffer, 0, read);
+            }
+            bytes = ms.ToArray();
+          }
+        }
+        else
+        {
+          Gu.Log.Error("Could not find or open the file '" + this.QualifiedPath + "'");
+          Gu.DebugBreak();
+        }
+      }
+      return bytes;
+    }
     public Stream? GetStream()
     {
       string qualifiedPath = this.QualifiedPath;
@@ -212,7 +237,6 @@ namespace PirateCraft
     }
     public override bool Equals(object? obj)
     {
-      return base.Equals(obj);
       FileLoc other = obj as FileLoc;
       if (other != null)
       {
@@ -220,6 +244,7 @@ namespace PirateCraft
       }
       else
       {
+        // other was not a file loc I guess
         Gu.BRThrowNotImplementedException();
       }
       return false;
@@ -231,14 +256,33 @@ namespace PirateCraft
         throw new Exception("File " + QualifiedPath + " does not exist.");
       }
     }
+    public class Comparer : IEqualityComparer<FileLoc>
+    {
+      public bool Equals(FileLoc a, FileLoc b)
+      {
+        return a.Equals(b);
+      }
+
+      public int GetHashCode(FileLoc a)
+      {
+        return a.QualifiedPath.GetHashCode();
+      }
+    }
+
   }
 
-  public class Minimax<T>
-  {
+  public class Minimax<T> 
+  { 
     public T Min;
     public T Max;
-    public Minimax(T min, T max) { Min = min; Max = max; }
+    public Minimax(T min, T max) 
+    {
+      Min = min; 
+      Max = max; 
+    }
+
   }
+
 
 
 }

@@ -68,6 +68,13 @@ namespace PirateCraft
       var bmp = ResourceManager.LoadImage(loc);
       LoadToGpu(bmp, mipmaps, filter, wrap);
     }
+    public override void Dispose_OpenGL_RenderThread()
+    {
+      if (GL.IsTexture(GetGlId()))
+      {
+        GL.DeleteTexture(GetGlId());
+      }
+    }
     private int GetNumMipmaps(int w, int h)
     {
       int numMipMaps = 0;
@@ -170,7 +177,7 @@ namespace PirateCraft
           PixelType.UnsignedByte,
           raw.Lock());
       raw.Unlock();
-
+      
       if (mipmaps)
       {
         GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
@@ -232,15 +239,6 @@ namespace PirateCraft
     {
       GL.ActiveTexture(unit);
       GL.BindTexture(TextureTarget.Texture2D, 0);
-    }
-    public override void Dispose()
-    {
-      //If delete is called on a non-texture it is ignored by the GL
-      if (GL.IsTexture(GetGlId()))
-      {
-        GL.DeleteTexture(GetGlId());
-      }
-      base.Dispose();
     }
 
   }

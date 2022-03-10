@@ -113,9 +113,9 @@ namespace PirateCraft
       _planes[fp_top] = new Plane3f(_points[fpt_ntr], _points[fpt_ntl], _points[fpt_ftr], _points[fpt_ftl]);
       _planes[fp_bottom] = new Plane3f(_points[fpt_fbr], _points[fpt_fbl], _points[fpt_nbr], _points[fpt_nbl]);
     }
-    public Line3f ProjectPoint(vec2 point_on_screen_topleftorigin, TransformSpace space = TransformSpace.World, float additionalZDepthNear = 0)
+    public Line3f ScreenToWorld(vec2 point_on_screen_topleftorigin, TransformSpace space = TransformSpace.World, float additionalZDepthNear = 0, float maxDistance = -1)
     {
-      //Note: we were using PickRay before because that's used to pick OOBs. We don't need that right now but we will in the future.
+      //Note it is good to Set maxDistance to what you need instead of using the whole frustum. A long ray can affect physics accuracy.
       Line3f pt = new Line3f();
 
       if (_camera.TryGetTarget(out Camera3D cam))
@@ -142,9 +142,30 @@ namespace PirateCraft
           pt.p0 = NearTopLeft + cam.BasisX * _widthNear * left_pct - cam.BasisY * _heightNear * top_pct;
           pt.p1 = FarTopLeft + cam.BasisX * _widthFar * left_pct - cam.BasisY * _heightFar * top_pct;
           pt.p0 += cam.BasisZ * additionalZDepthNear;
+
+          if (maxDistance > 0)
+          {
+            pt.p1 = pt.p0 + (pt.p1 - pt.p0).normalize() * (maxDistance - additionalZDepthNear);
+          }
+
         }
       }
       return pt;
+    }
+    public vec3? WorldToScreen(vec3 v)
+    {
+      //Project point in world onto screen
+      //Note point may not be within the frustum.
+      if(_camera.TryGetTarget(out var x))
+      {
+        vec3 c = x.Position;
+
+        float t = _planes[fp_near].IntersectLine(v, x.Position);
+
+        vec3 ret = c+ (v-c)*t;
+        return ret;
+      }
+      return null;
     }
     public bool HasBox(in Box3f pCube)
     {
@@ -189,6 +210,18 @@ namespace PirateCraft
         }
         //if(d2< 0.0f)
         //ret = true; // Currently we intersect the frustum.  Keep checking the rest of the planes to see if we're outside.
+      }
+      return true;
+    }
+    public bool HasPoint(vec3 p)
+    {
+      for (int pi = 0; pi < 6; pi++)
+      {
+        //this can be faster if we just take the sign bit of the float..
+        if (_planes[pi].dist(p) < 0)
+        {
+          return false;
+        }
       }
       return true;
     }
