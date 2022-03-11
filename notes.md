@@ -1,4 +1,16 @@
 ﻿
+Collision List
+WorldObject ob
+<typeid, CollisionResponseType>
+
+CollisionResponseType 
+  PickupItem
+
+
+
+
+
+
 seaweed does not show we're going to have to figure out how to have water at a block at the same time as "stuff"
 
 '

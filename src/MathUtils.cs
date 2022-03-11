@@ -202,20 +202,23 @@ namespace PirateCraft
     public vec3 Origin { get; private set; }
     public vec3 Dir { get; private set; } //Ray direction NOT normalized
     public float Length { get; private set; } = float.MaxValue;
-    public float _t = float.MaxValue;
     public vec3 InvDir { get; private set; }
     public int[] Sign { get; private set; } = new int[3];
     public float RayLength { get; private set; }
-    public bool DidHit { get { return _t >= 0 && _t <= 1; } }
-    public vec3 PickedPoint { get { return Origin + Dir * _t; } }
     public vec3 Radius { get; private set; } = new vec3(0, 0, 0);
     public float RadiusLen2 { get; private set; } = 0;
+    public bool IsPointRay { get { return Length == 0; } }
     public vec3 Project(vec3 p)
     {
       //Project p onto ray returning projected point
       vec3 ret;
       ret = Origin + Dir * Line3f.pointOnRay_t(Dir, p - Origin);
       return ret;
+    }
+    public PickRay3D(vec3 point_ray_point)
+    {
+      //This is for "point rays" it's the same structure, but faster bound box processing as we are a point
+      Init(point_ray_point, vec3.zero, vec3.zero);
     }
     public PickRay3D(Line3f line)
     {
@@ -3221,60 +3224,84 @@ namespace PirateCraft
     */
     public bool LineOrRayIntersectInclusive_EasyOut(in PickRay3D ray, ref BoxAAHit bh)
     {
-      if (nugs < maxnugs && ray.RadiusLen2 > 0.0f)
+      //ray can be a point, ray, or beam
+      //Return true if we hit this box at any point with the ray/point/beam
+      bool result = false;
+      //TODO: for ray radius, change containsPointInclusive
+      if (ray.RadiusLen2 < 0.00001f)
       {
-        //Ellipsoid_Collide_With_Velocity
-        //RayIntersectInclusive2_ellipsid
-        //if (Ellipsoid_Collide_With_Velocity(ray, ref bh))
-
-        if (nugs == 0 && Ellipsoid_Collide_With_Velocity(ray, ref bh))
+        if (containsPointInclusive(ray.Origin))
         {
-          return true;
-        }
-        if (nugs == 1 && RayIntersectInclusive2_ellipsid(ray, ref bh))
-        {
-          return true;
-        }
-        if (nugs == 2 && Ellipsoid_Collide_With_Velocity(ray, ref bh))
-        {
-          return true;
-        }
-        if (nugs == 3 && Ellipsoid_Collide_With_Velocity2(ray, ref bh))
-        {
-          return true;
-        }
-        if (nugs == 4 && nugs4(ray, ref bh))
-        {
-          return true;
-        }
-        if (nugs == 5 && nugs5(ray, ref bh))
-        {
-          return true;
+          bh._p1Contained = true;
+          bh._t = 0.0f;
+          bh.RaycastResult = RaycastResult.Inside;
+          result = true;
         }
       }
       else
       {
-        if (RayIntersectInclusive(ray, ref bh))
+        if (Intersect_Ellipsoid_Fast(ray.Origin, ray.Radius))
         {
-          return true;
+          bh._p1Contained = true;
+          bh._t = 0.0f;
+          bh.RaycastResult = RaycastResult.Inside;
+          result = true;
         }
       }
-      // - otherwise check for points contained.
-      if (containsPointInclusive(ray.Origin))
-      {
-        bh._p1Contained = true;
-        bh._t = 0.0f;
-        return true;
-      }
 
+      //This would be incorrect to determine ray intersect for p2, If the origin is outside then the ray t will have a valid value.
       if (containsPointInclusive(ray.Origin + ray.Dir))
       {
         bh._p2Contained = true;
-        bh._t = 1.0f;
-        return true;
       }
 
-      return false;
+      //If we are a point, then skip over the actual raycast, just do a point test above.
+      if (!ray.IsPointRay)
+      {
+        if (nugs < maxnugs && ray.RadiusLen2 > 0.0f)
+        {
+          //Ellipsoid_Collide_With_Velocity
+          //RayIntersectInclusive2_ellipsid
+          //if (Ellipsoid_Collide_With_Velocity(ray, ref bh))
+
+          if (nugs == 0 && Ellipsoid_Collide_With_Velocity(ray, ref bh))
+          {
+            return true;
+          }
+          if (nugs == 1 && RayIntersectInclusive2_ellipsid(ray, ref bh))
+          {
+            return true;
+          }
+          if (nugs == 2 && Ellipsoid_Collide_With_Velocity(ray, ref bh))
+          {
+            return true;
+          }
+          if (nugs == 3 && Ellipsoid_Collide_With_Velocity2(ray, ref bh))
+          {
+            return true;
+          }
+          if (nugs == 4 && nugs4(ray, ref bh))
+          {
+            return true;
+          }
+          if (nugs == 5 && nugs5(ray, ref bh))
+          {
+            return true;
+          }
+        }
+        else 
+        {
+          //Points don't work for this method, if we are a point ray we can skip it entirely
+          var res2 = RayIntersectInclusive(ray, ref bh);
+          result = result || res2;
+          if (res2)
+          {
+            bh.RaycastResult = RaycastResult.HitBefore;
+          }
+        }
+      }
+
+      return result;
     }
     private vec3 bounds(int in__)
     {

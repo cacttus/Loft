@@ -8,13 +8,61 @@ namespace PirateCraft
     public Component()
     {
     }
-    public virtual void Update(double dt, WorldObject myObj) { }
+    public abstract void Update(double dt, WorldObject myObj);
   }
   //public class MeshComponent : Component
   //{
   //  MeshData MeshData { get; set; }//Data blocks can be shared.
   //  public override void Update(double dt, WorldObject myObj) { }
   //}
+  public class EventComponent : Component
+  {
+    public ActionState State { get; private set; } = ActionState.Stop;
+    public double Frequency { get; private set; } = 0;
+    public double Time { get; private set; } = 0;
+    public Action<WorldObject>? Action { get; set; } = null;
+    public bool Repeat { get; set; } = false;
+    private EventComponent() { }
+    public EventComponent(Action<WorldObject>? action, double tick_seconds, bool repeat)
+    {
+      Frequency = tick_seconds;
+      Action = action;
+      Repeat = repeat;
+    }
+    public override void Update(double dt, WorldObject myObj)
+    {
+      if (State != ActionState.Stop)
+      {
+        Time += dt;
+        while (Time > Frequency)
+        {
+          Time -= Frequency;
+          if (Action != null)
+          {
+            Action.Invoke(myObj);
+          }
+        }
+      }
+    }
+    public override Component Clone(bool shallow = true)
+    {
+      EventComponent other = new EventComponent();
+      other.State = this.State;
+      other.Frequency = this.Frequency;
+      other.Time = this.Time;
+      other.Action = this.Action;
+      other.Repeat = this.Repeat;
+      return other;
+    }
+    public void Start()
+    {
+      State = ActionState.Run;
+    }
+    public void Stop()
+    {
+      State = ActionState.Stop;
+    }
+  }
   public class PhysicsComponent : Component
   {
     public vec3 Velocity = new vec3(0, 0, 0);
@@ -91,13 +139,13 @@ namespace PirateCraft
       return other;
     }
   }
-  public enum AnimationState
+  public enum ActionState
   {
-    Paused, Playing, Stopped
+    Pause, Run, Stop
   }
   public class AnimationComponent : Component
   {
-    public AnimationState AnimationState { get; private set; } = AnimationState.Stopped;
+    public ActionState AnimationState { get; private set; } = ActionState.Stop;
     public double Time { get; private set; } = 0;//Seconds
     public bool Repeat { get; set; } = false;
     public Keyframe Current { get; private set; } = new Keyframe(); // Current interpolated Keyframe
@@ -130,7 +178,7 @@ namespace PirateCraft
     public AnimationComponent(List<Keyframe> keyframes, bool repeat = false) { KeyFrames = keyframes; Repeat = repeat; }
     public override void Update(double dt, WorldObject myObj)
     {
-      if (AnimationState == AnimationState.Playing)
+      if (AnimationState == ActionState.Run)
       {
         Time += dt;
         if (Time > MaxTime)
@@ -180,7 +228,7 @@ namespace PirateCraft
         Gu.DebugBreak();
       }
       KeyFrames.Sort((x, y) => x.Time.CompareTo(y.Time));
-      AnimationState = AnimationState.Playing;
+      AnimationState = ActionState.Run;
       if (repeat != null)
       {
         Repeat = repeat.Value;
@@ -191,11 +239,11 @@ namespace PirateCraft
       Time = 0;
       //Call slerpFrames once more to make sure we reset the current state back to frame zero
       SlerpFrames();
-      AnimationState = AnimationState.Stopped;
+      AnimationState = ActionState.Stop;
     }
     public void Pause()
     {
-      AnimationState = AnimationState.Paused;
+      AnimationState = ActionState.Pause;
     }
     private void SlerpFrames()
     {
@@ -413,6 +461,10 @@ namespace PirateCraft
   //    // self.Rotation = mm.ExtractRotation().ToAxisAngle();
   //  }
   //}
+  public enum WorldObjectState
+  {
+    Created, Active, Destroyed
+  }
   /// <summary>
   /// This is the main object that stores matrix for pos/rot/scale, and components for mesh, sound, script .. etc. GameObject in Unity.
   /// </summary>
@@ -424,6 +476,10 @@ namespace PirateCraft
     //private vec3 _positionLast = new vec3(0, 0, 0);
     public object LoaderTempData = null;
 
+    private WorldObjectState _state = WorldObjectState.Created;
+    static int _idGen=1;
+    private int _uniqueId = 0; //Never duplicated, unique for all objs
+    private int _typeId = 1; // When Clone() is called this gets duplicated
     private string _name = "<Unnamed>";
     private quat _rotation = new quat(0, 0, 0, 1); //Axis-Angle xyz,ang
     private vec3 _scale = new vec3(1, 1, 1);
@@ -446,16 +502,21 @@ namespace PirateCraft
     private vec4 _color = new vec4(1, 1, 1, 1);
     private List<Component> _components = new List<Component>();
     private List<Constraint> _constraints = new List<Constraint>();
-    private List<WorldObject> _children = new List<WorldObject>();
+    private HashSet<WorldObject> _children = new HashSet<WorldObject>();
     private bool _transformChanged = false;
     private bool _hidden = false;
-
-    public vec3 Velocity = new vec3(0, 0, 0);
-    public const float MaxVelocity_Frame = 2;//max length of vel
-    public bool HasGravity = false;
-    public bool Collides = false;
+    private int _treeDepth = 0; //used to check for DAG cycles
+    private vec3 _velocity = new vec3(0, 0, 0);
+    private bool _resting = false;
+    private bool _hasGravity = true;
+    private bool _collides = false;
+    private float _airFriction = 0.0f;//friction with the air i.e. movement damping in m/s
+    private bool _hasPhysics = false;
 
     public string Name { get { return _name; } set { _name = value; } }
+    public int UniqueID { get { return _uniqueId; } private set { _uniqueId = value; } }
+    public int TypeID { get { return _typeId; } private set { _typeId = value; } }
+    public WorldObjectState State { get { return _state; } set { _state = value; } }
     public vec4 Color { get { return _color; } set { _color = value; } }// Mesh color if no material
     public bool TransformChanged { get { return _transformChanged; } private set { _transformChanged = value; } }
     public bool Hidden { get { return _hidden; } private set { _hidden = value; } }
@@ -477,7 +538,7 @@ namespace PirateCraft
     public OOBox3f BoundBoxMeshTransform { get { return _boundBoxTransform; } } //Transformed bound box
     public Box3f BoundBox { get { return _boundBox; } } //Entire AABB with all meshes and children inside
     public WorldObject Parent { get { return _parent; } private set { _parent = value; SetTransformChanged(); } }
-    public List<WorldObject> Children { get { return _children; } private set { _children = value; } }
+    public HashSet<WorldObject> Children { get { return _children; } private set { _children = value; } }
 
     public vec3 Position { get { return _position; } set { _position = value; SetTransformChanged(); } }
     public quat Rotation { get { return _rotation; } set { _rotation = value; SetTransformChanged(); } }//xyz,angle
@@ -503,11 +564,24 @@ namespace PirateCraft
     public MeshData Mesh { get { return _meshData; } set { _meshData = value; } }
     public Material Material { get { return _material; } set { _material = value; } }
 
-    public WorldObject(string name) : base()
+    public Action<WorldObject>? OnAddedToScene { get; set; } = null;
+    public Action<WorldObject>? OnDestroyed { get; set; } = null;
+
+    public bool HasPhysics { get { return _hasPhysics; } set { _hasPhysics = value; } }
+    public vec3 Velocity { get { return _velocity; } set { _velocity = value; } }
+    public bool OnGround { get { return _resting; } set { _resting = value; } }
+    public bool HasGravity { get { return _hasGravity; } set { _hasGravity = value; } }
+    public bool Collides { get { return _collides; } set { _collides = value; } }
+    public float AirFriction { get { return _airFriction; } set { _airFriction = value; } }
+
+    private WorldObject() { }//Clone ctor
+    public WorldObject(string name)
     {
       Name = name;
       //For optimization, nothing shoudl be here. WorldObject is new'd a lot each frame.
       _color = Random.NextVec4(new vec4(0.2f, 0.2f, 0.2f, 1), new vec4(1, 1, 1, 1));
+      _uniqueId = _idGen++;
+      _typeId = _typeId++;
     }
     public virtual void Update(double dt, ref Box3f parentBoundBox)
     {
@@ -535,16 +609,18 @@ namespace PirateCraft
     }
     public override WorldObject Clone(bool shallow = true)
     {
-      //Create new wo 
-      WorldObject other = new WorldObject(Name);
+      //Create new wo WITHOUT THE PARENT but WITH ALL CLONED CHILDREN
+      //This really does need to be its own method
+      WorldObject other = new WorldObject();
       other._name = this._name;
+      other._uniqueId = _idGen++;
       other._rotation = this._rotation;
       other._scale = this._scale;
       other._position = this._position;
       other._animatedRotation = this._animatedRotation;
       other._animatedScale = this._animatedScale;
       other._animatedPosition = this._animatedPosition;
-      //other._parent = _parent;
+      //other._parent = _parent; //Do not clone
       other._world = this._world;
       other._local = this._local;
       other._bind = this._bind;
@@ -557,8 +633,18 @@ namespace PirateCraft
       other._color = this._color;
       other._transformChanged = this._transformChanged;
       other._hidden = this._hidden;
-
-      Gu.Assert(shallow == true);//Not supported
+      other._typeId = this._typeId;
+      other._state = this._state;
+      //other._treeDepth = this._treeDepth; //Do not clone
+      other.OnAddedToScene = this.OnAddedToScene;
+      other.OnDestroyed = this.OnDestroyed;
+      other._velocity = this._velocity;
+      other._resting = this._resting;
+      other._hasGravity = this._hasGravity;
+      other._collides = this._collides;
+      other._airFriction = this._airFriction;
+      other._hasPhysics = this._hasPhysics;
+    Gu.Assert(shallow == true);//Not supported
 
       if (shallow == false)
       {
@@ -582,6 +668,10 @@ namespace PirateCraft
       }
 
       return other;
+    }
+    public void Destroy()
+    {
+      _state = WorldObjectState.Destroyed;//Picked up and destroyed by the world.
     }
     public AnimationComponent GrabFirstAnimation()
     {
@@ -611,9 +701,25 @@ namespace PirateCraft
         c.Apply(this);
       }
     }
+    private void UpdateTreeDepth()
+    {
+      if (_parent == null)
+      {
+        _treeDepth = 0;
+      }
+      else
+      {
+        _treeDepth = _parent._treeDepth + 1;
+        foreach (var cc in Children)
+        {
+          cc.UpdateTreeDepth();
+        }
+      }
+    }
     public WorldObject AddChild(WorldObject child)
     {
       Gu.Assert(child != Gu.World.SceneRoot);
+      Gu.Assert(child != this);
 
       if (child.Parent != null)
       {
@@ -622,13 +728,21 @@ namespace PirateCraft
 
       Children.Add(child);
       child.Parent = this;
+
+      child.UpdateTreeDepth();
+
       return this;
     }
     public void RemoveChild(WorldObject child)
     {
       //Note this will keep the object in memory, to delete an object call World.DestroyObject
-      Children.Remove(child);
-      child.Parent = null;
+      if (!Children.Remove(child))
+      {
+        Gu.Log.Error("Child '" + child.Name + "' not found in '" + Name + "'");
+        Gu.DebugBreak();
+      }
+      child._parent = null;
+      child.UpdateTreeDepth();
     }
     public void CalcBoundBox(ref Box3f parent)
     {
@@ -678,8 +792,9 @@ namespace PirateCraft
     public void UpdateComponents(double dt)
     {
       // TODO:
-      foreach (var cmp in Components)
+      for (int c = Components.Count - 1; c >= 0; c--)
       {
+        var cmp = Components[c];
         cmp.Update(dt, this);
       }
     }
@@ -693,6 +808,18 @@ namespace PirateCraft
         }
       }
       return null;
+    }
+    public void Unlink()
+    {
+      //Unlink object for destroy
+      HashSet<WorldObject> cpy = new HashSet<WorldObject>(Children);
+      foreach (var c in cpy)
+      {
+        c.Unlink();
+      }
+      Children.Clear();
+      cpy.Clear();
+      _parent?.RemoveChild(this);
     }
   }
 }

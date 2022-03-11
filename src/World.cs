@@ -208,9 +208,10 @@ namespace PirateCraft
     public vec3 HitNormal_Ray;
     public List<Box3f> PickedBlockBoxes_Debug = null;
     public bool AddPickedBlockBoxes_Debug = false;
+    public RaycastResult RaycastResult = RaycastResult.Unset;
     public vec3 GetHitNormal_Block()
     {
-      vec3 dir = HitPos - World.GetBlockBox(this, 0.00f).center();
+      vec3 dir = HitPos - World.GetBlockBox(this, 0.0001f).center();
       vec3 dir_n = dir.snap().normalize();
       return dir_n;
     }
@@ -906,6 +907,7 @@ namespace PirateCraft
     private static int dbg_int_ncalls = 0;
     public void RaycastBlockBVH(Drome root, PickRay3D pr, ref PickedBlock pb, vec3? parent_glob__origin = null)
     {
+      //Note this also works if you create a point ray.
       if (this == root)
       {
         dbg_int_ncalls = 0;
@@ -959,6 +961,7 @@ namespace PirateCraft
                 pb.Block_Center = cpos_r3;
                 pb.HitNormal_Ray = -pr.Dir;
                 pb.IsHit = true;
+                pb.RaycastResult = bh.RaycastResult;
                 return;
               }
             }
@@ -1502,14 +1505,15 @@ namespace PirateCraft
     public float MineTime_Pickaxe { get; private set; } = 4;
     public BlockMeshType MeshType { get; private set; } = BlockMeshType.Block;
     public WorldObject Entity { get; private set; } = null;
-
-    public BlockTile(ushort code, BlockFaceInfo[] faces, float hardness_pickaxe, BlockMeshType meshType)
+    public bool IsChainedPlant = false;
+    public BlockTile(ushort code, BlockFaceInfo[] faces, float hardness_pickaxe, BlockMeshType meshType, bool is_chained)
     {
       Gu.Assert(faces.Length == 3);
       Code = code;
       FaceInfos = faces;
       MineTime_Pickaxe = hardness_pickaxe;
       MeshType = meshType;
+      IsChainedPlant = is_chained; //TODO: make this into an enum or more general structure for block destroy/create
     }
     public MtTex[] GetUVPatch(BlockSide faceIdx, ushort b_above, ushort b_below)
     {
@@ -1556,7 +1560,7 @@ namespace PirateCraft
       };
     }
     static Material EntityMaterial = null;
-    public void CreateEntity(Texture2D albedo, Texture2D normal)
+    public void DefineEntity(Texture2D albedo, Texture2D normal)
     {
       //Only create entity when we have defined the textures
       Gu.Assert(FaceInfos != null);
@@ -1565,7 +1569,7 @@ namespace PirateCraft
 
       if (MeshType == BlockMeshType.Block)
       {
-      float size = 0.25142f;
+        float size = 0.25142f;
         Gu.Assert(FaceInfos[BlockTileUVSide.Top].UV != null);
         Gu.Assert(FaceInfos[BlockTileUVSide.Side].UV != null);
         Gu.Assert(FaceInfos[BlockTileUVSide.Bottom].UV != null);
@@ -1604,8 +1608,19 @@ namespace PirateCraft
       }
       Entity.Mesh = md;
       Entity.Material = EntityMaterial;
+      Entity.Collides = true;
+      Entity.HasPhysics = true;
+      Entity.HasGravity = true;
       vec3 axis = new vec3(0, 1, 0);
-
+      Entity.OnAddedToScene = (self) =>
+      {
+        var ec = new EventComponent((self) =>
+        {
+          self.Destroy();
+        }, World.DropDestroyTime_Seconds, false);
+        ec.Start();
+        self.Components.Add(ec);
+      };
       float animationTime = 5.0f; //seconds
 
       float h = World.BlockSizeY * 0.1f;
@@ -1690,6 +1705,7 @@ namespace PirateCraft
     public const float DromeWidthX = GlobWidthX * DromeGlobsX;
     public const float DromeWidthY = GlobWidthY * DromeGlobsY;
     public const float DromeWidthZ = GlobWidthZ * DromeGlobsZ;
+    public const float DropDestroyTime_Seconds = (60) * 3; // x minutes
 
     public readonly vec3 BlockRadiusR3 = new vec3(BlockSizeX * 0.5f, BlockSizeY * 0.5f, BlockSizeZ * 0.5f);//Radius from center of glob to the corner.
     public readonly vec3 GlobRadiusR3 = new vec3(GlobWidthX * 0.5f, GlobWidthY * 0.5f, GlobWidthZ * 0.5f);//Radius from center of glob to the corner.
@@ -1731,7 +1747,7 @@ namespace PirateCraft
     private MultiMap<float, QueuedGlobData_WithKernel> _queuedGlobs = new MultiMap<float, QueuedGlobData_WithKernel>(); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
     private MultiMap<float, QueuedDromeData> _queuedDromes = new MultiMap<float, QueuedDromeData>(); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
 
-    private Dictionary<string, WorldObject> Objects { get; set; } = new Dictionary<string, WorldObject>();
+    private Dictionary<string, WorldObject> Objects { get; set; } = new Dictionary<string, WorldObject>();//Flat list of all objects
     private Dictionary<ivec3, Drome> _dromes = new Dictionary<ivec3, Drome>(new ivec3.ivec3EqualityComparer()); //All globs
 
     public int Dbg_N_OB_Culled = 0;
@@ -1911,18 +1927,34 @@ namespace PirateCraft
     {
       return AddObject(CreateObject(name, mesh, material, pos));
     }
-    public void RemoveObject(string name)
+    //public void RemoveObject(string name)
+    //{
+    //  if (Objects.TryGetValue(name, out WorldObject wo))
+    //  {
+    //    SceneRoot.RemoveChild(wo);
+    //    Objects.Remove(name);
+    //  }
+    //  else
+    //  {
+    //    Gu.Log.Error("Object '" + name + "' was not found.");
+    //  }
+    //}
+    private void DestroyObject(string name)
     {
+      //To destroy you should call the WorldObject's Destroy method
       if (Objects.TryGetValue(name, out WorldObject wo))
       {
-        SceneRoot.RemoveChild(wo);
+        wo.Unlink();
         Objects.Remove(name);
+        wo.OnDestroyed?.Invoke(wo);
+        wo = null;
       }
       else
       {
         Gu.Log.Error("Object '" + name + "' was not found.");
       }
     }
+
     public WorldObject AddObject(WorldObject ob)
     {
       //Use a suffix if there is a duplicate object
@@ -1936,62 +1968,165 @@ namespace PirateCraft
       ob.Name = name_suffix;
       Objects.Add(name_suffix, ob);
       SceneRoot.AddChild(ob);
+
+      ob.OnAddedToScene?.Invoke(ob);
+      ob.State = WorldObjectState.Active;
+
       return ob;
     }
     private void UpdateObjects(double dt)
     {
       Box3f dummy = Box3f.Zero;
       dummy.genResetLimits();
-      foreach (var ob in Objects.Values)
+      List<string> toRemove = new List<string>();
+      foreach (var kvp in Objects)
       {
-        ob.Update(dt, ref dummy);
-        if (ob.Collides)
+        var ob = kvp.Value;
+        if (ob.State != WorldObjectState.Destroyed)
         {
-          CollideOB(ob, dt);
+          //We could drop physics here if we wanted to
+          ob.Update(dt, ref dummy);
+
+          //This could be a component
+          if (ob.HasPhysics)
+          {
+            UpdateObjectPhysics(ob, dt);
+            ob.Position += ob.Velocity;
+          }
         }
+        else
+        {
+          toRemove.Add(kvp.Key);
+        }
+
       }
+      foreach (var x in toRemove)
+      {
+        DestroyObject(x);
+      }
+      toRemove.Clear();
     }
     public float Gravity { get; private set; } = -9.8f;
-    private void CollideOB(WorldObject ob, double dt)
+    public const float MaxVelocity_Second_Frame = World.BlockSizeY*2.32f;//max length of vel per second / frame *NOT PER FRAME but by dt*
+
+    private void UpdateObjectPhysics(WorldObject ob, double dt)
     {
-      //Pending "rod intersect" tests
+      //Assuming we're going to modify object resting state when other objects change state
+      float vlen2 = (ob.Velocity * (float)dt).length2();
+      if (ob.OnGround && vlen2 > 0)
+      {
+        ob.OnGround = false;
+      }
+      if (ob.OnGround)
+      {
+        return;
+      }
+      vec3 dbg_initial_v = ob.Velocity;
+      vec3 final_p = ob.Position;
+      vec3 final_v = ob.Velocity;
 
-      //if (ob.Velocity.length2() > (WorldObject.MaxVelocity_Frame * WorldObject.MaxVelocity_Frame))
-      //{
-      //  ob.Velocity = ob.Velocity.normalized() * WorldObject.MaxVelocity_Frame;
-      //}
+      float maxv = MaxVelocity_Second_Frame * (float)dt;
+      float maxv2 = (float)Math.Pow(maxv, 2.0f);
 
-      //while (true)
-      //{
-      //  PickRay3D prop = new PickRay3D(ob.Position, ob.Position);
-      //  PickedBlock b = RaycastBlock(prop);
-      //  if (b.Hit)
-      //  {
-      //    //yeah RaycastBlock will need to use a sphere/something
-      //    float height = 8;//Yeah ok.
+      //Technically we should do a separate gravity step
+      if (ob.HasGravity)
+      {
+        final_v.y += Gravity * (float)dt;
+      }
+      if (ob.AirFriction > 0.0f)
+      {
+        float len = final_v.length();
+        float newlen = Math.Max(len - ob.AirFriction * (float)dt, 0.0f);
+        final_v = final_v.normalized() * newlen;
+      }
 
-      //    vec3 dir_n = prop.Dir.normalized();
-      //    vec3 n = b.GetHitNormal_Block();
-      //    ob.Position = b.HitPos + n * 0.0002f;// prop.Origin + prop.Dir * _t
-      //    vec3 reflected = ob.Velocity.reflect(n);
+      vlen2 = (final_v * (float)dt).length2();
+      if (vlen2 > maxv2)
+      {
+        final_v = final_v.normalized() * maxv;
+      }
 
-      //    //reflect
-      //    ob.Velocity = new vec3(0);
-      //  }
-      //  else
-      //  {
-      //    ob.Velocity += Gravity * (float)dt;
+      if (ob.Collides)
+      {
+        CollideOb(ob, (float)dt, ref final_v, ref final_p, maxv, maxv2);
+      }
+      else
+      {
+        //Raw velocity. No collisions
+        if (final_v.length2() < 0.001f)
+        {
+          final_v = vec3.zero;
+          ob.OnGround = true;
+        }
+      }
 
-      //    if (ob.Velocity.length2() > (WorldObject.MaxVelocity_Frame * WorldObject.MaxVelocity_Frame))
-      //    {
-      //      ob.Velocity = ob.Velocity.normalized() * WorldObject.MaxVelocity_Frame;
-      //    }
+      ob.Position = final_p;
+      ob.Velocity = final_v;
 
-      ob.Position += ob.Velocity;
-      //  }
-      //}
+    }
+    private void CollideOb(WorldObject ob, float dt, ref vec3 final_v, ref vec3 final_p, float maxv, float maxv2)
+    {
+      int max_sim_steps = 32;
 
+      for (int istep = 0; istep < max_sim_steps; istep++)
+      {
+        if (istep == max_sim_steps - 1)
+        {
+          int n = 0;
+          n++;
+        }
 
+        float vlen2 = (final_v * (float)dt).length2();
+
+        if (vlen2 > maxv2)
+        {
+          final_v = final_v.normalized() * maxv;
+        }
+
+        PickRay3D prop = new PickRay3D(final_p, final_v, vec3.zero);
+        PickedBlock b = RaycastBlock_2(prop);
+        if (b.IsHit)
+        {
+          //yeah RaycastBlock will need to use a sphere/something
+          // float height = 8;//Yeah ok.
+
+          vec3 n = b.GetHitNormal_Block();
+          final_p = b.HitPos + n * 0.0002f;// prop.Origin + prop.Dir * _t
+
+          float margin = 0.001f;
+
+          //Subtract velocity
+          if (b._t >= 0.0f && b._t <=1.0f)
+          {
+            //Subtract energy
+            float hitsub = (prop.Dir * (1.0f - b._t)).length();
+            float newVLen = (prop.Length - hitsub - margin);
+            final_v = final_v.normalized() * newVLen;
+          }
+
+          //Zero out the v in case it's too small
+          if (final_v.length2() < margin)
+          {
+            final_v = vec3.zero;
+          }
+          //For bounce physics
+          //  vec3 reflected = final_v.reflect(n);
+
+          if (n.y > 0)
+          {
+            //ground
+            ob.OnGround = true;
+          }
+        }
+        else
+        {
+          if (final_v.length2() > maxv2)
+          {
+            final_v = final_v.normalized() * maxv;
+          }
+          break;
+        }
+      }
     }
     private void CollectVisibleObjects(Camera3D camera)
     {
@@ -2182,8 +2317,7 @@ namespace PirateCraft
         Gpu.CheckGpuErrorsDbg();
         if (_debugDrawLines == null)
         {
-          _debugDrawLines = CreateAndAddObject("debug_lines", null, new Material(Gu.Resources.LoadShader("v_v3c4_debugdraw", false, FileStorage.Embedded)));
-          RemoveObject(_debugDrawLines.Name);//Doesn't actually destroy it
+          _debugDrawLines = CreateObject("debug_lines", null, new Material(Gu.Resources.LoadShader("v_v3c4_debugdraw", false, FileStorage.Embedded)));
           _debugDrawLines.Mesh = new MeshData("Debugasfd", PrimitiveType.Lines, DebugDraw.VertexFormat, IndexFormatType.Uint32);
         }
         _debugDrawLines.Mesh.CreateBuffers(Gpu.GetGpuDataPtr(Gu.Context.DebugDraw.LinePoints.ToArray()), Gpu.GetGpuDataPtr(Gu.Context.DebugDraw.LineInds.ToArray()), false);
@@ -2195,8 +2329,7 @@ namespace PirateCraft
         Gpu.CheckGpuErrorsDbg();
         if (_debugDrawPoints == null)
         {
-          _debugDrawPoints = CreateAndAddObject("debug_points", null, new Material(Gu.Resources.LoadShader("v_v3c4_debugdraw", false, FileStorage.Embedded)));
-          RemoveObject(_debugDrawPoints.Name);//Doesn't actually destroy it
+          _debugDrawPoints = CreateObject("debug_points", null, new Material(Gu.Resources.LoadShader("v_v3c4_debugdraw", false, FileStorage.Embedded)));
           _debugDrawPoints.Mesh = new MeshData("Debugds", PrimitiveType.Points, DebugDraw.VertexFormat);
         }
         _debugDrawPoints.Mesh.CreateBuffers(Gpu.GetGpuDataPtr(Gu.Context.DebugDraw.Points.ToArray()), null, false);
@@ -2234,13 +2367,13 @@ namespace PirateCraft
         //this is technically an error
       }
     }
-    private BlockTile AddBlockTile(ushort code, BlockFaceInfo[] faces, float hardness_pickaxe, BlockMeshType meshType)
+    private BlockTile AddBlockTile(ushort code, BlockFaceInfo[] faces, float hardness_pickaxe, BlockMeshType meshType, bool is_chained)
     {
       if (BlockTiles == null)
       {
         BlockTiles = new Dictionary<ushort, BlockTile>();
       }
-      var bt = new BlockTile(code, faces, hardness_pickaxe, meshType);
+      var bt = new BlockTile(code, faces, hardness_pickaxe, meshType, is_chained);
       BlockTiles.Add(code, bt);
       return bt;
     }
@@ -2299,7 +2432,7 @@ namespace PirateCraft
       //Create block entities
       foreach (var bt in BlockTiles)
       {
-        bt.Value.CreateEntity(maps.Albedo, maps.Normal);
+        bt.Value.DefineEntity(maps.Albedo, maps.Normal);
       }
     }
     private void DefineBlockTiles()
@@ -2310,36 +2443,36 @@ namespace PirateCraft
       //This is used to index into the megatex to find the generated UV coordinates.
 
       //solid blocks
-      AddBlockTile(BlockItemCode.Grass, MakeFaces(TileImage.Grass, TileVis.Opaque, TileImage.GrassSide, TileVis.Opaque, TileImage.Dirt, TileVis.Opaque), HardnessValue.Dirt, BlockMeshType.Block);
-      AddBlockTile(BlockItemCode.Dirt, MakeFaces_x3(TileImage.Dirt), HardnessValue.Dirt, BlockMeshType.Block);
-      AddBlockTile(BlockItemCode.Brick, MakeFaces_x3(TileImage.Brick), HardnessValue.Gravel, BlockMeshType.Block);
-      AddBlockTile(BlockItemCode.Brick2, MakeFaces_x3(TileImage.Brick2), HardnessValue.Gravel, BlockMeshType.Block);
-      AddBlockTile(BlockItemCode.Gravel, MakeFaces_x3(TileImage.Gravel), HardnessValue.Gravel, BlockMeshType.Block);
-      AddBlockTile(BlockItemCode.Sand, MakeFaces_x3(TileImage.Sand), HardnessValue.Dirt, BlockMeshType.Block);
-      AddBlockTile(BlockItemCode.Cedar_Needles, MakeFaces_x3(TileImage.Cedar_Needles, TileVis.Decal), HardnessValue.Leaf, BlockMeshType.Block);
-      AddBlockTile(BlockItemCode.Cedar, MakeFaces(TileImage.Cedar_Top, TileVis.Opaque, TileImage.Cedar, TileVis.Opaque, TileImage.Cedar_Top, TileVis.Opaque), HardnessValue.Wood, BlockMeshType.Block);
-      AddBlockTile(BlockItemCode.Feldspar, MakeFaces_x3(TileImage.Feldspar), HardnessValue.Rock, BlockMeshType.Block);
-      AddBlockTile(BlockItemCode.Feldspar_Coal, MakeFaces_x3(TileImage.Feldspar_Coal), HardnessValue.Rock, BlockMeshType.Block);
-      AddBlockTile(BlockItemCode.Marble_Green, MakeFaces_x3(TileImage.Marble_Green), HardnessValue.DeepRock, BlockMeshType.Block);
-      AddBlockTile(BlockItemCode.Marble_White, MakeFaces_x3(TileImage.Marble_White), HardnessValue.DeepRock, BlockMeshType.Block);
-      AddBlockTile(BlockItemCode.Clay, MakeFaces_x3(TileImage.Clay), HardnessValue.Wood, BlockMeshType.Block);
-      AddBlockTile(BlockItemCode.RedClay, MakeFaces_x3(TileImage.RedClay), HardnessValue.Wood, BlockMeshType.Block);
+      AddBlockTile(BlockItemCode.Grass, MakeFaces(TileImage.Grass, TileVis.Opaque, TileImage.GrassSide, TileVis.Opaque, TileImage.Dirt, TileVis.Opaque), HardnessValue.Dirt, BlockMeshType.Block, false);
+      AddBlockTile(BlockItemCode.Dirt, MakeFaces_x3(TileImage.Dirt), HardnessValue.Dirt, BlockMeshType.Block, false);
+      AddBlockTile(BlockItemCode.Brick, MakeFaces_x3(TileImage.Brick), HardnessValue.Gravel, BlockMeshType.Block, false);
+      AddBlockTile(BlockItemCode.Brick2, MakeFaces_x3(TileImage.Brick2), HardnessValue.Gravel, BlockMeshType.Block, false);
+      AddBlockTile(BlockItemCode.Gravel, MakeFaces_x3(TileImage.Gravel), HardnessValue.Gravel, BlockMeshType.Block, false);
+      AddBlockTile(BlockItemCode.Sand, MakeFaces_x3(TileImage.Sand), HardnessValue.Dirt, BlockMeshType.Block, false);
+      AddBlockTile(BlockItemCode.Cedar_Needles, MakeFaces_x3(TileImage.Cedar_Needles, TileVis.Decal), HardnessValue.Leaf, BlockMeshType.Block, false);
+      AddBlockTile(BlockItemCode.Cedar, MakeFaces(TileImage.Cedar_Top, TileVis.Opaque, TileImage.Cedar, TileVis.Opaque, TileImage.Cedar_Top, TileVis.Opaque), HardnessValue.Wood, BlockMeshType.Block, false);
+      AddBlockTile(BlockItemCode.Feldspar, MakeFaces_x3(TileImage.Feldspar), HardnessValue.Rock, BlockMeshType.Block, false);
+      AddBlockTile(BlockItemCode.Feldspar_Coal, MakeFaces_x3(TileImage.Feldspar_Coal), HardnessValue.Rock, BlockMeshType.Block, false);
+      AddBlockTile(BlockItemCode.Marble_Green, MakeFaces_x3(TileImage.Marble_Green), HardnessValue.DeepRock, BlockMeshType.Block, false);
+      AddBlockTile(BlockItemCode.Marble_White, MakeFaces_x3(TileImage.Marble_White), HardnessValue.DeepRock, BlockMeshType.Block, false);
+      AddBlockTile(BlockItemCode.Clay, MakeFaces_x3(TileImage.Clay), HardnessValue.Wood, BlockMeshType.Block, false);
+      AddBlockTile(BlockItemCode.RedClay, MakeFaces_x3(TileImage.RedClay), HardnessValue.Wood, BlockMeshType.Block, false);
 
       //liquid
-      AddBlockTile(BlockItemCode.Water, MakeFaces_x3(TileImage.Water, TileVis.Transparent), HardnessValue.Water, BlockMeshType.Liquid);
+      AddBlockTile(BlockItemCode.Water, MakeFaces_x3(TileImage.Water, TileVis.Transparent), HardnessValue.Water, BlockMeshType.Liquid, false);
 
       //billboard
-      var t = AddBlockTile(BlockItemCode.Tussock, MakeFaces_x3(TileImage.Tussock), HardnessValue.Leaf, BlockMeshType.Billboard);
+      var t = AddBlockTile(BlockItemCode.Tussock, MakeFaces_x3(TileImage.Tussock), HardnessValue.Leaf, BlockMeshType.Billboard, true);
       t.Growth_Infos_Side = new BlockFaceInfo[3] {
         new BlockFaceInfo(GetTileFile(TileImage.Tussock_Stalk_Bot), TileVis.Decal),
         new BlockFaceInfo(GetTileFile(TileImage.Tussock_Stalk_Mid), TileVis.Decal),
         new BlockFaceInfo(GetTileFile(TileImage.Tussock_Stalk_Top), TileVis.Decal)
       };
       t.GrowthHeight = new Minimax<int>(1, 3);
-      AddBlockTile(BlockItemCode.Dandilion, MakeFaces_x3(TileImage.Dandilion), HardnessValue.Leaf, BlockMeshType.Billboard);
-      AddBlockTile(BlockItemCode.Seaweed, MakeFaces_x3(TileImage.Seaweed), HardnessValue.Leaf, BlockMeshType.Billboard);
-      AddBlockTile(BlockItemCode.RosePink, MakeFaces_x3(TileImage.RosePink), HardnessValue.Leaf, BlockMeshType.Billboard);
-      AddBlockTile(BlockItemCode.RoseRed, MakeFaces_x3(TileImage.RoseRed), HardnessValue.Leaf, BlockMeshType.Billboard);
+      AddBlockTile(BlockItemCode.Dandilion, MakeFaces_x3(TileImage.Dandilion), HardnessValue.Leaf, BlockMeshType.Billboard, false);
+      AddBlockTile(BlockItemCode.Seaweed, MakeFaces_x3(TileImage.Seaweed), HardnessValue.Leaf, BlockMeshType.Billboard, false);
+      AddBlockTile(BlockItemCode.RosePink, MakeFaces_x3(TileImage.RosePink), HardnessValue.Leaf, BlockMeshType.Billboard, false);
+      AddBlockTile(BlockItemCode.RoseRed, MakeFaces_x3(TileImage.RoseRed), HardnessValue.Leaf, BlockMeshType.Billboard, false);
 
       //mesh objs
       AddBlockItem(BlockItemCode.Torch, new FileLoc("torch.glb", FileStorage.Embedded), new vec3(1, 1, 1));
@@ -2398,6 +2531,78 @@ namespace PirateCraft
       _worldMegatex.loadImages();
       return _worldMegatex.compile(true);
     }
+    #endregion
+
+    #region World Edit 
+
+    private void PlayMinedSound()
+    {
+      Gu.Context.Audio.Play(new FileLoc("mined.ogg", FileStorage.Embedded));
+    }
+    public void CreateEntity(vec3 pos, vec3 vel, BlockTile tile)
+    {
+      var new_ent = tile.Entity.Clone();
+      new_ent.Position = pos;
+      new_ent.Velocity = vel;
+      Gu.World.AddObject(new_ent);
+    }
+    public void DestroyBlock(vec3 block_pos_global, bool create_entity, bool play_sound, int max_chain = 64)
+    {
+      //Better, more general destroyed block that allows us to create entities and destroy chains.
+      vec3 cur_pos = block_pos_global;
+      ushort base_block = 0;
+
+      //this isn't a bounded sequence, technically it could be infinite.
+      for (int iblock = 0; iblock < max_chain; iblock++)
+      {
+        PickRay3D pointRay = new PickRay3D(cur_pos);
+        PickedBlock b = RaycastBlock_2(pointRay);
+
+        if (b.IsHit)
+        {
+          //If we are the same block type (for chained destroy) or we haven't mined the block yet
+          if (base_block == 0 || b.Block == base_block)
+          {
+            base_block = b.Block;
+
+            if (b.Drome != null)
+            {
+              b.Drome.SetBlock(b.BlockPosLocal, BlockItemCode.Air, false);
+            }
+            else
+            {
+              Gu.BRThrowException("Drome for picked block was null");
+            }
+
+            PlayMinedSound();
+
+            if (Gu.World.BlockTiles.TryGetValue(b.Block, out var tile))
+            {
+              if (create_entity)
+              {
+                CreateEntity(b.HitPos, Random.RandomVelocity(new vec3(-0.2f, 1, -0.2f), new vec3(0.2f, 1, 0.2f), World.BlockSizeY * 12.0f), tile);
+              }
+
+              //Recur
+
+              if (tile.IsChainedPlant)
+              {
+                cur_pos += WorldStaticData.BlockNeighborOffsets[(int)BlockSide.Top];
+              }
+            }
+          }
+          else
+          {
+            break;
+          }
+        }
+        else
+        {
+          break;
+        }
+      }
+    }
+
     #endregion
 
     #region Private: Globs & Dromes
@@ -3615,7 +3820,6 @@ namespace PirateCraft
 
       return dk;
     }
-
 
     #region Index Functions
 

@@ -56,11 +56,26 @@ namespace PirateCraft
     }
     public static vec3 NextVec3()
     {
+      //returns a vec3 within [0,1)
       vec3 ret;
       ret.x = (float)r.NextDouble();
       ret.y = (float)r.NextDouble();
       ret.z = (float)r.NextDouble();
       return ret;
+    }
+    public static vec3 NextVec3(vec3 min, vec3 max)
+    {
+      vec3 ret;
+      ret.x = min.x + (max.x-min.x) * (float)r.NextDouble();
+      ret.y = min.y + (max.y-min.y) * (float)r.NextDouble();
+      ret.z = min.z + (max.z-min.z) * (float)r.NextDouble();
+      return ret;
+    }
+    public static vec3 RandomVelocity(vec3 min, vec3 max, float speed_meters_per_second)
+    {
+      var v = Random.NextVec3(min, max);
+      v = v.normalize() * speed_meters_per_second;
+      return v;
     }
     public static vec4 NextVec4(vec4 a, vec4 b)
     {

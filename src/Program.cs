@@ -89,6 +89,8 @@ namespace PirateCraft
     WorldObject left_hand = null;
     WorldObject right_hand = null;
     bool _bInitialized = true;
+    const float BaseSpeed = World.BlockSizeX * 3.0f;
+    const float MaxAirFriction = BaseSpeed*0.95f; 
     /*
      * base((int)(1920 * scale), (int)(1080 * scale),
     GraphicsMode.Default, "Test", GameWindowFlags.Default,
@@ -96,7 +98,7 @@ namespace PirateCraft
      * */
     public MainWindow() : base(
        new GameWindowSettings()
-       {  
+       {
          IsMultiThreaded = false,
          RenderFrequency = 0,
          UpdateFrequency = 0
@@ -146,7 +148,7 @@ namespace PirateCraft
     protected override void OnLoad()
     {
       //The synchronization context isn't present here. Luckily OpenTK gives us this neat callback that gets called after it is initialized.
-   //   RenderThreadStarted += () =>
+      //   RenderThreadStarted += () =>
       {
         InitializeEverything();
       };
@@ -239,7 +241,9 @@ namespace PirateCraft
            ));
 
         _camera.Far = 2000.0f;
-
+        _camera.HasPhysics = true;
+        _camera.AirFriction = MaxAirFriction; //Movement Damping
+        _camera.HasGravity = false;
         //string embedded_fil1e = "route110.ogg";
         //   Gu.Context. Audio.Play(new FileLoc(embedded_fil1e, FileStorage.Embedded));
 
@@ -282,10 +286,7 @@ namespace PirateCraft
     {
       Gu.Context.Audio.Play(new FileLoc("wood_1.ogg", FileStorage.Embedded));
     }
-    private void PlayMinedSound()
-    {
-      Gu.Context.Audio.Play(new FileLoc("mined.ogg", FileStorage.Embedded));
-    }
+
     private void PlayPickSound(ushort bc)
     {
       string embedded_file = "";
@@ -327,7 +328,7 @@ namespace PirateCraft
     private void CreateDebugObjects()
     {
       //Textures
-   //   Texture2D noise = Noise3D.TestNoise();
+      //   Texture2D noise = Noise3D.TestNoise();
       Texture2D peron = Gu.Resources.LoadTexture(new FileLoc("main char.png", FileStorage.Embedded), true, TexFilter.Bilinear);
       Texture2D grass = Gu.Resources.LoadTexture(new FileLoc("grass_base.png", FileStorage.Embedded), true, TexFilter.Bilinear);
       Texture2D mclovin = Gu.Resources.LoadTexture(new FileLoc("mclovin.jpg", FileStorage.Embedded), true, TexFilter.Nearest);
@@ -347,7 +348,7 @@ namespace PirateCraft
       //}
       Gu.World.CreateAndAddObject("TextureFront", MeshData.GenTextureFront(_camera, 0, 0, this.Size.X, this.Size.Y), new Material(Shader.DefaultDiffuse(), peron));
       Gu.World.CreateAndAddObject("Plane.", MeshData.GenPlane(10, 10), new Material(Shader.DefaultDiffuse(), grass));
-    //  _boxMeshThing = Gu.World.FindObject("BoxMesh");
+      //  _boxMeshThing = Gu.World.FindObject("BoxMesh");
       //_boxMeshThing.Position = new vec3(0, _boxMeshThing.BoundBoxMeshBind.Height() * 0.5f, 0);
 
       Sphere_Rotate_Quat_Test = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test", MeshData.GenSphere(1), new Material(Shader.DefaultDiffuse(), mclovin));
@@ -373,7 +374,7 @@ namespace PirateCraft
       Sphere_Rotate_Quat_Test.Components.Add(cmp);
 
       //Some fun parenting stuff.
-    //  Sphere_Rotate_Quat_Test.AddChild(Sphere_Rotate_Quat_Test2.AddChild(Sphere_Rotate_Quat_Test3.AddChild(_boxMeshThing)));
+      //  Sphere_Rotate_Quat_Test.AddChild(Sphere_Rotate_Quat_Test2.AddChild(Sphere_Rotate_Quat_Test3.AddChild(_boxMeshThing)));
     }
     private void TestFonts()
     {
@@ -467,7 +468,7 @@ namespace PirateCraft
     bool CapsuleHit = false;
     private void Movement()
     {
-      float speed = World.BlockSizeX * 6.0f;
+      float speed = BaseSpeed;
 
       float speedMul = 1;
       if (Gu.Keyboard.PressOrDown(Keys.LeftControl) || Gu.Keyboard.PressOrDown(Keys.RightControl))
@@ -498,7 +499,14 @@ namespace PirateCraft
       {
         _camera.Velocity -= _camera.BasisX * speed * Gu.CoordinateSystemMultiplier * (float)Gu.Context.Delta * speedMul;
       }
-      if (_camera.Collides == false)
+      if (Gu.Keyboard.Press(Keys.Space))
+      {
+        if (_camera.OnGround)
+        {
+          _camera.Velocity += new vec3(0, speed, 0);// _camera.BasisX * speed * Gu.CoordinateSystemMultiplier * (float)Gu.Context.Delta * speedMul;
+        }
+      }
+      if (_camera.HasPhysics == false)
       {
         _camera.Position += _camera.Velocity;
         _camera.Velocity = new vec3(0);
@@ -588,6 +596,8 @@ namespace PirateCraft
       {
         _camera.Collides = !_camera.Collides;
         _camera.HasGravity = !_camera.HasGravity;
+        _camera.AirFriction = MaxAirFriction - _camera.AirFriction;// ; //Movement Damping
+
       }
       if (Gu.Keyboard.PressOrDown(Keys.F9))
       {
@@ -635,14 +645,9 @@ namespace PirateCraft
         if (Curblock_Mine_Time <= 0)
         {
           //Destroy block. We mined it!
-          if (Gu.World.BlockTiles.TryGetValue(b.Block, out var tile)) {
-            //Drop an item.
-            var new_ent = tile.Entity.Clone();
-            new_ent.Position = b.HitPos;
-            Gu.World.AddObject(new_ent);
-          }
-            PlayMinedSound();
-          b.Drome.SetBlock(b.BlockPosLocal, BlockItemCode.Air, false);
+
+          Gu.World.DestroyBlock(b.Block_Center, true, true);
+          //b.Drome.SetBlock(b.BlockPosLocal, BlockItemCode.Air, false);
           StopMineBlock();
         }
         else
@@ -756,7 +761,7 @@ namespace PirateCraft
         pick.GrabFirstAnimation().Repeat = false;
       }
 
-      if (b.IsHit && b.Drome!=null && Gu.Mouse.Press(MouseButton.Right))
+      if (b.IsHit && b.Drome != null && Gu.Mouse.Press(MouseButton.Right))
       {
         var box = GetPicked_PlaceBlock_Box(b);
         block_center = box.center();
@@ -818,7 +823,7 @@ namespace PirateCraft
           BoxAAHit b = new BoxAAHit();
           if (blockbox.LineOrRayIntersectInclusive_EasyOut(pick_ray, ref b)) // Ellipsoid_Collide_With_Velocity(pick_ray, ref b))
           {
-             e_pos = pick_ray.Origin + pick_ray.Dir * (float)b._t;
+            e_pos = pick_ray.Origin + pick_ray.Dir * (float)b._t;
             Gu.Context.DebugDraw.Ellipsoid(32, 32, ellipsoid_r, e_pos, new vec4(.987f, .79f, .00313f, 1));
             Gu.Context.DebugDraw.Point(e_pos, new vec4(1, 0, 0, 1));
 
