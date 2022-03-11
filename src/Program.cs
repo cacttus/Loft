@@ -634,7 +634,14 @@ namespace PirateCraft
 
         if (Curblock_Mine_Time <= 0)
         {
-          PlayMinedSound();
+          //Destroy block. We mined it!
+          if (Gu.World.BlockTiles.TryGetValue(b.Block, out var tile)) {
+            //Drop an item.
+            var new_ent = tile.Entity.Clone();
+            new_ent.Position = b.HitPos;
+            Gu.World.AddObject(new_ent);
+          }
+            PlayMinedSound();
           b.Drome.SetBlock(b.BlockPosLocal, BlockItemCode.Air, false);
           StopMineBlock();
         }

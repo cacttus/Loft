@@ -4,12 +4,11 @@ using System.Collections.Generic;
 
 namespace PirateCraft
 {
-
   //Material, input to a shader & gpu state for material FBO (blending, etc)
   public class Material
   {
     //Clonable members
-    public Dictionary<Shader.TextureInput, Texture2D> Textures { get; private set; } = null;
+    public Dictionary<Shader.TextureInput, Texture2D> Textures { get; private set; } = new Dictionary<Shader.TextureInput, Texture2D>();
     public Shader Shader { get; private set; } = null;
     public GpuRenderState GpuRenderState { get; set; } = new GpuRenderState(); //The rendering state of the material: clipping, depth, alpha, culling, etc
 
@@ -34,11 +33,11 @@ namespace PirateCraft
     }
     public Material(Shader s, Dictionary<Shader.TextureInput, Texture2D> textures = null)
     {
+      Textures = new Dictionary<Shader.TextureInput, Texture2D>();
       if (textures != null)
       {
         //Add textures that aren't null.
         bool added = false;
-        Textures = new Dictionary<Shader.TextureInput, Texture2D>();
         foreach (var tex in textures)
         {
           if (tex.Value != null)
@@ -52,11 +51,13 @@ namespace PirateCraft
           Textures = null;
         }
       }
+
       Shader = s;
     }
-    public Material Clone()
+    public Material Clone(bool shallow = true)
     {
-      Material m = new Material(this.Shader, this.Textures);
+      Gu.Assert(shallow == true);//Not supported to clone the shader or textures
+      Material m = new Material(Shader, Textures);
       m.GpuRenderState = this.GpuRenderState.Clone();
       return m;
     }

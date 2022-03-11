@@ -3,18 +3,18 @@ using System.Collections.Generic;
 
 namespace PirateCraft
 {
-  public class Component
+  public abstract class Component : Cloneable<Component>
   {
     public Component()
     {
     }
     public virtual void Update(double dt, WorldObject myObj) { }
   }
-  public class MeshComponent : Component
-  {
-    MeshData MeshData { get; set; }//Data blocks can be shared.
-    public override void Update(double dt, WorldObject myObj) { }
-  }
+  //public class MeshComponent : Component
+  //{
+  //  MeshData MeshData { get; set; }//Data blocks can be shared.
+  //  public override void Update(double dt, WorldObject myObj) { }
+  //}
   public class PhysicsComponent : Component
   {
     public vec3 Velocity = new vec3(0, 0, 0);
@@ -23,6 +23,16 @@ namespace PirateCraft
     public override void Update(double dt, WorldObject myObj)
     {
       myObj.Position += Velocity;
+    }
+    public override Component Clone(bool shallow = true)
+    {
+      PhysicsComponent c = new PhysicsComponent();
+
+      c.Velocity = this.Velocity;
+      c.HasGravity = this.HasGravity;
+      c.Collides = this.Collides;
+
+      return c;
     }
   }
   public enum KeyframeInterpolation
@@ -33,8 +43,8 @@ namespace PirateCraft
     Cubic,
     Slerp,
   }
-  //This is a Q&D animation system for realtime animations.
-  public class Keyframe
+  //This is a Q&D animation sys em for realtime animations.
+  public class Keyframe : Cloneable<Keyframe>
   {
     public double Time = 0;
     public quat Rot { get; set; } = quat.identity();
@@ -68,6 +78,18 @@ namespace PirateCraft
       Time = time;
     }
     public Keyframe() { }
+    public override Keyframe Clone(bool shallow = true)
+    {
+      Keyframe other = new Keyframe();
+      other.Time = this.Time;
+      other.Rot = this.Rot;
+      other.Pos = this.Pos;
+      other.Scale = this.Scale;
+      other.PosInterp = this.PosInterp;
+      other.RotInterp = this.RotInterp;
+      other.SclInterp = this.SclInterp;
+      return other;
+    }
   }
   public enum AnimationState
   {
@@ -78,6 +100,9 @@ namespace PirateCraft
     public AnimationState AnimationState { get; private set; } = AnimationState.Stopped;
     public double Time { get; private set; } = 0;//Seconds
     public bool Repeat { get; set; } = false;
+    public Keyframe Current { get; private set; } = new Keyframe(); // Current interpolated Keyframe
+    public List<Keyframe> KeyFrames { get; private set; } = new List<Keyframe>(); //This must be sorted by Time
+
     public double MaxTime
     {
       //Note: Keyframes should be sorted.
@@ -101,32 +126,32 @@ namespace PirateCraft
         return KeyFrames[0].Time;
       }
     }
-    public Keyframe Current { get; private set; } = new Keyframe(); // Current interpolated Keyframe
-    public List<Keyframe> KeyFrames { get; private set; } = new List<Keyframe>(); //This must be sorted by Time
-
+    public AnimationComponent() { }
+    public AnimationComponent(List<Keyframe> keyframes, bool repeat = false) { KeyFrames = keyframes; Repeat = repeat; }
     public override void Update(double dt, WorldObject myObj)
     {
-      Time += dt;
-      if (Time > MaxTime)
-      {
-        if (Repeat)
-        {
-          Time = Time % MaxTime;
-        }
-        else
-        {
-          Stop();
-        }
-      }
-
       if (AnimationState == AnimationState.Playing)
       {
-        SlerpFrames();
-      }
+        Time += dt;
+        if (Time > MaxTime)
+        {
+          if (Repeat)
+          {
+            Time = Time % MaxTime;
+          }
+          else
+          {
+            Stop();
+          }
+        }
 
-      myObj.AnimatedPosition = Current.Pos;
-      myObj.AnimatedRotation = Current.Rot;
-      myObj.AnimatedScale = Current.Scale;
+
+        SlerpFrames();
+
+        myObj.AnimatedPosition = Current.Pos;
+        myObj.AnimatedRotation = Current.Rot;
+        myObj.AnimatedScale = Current.Scale;
+      }
 
       //mat4 mScl = mat4.CreateScale(Current.Scale);
       //mat4 mRot = mat4.CreateFromquaternion(Current.Rot);
@@ -147,11 +172,19 @@ namespace PirateCraft
         }
       }
     }
-    public void Play(bool repeat = false)
+    public void Play(bool? repeat = null)
     {
+      if (KeyFrames.Count == 0)
+      {
+        Gu.Log.Error("Animation had no keyframes.");
+        Gu.DebugBreak();
+      }
       KeyFrames.Sort((x, y) => x.Time.CompareTo(y.Time));
       AnimationState = AnimationState.Playing;
-      Repeat = repeat;
+      if (repeat != null)
+      {
+        Repeat = repeat.Value;
+      }
     }
     public void Stop()
     {
@@ -271,8 +304,18 @@ namespace PirateCraft
       vec3 ret = a;
       return ret;
     }
+    public override Component Clone(bool shallow = true)
+    {
+      AnimationComponent other = new AnimationComponent();
+      other.AnimationState = this.AnimationState;
+      other.Time = this.Time;
+      other.Repeat = this.Repeat;
+      other.Current = this.Current;
+      other.KeyFrames = this.KeyFrames.Clone();
+      return other;
+    }
   }
-  public abstract class Constraint
+  public abstract class Constraint : Cloneable<Constraint>
   {
     public abstract void Apply(WorldObject ob);
   }
@@ -307,78 +350,81 @@ namespace PirateCraft
         Gu.Log.Error("'" + ob.Name + "' - Follow constraint - object not found.");
       }
     }
-  }
-  public class TrackToConstraint : Constraint
-  {
-    //*This does not work correctly.
-    //Essentially it would set the camera object's world matrix, but it doesn't wrok.
-    public bool Relative = false;
-    public WorldObject LookAt = null;
-    public vec3 Up = new vec3(0, 1, 0);
-    public TrackToConstraint(WorldObject ob, bool relative)
+    public override Constraint Clone(bool shallow = true)
     {
-      LookAt = ob;
-      Relative = relative;
-    }
-    public override void Apply(WorldObject self)
-    {
-      //Technically we should apply constraints right?
-      //empty is a child of camera
-      //compile world matrix children
-      //compile world matrix parents
-      //apply xforms to children
-      //apply xforms to children
-      //apply constraints to parents
-      //apply constraitns to children
-      vec3 eye;
-      if (!Relative)
+      FollowConstraint cc = null;
+      if (FollowObj.TryGetTarget(out var wo))
       {
-        eye = LookAt.Position - self.Position;
+        cc = new FollowConstraint(wo, Mode, DriftSpeed);
       }
       else
       {
-        eye = LookAt.Position;
+        Gu.BRThrowException("Could not get target for cloing follow constraint.");
       }
-
-      //vec3 zaxis = (eye).Normalized();
-      //vec3 xaxis = vec3.Cross(Up, zaxis).Normalized();
-      //vec3 yaxis = vec3.Cross(zaxis, xaxis);
-      ////vec3 zaxis = (LookAt - eye).normalize();
-      ////vec3 xaxis = zaxis.cross(Up).normalize();
-      ////vec3 yaxis = xaxis.cross(zaxis);
-      ////zaxis*=-1;
-
-      //mat4 mm = mat4.Identity;
-      //mm.M11 = xaxis.x; mm.M12 = yaxis.x; mm.M13 = zaxis.x;
-      //mm.M21 = xaxis.y; mm.M22 = yaxis.y; mm.M23 = zaxis.y;
-      //mm.M31 = xaxis.z; mm.M32 = yaxis.z; mm.M33 = zaxis.z;
-      //// mm = mm.Inverted();
-
-      // self.Rotation = mm.ExtractRotation().ToAxisAngle();
+      return cc;
     }
   }
+  //public class TrackToConstraint : Constraint
+  //{
+  //  //*This does not work correctly.
+  //  //Essentially it would set the camera object's world matrix, but it doesn't wrok.
+  //  public bool Relative = false;
+  //  public WorldObject LookAt = null;
+  //  public vec3 Up = new vec3(0, 1, 0);
+  //  public TrackToConstraint(WorldObject ob, bool relative)
+  //  {
+  //    LookAt = ob;
+  //    Relative = relative;
+  //  }
+  //  public override void Apply(WorldObject self)
+  //  {
+  //    //Technically we should apply constraints right?
+  //    //empty is a child of camera
+  //    //compile world matrix children
+  //    //compile world matrix parents
+  //    //apply xforms to children
+  //    //apply xforms to children
+  //    //apply constraints to parents
+  //    //apply constraitns to children
+  //    vec3 eye;
+  //    if (!Relative)
+  //    {
+  //      eye = LookAt.Position - self.Position;
+  //    }
+  //    else
+  //    {
+  //      eye = LookAt.Position;
+  //    }
+
+  //    //vec3 zaxis = (eye).Normalized();
+  //    //vec3 xaxis = vec3.Cross(Up, zaxis).Normalized();
+  //    //vec3 yaxis = vec3.Cross(zaxis, xaxis);
+  //    ////vec3 zaxis = (LookAt - eye).normalize();
+  //    ////vec3 xaxis = zaxis.cross(Up).normalize();
+  //    ////vec3 yaxis = xaxis.cross(zaxis);
+  //    ////zaxis*=-1;
+
+  //    //mat4 mm = mat4.Identity;
+  //    //mm.M11 = xaxis.x; mm.M12 = yaxis.x; mm.M13 = zaxis.x;
+  //    //mm.M21 = xaxis.y; mm.M22 = yaxis.y; mm.M23 = zaxis.y;
+  //    //mm.M31 = xaxis.z; mm.M32 = yaxis.z; mm.M33 = zaxis.z;
+  //    //// mm = mm.Inverted();
+
+  //    // self.Rotation = mm.ExtractRotation().ToAxisAngle();
+  //  }
+  //}
   /// <summary>
   /// This is the main object that stores matrix for pos/rot/scale, and components for mesh, sound, script .. etc. GameObject in Unity.
   /// </summary>
-  public class WorldObject
+  public class WorldObject : Cloneable<WorldObject>
   {
-    // public RotationType RotationType = RotationType.AxisAngle;
-    string _name = "<Unnamed>";
-    public string Name
-    {
-      get { return _name; }
-      set
-      {
-        _name = value;
-      }
-    }
-    //Debug purpose only
     //private mat4 _worldLast;
     //private quat _rotationLast = new quat(0, 0, 0, 1); //Axis-Angle xyz,ang
     //private vec3 _scaleLast = new vec3(1, 1, 1);
     //private vec3 _positionLast = new vec3(0, 0, 0);
     public object LoaderTempData = null;
 
+    private string _name = "<Unnamed>";
     private quat _rotation = new quat(0, 0, 0, 1); //Axis-Angle xyz,ang
     private vec3 _scale = new vec3(1, 1, 1);
     private vec3 _position = new vec3(0, 0, 0);
@@ -397,16 +443,22 @@ namespace PirateCraft
     private Box3f _boundBox = new Box3f(new vec3(0, 0, 0), new vec3(1, 1, 1));
     private MeshData _meshData = null;
     private Material _material = null;
-    public vec4 _color = new vec4(1, 1, 1, 1);
+    private vec4 _color = new vec4(1, 1, 1, 1);
+    private List<Component> _components = new List<Component>();
+    private List<Constraint> _constraints = new List<Constraint>();
+    private List<WorldObject> _children = new List<WorldObject>();
+    private bool _transformChanged = false;
+    private bool _hidden = false;
 
     public vec3 Velocity = new vec3(0, 0, 0);
     public const float MaxVelocity_Frame = 2;//max length of vel
     public bool HasGravity = false;
     public bool Collides = false;
 
+    public string Name { get { return _name; } set { _name = value; } }
     public vec4 Color { get { return _color; } set { _color = value; } }// Mesh color if no material
-    public bool TransformChanged { get; private set; } = false;
-    public bool Hidden { get; set; } = false;
+    public bool TransformChanged { get { return _transformChanged; } private set { _transformChanged = value; } }
+    public bool Hidden { get { return _hidden; } private set { _hidden = value; } }
     public Box3f BoundBoxMeshBind
     {
       get
@@ -425,7 +477,7 @@ namespace PirateCraft
     public OOBox3f BoundBoxMeshTransform { get { return _boundBoxTransform; } } //Transformed bound box
     public Box3f BoundBox { get { return _boundBox; } } //Entire AABB with all meshes and children inside
     public WorldObject Parent { get { return _parent; } private set { _parent = value; SetTransformChanged(); } }
-    public List<WorldObject> Children { get; private set; } = new List<WorldObject>();
+    public List<WorldObject> Children { get { return _children; } private set { _children = value; } }
 
     public vec3 Position { get { return _position; } set { _position = value; SetTransformChanged(); } }
     public quat Rotation { get { return _rotation; } set { _rotation = value; SetTransformChanged(); } }//xyz,angle
@@ -439,9 +491,9 @@ namespace PirateCraft
     public mat4 InverseBind { get { return _inverse_bind; } } // Skinned Inverse Bind
     public mat4 Local { get { return _local; } }
     public mat4 World { get { return _world; } }
-    public Int64 LastUpdate { get; private set; } = 0;
-    public List<Component> Components { get; private set; } = new List<Component>();
-    public List<Constraint> Constraints { get; private set; } = new List<Constraint>();// *This is an ordered list they come in order
+    // public Int64 LastUpdate { get { }; private set; } = 0;
+    public List<Component> Components { get { return _components; } private set { _components = value; } }
+    public List<Constraint> Constraints { get { return _constraints; } private set { _constraints = value; } }// *This is an ordered list they come in order
 
     public vec3 BasisX { get { return _basisX; } }
     public vec3 BasisY { get { return _basisY; } }
@@ -480,13 +532,56 @@ namespace PirateCraft
         child.Update(dt, ref _boundBox);
       }
       CalcBoundBox(ref parentBoundBox);
-
-      LastUpdate = Gu.Microseconds();
     }
-    public void Clone()
+    public override WorldObject Clone(bool shallow = true)
     {
-      //TODO: Clone
-      Gu.BRThrowNotImplementedException();
+      //Create new wo 
+      WorldObject other = new WorldObject(Name);
+      other._name = this._name;
+      other._rotation = this._rotation;
+      other._scale = this._scale;
+      other._position = this._position;
+      other._animatedRotation = this._animatedRotation;
+      other._animatedScale = this._animatedScale;
+      other._animatedPosition = this._animatedPosition;
+      //other._parent = _parent;
+      other._world = this._world;
+      other._local = this._local;
+      other._bind = this._bind;
+      other._inverse_bind = this._inverse_bind;
+      other._basisX = this._basisX;
+      other._basisY = this._basisY;
+      other._basisZ = this._basisZ;
+      other._boundBoxTransform = this._boundBoxTransform;
+      other._boundBox = this._boundBox;
+      other._color = this._color;
+      other._transformChanged = this._transformChanged;
+      other._hidden = this._hidden;
+
+      Gu.Assert(shallow == true);//Not supported
+
+      if (shallow == false)
+      {
+        other._meshData = this._meshData.Clone();
+        other._material = this._material.Clone(shallow);
+      }
+      else
+      {
+        //Create an instance copy of the data blocks.
+        other._meshData = this._meshData;
+        other._material = this._material;
+      }
+
+      other._components = this._components.Clone(shallow);
+      other._constraints = this._constraints.Clone(shallow);
+
+      foreach (var ch in this._children)
+      {
+        WorldObject cc = ch.Clone(shallow);
+        other.AddChild(cc);
+      }
+
+      return other;
     }
     public AnimationComponent GrabFirstAnimation()
     {

@@ -7,7 +7,7 @@ using System.Runtime.InteropServices;
 
 namespace PirateCraft
 {
-  public abstract class DataBlock 
+  public abstract class DataBlock
   {
     private static int IdGen = 1;
     public string Name { get; private set; }
@@ -63,14 +63,15 @@ namespace PirateCraft
     private VertexFormat _vertexFormat = null;
     private IndexFormat _indexFormat = null;
     private PrimitiveType _primitiveType = PrimitiveType.Triangles;
-    public DrawOrder DrawOrder { get; set; } = DrawOrder.Mid; //This is a sloppy ordered draw routine to prevent depth test issues. In the future it goes away in favor of a nicer draw routine.
+    private IndexFormatType _indexFmt;
 
     //private int _intVaoId = 0;
+    public DrawOrder DrawOrder { get; set; } = DrawOrder.Mid; //This is a sloppy ordered draw routine to prevent depth test issues. In the future it goes away in favor of a nicer draw routine.
+    public bool BoundBoxComputed { get; private set; } = false;
     public Box3f BoundBox_Extent { get { return _boundBoxExtent; } } //Bond box of mesh extenss
     public VertexFormat VertexFormat { get { return _vertexFormat; } }
     public IndexFormat IndexFormat { get { return _indexFormat; } } //If null, then there is no indexes associated with this mesh.
     public PrimitiveType PrimitiveType { get { return _primitiveType; } }
-    public bool BoundBoxComputed { get; private set; } = false;
     public bool HasIndexes
     {
       get
@@ -80,10 +81,10 @@ namespace PirateCraft
     }
     public MeshData(string name, PrimitiveType pt, VertexFormat fmt, IndexFormatType ifmt = IndexFormatType.None) : base(name)
     {
-      
       Gu.Assert(fmt != null);
       _primitiveType = pt;
       _vertexFormat = fmt;
+      _indexFmt = ifmt;
       if (ifmt == IndexFormatType.None)
       {
         _indexFormat = null;
@@ -108,9 +109,28 @@ namespace PirateCraft
       {
         Gu.Log.Error("MeshData creation: Error: vertexes or indexes are null and were required.");
       }
-      
+
       CreateBuffers(verts, indexes, computeBoundBox);
     }
+
+    public MeshData Clone()
+    {
+      var other = new MeshData(Name, PrimitiveType, VertexFormat, _indexFmt);
+
+      //TODO: clone the index / vbo and vao
+      Gu.BRThrowNotImplementedException();
+      other._indexBuffer = _indexBuffer;
+      other._vertexBuffer = _vertexBuffer;
+      other._vao = _vao;
+
+      other._boundBoxExtent = _boundBoxExtent;
+      other._vertexFormat = _vertexFormat;
+      other._indexFormat = _indexFormat;
+      other._primitiveType = _primitiveType;
+
+      return other;
+    }
+
     public static int dbg_numDrawElements_Frame = 0;
     public static int dbg_numDrawArrays_Frame = 0;
     private static long dbg_frame = 0;
@@ -299,7 +319,7 @@ namespace PirateCraft
       }
       return inds;
     }
-    public static MeshData GenPlane(float w, float h)
+    public static MeshData GenPlane(float w, float h, vec2[] side = null)
     {
       //Left Righ, Botom top, back front
       vec3[] box = new vec3[4];
@@ -320,17 +340,17 @@ namespace PirateCraft
       texs[3] = new vec2(1, 1);
 
       v_v3n3x2[] verts = new v_v3n3x2[4];
-      verts[0 * 4 + 0] = new v_v3n3x2() { _v = box[0], _n = norms[0], _x = texs[0] };
-      verts[0 * 4 + 1] = new v_v3n3x2() { _v = box[1], _n = norms[0], _x = texs[1] };
-      verts[0 * 4 + 2] = new v_v3n3x2() { _v = box[2], _n = norms[0], _x = texs[2] };
-      verts[0 * 4 + 3] = new v_v3n3x2() { _v = box[3], _n = norms[0], _x = texs[3] };
+      verts[0 * 4 + 0] = new v_v3n3x2() { _v = box[0], _n = norms[0], _x = (side != null) ? side[0] : texs[0] };
+      verts[0 * 4 + 1] = new v_v3n3x2() { _v = box[1], _n = norms[0], _x = (side != null) ? side[1] : texs[1] };
+      verts[0 * 4 + 2] = new v_v3n3x2() { _v = box[2], _n = norms[0], _x = (side != null) ? side[2] : texs[2] };
+      verts[0 * 4 + 3] = new v_v3n3x2() { _v = box[3], _n = norms[0], _x = (side != null) ? side[3] : texs[3] };
 
       var indsBoxed = GenerateQuadIndicesArray(verts.Length / 4);
       var vertsBoxed = Gpu.GetGpuDataPtr(verts);
       return new MeshData("Plane", PrimitiveType.Triangles, v_v3n3x2.VertexFormat, vertsBoxed, IndexFormatType.Uint32, indsBoxed);
     }
 
-    public static MeshData GenBox(float w, float h, float d)
+    public static MeshData GenBox(float w, float h, float d, vec2[] top = null, vec2[] side = null, vec2[] bot = null)
     {
       //Left Righ, Botom top, back front
       vec3[] box = new vec3[8];
@@ -363,35 +383,35 @@ namespace PirateCraft
       //     4       5
       // 0      1
       v_v3n3x2[] verts = new v_v3n3x2[6 * 4];//lrbtaf
-      verts[0 * 4 + 0] = new v_v3n3x2() { _v = box[4], _n = norms[0], _x = texs[0] };
-      verts[0 * 4 + 1] = new v_v3n3x2() { _v = box[0], _n = norms[0], _x = texs[1] };
-      verts[0 * 4 + 2] = new v_v3n3x2() { _v = box[6], _n = norms[0], _x = texs[2] };
-      verts[0 * 4 + 3] = new v_v3n3x2() { _v = box[2], _n = norms[0], _x = texs[3] };
+      verts[0 * 4 + 0] = new v_v3n3x2() { _v = box[4], _n = norms[0], _x = (side != null) ? side[0] : texs[0] };
+      verts[0 * 4 + 1] = new v_v3n3x2() { _v = box[0], _n = norms[0], _x = (side != null) ? side[1] : texs[1] };
+      verts[0 * 4 + 2] = new v_v3n3x2() { _v = box[6], _n = norms[0], _x = (side != null) ? side[2] : texs[2] };
+      verts[0 * 4 + 3] = new v_v3n3x2() { _v = box[2], _n = norms[0], _x = (side != null) ? side[3] : texs[3] };
 
-      verts[1 * 4 + 0] = new v_v3n3x2() { _v = box[1], _n = norms[1], _x = texs[0] };
-      verts[1 * 4 + 1] = new v_v3n3x2() { _v = box[5], _n = norms[1], _x = texs[1] };
-      verts[1 * 4 + 2] = new v_v3n3x2() { _v = box[3], _n = norms[1], _x = texs[2] };
-      verts[1 * 4 + 3] = new v_v3n3x2() { _v = box[7], _n = norms[1], _x = texs[3] };
+      verts[1 * 4 + 0] = new v_v3n3x2() { _v = box[1], _n = norms[1], _x = (side != null) ? side[0] : texs[0] };
+      verts[1 * 4 + 1] = new v_v3n3x2() { _v = box[5], _n = norms[1], _x = (side != null) ? side[1] : texs[1] };
+      verts[1 * 4 + 2] = new v_v3n3x2() { _v = box[3], _n = norms[1], _x = (side != null) ? side[2] : texs[2] };
+      verts[1 * 4 + 3] = new v_v3n3x2() { _v = box[7], _n = norms[1], _x = (side != null) ? side[3] : texs[3] };
 
-      verts[2 * 4 + 0] = new v_v3n3x2() { _v = box[4], _n = norms[2], _x = texs[0] };
-      verts[2 * 4 + 1] = new v_v3n3x2() { _v = box[5], _n = norms[2], _x = texs[1] };
-      verts[2 * 4 + 2] = new v_v3n3x2() { _v = box[0], _n = norms[2], _x = texs[2] };
-      verts[2 * 4 + 3] = new v_v3n3x2() { _v = box[1], _n = norms[2], _x = texs[3] };
+      verts[2 * 4 + 0] = new v_v3n3x2() { _v = box[4], _n = norms[2], _x = (bot != null) ? bot[0] : texs[0] };
+      verts[2 * 4 + 1] = new v_v3n3x2() { _v = box[5], _n = norms[2], _x = (bot != null) ? bot[1] : texs[1] };
+      verts[2 * 4 + 2] = new v_v3n3x2() { _v = box[0], _n = norms[2], _x = (bot != null) ? bot[2] : texs[2] };
+      verts[2 * 4 + 3] = new v_v3n3x2() { _v = box[1], _n = norms[2], _x = (bot != null) ? bot[3] : texs[3] };
 
-      verts[3 * 4 + 0] = new v_v3n3x2() { _v = box[2], _n = norms[3], _x = texs[0] };
-      verts[3 * 4 + 1] = new v_v3n3x2() { _v = box[3], _n = norms[3], _x = texs[1] };
-      verts[3 * 4 + 2] = new v_v3n3x2() { _v = box[6], _n = norms[3], _x = texs[2] };
-      verts[3 * 4 + 3] = new v_v3n3x2() { _v = box[7], _n = norms[3], _x = texs[3] };
+      verts[3 * 4 + 0] = new v_v3n3x2() { _v = box[2], _n = norms[3], _x = (top != null) ? top[0] : texs[0] };
+      verts[3 * 4 + 1] = new v_v3n3x2() { _v = box[3], _n = norms[3], _x = (top != null) ? top[1] : texs[1] };
+      verts[3 * 4 + 2] = new v_v3n3x2() { _v = box[6], _n = norms[3], _x = (top != null) ? top[2] : texs[2] };
+      verts[3 * 4 + 3] = new v_v3n3x2() { _v = box[7], _n = norms[3], _x = (top != null) ? top[3] : texs[3] };
 
-      verts[4 * 4 + 0] = new v_v3n3x2() { _v = box[0], _n = norms[4], _x = texs[0] };
-      verts[4 * 4 + 1] = new v_v3n3x2() { _v = box[1], _n = norms[4], _x = texs[1] };
-      verts[4 * 4 + 2] = new v_v3n3x2() { _v = box[2], _n = norms[4], _x = texs[2] };
-      verts[4 * 4 + 3] = new v_v3n3x2() { _v = box[3], _n = norms[4], _x = texs[3] };
+      verts[4 * 4 + 0] = new v_v3n3x2() { _v = box[0], _n = norms[4], _x = (side != null) ? side[0] : texs[0] };
+      verts[4 * 4 + 1] = new v_v3n3x2() { _v = box[1], _n = norms[4], _x = (side != null) ? side[1] : texs[1] };
+      verts[4 * 4 + 2] = new v_v3n3x2() { _v = box[2], _n = norms[4], _x = (side != null) ? side[2] : texs[2] };
+      verts[4 * 4 + 3] = new v_v3n3x2() { _v = box[3], _n = norms[4], _x = (side != null) ? side[3] : texs[3] };
 
-      verts[5 * 4 + 0] = new v_v3n3x2() { _v = box[5], _n = norms[5], _x = texs[0] };
-      verts[5 * 4 + 1] = new v_v3n3x2() { _v = box[4], _n = norms[5], _x = texs[1] };
-      verts[5 * 4 + 2] = new v_v3n3x2() { _v = box[7], _n = norms[5], _x = texs[2] };
-      verts[5 * 4 + 3] = new v_v3n3x2() { _v = box[6], _n = norms[5], _x = texs[3] };
+      verts[5 * 4 + 0] = new v_v3n3x2() { _v = box[5], _n = norms[5], _x = (side != null) ? side[0] : texs[0] };
+      verts[5 * 4 + 1] = new v_v3n3x2() { _v = box[4], _n = norms[5], _x = (side != null) ? side[1] : texs[1] };
+      verts[5 * 4 + 2] = new v_v3n3x2() { _v = box[7], _n = norms[5], _x = (side != null) ? side[2] : texs[2] };
+      verts[5 * 4 + 3] = new v_v3n3x2() { _v = box[6], _n = norms[5], _x = (side != null) ? side[3] : texs[3] };
 
       var indsBoxed = GenerateQuadIndicesArray(verts.Length / 4);
       var vertsBoxed = Gpu.GetGpuDataPtr(verts);

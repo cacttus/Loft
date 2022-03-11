@@ -14,7 +14,7 @@ namespace PirateCraft
   {
     public const float M_PI = (float)(Math.PI);
     public const float M_2PI = (float)(Math.PI * 2.0f);
-    public const float M_PI_2 = (float)(Math.PI * 2.0f);
+    public const float M_PI_2 = (float)(Math.PI * 0.5f);
     public static float sqrtf(float f)
     {
       return (float)Math.Sqrt(f);

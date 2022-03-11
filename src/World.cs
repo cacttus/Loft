@@ -54,9 +54,9 @@ namespace PirateCraft
       return !IsAir_Or_Missing(b);
     }
   }
-  //This is used for culling 99% of the data.
   public enum RegionState
   {
+    //This is used for culling 99% of the data.
     Partial, VisibleBlocksOnly, Empty_AndNoData // TODO: Solid Only, Transparent, Mixed
   }
   [StructLayout(LayoutKind.Sequential)]
@@ -193,9 +193,10 @@ namespace PirateCraft
     //Items
     //...
   }
-  //A picked block from a raycast or other
   public class PickedBlock
   {
+    //A picked block from a raycast or other
+
     public bool IsHit = false;
     //public Glob Glob;
     public Drome Drome = null;
@@ -485,9 +486,10 @@ namespace PirateCraft
       }
     }
   }
-  //Asynchronous generation for globs (mesh topologies within the drome)
   public class DromeKernel : List<Drome>
   {
+    //Asynchronous generation for globs (mesh topologies within the drome)
+
     private const int C27_Count = 27;
     public DromeKernel()
     {
@@ -630,16 +632,17 @@ namespace PirateCraft
       return d.Blocks.Get_Direct_Unsafe_But_Fast(x, y, z);
     }
   }
-  //Asynchronous generation data for dromes (scalar fields e.g. blocks as ushort)
   public class QueuedDromeData
   {
+    //Asynchronous generation data for dromes (scalar fields e.g. blocks as ushort)
     public Drome drome = null;
     public ivec3 gpos;
     public double DistanceToPlayer = 0;
   }
-  //Topology units
   public class Glob
   {
+    //Topology units
+
     public Dictionary<BlockItem, List<vec3>> BlockItems = null;
     public MeshData Transparent { get; set; } = null;
     public MeshData Opaque { get; set; } = null;
@@ -1016,6 +1019,7 @@ namespace PirateCraft
   {
     //A more sophisticated RegionState for dromes.
     //We need to know via the generator how many plagio, wood, etc exist in the block, ot generate in it
+
     public Dictionary<ushort, int> BlockCounts = new Dictionary<ushort, int>();
     public BlockStats()
     {
@@ -1081,9 +1085,10 @@ namespace PirateCraft
       }
     }
   }
-  //Density / Block units
   public class Drome : DromeNode
   {
+    //Density / Block units / BVH Root
+
     public Grid3D<GRay> LightGrid = null;
     public Grid3D<ushort> Blocks = new Grid3D<ushort>(World.DromeBlocksX, World.DromeBlocksY, World.DromeBlocksZ);
 
@@ -1487,6 +1492,7 @@ namespace PirateCraft
   public class BlockTile
   {
     //Provides the visible information for a block. Images. Mesh type. Visibility.
+
     public ushort Code { get; private set; } = 0;
     public BlockFaceInfo[] FaceInfos { get; private set; } = new BlockFaceInfo[3];//top / side / bot
     //TODO: variations
@@ -1495,7 +1501,16 @@ namespace PirateCraft
     public Minimax<int> GrowthHeight = new Minimax<int>(1, 1);
     public float MineTime_Pickaxe { get; private set; } = 4;
     public BlockMeshType MeshType { get; private set; } = BlockMeshType.Block;
+    public WorldObject Entity { get; private set; } = null;
 
+    public BlockTile(ushort code, BlockFaceInfo[] faces, float hardness_pickaxe, BlockMeshType meshType)
+    {
+      Gu.Assert(faces.Length == 3);
+      Code = code;
+      FaceInfos = faces;
+      MineTime_Pickaxe = hardness_pickaxe;
+      MeshType = meshType;
+    }
     public MtTex[] GetUVPatch(BlockSide faceIdx, ushort b_above, ushort b_below)
     {
       if (FaceInfos == null)
@@ -1539,16 +1554,71 @@ namespace PirateCraft
         side,
         FaceInfos[2].UV
       };
-
     }
-    public BlockTile(ushort code, BlockFaceInfo[] faces, float hardness_pickaxe, BlockMeshType meshType)
+    static Material EntityMaterial = null;
+    public void CreateEntity(Texture2D albedo, Texture2D normal)
     {
-      Gu.Assert(faces.Length == 3);
-      Code = code;
-      FaceInfos = faces;
-      MineTime_Pickaxe = hardness_pickaxe;
-      MeshType = meshType;
+      //Only create entity when we have defined the textures
+      Gu.Assert(FaceInfos != null);
+      Entity = new WorldObject("entity");
+      MeshData md = null;
+
+      if (MeshType == BlockMeshType.Block)
+      {
+      float size = 0.25142f;
+        Gu.Assert(FaceInfos[BlockTileUVSide.Top].UV != null);
+        Gu.Assert(FaceInfos[BlockTileUVSide.Side].UV != null);
+        Gu.Assert(FaceInfos[BlockTileUVSide.Bottom].UV != null);
+
+        var t0 = FaceInfos[BlockTileUVSide.Top].UV.GetQuadTexs();
+        var t1 = FaceInfos[BlockTileUVSide.Side].UV.GetQuadTexs();
+        var t2 = FaceInfos[BlockTileUVSide.Bottom].UV.GetQuadTexs();
+
+        md = MeshData.GenBox(World.BlockSizeX, World.BlockSizeY, World.BlockSizeZ, t0, t1, t2);
+        Entity.Scale = new vec3(size, size, size);
+      }
+      else if (MeshType == BlockMeshType.Billboard)
+      {
+        float size = 0.39142f;
+        Gu.Assert(FaceInfos[BlockTileUVSide.Side].UV != null);
+        var t1 = FaceInfos[BlockTileUVSide.Side].UV.GetQuadTexs();
+        md = MeshData.GenPlane(World.BlockSizeX, World.BlockSizeY, t1);
+        Entity.Rotation = quat.fromAxisAngle(new vec3(1, 0, 0), -MathUtils.M_PI_2, true);//rotate quad so it is upright
+        Entity.Scale = new vec3(size, size, size);
+      }
+      else if (MeshType == BlockMeshType.Liquid)
+      {
+        //skip
+      }
+      else
+      {
+        Gu.BRThrowNotImplementedException();
+      }
+      if (EntityMaterial == null)
+      {
+        EntityMaterial = Material.DefaultDiffuse().Clone();
+        EntityMaterial.Textures.Clear();
+        EntityMaterial.Textures.Add(Shader.TextureInput.Albedo, albedo);
+        EntityMaterial.Textures.Add(Shader.TextureInput.Normal, normal);
+        EntityMaterial.GpuRenderState.CullFace = false;
+      }
+      Entity.Mesh = md;
+      Entity.Material = EntityMaterial;
+      vec3 axis = new vec3(0, 1, 0);
+
+      float animationTime = 5.0f; //seconds
+
+      float h = World.BlockSizeY * 0.1f;
+      List<Keyframe> keys = new List<Keyframe>();
+      keys.Add(new Keyframe(0.0f / 4.0f * animationTime, quat.fromAxisAngle(axis, 0), KeyframeInterpolation.Ease, new vec3(0, h * 0.0f, 0), KeyframeInterpolation.Ease));
+      keys.Add(new Keyframe(2.0f / 4.0f * animationTime, quat.fromAxisAngle(axis, MathUtils.M_PI - 0.001f), KeyframeInterpolation.Ease, new vec3(0, h * 1.0f, 0), KeyframeInterpolation.Ease));
+      keys.Add(new Keyframe(4.0f / 4.0f * animationTime, quat.fromAxisAngle(axis, MathUtils.M_PI * 2.0f - 0.001f), KeyframeInterpolation.Ease, new vec3(0, h * 0.0f, 0), KeyframeInterpolation.Ease));
+
+      var ac = new AnimationComponent(keys, true);
+      Entity.Components.Add(ac);
+      ac.Play();
     }
+
   }
   public class BlockItem
   {
@@ -1581,14 +1651,6 @@ namespace PirateCraft
       WorldObject = objs[0];
       WorldObject.Material = new Material(Gu.Resources.LoadShader("v_v3n3x2_BlockObject_Instanced", false, FileStorage.Embedded));
     }
-  }
-  //sort block verts by material id
-  public class BlockVert
-  {
-    vec3 _v;
-    vec3 _c;
-    vec2 _x;
-    //vec3 p0, p1, p2, p3;
   }
   public class World
   {
@@ -1729,6 +1791,7 @@ namespace PirateCraft
         Gu.BRThrowException("Glob blocks x,y,z must be a power of 2.");
       }
 
+      //This would actually be incorrect world OBs should be instanced
       //Init draw array.
       _renderObs_Ordered = new Dictionary<DrawOrder, List<WorldObject>>();
       for (int do_i = 0; do_i < (int)DrawOrder.MaxDrawOrders; do_i++)
@@ -2223,6 +2286,25 @@ namespace PirateCraft
     }
     private void CreateWorldMaterial()
     {
+      DefineBlockTiles();
+
+      var maps = CreateAtlas();
+      var s = Gu.Resources.LoadShader("v_Glob", false, FileStorage.Embedded);
+      _worldMaterial_Op = new Material(s, maps.Albedo, maps.Normal);
+      _worldMaterial_Tp = new Material(s, maps.Albedo, maps.Normal);
+      _worldMaterial_Tp.GpuRenderState.Blend = true;
+      _worldMaterial_Tp.GpuRenderState.DepthTest = true;
+      _worldMaterial_Tp.GpuRenderState.CullFace = false;
+
+      //Create block entities
+      foreach (var bt in BlockTiles)
+      {
+        bt.Value.CreateEntity(maps.Albedo, maps.Normal);
+      }
+    }
+    private void DefineBlockTiles()
+    {
+      //CreateBlockTiles
       //_blockTiles - Manual array that specifies which tiles go on the top, side, bottom
       //The tiles are specified by FileLoc structure which must be a class type.
       //This is used to index into the megatex to find the generated UV coordinates.
@@ -2235,7 +2317,7 @@ namespace PirateCraft
       AddBlockTile(BlockItemCode.Gravel, MakeFaces_x3(TileImage.Gravel), HardnessValue.Gravel, BlockMeshType.Block);
       AddBlockTile(BlockItemCode.Sand, MakeFaces_x3(TileImage.Sand), HardnessValue.Dirt, BlockMeshType.Block);
       AddBlockTile(BlockItemCode.Cedar_Needles, MakeFaces_x3(TileImage.Cedar_Needles, TileVis.Decal), HardnessValue.Leaf, BlockMeshType.Block);
-      AddBlockTile(BlockItemCode.Cedar, MakeFaces_x3(TileImage.Cedar), HardnessValue.Wood, BlockMeshType.Block);
+      AddBlockTile(BlockItemCode.Cedar, MakeFaces(TileImage.Cedar_Top, TileVis.Opaque, TileImage.Cedar, TileVis.Opaque, TileImage.Cedar_Top, TileVis.Opaque), HardnessValue.Wood, BlockMeshType.Block);
       AddBlockTile(BlockItemCode.Feldspar, MakeFaces_x3(TileImage.Feldspar), HardnessValue.Rock, BlockMeshType.Block);
       AddBlockTile(BlockItemCode.Feldspar_Coal, MakeFaces_x3(TileImage.Feldspar_Coal), HardnessValue.Rock, BlockMeshType.Block);
       AddBlockTile(BlockItemCode.Marble_Green, MakeFaces_x3(TileImage.Marble_Green), HardnessValue.DeepRock, BlockMeshType.Block);
@@ -2254,7 +2336,6 @@ namespace PirateCraft
         new BlockFaceInfo(GetTileFile(TileImage.Tussock_Stalk_Top), TileVis.Decal)
       };
       t.GrowthHeight = new Minimax<int>(1, 3);
-
       AddBlockTile(BlockItemCode.Dandilion, MakeFaces_x3(TileImage.Dandilion), HardnessValue.Leaf, BlockMeshType.Billboard);
       AddBlockTile(BlockItemCode.Seaweed, MakeFaces_x3(TileImage.Seaweed), HardnessValue.Leaf, BlockMeshType.Billboard);
       AddBlockTile(BlockItemCode.RosePink, MakeFaces_x3(TileImage.RosePink), HardnessValue.Leaf, BlockMeshType.Billboard);
@@ -2262,7 +2343,9 @@ namespace PirateCraft
 
       //mesh objs
       AddBlockItem(BlockItemCode.Torch, new FileLoc("torch.glb", FileStorage.Embedded), new vec3(1, 1, 1));
-
+    }
+    private MegaTex.CompiledTextures CreateAtlas()
+    {
       //Create the atlas.
       //Must be called after context is set.
       foreach (var resource in WorldStaticData.TileImages)
@@ -2313,16 +2396,8 @@ namespace PirateCraft
 
       }
       _worldMegatex.loadImages();
-      var maps = _worldMegatex.compile(true);
-      var s = Gu.Resources.LoadShader("v_Glob", false, FileStorage.Embedded);
-
-      _worldMaterial_Op = new Material(s, maps.Albedo, maps.Normal);
-      _worldMaterial_Tp = new Material(s, maps.Albedo, maps.Normal);
-      _worldMaterial_Tp.GpuRenderState.Blend = true;
-      _worldMaterial_Tp.GpuRenderState.DepthTest = true;
-      _worldMaterial_Tp.GpuRenderState.CullFace = false;
+      return _worldMegatex.compile(true);
     }
-
     #endregion
 
     #region Private: Globs & Dromes
@@ -3084,10 +3159,7 @@ namespace PirateCraft
         //Texs are the same for billboards regardless of which face. But it should be side.
         uint foff = (uint)qgd.async_verts.Count;
         vec2[] texs = new vec2[4];
-        texs[0] = new vec2(patches[BlockTileUVSide.Side].uv0.x, patches[BlockTileUVSide.Side].uv0.y);
-        texs[1] = new vec2(patches[BlockTileUVSide.Side].uv1.x, patches[BlockTileUVSide.Side].uv0.y);
-        texs[2] = new vec2(patches[BlockTileUVSide.Side].uv0.x, patches[BlockTileUVSide.Side].uv1.y);
-        texs[3] = new vec2(patches[BlockTileUVSide.Side].uv1.x, patches[BlockTileUVSide.Side].uv1.y);
+        texs = patches[BlockTileUVSide.Side].GetQuadTexs();
 
         Light_And_AddBlockFaceV4I6(iface, gblock_x, gblock_y, gblock_z, drome, glob, qgd, our_block, block_pos_rel_R3, WorldStaticData.bb_verts_face_zup, WorldStaticData.bb_face_inds_zup, texs);
       }
@@ -3115,43 +3187,26 @@ namespace PirateCraft
           Block.IsMeshItem(b_n) || //always topo next to meshes (for now)
           (Block.IsAir_Or_Missing(b_n) && Block.IsTransparent(our_block)))
         {
-          MtTex[] patches;
-          if (bt.Growth_Infos_Side != null)
-          {
-
-          }
-
-          patches = bt.GetUVPatch((BlockSide)iface, b_above, b_below);
-
+          MtTex[] patches = bt.GetUVPatch((BlockSide)iface, b_above, b_below);
           vec2[] texs = new vec2[4];
-          //b.Value
+
           if (bt.FaceInfos != null && bt.FaceInfos.Length == 3)
           {
             if ((iface == 0) || (iface == 1) || (iface == 4) || (iface == 5))
             {
               //LRAF
-              texs[0] = new vec2(patches[BlockTileUVSide.Side].uv0.x, patches[BlockTileUVSide.Side].uv0.y);
-              texs[1] = new vec2(patches[BlockTileUVSide.Side].uv1.x, patches[BlockTileUVSide.Side].uv0.y);
-              texs[2] = new vec2(patches[BlockTileUVSide.Side].uv0.x, patches[BlockTileUVSide.Side].uv1.y);
-              texs[3] = new vec2(patches[BlockTileUVSide.Side].uv1.x, patches[BlockTileUVSide.Side].uv1.y);
+              texs = patches[BlockTileUVSide.Side].GetQuadTexs();
             }
             else if (iface == 2)
             {
               //B
-              texs[0] = new vec2(patches[BlockTileUVSide.Bottom].uv0.x, patches[BlockTileUVSide.Bottom].uv0.y);
-              texs[1] = new vec2(patches[BlockTileUVSide.Bottom].uv1.x, patches[BlockTileUVSide.Bottom].uv0.y);
-              texs[2] = new vec2(patches[BlockTileUVSide.Bottom].uv0.x, patches[BlockTileUVSide.Bottom].uv1.y);
-              texs[3] = new vec2(patches[BlockTileUVSide.Bottom].uv1.x, patches[BlockTileUVSide.Bottom].uv1.y);
+              texs = patches[BlockTileUVSide.Bottom].GetQuadTexs();
             }
             else if (iface == 3)
             {
               //T
-              texs[0] = new vec2(patches[BlockTileUVSide.Top].uv0.x, patches[BlockTileUVSide.Top].uv0.y);
-              texs[1] = new vec2(patches[BlockTileUVSide.Top].uv1.x, patches[BlockTileUVSide.Top].uv0.y);
-              texs[2] = new vec2(patches[BlockTileUVSide.Top].uv0.x, patches[BlockTileUVSide.Top].uv1.y);
-              texs[3] = new vec2(patches[BlockTileUVSide.Top].uv1.x, patches[BlockTileUVSide.Top].uv1.y);
+              texs = patches[BlockTileUVSide.Top].GetQuadTexs();
             }
-
           }
           else
           {
