@@ -7,6 +7,7 @@ Issues right now Physics
   * ellipsoid ..
   * lower the terminal velocity
   * lower the gravity, too fast
+  * FIX STUPID VORBIS AUDIO SEGFAULTS
 
 TODO 
   * TODO: fix glob gen visibility issue
