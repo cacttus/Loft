@@ -61,8 +61,8 @@ namespace PirateCraft
         _widthFar = tanfov2 * cam.Far * 2;
         _heightFar = _widthFar / ar;
 
-        NearCenter = cam.Position + cam.BasisZ * cam.Near;
-        FarCenter = cam.Position + cam.BasisZ * cam.Far;
+        NearCenter = cam.Position_World + cam.BasisZ * cam.Near;
+        FarCenter = cam.Position_World + cam.BasisZ * cam.Far;
         //X is right in RHS
         NearTopLeft = NearCenter - cam.BasisX * _widthNear * 0.5f + cam.BasisY * _heightNear * 0.5f;
         FarTopLeft = FarCenter - cam.BasisX * _widthFar * 0.5f + cam.BasisY * _heightFar * 0.5f;
@@ -156,13 +156,13 @@ namespace PirateCraft
     {
       //Project point in world onto screen
       //Note point may not be within the frustum.
-      if(_camera.TryGetTarget(out var x))
+      if (_camera.TryGetTarget(out var cam))
       {
-        vec3 c = x.Position;
+        vec3 campos = cam.Position_World;
 
-        float t = _planes[fp_near].IntersectLine(v, x.Position);
+        float t = _planes[fp_near].IntersectLine(v, campos);
 
-        vec3 ret = c+ (v-c)*t;
+        vec3 ret = campos + (v - campos) * t;
         return ret;
       }
       return null;
@@ -264,7 +264,8 @@ namespace PirateCraft
     {
       base.Update(dt, ref parentBoundBox);
       ProjectionMatrix = mat4.projection(FOV, Viewport_Width, Viewport_Height, Near, Far);
-      ViewMatrix = mat4.getLookAt(new vec3(Position), new vec3(Position + BasisZ), new vec3(0, 1, 0));
+      var p = this.World.extractTranslation();
+      ViewMatrix = mat4.getLookAt(p, new vec3(p + BasisZ), new vec3(0, 1, 0));
       Frustum.Update();
     }
     public void BeginRender()

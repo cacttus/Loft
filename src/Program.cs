@@ -7,6 +7,10 @@ using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 namespace PirateCraft
 {
+  public enum CamMode
+  {
+    Playing, Flying
+  }
   public enum InputState
   {
     World, //User is moving inw orld.
@@ -19,7 +23,7 @@ namespace PirateCraft
 
     private double warp_boundary = 0.1f;//the distance user can move mouse in window  until we warp. Warping every frame absolutely sucks.
 
-    public void DoRotate(Camera3D cam, MainWindow gw)
+    public void DoRotate(WorldObject obj, Camera3D cam, MainWindow gw)
     {
       if (gw.InputState == InputState.World)
       {
@@ -49,10 +53,11 @@ namespace PirateCraft
           rotY = -Math.PI / 2 + 0.001f;
         }
 
-        quat qx = quat.fromAxisAngle(new vec3(0, 1, 0), (float)rotX).normalized();
-        quat qy = quat.fromAxisAngle(new vec3(1, 0, 0), (float)rotY).normalized();
+        quat qy = quat.fromAxisAngle(new vec3(0, 1, 0), (float)rotX).normalized();
+        quat qx = quat.fromAxisAngle(new vec3(1, 0, 0), (float)rotY).normalized();
 
-        cam.Rotation = qx * qy;
+        obj.Rotation_Local = qy;
+        cam.Rotation_Local = qx;
 
         if (gw.InputState == InputState.World)
         {
@@ -74,6 +79,7 @@ namespace PirateCraft
   {
     bool DELETE_WORLD_START_FRESH = true;
     Camera3D _camera = null;
+    WorldObject _player_empty = null;
     WorldObject _boxMeshThing = null;
     int meshIdx = 0;
     const float scale = 0.5f;
@@ -83,19 +89,19 @@ namespace PirateCraft
     WorldObject Sphere_Rotate_Quat_Test;
     WorldObject Sphere_Rotate_Quat_Test2;
     WorldObject Sphere_Rotate_Quat_Test3;
-
     WorldObject pick = null;
     WorldObject sword = null;
     WorldObject left_hand = null;
     WorldObject right_hand = null;
     bool _bInitialized = true;
-    const float BaseSpeed = World.BlockSizeX * 3.0f;
-    const float MaxAirFriction = BaseSpeed*0.95f; 
-    /*
-     * base((int)(1920 * scale), (int)(1080 * scale),
-    GraphicsMode.Default, "Test", GameWindowFlags.Default,
-    OpenTK.DisplayDevice.Default, 4, 0, GraphicsContextFlags.ForwardCompatible)
-     * */
+    const float Base_Run_Speed = World.BlockSizeX * 3.0f;
+    const float Base_Jump_Speed = World.BlockSizeY * 40.0f;
+    const float MaxAirFriction = 10.0f;//friction percentage in velocity Units per second (1.0 means the velocity will reach 0 in one second) [0,1]. lower values result in less friction
+    CamMode CamMode = CamMode.Flying;
+    vec3 second_y_glob = new vec3(
+     World.BlockSizeX * World.GlobBlocksX * .5f,
+     World.BlockSizeY * World.GlobBlocksY * 2.0f,
+     World.BlockSizeZ * World.GlobBlocksZ * .5f);
     public MainWindow() : base(
        new GameWindowSettings()
        {
@@ -124,7 +130,6 @@ namespace PirateCraft
       BlueBits = 8,
       AlphaBits = 8
     }
-
     )
     {
       Title += ": OpenGL Version: " + GL.GetString(StringName.Version);
@@ -167,7 +172,42 @@ namespace PirateCraft
         RenderFrame();
       }
     }
+    private void InitializeEverything()
+    {
+      try
+      {
+        Gu.Init_RenderThread_Only(this);
 
+
+        //Cameras
+        _camera = Gu.World.CreateCamera("Camera-001", this.Size.X, this.Size.Y, vec3.Zero);
+
+        //Character height
+        _camera.Position_Local = new vec3(0, World.BlockSizeY * 1.8f, 0);
+
+        _player_empty = Gu.World.CreateAndAddObject("player-empty", null, null, second_y_glob);
+        _player_empty.Collides = false;
+        _player_empty.HasPhysics = true;
+        _player_empty.AirFriction = MaxAirFriction; //Movement Damping
+        _player_empty.HasGravity = false;
+        _player_empty.AddChild(_camera);
+
+        Gu.World.Initialize(_player_empty, "Boogerton", DELETE_WORLD_START_FRESH, 2);
+
+        Gu.Context.DebugDraw.DrawBoundBoxes = false;
+
+        CreateDebugObjects();
+        InitHandObjects();
+        CreateCrosshair();
+
+        CursorVisible = true;
+      }
+      catch (Exception ex)
+      {
+        Gu.Log.Error("Failed to initialize engine. Errors occured: " + ex.ToString() + ex.InnerException?.ToString());
+        System.Environment.Exit(0);
+      }
+    }
     private void InitHandObjects()
     {
       vec3 right_pos = new vec3(3.0f, -2.1f, 4.5f);
@@ -178,10 +218,10 @@ namespace PirateCraft
       if (objs?.Count > 0)
       {
         pick = objs[0];
-        pick.Position = left_pos;
-        pick.Scale *= new vec3(0.7f, 0.7f, 0.7f);
-        pick.Rotation *= quat.fromAxisAngle(new vec3(0, 1, 0), MathUtils.M_PI * 0.5f);
-        pick.Rotation *= quat.fromAxisAngle(new vec3(1, 0, 1), MathUtils.M_PI_2 * 0.125f);
+        pick.Position_Local = left_pos;
+        pick.Scale_Local *= new vec3(0.7f, 0.7f, 0.7f);
+        pick.Rotation_Local *= quat.fromAxisAngle(new vec3(0, 1, 0), MathUtils.M_PI * 0.5f);
+        pick.Rotation_Local *= quat.fromAxisAngle(new vec3(1, 0, 1), MathUtils.M_PI_2 * 0.125f);
 
         var cmp = new AnimationComponent();
         vec3 raxis = new vec3(-1, 1, 0);
@@ -198,14 +238,14 @@ namespace PirateCraft
       if (objs?.Count > 0)
       {
         sword = objs[0];
-        sword.Position = right_pos;
-        sword.Scale *= new vec3(0.7f, 0.7f, 0.7f);
-        sword.Rotation *= quat.fromAxisAngle(new vec3(1, 0, 1).normalized(), MathUtils.M_PI_2 * 0.125f);
+        sword.Position_Local = right_pos;
+        sword.Scale_Local *= new vec3(0.7f, 0.7f, 0.7f);
+        sword.Rotation_Local *= quat.fromAxisAngle(new vec3(1, 0, 1).normalized(), MathUtils.M_PI_2 * 0.125f);
 
         _camera.AddChild(sword);
       }
     }
-    private void Crosshair()
+    private void CreateCrosshair()
     {
       vec4 ch_c = new vec4(0.31f, 0, 0, .1f);
       float size = 0.08f;
@@ -218,75 +258,17 @@ namespace PirateCraft
       WorldObject Crosshair = new WorldObject("crosshair");
       Crosshair.Mesh = new MeshData("crosshair_mesh", PrimitiveType.Lines, v_v3c4.VertexFormat, Gpu.GetGpuDataPtr(verts.ToArray()));
       Crosshair.Mesh.DrawOrder = DrawOrder.Last;
-      Crosshair.Position = new vec3(0, 0, 3);
+      Crosshair.Position_Local = new vec3(0, 0, 3);
       Material crosshair_mat = new Material(Shader.DefaultFlatColorShader());
       crosshair_mat.GpuRenderState.DepthTest = false;//Disable depth test.
       crosshair_mat.GpuRenderState.Blend = true;
       Crosshair.Material = crosshair_mat;
       _camera.AddChild(Crosshair);
     }
-    private void InitializeEverything()
-    {
-      try
-      {
-        Gu.Init_RenderThread_Only(this);
-
-        //Cameras
-        _camera = Gu.World.CreateCamera("Camera-001", this.Size.X, this.Size.Y,
-           //Put player exactly in center.
-           new vec3(
-           World.BlockSizeX * World.GlobBlocksX * .5f,
-           World.BlockSizeY * World.GlobBlocksY * .5f,
-           World.BlockSizeZ * World.GlobBlocksZ * .5f
-           ));
-
-        _camera.Far = 2000.0f;
-        _camera.HasPhysics = true;
-        _camera.AirFriction = MaxAirFriction; //Movement Damping
-        _camera.HasGravity = false;
-        //string embedded_fil1e = "route110.ogg";
-        //   Gu.Context. Audio.Play(new FileLoc(embedded_fil1e, FileStorage.Embedded));
-
-        ////Test sound
-        //while (true)
-        //{
-        //  int r = Random.NextInt(0, 4);
-        //  string embedded_file = "rock";
-        //  if (r == 0) { embedded_file += "_1.ogg"; }
-        //  if (r == 1) { embedded_file += "_2.ogg"; }
-        //  if (r == 2) { embedded_file += "_3.ogg"; }
-        //  if (r == 3) { embedded_file += "_4.ogg"; }
-        //  if (r == 4) { embedded_file += "_5.ogg"; }
-
-        //  var x = Gu.Context. Audio.Play(new FileLoc(embedded_file, FileStorage.Embedded));
-        //  x.Loop = false;
-        //  // Gu.Context.Audio.Update();
-        //  System.Threading.Thread.Sleep(5000);
-        //  int n = 0;
-        //  n++;
-        //}
-
-        Gu.World.Initialize(_camera, "Boogerton", DELETE_WORLD_START_FRESH, 2);
-
-        Gu.Context.DebugDraw.DrawBoundBoxes = false;
-
-        CreateDebugObjects();
-        InitHandObjects();
-        Crosshair();
-
-        CursorVisible = true;
-      }
-      catch (Exception ex)
-      {
-        Gu.Log.Error("Failed to initialize engine. Errors occured: " + ex.ToString() + ex.InnerException?.ToString());
-        System.Environment.Exit(0);
-      }
-    }
     private void PlayDropSound()
     {
       Gu.Context.Audio.Play(new FileLoc("wood_1.ogg", FileStorage.Embedded));
     }
-
     private void PlayPickSound(ushort bc)
     {
       string embedded_file = "";
@@ -401,10 +383,35 @@ namespace PirateCraft
         Console.WriteLine(ex.ToString());
       }
     }
+    private void TestSound()
+    {
+      //string embedded_fil1e = "route110.ogg";
+      //   Gu.Context. Audio.Play(new FileLoc(embedded_fil1e, FileStorage.Embedded));
+
+      ////Test sound
+      //while (true)
+      //{
+      //  int r = Random.NextInt(0, 4);
+      //  string embedded_file = "rock";
+      //  if (r == 0) { embedded_file += "_1.ogg"; }
+      //  if (r == 1) { embedded_file += "_2.ogg"; }
+      //  if (r == 2) { embedded_file += "_3.ogg"; }
+      //  if (r == 3) { embedded_file += "_4.ogg"; }
+      //  if (r == 4) { embedded_file += "_5.ogg"; }
+
+      //  var x = Gu.Context. Audio.Play(new FileLoc(embedded_file, FileStorage.Embedded));
+      //  x.Loop = false;
+      //  // Gu.Context.Audio.Update();
+      //  System.Threading.Thread.Sleep(5000);
+      //  int n = 0;
+      //  n++;
+      //}
+
+    }
     private void UpdateFrame(FrameEventArgs e)
     {
-      float chary = this._camera.Position.y;
-      Title = $"(Cam = {_camera.Position.ToString()}) FPS: {(int)Gu.Context.Fps}  " +
+      float chary = this._player_empty.Position_World.y;
+      Title = $"(Cam = {_player_empty.Position_World.ToString()}) FPS: {(int)Gu.Context.Fps}  " +
          $"nyugs b: {Box3f.nugs} " +
          $"Visible Glob: {Gu.World.NumVisibleRenderGlobs} " +
          $"Gen Glob: {Gu.World.NumGenGlobs} " +
@@ -428,18 +435,18 @@ namespace PirateCraft
       if (Sphere_Rotate_Quat_Test != null)
       {
 
-        Sphere_Rotate_Quat_Test.Position = new vec3(0, 3, 0);
-        Sphere_Rotate_Quat_Test.Rotation = quat.fromAxisAngle(new vec3(1, 1, 1).normalized(), (float)Gu.RotationPerSecond(10));
+        Sphere_Rotate_Quat_Test.Position_Local = new vec3(0, 3, 0);
+        Sphere_Rotate_Quat_Test.Rotation_Local = quat.fromAxisAngle(new vec3(1, 1, 1).normalized(), (float)Gu.RotationPerSecond(10));
       }
       if (Sphere_Rotate_Quat_Test2 != null)
       {
-        Sphere_Rotate_Quat_Test2.Position = new vec3(-3, 3, 0);
-        Sphere_Rotate_Quat_Test2.Rotation = mat4.getRotation(new vec3(-1, -1, -1).normalized(), (float)Gu.RotationPerSecond(10)).toQuat();
+        Sphere_Rotate_Quat_Test2.Position_Local = new vec3(-3, 3, 0);
+        Sphere_Rotate_Quat_Test2.Rotation_Local = mat4.getRotation(new vec3(-1, -1, -1).normalized(), (float)Gu.RotationPerSecond(10)).toQuat();
       }
       if (Sphere_Rotate_Quat_Test3 != null)
       {
-        Sphere_Rotate_Quat_Test3.Position = new vec3(3, 3, 0);
-        Sphere_Rotate_Quat_Test3.Rotation = quat.fromAxisAngle(new vec3(1, 1, 1).normalized(), (float)Gu.RotationPerSecond(3));
+        Sphere_Rotate_Quat_Test3.Position_Local = new vec3(3, 3, 0);
+        Sphere_Rotate_Quat_Test3.Rotation_Local = quat.fromAxisAngle(new vec3(1, 1, 1).normalized(), (float)Gu.RotationPerSecond(3));
       }
 
       UpdateInput();
@@ -457,60 +464,91 @@ namespace PirateCraft
       }
 
       Movement();
-
+      Menu();
       DebugKeyboard();
-
       EditBlocks();
-
       TestEllipsoid_Box();
 
     }
     bool CapsuleHit = false;
     private void Movement()
     {
-      float speed = BaseSpeed;
 
-      float speedMul = 1;
+
+      vec3 basisX = vec3.Zero, basisY = vec3.Zero, basisZ = vec3.Zero;
+      if (CamMode == CamMode.Flying)
+      {
+        basisX = _camera.BasisX;
+        basisY = _camera.BasisY;
+        basisZ = _camera.BasisZ;
+      }
+      else if (CamMode == CamMode.Playing)
+      {
+        basisX = _player_empty.BasisX;
+        basisY = vec3.Zero; //no cheating
+        basisZ = _player_empty.BasisZ;
+      }
+      
+      //Modify speed multiplier based on state
+      float speedMul = 1; //normal speed
       if (Gu.Keyboard.PressOrDown(Keys.LeftControl) || Gu.Keyboard.PressOrDown(Keys.RightControl))
       {
-        speedMul = 6;
+        speedMul = 6; // run speed
       }
+      if (!_player_empty.OnGround && this.CamMode != CamMode.Flying)
+      {
+        speedMul = 0.1f; // "in the air" movement. 
+      }
+
+      float final_run_speed = Base_Run_Speed * speedMul;
       if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.Q }))
       {
-        _camera.Velocity += _camera.BasisY * speed * (float)Gu.Context.Delta * speedMul;
+        _player_empty.Velocity += basisY * final_run_speed;
       }
       if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.E }))
       {
-        _camera.Velocity -= _camera.BasisY * speed * (float)Gu.Context.Delta * speedMul;
+        _player_empty.Velocity -= basisY * final_run_speed;
       }
       if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.Up, Keys.W }))
       {
-        _camera.Velocity += _camera.BasisZ * speed * (float)Gu.Context.Delta * speedMul;
+        _player_empty.Velocity += basisZ * final_run_speed;
       }
       if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.Down, Keys.S }))
       {
-        _camera.Velocity -= _camera.BasisZ * speed * (float)Gu.Context.Delta * speedMul;
+        _player_empty.Velocity -= basisZ * final_run_speed;
       }
       if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.Right, Keys.D }))
       {
-        _camera.Velocity += _camera.BasisX * speed * Gu.CoordinateSystemMultiplier * (float)Gu.Context.Delta * speedMul;
+        _player_empty.Velocity += basisX * final_run_speed;
       }
       if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.Left, Keys.A }))
       {
-        _camera.Velocity -= _camera.BasisX * speed * Gu.CoordinateSystemMultiplier * (float)Gu.Context.Delta * speedMul;
+        _player_empty.Velocity -= basisX * final_run_speed;
       }
-      if (Gu.Keyboard.Press(Keys.Space))
+
+      if (_player_empty.OnGround && this.CamMode != CamMode.Flying)
       {
-        if (_camera.OnGround)
+        if (Gu.Keyboard.PressOrDown(Keys.Space))
         {
-          _camera.Velocity += new vec3(0, speed, 0);// _camera.BasisX * speed * Gu.CoordinateSystemMultiplier * (float)Gu.Context.Delta * speedMul;
+          _player_empty.Velocity += new vec3(0, Base_Jump_Speed, 0);
         }
       }
-      if (_camera.HasPhysics == false)
+      
+      if (InputState == InputState.World)
       {
-        _camera.Position += _camera.Velocity;
-        _camera.Velocity = new vec3(0);
+        _FPSRotator.DoRotate(_player_empty, _camera, this);
       }
+      else if (InputState == InputState.Inventory)
+      {
+        //do inventory
+      }
+      else
+      {
+        Gu.BRThrowNotImplementedException();
+      }
+    }
+    private void Menu()
+    {
       if (Gu.Keyboard.Press(Keys.I))
       {
         if (InputState == InputState.World)
@@ -524,22 +562,15 @@ namespace PirateCraft
           CursorVisible = false;
         }
       }
-      if (InputState == InputState.World)
-      {
-        _FPSRotator.DoRotate(_camera, this);
-      }
-      else if (InputState == InputState.Inventory)
-      {
-        //do inventory
-      }
-      else
-      {
-        Gu.BRThrowNotImplementedException();
-      }
     }
     int mode = 0;
     private void DebugKeyboard()
     {
+      if (Gu.Keyboard.Press(Keys.O))
+      {
+        _player_empty.Position_Local = second_y_glob;
+        _player_empty.Velocity = vec3.Zero;
+      }
       if (Gu.Keyboard.Press(Keys.F1))
       {
         Gu.Context.DebugDraw.DrawBoundBoxes = !Gu.Context.DebugDraw.DrawBoundBoxes;
@@ -592,12 +623,13 @@ namespace PirateCraft
           _boxMeshThing.Mesh = MeshData.GenSphere(32, 32, 1, false);
         }
       }
-      if (Gu.Keyboard.PressOrDown(Keys.F8))
+      if (Gu.Keyboard.Press(Keys.F8))
       {
-        _camera.Collides = !_camera.Collides;
-        _camera.HasGravity = !_camera.HasGravity;
-        _camera.AirFriction = MaxAirFriction - _camera.AirFriction;// ; //Movement Damping
-
+        if (CamMode == CamMode.Playing) { CamMode = CamMode.Flying; }
+        else if (CamMode == CamMode.Flying) { CamMode = CamMode.Playing; }
+        _player_empty.Collides = !_player_empty.Collides;
+        _player_empty.HasGravity = !_player_empty.HasGravity;
+        _player_empty.AirFriction = MaxAirFriction - _player_empty.AirFriction;// ; //Movement Damping
       }
       if (Gu.Keyboard.PressOrDown(Keys.F9))
       {
@@ -626,14 +658,14 @@ namespace PirateCraft
     void UpdateMineBlock(PickedBlock? b)
     {
       Gu.Assert(b != null);
-      if (editing_block == null || (editing_block.Value != b.BlockPosLocal))
+      if (editing_block == null || (editing_block.Value != b.BlockPosLocalZ3))
       {
         if (Gu.World.BlockTiles.TryGetValue(b.Block, out var tile))
         {
           Curblock_Mine_Time = tile.MineTime_Pickaxe;
           PickSound_Time = PickSound_Time_Max;
 
-          editing_block = b.BlockPosLocal;
+          editing_block = b.BlockPosLocalZ3;
         }
       }
 
@@ -646,7 +678,7 @@ namespace PirateCraft
         {
           //Destroy block. We mined it!
 
-          Gu.World.DestroyBlock(b.Block_Center, true, true);
+          Gu.World.DestroyBlock(b.BlockCenterR3, true, true);
           //b.Drome.SetBlock(b.BlockPosLocal, BlockItemCode.Air, false);
           StopMineBlock();
         }
@@ -691,8 +723,8 @@ namespace PirateCraft
     }
     private Box3f GetPicked_PlaceBlock_Box(PickedBlock b)
     {
-      vec3 dir_n = b.GetHitNormal_Block();
-      var neighbor = b.HitPos + dir_n * new vec3(World.BlockSizeX * 0.5f, World.BlockSizeY * 0.5f, World.BlockSizeZ * 0.5f);
+      vec3 dir_n = b.HitNormal;
+      var neighbor = b.HitPosR3 + dir_n * new vec3(World.BlockSizeX * 0.5f, World.BlockSizeY * 0.5f, World.BlockSizeZ * 0.5f);
       return World.GetBlockBoxGlobalR3(neighbor, 0.01f);
     }
     private void EditBlocks()
@@ -812,10 +844,10 @@ namespace PirateCraft
         CapsuleHit = false;
         if (picked_block.IsHit)
         {
-          var blockbox = World.GetBlockBoxGlobalR3(picked_block.Block_Center);
+          var blockbox = World.GetBlockBoxGlobalR3(picked_block.BlockCenterR3);
           Gu.Context.DebugDraw.Box(blockbox, new vec4(1, 0, 0, 1));
 
-          vec3 e_pos = pick_ray.Origin + pick_ray.Dir * (float)picked_block._t;
+          vec3 e_pos = pick_ray.Origin + pick_ray.Dir * (float)picked_block._t1;
           Gu.Context.DebugDraw.Ellipsoid(32, 32, ellipsoid_r, e_pos, new vec4(0.4f, 0.02f, 0.76f, 1));
           Gu.Context.DebugDraw.Point(e_pos, new vec4(0, .2f, 1, 1));
 
@@ -823,7 +855,7 @@ namespace PirateCraft
           BoxAAHit b = new BoxAAHit();
           if (blockbox.LineOrRayIntersectInclusive_EasyOut(pick_ray, ref b)) // Ellipsoid_Collide_With_Velocity(pick_ray, ref b))
           {
-            e_pos = pick_ray.Origin + pick_ray.Dir * (float)b._t;
+            e_pos = pick_ray.Origin + pick_ray.Dir * (float)b._t1;
             Gu.Context.DebugDraw.Ellipsoid(32, 32, ellipsoid_r, e_pos, new vec4(.987f, .79f, .00313f, 1));
             Gu.Context.DebugDraw.Point(e_pos, new vec4(1, 0, 0, 1));
 
@@ -832,7 +864,6 @@ namespace PirateCraft
         }
       }
     }
-
     private void RenderFrame()
     {
       Gu.Context.Renderer.BeginRender(this, new vec4(.3f, .3f, .3f, 1));

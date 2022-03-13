@@ -22,9 +22,9 @@ namespace PirateCraft
             vec4 rot = new vec4(node.Rotation);
             vec3 scale = new vec3(node.Scale);
             WorldObject wo = new WorldObject(node.Name);
-            wo.Position = trans;
-            wo.Rotation = new quat(rot.x, rot.y, rot.z, rot.w);
-            wo.Scale = scale;
+            wo.Position_Local = trans;
+            wo.Rotation_Local = new quat(rot.x, rot.y, rot.z, rot.w);
+            wo.Scale_Local = scale;
             wo.LoaderTempData = (object)node;
             if (parent == null)
             {

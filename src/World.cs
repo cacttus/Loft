@@ -197,24 +197,22 @@ namespace PirateCraft
   {
     //A picked block from a raycast or other
 
-    public bool IsHit = false;
+    public bool IsHit { get { return _t1 >= 0.0f && _t1 <= 1.0f; } }
     //public Glob Glob;
     public Drome Drome = null;
     public ushort Block;
-    public ivec3 BlockPosLocal;
-    public vec3 HitPos;
-    public vec3 Block_Center;
-    public float _t = float.MaxValue;
+    public ivec3 BlockPosLocalZ3;
+    //public vec3 RayOrigin;
+    //public vec3 RayDir;
+    public vec3 HitNormal;
+    public vec3 HitPosR3;
+    public vec3 BlockCenterR3;
+    public float _t1 = float.MaxValue;//tmin
+    public float _t2 = float.MaxValue;//tmax
     public vec3 HitNormal_Ray;
     public List<Box3f> PickedBlockBoxes_Debug = null;
     public bool AddPickedBlockBoxes_Debug = false;
     public RaycastResult RaycastResult = RaycastResult.Unset;
-    public vec3 GetHitNormal_Block()
-    {
-      vec3 dir = HitPos - World.GetBlockBox(this, 0.0001f).center();
-      vec3 dir_n = dir.snap().normalize();
-      return dir_n;
-    }
   }
   public enum TileImage
   {
@@ -447,7 +445,7 @@ namespace PirateCraft
       {
         if (glob != null && glob.CanRender_and_HasRenderData)
         {
-          float glob_dist2 = dn.Box.DistanceToCam2(cam);// (cam.Position - box_center).length2();
+          float glob_dist2 = dn.Box.DistanceToCam2(cam);// (cam.PositionWorld - box_center).length2();
           if (visible_globs != null)
           {
             visible_globs.Add(glob_dist2, glob);
@@ -905,7 +903,7 @@ namespace PirateCraft
       return nculled;
     }
     private static int dbg_int_ncalls = 0;
-    public void RaycastBlockBVH(Drome root, PickRay3D pr, ref PickedBlock pb, vec3? parent_glob__origin = null)
+    public void RaycastBlockBVH(Drome root, PickRay3D pr, ref PickedBlock pb, vec3? pg_origin = null)
     {
       //Note this also works if you create a point ray.
       if (this == root)
@@ -927,9 +925,9 @@ namespace PirateCraft
         if (IsLeaf == true)
         {
           //we are a block
-          Gu.Assert(parent_glob__origin != null);
+          Gu.Assert(pg_origin != null);
 
-          var cpos_r3 = parent_glob__origin.Value + _box.center();
+          var cpos_r3 = pg_origin.Value + _box.center();
           ivec3 b3i = Drome.R3toI3BlockLocal_Drome(cpos_r3);
           ushort b = root.GetBlock(b3i);
 
@@ -949,18 +947,23 @@ namespace PirateCraft
             //note pr is currently translated into static glob space
             if (_box.LineOrRayIntersectInclusive_EasyOut(pr, ref bh))
             {
-              if (bh._t < pb._t)
+              if (bh.IsHit && (bh._t1 < pb._t1))
               {
-                pb._t = (float)bh._t;
+                pb._t1 = (float)bh._t1;
+                pb._t2 = (float)bh._t2;
 
                 pb.Drome = root;
                 pb.Block = b;
-                pb.BlockPosLocal = b3i;
+                pb.BlockPosLocalZ3 = b3i;
+                vec3 hp_static_glob = pr.Origin + pr.Dir * (float)bh._t1;
                 //This is the static glob at 0,0,0, add the minimum of the parent to translate the box into the actual coordinates.
-                pb.HitPos = parent_glob__origin.Value + pr.Origin + pr.Dir * (float)bh._t;
-                pb.Block_Center = cpos_r3;
+                pb.HitPosR3 = pg_origin.Value + hp_static_glob;
+                pb.BlockCenterR3 = cpos_r3;
                 pb.HitNormal_Ray = -pr.Dir;
-                pb.IsHit = true;
+                //Get normal for transformed point
+                pb.HitNormal = _box.Normal(hp_static_glob);
+                var test_r3 = new Box3f(_box._min + pg_origin.Value, _box._max + pg_origin.Value);
+                var test_normal_r3 = test_r3.Normal(pb.HitPosR3);
                 pb.RaycastResult = bh.RaycastResult;
                 return;
               }
@@ -990,10 +993,10 @@ namespace PirateCraft
           {
             if (c.Box.LineOrRayIntersectInclusive_EasyOut(pr, ref bh))
             {
-              if (bh._t < pb._t)
+              if (bh.IsHit)
               {
                 //Don't set t here, the ray is inside the boxes most of hte time.
-                c.RaycastBlockBVH(root, pr, ref pb, parent_glob__origin);
+                c.RaycastBlockBVH(root, pr, ref pb, pg_origin);
               }
             }
           }
@@ -1222,7 +1225,7 @@ namespace PirateCraft
       {
         //Basically what this does is we drill down to the glob that was modified and create it.
         //Then, the visibility update should catch the new glob and generate it.
-        DoLiterallyEverything(w, this, w.Player, null, mb);
+        DoLiterallyEverything(w, this, w.Camera, null, mb);
         //**TODO: subdivide neighbors as as well when this block borders other globs.
       }
     }
@@ -1232,7 +1235,7 @@ namespace PirateCraft
       {
         //Same as above - we do a subdivision again. When we drill down to the given point, we'll determine if the glob is visible, or not.
         //if it's not, it will get deleted automatically.
-        DoLiterallyEverything(w, this, w.Player, null, mb);
+        DoLiterallyEverything(w, this, w.Camera, null, mb);
         //**TODO: subdivide neighbors as as well when this block borders other globs.
       }
     }
@@ -1579,7 +1582,7 @@ namespace PirateCraft
         var t2 = FaceInfos[BlockTileUVSide.Bottom].UV.GetQuadTexs();
 
         md = MeshData.GenBox(World.BlockSizeX, World.BlockSizeY, World.BlockSizeZ, t0, t1, t2);
-        Entity.Scale = new vec3(size, size, size);
+        Entity.Scale_Local = new vec3(size, size, size);
       }
       else if (MeshType == BlockMeshType.Billboard)
       {
@@ -1587,8 +1590,8 @@ namespace PirateCraft
         Gu.Assert(FaceInfos[BlockTileUVSide.Side].UV != null);
         var t1 = FaceInfos[BlockTileUVSide.Side].UV.GetQuadTexs();
         md = MeshData.GenPlane(World.BlockSizeX, World.BlockSizeY, t1);
-        Entity.Rotation = quat.fromAxisAngle(new vec3(1, 0, 0), -MathUtils.M_PI_2, true);//rotate quad so it is upright
-        Entity.Scale = new vec3(size, size, size);
+        Entity.Rotation_Local = quat.fromAxisAngle(new vec3(1, 0, 0), -MathUtils.M_PI_2, true);//rotate quad so it is upright
+        Entity.Scale_Local = new vec3(size, size, size);
       }
       else if (MeshType == BlockMeshType.Liquid)
       {
@@ -1759,8 +1762,8 @@ namespace PirateCraft
     public Dictionary<ushort, BlockTile> BlockTiles { get; private set; } = null;
     public Dictionary<ushort, BlockItem> BlockItems { get; private set; } = null;
 
-    private Camera3D _player = null;
-    public Camera3D Player
+    private WorldObject _player = null;
+    public WorldObject Player
     {
       get
       {
@@ -1769,10 +1772,17 @@ namespace PirateCraft
       set
       {
         _player = value;
-        playerLastGlob = R3toI3Glob(_player.Position);
+        playerLastGlob = R3toI3Glob(_player.Position_World);
       }
     }
-
+    public Camera3D Camera
+    {
+      get
+      {
+        Gu.Assert(_player != null);
+        return (Camera3D)_player.Children.First();
+      }
+    }
     private Material _worldMaterial_Op = null;
     private Material _worldMaterial_Tp = null;
     private MegaTex _worldMegatex = new MegaTex("tex", true);
@@ -1796,7 +1806,7 @@ namespace PirateCraft
       Gu.Assert(loc != null);
       return loc;
     }
-    public void Initialize(Camera3D player, string worldName, bool delete_world_start_fresh, int limit_y_axis = 0)
+    public void Initialize(WorldObject player, string worldName, bool delete_world_start_fresh, int limit_y_axis = 0)
     {
       Player = player;
       WorldName = worldName;
@@ -1826,7 +1836,7 @@ namespace PirateCraft
       BuildDromeGrid(Player.World.extractTranslation(), GenRadiusShell, true);
       //I'm assuming since this is cube voxesl we're going to do physics on the integer grid, we don't need triangle data then.
       WaitForAllDromesToGenerate();
-      UpdateLiterallyEverything_Blockish(Player); // This will generate the globs
+      UpdateLiterallyEverything_Blockish(Camera); // This will generate the globs
       WaitForAllGlobsToGenerate();
     }
     public void Update(double dt, Camera3D cam)
@@ -1908,17 +1918,17 @@ namespace PirateCraft
     public Camera3D CreateCamera(string name, int w, int h, vec3 pos)
     {
       Camera3D c = new Camera3D(name, w, h);
-      c.Position = pos;
+      c.Position_Local = pos;
       Box3f dummy = Box3f.Zero;
       c.Update(0, ref dummy);
-      AddObject(c);
+      //   AddObject(c);
       return c;
     }
     public WorldObject CreateObject(string name, MeshData mesh, Material material, vec3 pos = default(vec3))
     {
       WorldObject ob = new WorldObject(name);
       ob.Name = name;
-      ob.Position = pos;
+      ob.Position_Local = pos;
       ob.Mesh = mesh;
       ob.Material = material;
       return ob;
@@ -1990,8 +2000,7 @@ namespace PirateCraft
           //This could be a component
           if (ob.HasPhysics)
           {
-            UpdateObjectPhysics(ob, dt);
-            ob.Position += ob.Velocity;
+            UpdateObjectPhysics(ob, (float)dt);
           }
         }
         else
@@ -2006,11 +2015,17 @@ namespace PirateCraft
       }
       toRemove.Clear();
     }
-    public float Gravity { get; private set; } = -9.8f;
-    public const float MaxVelocity_Second_Frame = World.BlockSizeY*2.32f;//max length of vel per second / frame *NOT PER FRAME but by dt*
-
-    private void UpdateObjectPhysics(WorldObject ob, double dt)
+    private float Gravity = -9.8f;
+    private const float MaxVelocity_Second_Frame = World.BlockSizeY * 2.32f;//max length of vel per second / frame *NOT PER FRAME but by dt*
+    private const float MinVelocity = 0.0000001f;
+    private const float MinVelocity2 = (MinVelocity * MinVelocity);
+    private const float MinTimeStep = 0.00001f;
+    private void UpdateObjectPhysics(WorldObject ob, float dt)
     {
+      if (dt < MinTimeStep)
+      {
+        dt = MinTimeStep;
+      }
       //Assuming we're going to modify object resting state when other objects change state
       float vlen2 = (ob.Velocity * (float)dt).length2();
       if (ob.OnGround && vlen2 > 0)
@@ -2021,52 +2036,72 @@ namespace PirateCraft
       {
         return;
       }
-      vec3 dbg_initial_v = ob.Velocity;
-      vec3 final_p = ob.Position;
-      vec3 final_v = ob.Velocity;
 
-      float maxv = MaxVelocity_Second_Frame * (float)dt;
+      float maxv = MaxVelocity_Second_Frame * dt;
       float maxv2 = (float)Math.Pow(maxv, 2.0f);
 
-      //Technically we should do a separate gravity step
-      if (ob.HasGravity)
-      {
-        final_v.y += Gravity * (float)dt;
-      }
-      if (ob.AirFriction > 0.0f)
-      {
-        float len = final_v.length();
-        float newlen = Math.Max(len - ob.AirFriction * (float)dt, 0.0f);
-        final_v = final_v.normalized() * newlen;
-      }
+      vec3 dbg_initial_v = ob.Velocity;
 
-      vlen2 = (final_v * (float)dt).length2();
+      //Our final guys in frame time units
+      vec3 final_p = ob.Position_Local;
+      vec3 final_v = ob.Velocity * dt;
+
+      //Too big
+      vlen2 = (final_v * dt).length2();
       if (vlen2 > maxv2)
       {
         final_v = final_v.normalized() * maxv;
       }
 
+      vec3 g_v = vec3.Zero;
+      if (ob.HasGravity)
+      {
+        g_v = new vec3(0, Gravity * dt, 0);
+      }
+
       if (ob.Collides)
       {
-        CollideOb(ob, (float)dt, ref final_v, ref final_p, maxv, maxv2);
+        CollideOb(ob, dt, ref final_v, ref final_p, maxv, maxv2, false);
+        if (ob.OnGround == false && ob.HasGravity)
+        {
+          CollideOb(ob, dt, ref g_v, ref final_p, maxv, maxv2, true);
+        }
       }
       else
       {
-        //Raw velocity. No collisions
-        if (final_v.length2() < 0.001f)
-        {
-          final_v = vec3.zero;
-          ob.OnGround = true;
-        }
+        final_p += final_v + g_v;
       }
 
-      ob.Position = final_p;
-      ob.Velocity = final_v;
+      //Dampen world velocity (not frame velocity)
+      if (!ob.OnGround && ob.AirFriction > 0.0f)
+      {
+        float len = final_v.length();
+        float newlen = len - len * ob.AirFriction * dt;
+        if (newlen <= 0)
+        {
+          newlen = 0;
+        }
+        final_v = final_v.normalized() * newlen;
+      }
+
+      //Add frame v to p
+
+      ob.Position_Local = final_p;
+      //transform v back into world time units instead of frame time units
+      ob.Velocity = (final_v + g_v) * (1.0f / (dt == 0 ? 1.0f : dt));
 
     }
-    private void CollideOb(WorldObject ob, float dt, ref vec3 final_v, ref vec3 final_p, float maxv, float maxv2)
+    private void CollideOb(WorldObject ob, float dt, ref vec3 final_v, ref vec3 final_p, float maxvdt, float maxvdt2, bool gravity)
     {
       int max_sim_steps = 32;
+
+      vec3 dbg_initial_v = final_v;
+      vec3 dbg_initial_p = final_p;
+
+      final_v = dbg_initial_v;
+      final_p = dbg_initial_p;
+
+      bool hit_n_set = false;
 
       for (int istep = 0; istep < max_sim_steps; istep++)
       {
@@ -2076,54 +2111,118 @@ namespace PirateCraft
           n++;
         }
 
-        float vlen2 = (final_v * (float)dt).length2();
-
-        if (vlen2 > maxv2)
-        {
-          final_v = final_v.normalized() * maxv;
-        }
-
-        PickRay3D prop = new PickRay3D(final_p, final_v, vec3.zero);
-        PickedBlock b = RaycastBlock_2(prop);
+        PickRay3D vray = new PickRay3D(final_p, final_v, vec3.Zero);
+        PickedBlock b = RaycastBlock_2(vray);
         if (b.IsHit)
         {
-          //yeah RaycastBlock will need to use a sphere/something
-          // float height = 8;//Yeah ok.
+          //we could use the normal function to return the correct point / line too
 
-          vec3 n = b.GetHitNormal_Block();
-          final_p = b.HitPos + n * 0.0002f;// prop.Origin + prop.Dir * _t
+          vec3 plane_n = b.HitNormal;
 
-          float margin = 0.001f;
-
-          //Subtract velocity
-          if (b._t >= 0.0f && b._t <=1.0f)
+          if (gravity && plane_n.dot(new vec3(0, 1, 0)) > 0)
           {
-            //Subtract energy
-            float hitsub = (prop.Dir * (1.0f - b._t)).length();
-            float newVLen = (prop.Length - hitsub - margin);
-            final_v = final_v.normalized() * newVLen;
-          }
-
-          //Zero out the v in case it's too small
-          if (final_v.length2() < margin)
-          {
-            final_v = vec3.zero;
-          }
-          //For bounce physics
-          //  vec3 reflected = final_v.reflect(n);
-
-          if (n.y > 0)
-          {
-            //ground
             ob.OnGround = true;
           }
+
+          if (b.RaycastResult == RaycastResult.Inside)
+          {
+            //use negative t, Back out of ray
+            //We will need to add negative t to ray intersect
+            //Use Last good position
+            int n = 0;
+            n++;
+          }
+          if (vray.Dir.dot(plane_n) <= 0)
+          {
+            //Move just to the plane
+            float cp_len = vray.Length * (b._t1);
+            vec3 v_n = final_v.normalized();
+
+            //move away from the plane so we are not intersecting. We do this so that the next raycast won't be inside *this* plane.
+            float margin = 0.0001f;
+            float margin_adjust = 0;
+            float v_dot_n = plane_n.dot(-v_n);//cos theta
+            if (v_dot_n != 0) //>0 - so we only move in toward the plane (-v_n)
+            {
+              margin_adjust = margin / v_dot_n;
+            }
+
+            float move_amt = cp_len - margin_adjust;
+
+            vec3 v_cp = v_n * move_amt;
+            //Move to where we hit
+            vec3 c_p = final_p + v_cp; //next pos
+
+            vec3 v_slide;
+            if (move_amt < 0)
+            {
+              //if vlen < margin - then we ae inside the volume and we need to push out.
+              //we are nside margin
+              int n = 0;
+              n++;
+              v_slide = vec3.Zero;
+            }
+            else
+            {
+              float friction = 0.77f;// MathUtils.Clamp((-v_n).dot(plane_n) + 0.1f, 0, 1);// World.BlockSizeX * 3 * dt;
+
+              //Use remaining energy to slide
+              float remaining_energy = Math.Max(vray.Length * (1.0f - b._t1) * friction, 0);
+              vec3 incident = (c_p - final_p).normalized();
+              vec3 radiant = incident.reflect(plane_n);
+              vec3 v_e_ref = (radiant - incident).normalized();
+              v_slide = v_e_ref * remaining_energy;
+            }
+
+
+            final_v = v_slide;
+            final_p = c_p;
+
+          }
+          else
+          {
+            int n = 0;
+            n++;
+          }
+
+          //Zero out small v so we don't simulate forever
+          if (final_v.length2() < MinVelocity2)
+          {
+            final_v = vec3.Zero;
+          }
+          if (final_v.length2() > maxvdt2)
+          {
+            final_v = final_v.normalized() * maxvdt;
+          }
+
+
+          ////No bouncing. -- todo
+          //if (plane_n.y > 0)
+          //{
+          //  //ground
+          //  ob.OnGround = true;
+          //}
         }
         else
         {
-          if (final_v.length2() > maxv2)
+          //no hit, break out
+          if (final_v.length2() < MinVelocity2)
           {
-            final_v = final_v.normalized() * maxv;
+            final_v = vec3.Zero;
           }
+          if ((final_v * dt).length2() > maxvdt2)
+          {
+            final_v = final_v.normalized() * maxvdt;
+          }
+
+          if (gravity && istep == 0)
+          {
+            ob.OnGround = false;
+          }
+
+          //Final add, the velocity does not collide.
+          final_p += final_v;
+
           break;
         }
       }
@@ -2153,9 +2252,9 @@ namespace PirateCraft
         //This is assuming we only gen/load dromes once. if we do some other funky stuff we need a lock.
         if (the_drome.GenState == GenState.Ready)
         {
-          if (DromeNode.IsVisible(this, Player, the_drome.Box))
+          if (DromeNode.IsVisible(this, cam, the_drome.Box))
           {
-            the_drome.DoLiterallyEverything(this, the_drome, Player, _stuff, null);
+            the_drome.DoLiterallyEverything(this, the_drome, cam, _stuff, null);
           }
           else if (Drome_or_Node_Can_Delete_Distance(the_drome.Box) && ((Gu.Milliseconds() - the_drome.LastVisible_ms) > World.Abandon_DeleteTime_Drome_ms))
           {
@@ -2542,7 +2641,7 @@ namespace PirateCraft
     public void CreateEntity(vec3 pos, vec3 vel, BlockTile tile)
     {
       var new_ent = tile.Entity.Clone();
-      new_ent.Position = pos;
+      new_ent.Position_Local = pos;
       new_ent.Velocity = vel;
       Gu.World.AddObject(new_ent);
     }
@@ -2567,7 +2666,7 @@ namespace PirateCraft
 
             if (b.Drome != null)
             {
-              b.Drome.SetBlock(b.BlockPosLocal, BlockItemCode.Air, false);
+              b.Drome.SetBlock(b.BlockPosLocalZ3, BlockItemCode.Air, false);
             }
             else
             {
@@ -2580,7 +2679,7 @@ namespace PirateCraft
             {
               if (create_entity)
               {
-                CreateEntity(b.HitPos, Random.RandomVelocity(new vec3(-0.2f, 1, -0.2f), new vec3(0.2f, 1, 0.2f), World.BlockSizeY * 12.0f), tile);
+                CreateEntity(b.HitPosR3, Random.RandomVelocity(new vec3(-0.2f, 1, -0.2f), new vec3(0.2f, 1, 0.2f), World.BlockSizeY * 12.0f), tile);
               }
 
               //Recur
@@ -2614,7 +2713,7 @@ namespace PirateCraft
     }
     private void UpdateGenerationShell()
     {
-      ivec3 newPlayerGlob = R3toI3Glob(Player.Position);
+      ivec3 newPlayerGlob = R3toI3Glob(Player.Position_World);
       if ((newPlayerGlob != playerLastGlob))
       {
         _currentShell = 1;
@@ -2744,7 +2843,7 @@ namespace PirateCraft
     public bool Box_IsWithin_Distance(Box3f box, float genDistance)
     {
       //return true if the box's dist to camera is less than gen distnace
-      float dist_cam2 = box.DistanceToCam2(Player);
+      float dist_cam2 = box.DistanceToCam2(Camera);
 
       if (dist_cam2 < (genDistance * genDistance))
       {
@@ -3532,7 +3631,7 @@ namespace PirateCraft
         QueuedDromeData qdd = new QueuedDromeData();
         qdd.drome = drome;
         qdd.gpos = gpos;
-        double dist = (double)(float)(drome.CenterR3 - Player.Position).length();
+        double dist = (double)(float)(drome.CenterR3 - Player.Position_World).length();
         qdd.DistanceToPlayer = dist;
         _dromes.Add(gpos, drome);
 
@@ -3577,7 +3676,7 @@ namespace PirateCraft
       //    CopyGlobBlocks_Sync(d, qgd);
       qgd._blockitems = new Dictionary<BlockItem, List<vec3>>();//completely new. do not copy .. we generate it.
 
-      double dist = (qgd.MyGlob.CenterR3 - Player.Position).length();
+      double dist = (qgd.MyGlob.CenterR3 - Player.Position_World).length();
       qgd.DistanceToPlayer = dist;
 
       _queuedGlobs.Add((float)dist, qgd);
@@ -3940,7 +4039,7 @@ namespace PirateCraft
     }
     public static Box3f GetBlockBox(PickedBlock b, float padding)
     {
-      return GetBlockBoxLocal(b.Drome, b.BlockPosLocal, padding);
+      return GetBlockBoxLocal(b.Drome, b.BlockPosLocalZ3, padding);
     }
     private static Box3f GetBlockBoxLocal(Drome d, ivec3 local, float padding = 0)
     {
@@ -4038,7 +4137,7 @@ namespace PirateCraft
         BoxAAHit bh = new BoxAAHit();
         if (d.Value.Box.LineOrRayIntersectInclusive_EasyOut(pr, ref bh))
         {
-          dlist.Add((float)bh._t, d.Value);
+          dlist.Add((float)bh._t1, d.Value);
         }
       }
 
@@ -4058,7 +4157,6 @@ namespace PirateCraft
       //  This algorithm.. isn't the best we should use a 3d line drawing algorithm to avoid duplicate checks. stepx stepx stepy stepx .. 
       //TODO: much faster if we marched the drome/glob first, then the blocks. We do only blocks
       PickedBlock pb = new PickedBlock();
-      pb.IsHit = false;
       //Snap point to block center
       vec3 center = R3ToI3BlockGlobal(pr.Origin).toVec3() *
          new vec3(BlockSizeX, BlockSizeY, BlockSizeZ) +
@@ -4117,12 +4215,15 @@ namespace PirateCraft
             {
               pb.Drome = cur_drome;
               pb.Block = b;
-              pb.BlockPosLocal = b3i;
-              pb._t = (float)bh._t;
-              pb.HitPos = pr.Origin + pr.Dir * (float)bh._t;
-              pb.Block_Center = cpos_r3;
+              pb.BlockPosLocalZ3 = b3i;
+              pb._t1 = (float)bh._t1;
+              pb._t2 = (float)bh._t2;
+              pb.HitPosR3 = pr.Origin + pr.Dir * (float)bh._t1;
+              pb.BlockCenterR3 = cpos_r3;
               pb.HitNormal_Ray = -pr.Dir;
-              pb.IsHit = true;
+              pb.HitNormal = blockbox.Normal(pb.HitPosR3);
+              //pb.RayOrigin = pr.Origin;
+              //pb.RayDir = pr.Dir;
               break;
             }
             else
@@ -4211,8 +4312,8 @@ namespace PirateCraft
       using (var br = new System.IO.BinaryWriter(fs, enc))
       {
         br.Write((string)SaveWorldHeader);
-        br.Write(Player.Position);
-        br.Write(Player.Rotation);
+        br.Write(Player.Position_World);
+        br.Write(Player.Position_World);
       }
     }
     private bool TryLoadWorld()
@@ -4237,8 +4338,8 @@ namespace PirateCraft
         {
           Gu.BRThrowException("World header '" + h + "' does not match current header version '" + SaveWorldHeader + "'");
         }
-        Player.Position = br.ReadVec3();
-        Player.Rotation = br.ReadQuat();
+        Player.Position_Local = br.ReadVec3();
+        Player.Rotation_Local = br.ReadQuat();
       }
       return true;
     }

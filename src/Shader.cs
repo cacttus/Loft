@@ -372,7 +372,7 @@ namespace PirateCraft
         //bind uniforms based on name.
         if (u.Name.Equals("_ufCamera_Position"))
         {
-          GL.ProgramUniform3(_glId, u.Location, cam.Position.x, cam.Position.y, cam.Position.z);
+          GL.ProgramUniform3(_glId, u.Location, cam.Position_World.x, cam.Position_World.y, cam.Position_World.z);
         }
         else if (u.Name.Equals("_ufLightModel_GGX_X"))
         {

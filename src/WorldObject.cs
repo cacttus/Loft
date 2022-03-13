@@ -70,7 +70,7 @@ namespace PirateCraft
     public bool Collides = false;
     public override void Update(double dt, WorldObject myObj)
     {
-      myObj.Position += Velocity;
+      myObj.Position_Local += Velocity;
     }
     public override Component Clone(bool shallow = true)
     {
@@ -391,7 +391,7 @@ namespace PirateCraft
     {
       if (FollowObj != null && FollowObj.TryGetTarget(out WorldObject obj))
       {
-        ob.Position = obj.World.extractTranslation();
+        ob.Position_Local = obj.World.extractTranslation();
       }
       else
       {
@@ -476,6 +476,8 @@ namespace PirateCraft
     //private vec3 _positionLast = new vec3(0, 0, 0);
     public object LoaderTempData = null;
 
+    public vec3 dbg_last_n = vec3.Zero;
+
     private WorldObjectState _state = WorldObjectState.Created;
     static int _idGen=1;
     private int _uniqueId = 0; //Never duplicated, unique for all objs
@@ -512,6 +514,10 @@ namespace PirateCraft
     private bool _collides = false;
     private float _airFriction = 0.0f;//friction with the air i.e. movement damping in m/s
     private bool _hasPhysics = false;
+    private vec3 _positionWorld = vec3.Zero;
+    private quat _rotationWorld = quat.Identity;
+    private vec3 _scaleWorld = vec3.Zero;
+
 
     public string Name { get { return _name; } set { _name = value; } }
     public int UniqueID { get { return _uniqueId; } private set { _uniqueId = value; } }
@@ -540,9 +546,13 @@ namespace PirateCraft
     public WorldObject Parent { get { return _parent; } private set { _parent = value; SetTransformChanged(); } }
     public HashSet<WorldObject> Children { get { return _children; } private set { _children = value; } }
 
-    public vec3 Position { get { return _position; } set { _position = value; SetTransformChanged(); } }
-    public quat Rotation { get { return _rotation; } set { _rotation = value; SetTransformChanged(); } }//xyz,angle
-    public vec3 Scale { get { return _scale; } set { _scale = value; SetTransformChanged(); } }
+    public vec3 Position_Local { get { return _position; } set { _position = value; SetTransformChanged(); } }
+    public quat Rotation_Local { get { return _rotation; } set { _rotation = value; SetTransformChanged(); } }//xyz,angle
+    public vec3 Scale_Local { get { return _scale; } set { _scale = value; SetTransformChanged(); } }
+    
+    public vec3 Position_World { get { return _positionWorld; } private set { _positionWorld = value; } }
+    public quat Rotation_World { get { return _rotationWorld; } private set { _rotationWorld = value; } }
+    public vec3 Scale_World { get { return _scaleWorld; } private set { _scaleWorld = value; } }
 
     public vec3 AnimatedPosition { get { return _animatedPosition; } set { _animatedPosition = value; SetTransformChanged(); } }
     public quat AnimatedRotation { get { return _animatedRotation; } set { _animatedRotation = value; SetTransformChanged(); } }
@@ -599,6 +609,15 @@ namespace PirateCraft
       _basisX = (World * new vec4(1, 0, 0, 0)).xyz().normalized();
       _basisY = (World * new vec4(0, 1, 0, 0)).xyz().normalized();
       _basisZ = (World * new vec4(0, 0, 1, 0)).xyz().normalized();
+
+      // bleh. We should just compute these if we need them. _bComputedWorldDecompose
+      mat4 tmprot;
+      vec4 pw;
+      vec4 sw;
+      World.decompose(out pw, out tmprot, out sw);
+      _positionWorld = pw.xyz();
+      _scaleWorld = sw.xyz();
+      _rotationWorld = tmprot.toQuat();
 
       _boundBox.genResetLimits();
       foreach (var child in this.Children)
@@ -771,9 +790,9 @@ namespace PirateCraft
       mat4 mRotA = mat4.getRotation(AnimatedRotation);
       mat4 mPosA = mat4.getTranslation(AnimatedPosition);
 
-      mat4 mScl = mat4.getScale(Scale);
-      mat4 mRot = mat4.getRotation(Rotation);
-      mat4 mPos = mat4.getTranslation(Position);
+      mat4 mScl = mat4.getScale(Scale_Local);
+      mat4 mRot = mat4.getRotation(Rotation_Local);
+      mat4 mPos = mat4.getTranslation(Position_Local);
       _local = (mScl * mSclA) * (mRot * mRotA) * (mPos * mPosA);
     }
     public void ApplyParentMatrix()

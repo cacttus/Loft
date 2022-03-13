@@ -191,10 +191,11 @@ namespace PirateCraft
   }
   public class BoxAAHit
   {
-    public bool IsHit { get { return _t >= 0.0f && _t <= 1.0f; } }  // Whether the ray intersected the box.
+    public bool IsHit { get { return (_t1 >= 0.0f && _t1 <= 1.0f) || _p1Contained; } }  // Whether the ray intersected the box.
     public bool _p1Contained;
     public bool _p2Contained;
-    public double _t = float.MaxValue; // - Time to hit [0,1]
+    public double _t1 = float.MaxValue; // - Time to hit [0,1]
+    public double _t2 = float.MaxValue; // - Time to hit [0,1]
     public RaycastResult RaycastResult = RaycastResult.Unset;
   };
   public class PickRay3D
@@ -218,11 +219,11 @@ namespace PirateCraft
     public PickRay3D(vec3 point_ray_point)
     {
       //This is for "point rays" it's the same structure, but faster bound box processing as we are a point
-      Init(point_ray_point, vec3.zero, vec3.zero);
+      Init(point_ray_point, vec3.Zero, vec3.Zero);
     }
     public PickRay3D(Line3f line)
     {
-      Init(line.p0, (line.p1 - line.p0), vec3.zero);
+      Init(line.p0, (line.p1 - line.p0), vec3.Zero);
     }
     public PickRay3D(Line3f line, vec3 radius)
     {
@@ -230,7 +231,7 @@ namespace PirateCraft
     }
     public PickRay3D(vec3 origin, vec3 normal, float length)
     {
-      Init(origin, normal * length, vec3.zero);
+      Init(origin, normal * length, vec3.Zero);
     }
     public PickRay3D(vec3 origin, vec3 ray, vec3 radius)
     {
@@ -523,7 +524,7 @@ namespace PirateCraft
     public float y;
     public float z;
 
-    public static vec3 zero { get { return new vec3(0, 0, 0); } }
+    public static vec3 Zero { get { return new vec3(0, 0, 0); } }
     public static vec3 one { get { return new vec3(1, 1, 1); } }
     public static vec3 VEC3_MIN()
     {
@@ -647,7 +648,7 @@ namespace PirateCraft
     }
     public override string ToString()
     {
-      return "" + x + "," + y + "," + z;
+      return "(" + x + "," + y + "," + z + ")";
     }
     public vec4 toVec4(float w)
     {
@@ -969,9 +970,17 @@ namespace PirateCraft
     //    avg = v1 + (v2 - v1) * pct;
     //}
     //template<typename Tx>
-    public vec3 reflect(in vec3 n)
+    public vec3 reflect(in vec3 n, bool normalize_this = false)
     {
-      vec3 ret = this - (n * n.dot(this)) * 2.0f;
+      ///**NOTE this vector should be normalized
+      //This is an incident vector - the vector pointing down into the plane (not from the plane)
+      //Reflect off the plane to create the "radiant vector" the light that bounces off the plane
+      vec3 that = this;
+      if (normalize_this)
+      {
+        that.normalize();
+      }
+      vec3 ret = that - (n * n.dot(that)) * 2.0f;
       return ret;
     }
     //template<typename Tx>
@@ -1450,7 +1459,7 @@ namespace PirateCraft
       }
     }
     public vec3 toVec3() { return new vec3((float)x, (float)y, (float)z); }
-    public string ToString() { return "(" + x + "," + y + "" + z + ")"; }
+    public string ToString() { return "(" + x + "," + y + "," + z + ")"; }
   }
   [StructLayout(LayoutKind.Sequential)]
   public struct ivec4
@@ -2867,7 +2876,9 @@ namespace PirateCraft
     {
       return new quat(0, 0, 0, 1);
     }
-    public string ToString() { return "" + x.ToString() + ", " + y.ToString() + "," + z.ToString() + ", " + w.ToString() + ")"; }
+    public static quat Identity = new quat(0, 0, 0, 1);
+
+    public string ToString() { return "(" + x.ToString() + ", " + y.ToString() + "," + z.ToString() + ", " + w.ToString() + ")"; }
   }
   [StructLayout(LayoutKind.Sequential)]
   public struct Box2f
@@ -3025,6 +3036,8 @@ namespace PirateCraft
     }
     public bool RayIntersect(PickRay2D ray, ref RaycastHit bh)
     {
+      //This may be invalid, it has been updated
+      //See  3D ray intersect
       float txmin, txmax, tymin, tymax;
       bool bHit;
 
@@ -3036,10 +3049,7 @@ namespace PirateCraft
 
       if ((txmin > tymax) || (tymin > txmax))
       {
-        // if (bh != null)
-        // {
         bh._bHit = false;
-        // }
         return false;
       }
       if (tymin > txmin)
@@ -3053,14 +3063,8 @@ namespace PirateCraft
 
       bHit = ((txmin >= 0.0f) && (txmax <= 1));
 
-      //**Note changed 20151105 - this is not [0,1] this is the lenth along the line in which 
-      // the ray enters and exits the cube, so any value less than the maximum is valid
-
-      // if (bh != null)
-      // {
       bh._bHit = bHit;
       bh._t = txmin;
-      // }
 
       return bHit;
     }
@@ -3217,7 +3221,7 @@ namespace PirateCraft
     /**
     *   @fn RayIntersect
     *   @brief Returns true if the given ray intersects this Axis aligned
-    *   cube volume.
+    *   BB volume.
     *   @param bh - Reference to a BoxHit structure.
     *   @prarm ray - The ray to test against the box.
     *   @return true if ray intersects, false otherwise.
@@ -3233,7 +3237,7 @@ namespace PirateCraft
         if (containsPointInclusive(ray.Origin))
         {
           bh._p1Contained = true;
-          bh._t = 0.0f;
+          bh._t1 = 0.0f; //We still need the value of the raycast to back out of the box, but .. this makes more sense .. run the other one if you need the negative t
           bh.RaycastResult = RaycastResult.Inside;
           result = true;
         }
@@ -3243,7 +3247,7 @@ namespace PirateCraft
         if (Intersect_Ellipsoid_Fast(ray.Origin, ray.Radius))
         {
           bh._p1Contained = true;
-          bh._t = 0.0f;
+          bh._t1 = 0.0f;
           bh.RaycastResult = RaycastResult.Inside;
           result = true;
         }
@@ -3289,7 +3293,7 @@ namespace PirateCraft
             return true;
           }
         }
-        else 
+        else
         {
           //Points don't work for this method, if we are a point ray we can skip it entirely
           var res2 = RayIntersectInclusive(ray, ref bh);
@@ -3326,13 +3330,13 @@ namespace PirateCraft
       //if we are to move out of the box, we would need intersect distance
       if (this.Intersect_Ellipsoid_Fast(ray.Origin, ray.Radius))
       {
-        bh._t = 0;
+        bh._t1 = 0;
         //todo return the amount of intersect distance
         return true;
       }
       if (this.containsPointBottomLeftInclusive(ray.Origin))
       {
-        bh._t = 0;
+        bh._t1 = 0;
         //todo return the amount of intersect distance
         return true;
       }
@@ -3397,7 +3401,7 @@ namespace PirateCraft
       //Return
       // - float.maxvalue if there is no hit
       // - the length squared if there is a hit
-      vec3 p = cam.Position;
+      vec3 p = cam.Position_World;
       if (containsPointBottomLeftInclusive(p))
       {
         return 0;
@@ -3431,7 +3435,7 @@ namespace PirateCraft
       LineOrRayIntersectInclusive_EasyOut(pr, ref bh);
       if (bh.IsHit)
       {
-        float len = ((center() - v.xyz()) * (float)bh._t).length2();
+        float len = ((center() - v.xyz()) * (float)bh._t1).length2();
         return len;
       }
       return -1.0f;
@@ -3517,7 +3521,7 @@ namespace PirateCraft
 
         if (t1 >= 0 && t1 <= 1)
         {
-          bh._t = t1;
+          bh._t1 = t1;
           bh.RaycastResult = RaycastResult.HitBefore;
           return true;
         }
@@ -3541,7 +3545,7 @@ namespace PirateCraft
 
       if (this.Intersect_Ellipsoid_Fast(ray.Origin, ray.Radius))
       {
-        bh._t = 0;
+        bh._t1 = 0;
         return true;
       }
 
@@ -3617,7 +3621,7 @@ namespace PirateCraft
 
         if (t1 >= 0 && t1 <= 1)
         {
-          bh._t = t1;
+          bh._t1 = t1;
           bh.RaycastResult = RaycastResult.HitBefore;
           return true;
         }
@@ -3695,7 +3699,7 @@ namespace PirateCraft
       if ((proj0 < -dr && proj1 > -dr) || (proj0 < dr && proj1 > dr))
       {
         //We are inside
-        bh._t = 0;
+        bh._t1 = 0;
         bh.RaycastResult = RaycastResult.Inside;
         return true;
       }
@@ -3731,7 +3735,7 @@ namespace PirateCraft
 
         if (t1 >= 0 && t1 <= 1)
         {
-          bh._t = t1;
+          bh._t1 = t1;
           bh.RaycastResult = RaycastResult.HitBefore;
           return true;
         }
@@ -3786,7 +3790,7 @@ namespace PirateCraft
 
       if ((txmin > tymax) || (tymin > txmax))
       {
-        bh._t = float.MaxValue;
+        bh._t1 = float.MaxValue;
         return false;
       }
       if (tymin > txmin)
@@ -3803,7 +3807,7 @@ namespace PirateCraft
 
       if ((txmin > tzmax) || (tzmin > txmax))
       {
-        bh._t = float.MaxValue;
+        bh._t1 = float.MaxValue;
         return false;
       }
       if (tzmin > txmin)
@@ -3815,9 +3819,38 @@ namespace PirateCraft
         txmax = tzmax;
       }
 
-      bh._t = txmin;
+      bh._t1 = txmin;
 
       return bh.IsHit;
+    }
+    public vec3 Min(vec3 ray)
+    {
+      //minimum point along ray
+      vec3 r = new vec3(
+        (ray.x >= 0) ? _min.x : _max.x,
+        (ray.y >= 0) ? _min.y : _max.y,
+        (ray.z >= 0) ? _min.z : _max.z
+        );
+      return r;
+    }
+    public vec3 Normal(vec3 point)
+    {
+      //Get box normal for any point in space.
+      //Returns normal to  face, point, or edge -- normal
+      //Returns 0,0,0 if the point is inside the box
+      //TODO: Optimize: This is a discrete function that can easily be cached.
+      // We can cache the comparisons and use a LUT. However we need to run tests to confirm that
+      //the memory access won't underpace the cached function.
+      vec3 d = (point - _min) / (_max - _min);
+      d = new vec3(
+        (d.x <= 0.0f) ? -1.0f : (d.x >= 1.0f) ? 1.0f : 0.0f,
+        (d.y <= 0.0f) ? -1.0f : (d.y >= 1.0f) ? 1.0f : 0.0f,
+        (d.z <= 0.0f) ? -1.0f : (d.z >= 1.0f) ? 1.0f : 0.0f
+        );
+      
+      d.normalize();
+
+      return d;
     }
     private bool RayIntersectInclusive(PickRay3D ray, ref BoxAAHit bh)
     {
@@ -3831,7 +3864,7 @@ namespace PirateCraft
 
       if ((txmin > tymax) || (tymin > txmax))
       {
-        bh._t = float.MaxValue;
+        bh._t1 = float.MaxValue;
         return false;
       }
       if (tymin > txmin)
@@ -3848,7 +3881,7 @@ namespace PirateCraft
 
       if ((txmin > tzmax) || (tzmin > txmax))
       {
-        bh._t = float.MaxValue;
+        bh._t1 = float.MaxValue;
         return false;
       }
       if (tzmin > txmin)
@@ -3860,7 +3893,8 @@ namespace PirateCraft
         txmax = tzmax;
       }
 
-      bh._t = txmin;
+      bh._t1 = txmin;
+      bh._t2 = txmax;
 
       return bh.IsHit;
     }
@@ -3930,7 +3964,7 @@ namespace PirateCraft
 
       if ((txmin >= tymax) || (tymin >= txmax))
       {
-        bh._t = float.MaxValue;
+        bh._t1 = float.MaxValue;
         return false;
       }
       if (tymin > txmin)
@@ -3947,7 +3981,7 @@ namespace PirateCraft
 
       if ((txmin >= tzmax) || (tzmin >= txmax))
       {
-        bh._t = float.MaxValue;
+        bh._t1 = float.MaxValue;
 
         return false;
       }
@@ -3960,7 +3994,7 @@ namespace PirateCraft
         txmax = tzmax;
       }
 
-      bh._t = txmin;
+      bh._t1 = txmin;
 
       return bh.IsHit;
     }
