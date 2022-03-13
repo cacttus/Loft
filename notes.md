@@ -2,13 +2,18 @@
 
 Issues right now Physics
   * fix onground - gravity shouldn't be simulating every step
-  * point / line collisions on the box - these are incorrect and the normal returned from Normal() is incorrect
+  * point / line collisions on the box - these are incorrect, the normal returned from Normal() is incorrect and has us sliding at an angle on the point or the edge
+    * if point / edge .. select normal based on velocity - possibly
+  * ellipsoid ..
+  * lower the terminal velocity
+  * lower the gravity, too fast
 
 TODO 
   * TODO: fix glob gen visibility issue
   * TODO: change everyhting to double in the collision and velocity. cast to float for position
     the gravity vector is causing the slide vector to have value this is due to the margin vector not beingh tatnken into accutnt
   * seaweed does not show we're going to have to figure out how to have water at a block at the same time as "stuff"
+  * water .. transparency .. 
   * The light alg isn't working yet. X only too. But looks promising
   * TODO: Cull solid globs.
   * Optimize block data in dromes - remove empty data or compress it
@@ -30,31 +35,6 @@ Way Later  / Never
     * voxel world with textures
     * grass, trees, top bot textures
     * islands
-    * water
+    * water (transparent water)
+    * sky
     * be able to move around, jump (physics)
-
-struct Closure {
-#ifdef VOLUMETRICS
-  Vec3f absorption;
-  Vec3f scatter;
-  Vec3f emission;
-  float anisotropy;
-
-#else /* SURFACE */
-  Vec3f radiance;
-  Vec3f transmittance;
-  float holdout;
-  Vec4f ssr_data;
-  Vec2f ssr_normal;
-  int flag;
-#  ifdef USE_SSS
-  Vec3f sss_irradiance;
-  Vec3f sss_albedo;
-  float sss_radius;
-#  endif
-
-#endif
-};
-
- 
- 
