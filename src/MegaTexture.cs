@@ -178,7 +178,7 @@ namespace PirateCraft
       //_pMegaTex.getContext().chkErrDbg();
       _vecTexs.Add(mt);
     }
-    public void loadData()
+    public virtual void loadData()
     {
       if (_vecTexs.Count() == 0)
       {
@@ -261,269 +261,321 @@ namespace PirateCraft
   }
   #endregion
   #region MtFont
-  //class MtFont {
-  //uint _iBakedCharSizePixels = 40;
-  //uint _atlasWidth = 1024;
-  //uint _atlasHeight = 1024;
-  //uint _oversampleX = 2;
-  //uint _oversampleY = 2;
-  //uint _firstChar = ' ';
-  //uint _charCount = '~' - ' ';
-  //float _fAscent = 0;
-  //float _fDescent = 0;
-  //float _fLineGap = 0;
-  //std::unique_ptr<stbtt_packedchar[]> _charInfo;
-  //stbtt_fontinfo _fontInfo;
-  //float _fScaleForPixelHeight;               //return value of stbtt_ScaleForPixelHeight
-  //std::shared_ptr<BinaryFile> _pFontBuffer;  // STB:  "Load" a font file from a memory buffer (you have to keep the buffer loaded)
-  //bool _bInitialized = false;
+  public class MtFont : MtTexPatch
+  {
+    int _iBakedCharSizePixels = 40;
+    int _fontTextureWidth = 1024;
+    int _fontTextureHeight = 1024;
+    uint _oversampleX = 2;
+    uint _oversampleY = 2;
+    int _firstChar = ' ';
+    int _charCount = '~' - ' ';
+    float _fAscent = 0;
+    float _fDescent = 0;
+    float _fLineGap = 0;
+    StbTrueTypeSharp.StbTrueType.stbtt_packedchar[] _charInfo;
+    StbTrueTypeSharp.StbTrueType.stbtt_fontinfo _fontInfo;
+    float _fScaleForPixelHeight;               //return value of stbtt_ScaleForPixelHeight
+    byte[] _pFontBuffer = null;  // STB:  "Load" a font file from a memory buffer (you have to keep the buffer loaded)
+    bool _bInitialized = false;
 
-  //MtFont::MtFont(MegaTex mt, string name, Hash32 nameHash) : MtTexPatch(mt, name, nameHash)
-  //{
-  //}
-  //MtFont::~MtFont()
-  //{
-  //   //shouldn't get called
-  //   int nn = 0;
-  //   nn++;
-  //}
-  //void MtFont::loadData()
-  //{
-  //   createFont();
-  //}
-  //void MtFont::createFont()
-  //{
-  //   _iBakedCharSizePixels = Gu::getConfig().getBakedCharSize();
-  //   ;
-  //   _atlasWidth = Gu::getConfig().getFontBitmapSize();
-  //   _atlasHeight = Gu::getConfig().getFontBitmapSize();
+    public MtFont(MegaTex mt, FileLoc loc) : base(mt, loc)
+    {
+    }
+    public override void loadData()
+    {
+      _iBakedCharSizePixels = Gu.EngineConfig.BakedCharSize;// Gu::getConfig().getBakedCharSize();
+      _fontTextureWidth = Gu.EngineConfig.FontBitmapSize;// Gu::getConfig().getFontBitmapSize();
+      _fontTextureHeight = Gu.EngineConfig.FontBitmapSize;
 
-  //   Gu.Log.Info("Creating font '" + getName() + "'. size=" + _atlasWidth + "x" + _atlasHeight + ".  Baked Char Size =" + _iBakedCharSizePixels);
+      Gu.Log.Info("Creating font '" + getName() + "'. size=" + _fontTextureWidth + "x" + _fontTextureHeight + ".  Baked Char Size =" + _iBakedCharSizePixels);
 
-  //   _pFontBuffer = std::make_shared<BinaryFile>("<none>");
-  //   if (Gu::getPackage().getFile(getName(), _pFontBuffer) == false)
-  //   {
-  //      Gu.Log.Error("Failed to get font file '" + getName() + "'");
-  //      Gu.DebugBreak();
-  //      return;
-  //   }
+      //_pFontBuffer = std::make_shared<BinaryFile>("<none>");
+      //if (Gu::getPackage().getFile(getName(), _pFontBuffer) == false)
+      //{
+      //  Gu.Log.Error("Failed to get font file '" + getName() + "'");
+      //  Gu.DebugBreak();
+      //  return;
+      //}
 
-  //   //Chinese Test
-  //   if (StringUtil::contains(getName(), "simhei"))
-  //   {
-  //      //https://stackoverflow.com/questions/1366068/whats-the-complete-range-for-chinese-characters-in-unicode
-  //      //Han Ideographs: 4E00 - 9FFF   Common
-  //      _firstChar = 0x4E00;
-  //      _charCount = 0x62FF - 0x4E00;  //0x9FFF is the whole range, that's a lot
-  //                                     //Compute size for a 20x20 pixel han character
-  //      _iBakedCharSizePixels = 20;
-  //      float ch_w = ceilf(sqrtf((float)_charCount));
-  //      _atlasWidth = _atlasHeight = (uint)((ch_w) * (_iBakedCharSizePixels + _oversampleX));
+      //byte[] bytes = null;
+      using (var s = getName().GetStream())
+      using (var ms = new MemoryStream())
+      {
+        s.CopyTo(ms);
+        _pFontBuffer = ms.ToArray();
+      }
+      //StbTrueTypeSharp.StbTrueType.stbtt_fontinfo inf = null;
+      if (_pFontBuffer != null)
+      {
+        _fontInfo = StbTrueTypeSharp.StbTrueType.CreateFont(_pFontBuffer, 0);
+      }
 
-  //      //Test "huan"
-  //      //_firstChar = 0x6B61;// 喜..喜欢 0x559C, 0x6B61.. correct.. seems to work..Note: 欢 prints, 歡.. the traditioanl character
-  //      //_charCount = 1;
-  //      Gu.DebugBreak();
-  //   }
+      //The Api seems to recommend CreateFont instead of calling the native
+      unsafe
+      {
+        _fontInfo = new StbTrueTypeSharp.StbTrueType.stbtt_fontinfo();
+        fixed (byte* fbdata = _pFontBuffer)
+        {
+          StbTrueTypeSharp.StbTrueType.stbtt_InitFont(_fontInfo, fbdata, 0);
 
-  //   //Get soem font metrics
-  //   int ascent, descent, lineGap;
-  //   stbtt_InitFont(&_fontInfo, (const unsigned char*)_pFontBuffer.getData().ptr(), 0);
-  //   _fScaleForPixelHeight = stbtt_ScaleForPixelHeight(&_fontInfo, (float)_iBakedCharSizePixels);
-  //   stbtt_GetFontVMetrics(&_fontInfo, &ascent, &descent, &lineGap);
-  //   _fAscent = (float)ascent * _fScaleForPixelHeight;
-  //   _fDescent = (float)descent * _fScaleForPixelHeight;
-  //   _fLineGap = (float)lineGap * _fScaleForPixelHeight;
+        }
+      }
 
-  //   if (false)
-  //   {
-  //      string x = "Hello ";
-  //      for (int c : x)
-  //      {
-  //         int adv, be;
-  //         stbtt_GetGlyphHMetrics(&_fontInfo, c, &adv, &be);
-  //         float fa = (float)adv * _fScaleForPixelHeight;
-  //         float fb = (float)be * _fScaleForPixelHeight;
-  //         int nn = 0;
-  //         nn++;
-  //      }
-  //   }
+      if (_fontInfo == null)
+      {
+        Gu.BRThrowException("Could not initialize font. stb returned null fontinfo");
+      }
 
-  //   //pack the image into a bitmap **nice version**
-  //   std::unique_ptr<uint8_t[]> atlasData = std::make_unique<uint8_t[]>(_atlasWidth * _atlasHeight);
-  //   _charInfo = std::make_unique<stbtt_packedchar[]>(_charCount);
+      //Chinese Test
+      //if (getName().QualifiedPath.Contains("simhei"))
+      //{
+      //  //https://stackoverflow.com/questions/1366068/whats-the-complete-range-for-chinese-characters-in-unicode
+      //  //Han Ideographs: 4E00 - 9FFF   Common
+      //  _firstChar = 0x4E00;
+      //  _charCount = 0x62FF - 0x4E00;  //0x9FFF is the whole range, that's a lot
+      //                                 //Compute size for a 20x20 pixel han character
+      //  _iBakedCharSizePixels = 20;
+      //  float ch_w = ceilf(sqrtf((float)_charCount));
+      //  _atlasWidth = _atlasHeight = (uint)((ch_w) * (_iBakedCharSizePixels + _oversampleX));
 
-  //   stbtt_pack_context context;
-  //   if (!stbtt_PackBegin(&context, atlasData.get(), _atlasWidth, _atlasHeight, 0, 1, null))
-  //   {
-  //      Gu.Log.Error("Failed to initialize font");
-  //      Gu.DebugBreak();
-  //      return;
-  //   }
+      //  //Test "huan"
+      //  //_firstChar = 0x6B61;// 喜..喜欢 0x559C, 0x6B61.. correct.. seems to work..Note: 欢 prints, 歡.. the traditioanl character
+      //  //_charCount = 1;
+      //  Gu.DebugBreak();
+      //}
 
-  //   stbtt_PackSetOversampling(&context, _oversampleX, _oversampleY);
-  //   if (!stbtt_PackFontRange(&context, (unsigned char *)_pFontBuffer.getData().ptr(), 0, (float)_iBakedCharSizePixels, _firstChar, _charCount, _charInfo.get())) {
-  //      Gu.Log.Error("Failed to pack font");
-  //      Gu.DebugBreak();
-  //      return;
-  //   }
+      //Get soem font metrics
+      //stbtt_InitFont(&_fontInfo, (const unsigned char*)_pFontBuffer.getData().ptr(), 0);
+      _fScaleForPixelHeight = StbTrueTypeSharp.StbTrueType.stbtt_ScaleForPixelHeight(_fontInfo, (float)_iBakedCharSizePixels);
 
-  //   stbtt_PackEnd(&context);
+      int ascent, descent, lineGap;
+      unsafe
+      {
+        StbTrueTypeSharp.StbTrueType.stbtt_GetFontVMetrics(_fontInfo, &ascent, &descent, &lineGap);
+      }
+      _fAscent = (float)ascent * _fScaleForPixelHeight;
+      _fDescent = (float)descent * _fScaleForPixelHeight;
+      _fLineGap = (float)lineGap * _fScaleForPixelHeight;
 
-  //   //Set the megatex image.
-  //   Bitmap img = createFontImage(atlasData);
-  //   if (false)
-  //   {
-  //      string imgName = Stz "./data/cache/dbg_font_" + FileSystem::getFileNameFromPath(getName()) + ".png";
-  //      Gu.Log.Info("Saving " + imgName + "...");
-  //      Gu::saveImage(imgName, img);
-  //   }
-  //   MtTex mt = std::make_shared<MtTex>(getName(), 0);
-  //   mt.setImg(img);
-  //   getTexs().push_back(mt);
+      if (false)
+      {
+        string x = "Hello ";
+        foreach (int c in x)
+        {
+          int adv, be;
+          unsafe
+          {
+            StbTrueTypeSharp.StbTrueType.stbtt_GetGlyphHMetrics(_fontInfo, c, &adv, &be);
+          }
+          float fa = (float)adv * _fScaleForPixelHeight;
+          float fb = (float)be * _fScaleForPixelHeight;
+          int nn = 0;
+          nn++;
+        }
+      }
 
-  //   _bInitialized = true;
-  //}
-  //Bitmap MtFont::createFontImage(std::unique_ptr<uint8_t[]>& pData)
-  //{
-  //   //Copied from fontspec
-  //   auto imgData = std::make_unique<uint8_t[]>(_atlasWidth * _atlasHeight * 4);
-  //   if (_charInfo == null)
-  //   {
-  //      Gu.DebugBreak();
-  //   }
+      //pack the image into a bitmap **nice version**
+      //std::unique_ptr<uint8_t[]> atlasData = std::make_unique<uint8_t[]>(_atlasWidth * _atlasHeight);
+      //_charInfo = std::make_unique<stbtt_packedchar[]>(_charCount);
 
-  //   for (int iPix = 0; iPix < _atlasWidth * _atlasHeight * 4; iPix += 4)
-  //   {
-  //      uint8_t dat = pData[iPix / 4];
-  //      imgData[iPix + 0] = 255;  //r
-  //      imgData[iPix + 1] = 255;  //g
-  //      imgData[iPix + 2] = 255;  //b
-  //      imgData[iPix + 3] = dat;  //a
-  //   }
+      //Img32 atlasData = new Img32(_atlasWidth, _atlasHeight);
+      byte[] atlasData = new byte[_fontTextureWidth * _fontTextureHeight];
+      _charInfo = new StbTrueTypeSharp.StbTrueType.stbtt_packedchar[_charCount];
 
-  //   Bitmap img = std::make_shared<Img32>();
-  //   img.init(_atlasWidth, _atlasHeight, imgData.get());
+      StbTrueTypeSharp.StbTrueType.stbtt_pack_context context = new StbTrueTypeSharp.StbTrueType.stbtt_pack_context();
+      int padding = 1;
+      int ret = 0;
+      unsafe
+      {
+        fixed (byte* atlasData_pinned = atlasData)
+        {
+          ret = StbTrueTypeSharp.StbTrueType.stbtt_PackBegin(context, atlasData_pinned, _fontTextureWidth, _fontTextureHeight, 0, padding, null);
 
-  //   //Stb creates the image upside-down for OpenGL, h owever in our GUi
-  //   //we create it right-side up, then store it upside down, so we need to flip it rightise up first.
-  //   //this also helps us see it when we cache it
-  //   img.flipV();
+          if (ret == 0)
+          {
+            Gu.Log.Error("Failed to initialize font");
+            Gu.DebugBreak();
+            return;
+          }
 
-  //   return img;
-  //}
-  //void MtFont::getCharQuad(int cCode, int cCodePrev, FontSize fontSize, float& outWidth, float& outHeight, Box2f& texs,
-  //                         float& padTop, float& padRight, float& padBot, float& padLeft)
-  //{
-  //   stbtt_aligned_quad stbQuad;
-  //   Box2f worldQuad;
-  //   if (_bInitialized == false)
-  //   {
-  //      Gu.Log.Error("Font was not initialized.");
-  //      Gu.DebugBreak();
-  //      return;
-  //   }
-  //   if (_charInfo == null)
-  //   {
-  //      return;
-  //   }
-  //   if (cCode < _firstChar || cCode >= (_firstChar + _charCount))
-  //   {
-  //      //char is an invalid character such as a newline.
-  //      //Process it as a space
-  //      cCode = ' ';
-  //   }
+          StbTrueTypeSharp.StbTrueType.stbtt_PackSetOversampling(context, _oversampleX, _oversampleY);
+          fixed (StbTrueTypeSharp.StbTrueType.stbtt_packedchar* _charInfo_pinned = _charInfo)
+          {
+            fixed (byte* _pFontBuffer_pinned = _pFontBuffer)
+            {
+              ret = StbTrueTypeSharp.StbTrueType.stbtt_PackFontRange(context, _pFontBuffer_pinned, 0,
+                (float)_iBakedCharSizePixels, _firstChar, _charCount, _charInfo_pinned);
+            }
+          }
+          if (ret == 0)
+          {
+            Gu.Log.Error("Failed to pack font");
+            Gu.DebugBreak();
+            return;
+          }
 
-  //   float curX = 0, curY = 0;  //Dummies
-  //   stbtt_GetPackedQuad(_charInfo.get(), _atlasWidth, _atlasHeight, cCode - _firstChar, &curX, &curY, &stbQuad, 0);
-  //   if (getTexs().size() == 0)
-  //   {
-  //      //You didn't save the image
-  //      Gu.Log.Error("Failure to save font image somewhere.");
-  //      Gu.DebugBreak();
-  //      return;
-  //   }
+          StbTrueTypeSharp.StbTrueType.stbtt_PackEnd(context);
+        }
+      }
 
-  //   //**TExs
-  //   //Scale hte returned texcoodrs from [0,1] to the width of the baked texture
-  //   float tw = getTexs()[0].uv1().x - getTexs()[0].uv0().x;  //top left, origin
-  //   float th = getTexs()[0].uv0().y - getTexs()[0].uv1().y;  //This is flipped; We are in OpenGL tcoords, however our origin is at the top left
+      //Set the megatex image.
+      Img32 img = createFontImage(atlasData);
+      if (false)
+      {
+        Gu.Log.Info("Saving " + System.IO.Path.GetFileName(getName().QualifiedPath) + "...");
+        string imgName = "./data/cache/dbg_font_" + System.IO.Path.GetFileName(getName().QualifiedPath) + ".png";
+        ResourceManager.SaveImage(imgName, img);
+      }
+      MtTex mt = new MtTex(getName(), 0);
+      mt.setImg(img);
+      getTexs().Add(mt);
 
-  //   //Scale
-  //   float dv = stbQuad.t1 - stbQuad.t0;
-  //   float du = stbQuad.s1 - stbQuad.s0;
-  //   vec2 uv0, uv1;
-  //   uv0.u() = getTexs()[0].uv0().x + stbQuad.s0 * tw;
-  //   uv0.v() = getTexs()[0].uv1().y + stbQuad.t0 * th;  //Bottom-left = uv1
-  //   uv1.u() = getTexs()[0].uv0().x + stbQuad.s1 * tw;
-  //   uv1.v() = getTexs()[0].uv1().y + stbQuad.t1 * th;
+      _bInitialized = true;
+    }
+    public Img32 createFontImage(byte[] pData)
+    {
+      //Copied from fontspec
+      byte[] imgData = new byte[_fontTextureWidth * _fontTextureHeight * 4];
+      if (_charInfo == null)
+      {
+        Gu.DebugBreak();
+      }
 
-  //   //Don't flip Y - we will do that in the regenmesh
-  //   texs.construct(uv0, uv1);
-  //   //**End TExs
+      for (int iPix = 0; iPix < _fontTextureWidth * _fontTextureHeight * 4; iPix += 4)
+      {
+        byte dat = pData[iPix / 4];
+        imgData[iPix + 0] = 255;  //r
+        imgData[iPix + 1] = 255;  //g
+        imgData[iPix + 2] = 255;  //b
+        imgData[iPix + 3] = dat;  //a
+      }
 
-  //   //Debug - Save texture
-  //   if (false)
-  //   {
-  //      //TODO: this is just some debug, but we can fix this in the future.
-  //      //RenderUtils::saveTexture("./data/cache/saved_TEST.png", Gu::getActiveWindow().getGui().getTex().getGlId(), GL_TEXTURE_2D);
-  //   }
+      Img32 img = new Img32();
+      img.init(_fontTextureWidth, _fontTextureHeight, imgData);
 
-  //   //**Pos
-  //   //Transform quad by scale.  This is new - transorm the local quad only.  Not the whole text line.
-  //   float fScale = fontSizeToFontScale(fontSize);
-  //   outWidth = (stbQuad.x1 - stbQuad.x0) * fScale;
-  //   outHeight = (stbQuad.y1 - stbQuad.y0) * fScale;
+      //Stb creates the image upside-down for OpenGL, h owever in our GUi
+      //we create it right-side up, then store it upside down, so we need to flip it rightise up first.
+      //this also helps us see it when we cache it
+      //img.flipV();
 
-  //   //Position character horizontally
-  //   //Compute the padding between characters
-  //   int advWidth, bearing;
-  //   float fAdvWidth, fBearing;
-  //   stbtt_GetCodepointHMetrics(&_fontInfo, cCode, &advWidth, &bearing);
-  //   fAdvWidth = (float)advWidth * _fScaleForPixelHeight;
-  //   fBearing = (float)bearing * _fScaleForPixelHeight;
-  //   fAdvWidth *= fScale;
-  //   fBearing *= fScale;
+      return img;
+    }
+    public void getCharQuad(int cCode, int cCodePrev, float fontSize, ref float outWidth, ref float outHeight, ref Box2f texs,
+                             ref float padTop, ref float padRight, ref float padBot, ref float padLeft)
+    {
+      //The return of this function is the information needed to create a 3D quad
 
-  //   //Kerning, adds to padding not really necessary but, I assume it makes fonts look better rarely
-  //   float fKern = 0.0f;
-  //   if (cCodePrev >= 0)
-  //   {
-  //      //untested
-  //      int kern = stbtt_GetCodepointKernAdvance(&_fontInfo, cCode, cCodePrev);
-  //      fKern = (float)kern * _fScaleForPixelHeight;
-  //      fKern *= fScale;
-  //   }
-  //   advWidth += fKern;
+      StbTrueTypeSharp.StbTrueType.stbtt_aligned_quad stbQuad;
+      Box2f worldQuad;
+      if (_bInitialized == false)
+      {
+        Gu.Log.Error("Font was not initialized.");
+        Gu.DebugBreak();
+        return;
+      }
+      if (_charInfo == null)
+      {
+        return;
+      }
+      if (cCode < _firstChar || cCode >= (_firstChar + _charCount))
+      {
+        //char is an invalid character such as a newline.
+        //Process it as a space
+        cCode = ' ';
+      }
 
-  //   //Compute the glyph padding values, and spaceing
-  //   //for some reason space has a negative x0
-  //   padLeft = fBearing;               // leftSideBearing is the offset from the current horizontal position to the left edge of the character
-  //   padRight = fAdvWidth - outWidth;  // advanceWidth is the offset from the current horizontal position to the next horizontal position
+      float curX = 0, curY = 0;  //Dummies
+      unsafe
+      {
+        fixed(StbTrueTypeSharp.StbTrueType.stbtt_packedchar* charinfo_pt = _charInfo) 
+        {
+          StbTrueTypeSharp.StbTrueType.stbtt_GetPackedQuad(charinfo_pt, _fontTextureWidth, _fontTextureHeight, cCode - _firstChar, &curX, &curY, &stbQuad, 0);
+        }
+      }
+      if (getTexs().Count == 0)
+      {
+        //You didn't save the image
+        Gu.Log.Error("Failure to save font image somewhere.");
+        Gu.DebugBreak();
+        return;
+      }
 
-  //   //Position character vertically
-  //   //The ascent + descent of the character is wherever the quad is above, or below zero (zero is the baseline, we pass it in with curY)
-  //   //_fAscent adn _fDescent are the scaled MAXIMUM ascent + descent of the font.  So the math here is correct
-  //   padBot = (fabsf(_fDescent) - fabsf(stbQuad.y1));  // usually negative
-  //   padTop = (fabsf(_fAscent) - fabsf(stbQuad.y0));   //
-  //   padBot *= fScale;
-  //   padTop *= fScale;
-  //}
-  //float MtFont::fontSizeToFontScale(float fs)
-  //{
-  //   //Incorrect but I'm just,, o
-  //   //Dividing by _ascent gives us a larger font than the actual extent.
-  //   return fs / (float)_iBakedCharSizePixels;
-  //}
-  ////void MtFont::scaleStbQuad(const stbtt_aligned_quad* const stbQuad, Box2f* __out_ worldQuad, const vec2& basePos, float fScale) {
-  ////    //From FontSpec
-  ////    *worldQuad = Box2f(vec2(stbQuad.x0, stbQuad.y0), vec2(stbQuad.x1, stbQuad.y1));
-  ////
-  ////    //Apply scale
-  ////    worldQuad._p0 = basePos + (worldQuad._p0 - basePos) * fScale;
-  ////    worldQuad._p1 = basePos + (worldQuad._p1 - basePos) * fScale;
-  ////}
-  ///}
+      //**TExs
+      //Scale hte returned texcoodrs from [0,1] to the width of the baked texture
+      float tw = getTexs()[0].uv1.x - getTexs()[0].uv0.x;  //top left, origin
+      float th = getTexs()[0].uv0.y - getTexs()[0].uv1.y;  //This is flipped; We are in OpenGL tcoords, however our origin is at the top left
+
+      //Scale
+      float dv = stbQuad.t1 - stbQuad.t0;
+      float du = stbQuad.s1 - stbQuad.s0;
+      vec2 uv0, uv1;
+      uv0.x = getTexs()[0].uv0.x + stbQuad.s0 * tw;
+      uv0.y = getTexs()[0].uv1.y + stbQuad.t0 * th;  //Bottom-left = uv1
+      uv1.x = getTexs()[0].uv0.x + stbQuad.s1 * tw;
+      uv1.y = getTexs()[0].uv1.y + stbQuad.t1 * th;
+
+      //Don't flip Y - we will do that in the regenmesh
+      texs = new Box2f(uv0, uv1);
+      //**End TExs
+
+      //Debug - Save texture
+      if (false)
+      {
+        //TODO: this is just some debug, but we can fix this in the future.
+        //RenderUtils::saveTexture("./data/cache/saved_TEST.png", Gu::getActiveWindow().getGui().getTex().getGlId(), GL_TEXTURE_2D);
+      }
+
+      //**Pos
+      //Transform quad by scale.  This is new - transorm the local quad only.  Not the whole text line.
+      float fScale = fontSizeToFontScale(fontSize);
+      outWidth = (stbQuad.x1 - stbQuad.x0) * fScale;
+      outHeight = (stbQuad.y1 - stbQuad.y0) * fScale;
+
+      //Position character horizontally
+      //Compute the padding between characters
+      int advWidth, bearing;
+      float fAdvWidth, fBearing;
+      unsafe
+      {
+        StbTrueTypeSharp.StbTrueType.stbtt_GetCodepointHMetrics(_fontInfo, cCode, &advWidth, &bearing);
+      }
+      fAdvWidth = (float)advWidth * _fScaleForPixelHeight;
+      fBearing = (float)bearing * _fScaleForPixelHeight;
+      fAdvWidth *= fScale;
+      fBearing *= fScale;
+
+      //Kerning, adds to padding not really necessary but, I assume it makes fonts look better rarely
+      float fKern = 0.0f;
+      if (cCodePrev >= 0)
+      {
+        //untested
+        int kern = StbTrueTypeSharp.StbTrueType.stbtt_GetCodepointKernAdvance(_fontInfo, cCode, cCodePrev);
+        fKern = (float)kern * _fScaleForPixelHeight;
+        fKern *= fScale;
+      }
+      advWidth += (int)fKern;
+
+      //Compute the glyph padding values, and spaceing
+      //for some reason space has a negative x0
+      padLeft = fBearing;               // leftSideBearing is the offset from the current horizontal position to the left edge of the character
+      padRight = fAdvWidth - outWidth;  // advanceWidth is the offset from the current horizontal position to the next horizontal position
+
+      //Position character vertically
+      //The ascent + descent of the character is wherever the quad is above, or below zero (zero is the baseline, we pass it in with curY)
+      //_fAscent adn _fDescent are the scaled MAXIMUM ascent + descent of the font.  So the math here is correct
+      padBot = (Math.Abs(_fDescent) - Math.Abs(stbQuad.y1));  // usually negative
+      padTop = (Math.Abs(_fAscent) - Math.Abs(stbQuad.y0));   //
+      padBot *= fScale;
+      padTop *= fScale;
+    }
+    public float fontSizeToFontScale(float fs)
+    {
+      //Incorrect but I'm just,, o
+      //Dividing by _ascent gives us a larger font than the actual extent.
+      return fs / (float)_iBakedCharSizePixels;
+    }
+  }
   #endregion
   #region MegaTex
 
@@ -556,25 +608,28 @@ namespace PirateCraft
       _bCache = bCache;
     }
 
-    //MtFont getFont(string fn)
-    //{
-    //   string low = fn;
+    public MtFont getFont(FileLoc img)
+    {
+      //string low = fn;
 
-    //   Hash32 h = STRHASH(low);
-    //   auto f = _mapTexs.find(h);
-    //   if (f == _mapTexs.end())
-    //   {
-    //      _eState = MegaTexCompileState.Dirty;
-    //      MtFont mtf = std::make_shared<MtFont>(getThis<MegaTex>(), fn, h);
-    //      _mapTexs.insert(std::make_pair(h, mtf));
-    //      _eState = MegaTexCompileState.Dirty;
+      MtTexPatch ret = null;
 
-    //      f = _mapTexs.find(h);
-    //   }
+      //Hash32 h = STRHASH(low);
+      //auto f = _mapTexs.find(h);
+      _mapTexs.TryGetValue(img.QualifiedPath, out ret);
+      if (ret == null)
+      {
+        _eState = MegaTexCompileState.Dirty;
+        MtFont mtf = new MtFont(this, img);
+        _mapTexs.Add(img.QualifiedPath, mtf);// .insert(std::make_pair(h, mtf));
+        _eState = MegaTexCompileState.Dirty;
 
-    //   MtFont ft = std::dynamic_pointer_cast<MtFont>(f.second);
-    //   return ft;
-    //}
+        _mapTexs.TryGetValue(img.QualifiedPath, out ret);
+      }
+
+      MtFont ft = ret as MtFont;
+      return ft;
+    }
     private static UInt64 genId = 0;
 
     public MtTexPatch getTex(Img32 tx)
@@ -657,26 +712,6 @@ namespace PirateCraft
 
       //_bImagesLoaded = true;
     }
-    public bool bind(TextureChannel eChannel, Shader pShader, bool bIgnoreIfNotFound = false)
-    {
-      Gu.BRThrowNotImplementedException();
-      //update();
-      //if (_eState == MegaTexCompileState.NotCompiled)
-      //{
-      //   Gu.Log.WarnCycle("MegaTex was not compiled.  Make sure to update() MegaTex.");
-      //}
-      //else
-      //{
-      //   if (_eState == MegaTexCompileState.Dirty)
-      //   {
-      //      Gu.Log.WarnCycle("MegaTex was dirty before rendering.");
-      //   }
-      //   return Texture2D::bind(eChannel, pShader, bIgnoreIfNotFound);
-      //}
-
-      return false;
-    }
-
     public CompiledTextures compile(bool flip_y_texture_coords = false)
     {
       Img32 master_albedo = null, master_normal = null;

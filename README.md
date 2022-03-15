@@ -1,14 +1,13 @@
 
 # A Minecraft Clone in OpenTK and C#
 
-![Preview](./screenshot3.png)
+![Preview](./screenshot4.png)
 
 # Setup
 * Make sure to install OpenAL 
 	* Windows google the openAL installer and run the installer
 	* Linux install via package manager
 		* TODO: add the DLL here for windows 
-
 
 # How to Run
 

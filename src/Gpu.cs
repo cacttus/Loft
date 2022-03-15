@@ -161,9 +161,11 @@ namespace PirateCraft
 
       return arr;
     }
-
     public void Post_To_RenderThread(WindowContext wc, Action<WindowContext> a)
     {
+      //This is super important for disposing Render (opengl) stuff.
+      //Posts this operation to a render thread to cleanup OpenGL stuff.
+      //This is also for any async call that requires render thread synchronization.
       //These get executed after literally all rendering (right now)
       lock (RenderThreadActions)
       {

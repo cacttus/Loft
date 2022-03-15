@@ -1,6 +1,7 @@
 ﻿
 
 Issues right now Physics
+  * box normal  STILL wrong -picking will place block inside of lbock sometimes
   * fix onground - gravity shouldn't be simulating every step
   * point / line collisions on the box - these are incorrect, the normal returned from Normal() is incorrect and has us sliding at an angle on the point or the edge
     * if point / edge .. select normal based on velocity - possibly

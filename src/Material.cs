@@ -7,13 +7,14 @@ namespace PirateCraft
   //Material, input to a shader & gpu state for material FBO (blending, etc)
   public class Material
   {
+    private static Material _defaultDiffuse = null; //Default color material / shader.
+    private static Material _defaultFlatColor = null; //Default color material / shader.
+
+
     //Clonable members
     public Dictionary<Shader.TextureInput, Texture2D> Textures { get; private set; } = new Dictionary<Shader.TextureInput, Texture2D>();
     public Shader Shader { get; private set; } = null;
     public GpuRenderState GpuRenderState { get; set; } = new GpuRenderState(); //The rendering state of the material: clipping, depth, alpha, culling, etc
-
-    private static Material _defaultDiffuse = null; //Default color material / shader.
-    private static Material _defaultFlatColor = null; //Default color material / shader.
 
     public Material(Shader s) :
        this(s, null, Shader.TextureInput.Albedo)
@@ -31,6 +32,7 @@ namespace PirateCraft
        this(s, new Dictionary<Shader.TextureInput, Texture2D>() { { Shader.TextureInput.Albedo, albedo }, { Shader.TextureInput.Normal, normal } })
     {
     }
+    private Material() { }
     public Material(Shader s, Dictionary<Shader.TextureInput, Texture2D> textures = null)
     {
       Textures = new Dictionary<Shader.TextureInput, Texture2D>();
@@ -46,10 +48,6 @@ namespace PirateCraft
             added = true;
           }
         }
-        if (added == false)
-        {
-          Textures = null;
-        }
       }
 
       Shader = s;
@@ -57,9 +55,16 @@ namespace PirateCraft
     public Material Clone(bool shallow = true)
     {
       Gu.Assert(shallow == true);//Not supported to clone the shader or textures
-      Material m = new Material(Shader, Textures);
-      m.GpuRenderState = this.GpuRenderState.Clone();
-      return m;
+     
+      Material other = new Material();
+
+      other.GpuRenderState = this.GpuRenderState.Clone();
+      other.Shader = this.Shader; 
+      if (this.Textures != null)
+      {
+        other.Textures = new Dictionary<Shader.TextureInput, Texture2D>(this.Textures);
+      }
+      return other;
     }
     public static Material DefaultFlatColor()
     {
@@ -79,11 +84,11 @@ namespace PirateCraft
       }
       return _defaultDiffuse;
     }
-    public void Draw(double dt, MeshData[] meshes, Camera3D camera, WorldObject ob)
+    public void Draw(double dt, MeshData[] meshes, Camera3D camera, WorldObject ob, DayNightCycle dnc)
     {
       GpuRenderState.SetState();
 
-      Shader.BeginRender(dt, camera, ob, this, null);
+      Shader.BeginRender(dt, camera, ob, this, null, dnc);
       foreach (var m in meshes)
       {
         m.Draw(null);
@@ -91,35 +96,16 @@ namespace PirateCraft
 
       Shader.EndRender();
     }
-    public void Draw(double dt, MeshData mesh, Camera3D camera, WorldObject ob, mat4[] instances = null)
+    public void Draw(double dt, MeshData mesh, Camera3D camera, WorldObject ob, mat4[] instances = null, DayNightCycle dnc = null)
     {
       GpuRenderState.SetState();
 
-      Shader.BeginRender(dt, camera, ob, this, instances);
+      Shader.BeginRender(dt, camera, ob, this, instances, dnc);
 
       mesh.Draw(instances);
 
       Shader.EndRender();
     }
-    //public void BeginRender(double dt, Camera3D camera, WorldObject ob, mat4[] instances)
-    //{
-    //  //Gu.CurrentWindowContext.Gpu.GpuRenderState.CullFace = GpuRenderState.CullFace;
-    //  //Gu.CurrentWindowContext.Gpu.GpuRenderState.DepthTest = GpuRenderState.DepthTest;
-    //  //Gu.CurrentWindowContext.Gpu.GpuRenderState.ScissorTest = GpuRenderState.ScissorTest;
-
-    //  GpuRenderState.SetState();
-
-    //  Shader.BeginRender(dt, camera, ob, this);
-
-    //  //Mesh.DrawInstamced(instances.Length)
-
-    //  //. Shader.EndRender();
-
-    //}
-    //public void EndRender()
-    //{
-    //  Shader.EndRender();
-    //}
     public Texture2D GetTextureOrDefault(Shader.TextureInput texture_input)
     {
       Texture2D tex = null;

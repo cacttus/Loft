@@ -713,6 +713,13 @@ namespace PirateCraft
 
       return ret;
     }
+
+    //public Font LoadFont(FileLoc loc)
+    //{
+    //  Font font = new Font();
+
+    //}
+
     //public AudioData LoadSound(FileLoc loc)
     //{
     //  AudioData audioData = null;

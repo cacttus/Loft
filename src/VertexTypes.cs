@@ -90,8 +90,6 @@ namespace PirateCraft
     //int32_t _iLocation;
     //int32_t _iByteOffset;
   };
-
-
   //Format for interleaved vertex.
   public class VertexFormat
   {
@@ -532,7 +530,6 @@ namespace PirateCraft
       return ("Unknown User Type name.");
     }
   }
-
   public enum IndexFormatType
   {
     None,
@@ -593,7 +590,6 @@ namespace PirateCraft
       return ret;
     }
   }
-
   //note i removed std430 padding .. this is erroneous.. we need to fix it
   [StructLayout(LayoutKind.Sequential)]
   public struct v_v3c4
@@ -603,7 +599,6 @@ namespace PirateCraft
 
     public static VertexFormat VertexFormat = VertexFormat.DeclareVertexFormat<v_v3c4>();
   }
-
   [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct v_v3n3x2
@@ -628,4 +623,14 @@ namespace PirateCraft
 
     public static VertexFormat VertexFormat = VertexFormat.DeclareVertexFormat<v_v3c3n3x2u1>();
   }
+  //v_GuiVert
+  public struct v_v4v4v4v2u2
+  {
+    vec4 _rect;
+    vec4 _clip;
+    vec4 _tex;
+    vec2 _texsiz;
+    uvec2 _pick_color;
+    public static VertexFormat VertexFormat = VertexFormat.DeclareVertexFormat<v_v4v4v4v2u2>();
+  };
 }

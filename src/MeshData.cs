@@ -72,6 +72,7 @@ namespace PirateCraft
     public VertexFormat VertexFormat { get { return _vertexFormat; } }
     public IndexFormat IndexFormat { get { return _indexFormat; } } //If null, then there is no indexes associated with this mesh.
     public PrimitiveType PrimitiveType { get { return _primitiveType; } }
+    public GPUBuffer VertexBuffer { get { return _vertexBuffer; } }
     public bool HasIndexes
     {
       get
@@ -154,7 +155,7 @@ namespace PirateCraft
           {
             GL.DrawElementsInstanced(PrimitiveType,
               _indexBuffer.ItemCount,
-              _indexBuffer.ItemSize == 2 ? DrawElementsType.UnsignedShort : DrawElementsType.UnsignedInt,
+              _indexBuffer.ItemSizeBytes == 2 ? DrawElementsType.UnsignedShort : DrawElementsType.UnsignedInt,
               IntPtr.Zero,
               instances.Length
               );
@@ -165,7 +166,7 @@ namespace PirateCraft
           {
             GL.DrawElements(PrimitiveType,
               _indexBuffer.ItemCount,
-              _indexBuffer.ItemSize == 2 ? DrawElementsType.UnsignedShort : DrawElementsType.UnsignedInt,
+              _indexBuffer.ItemSizeBytes == 2 ? DrawElementsType.UnsignedShort : DrawElementsType.UnsignedInt,
               IntPtr.Zero
               );
             Gpu.CheckGpuErrorsDbg();

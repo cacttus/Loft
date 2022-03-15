@@ -17,7 +17,7 @@ namespace PirateCraft
 
     public BufferTarget BufferTarget { get; private set; } = BufferTarget.ArrayBuffer;
     public int ItemCount { get { return _itemCount; } }
-    public int ItemSize { get { return _itemSize; } }
+    public int ItemSizeBytes { get { return _itemSize; } }
 
     public GPUBuffer(BufferTarget t, GpuDataPtr items)
     {
@@ -46,13 +46,15 @@ namespace PirateCraft
       //Copies GPU data into a temporary byte array.
       //GpuDataArray is a kind of proxy class that munges data into a managed byte array.
 
+      //**TODO: fix this to use GpuDataPtr and raw copy - Get rid of GpuDataArray
+
       int offsetBytes = itemOffset * _itemSize;
       int lengthBytes = (itemCount <= -1) ? (_itemCount * _itemSize) : ((int)itemCount * _itemSize);
       Bind();
       IntPtr pt = GL.MapBufferRange(BufferTarget, (IntPtr)offsetBytes, (IntPtr)lengthBytes, BufferAccessMask.MapReadBit);
       if (pt == IntPtr.Zero)
       {
-        Gu.BRThrowException("Failed to map OpenGL Buffer.");
+        Gu.BRThrowException("Failed to map OpenGL Buffer."); 
       }
       byte[] managedArray = new byte[lengthBytes];
       Marshal.Copy(pt, managedArray, 0, (int)lengthBytes);
@@ -62,11 +64,30 @@ namespace PirateCraft
       GpuDataArray d = new GpuDataArray(_itemSize, _itemCount, managedArray);
       return d;
     }
+    public void CopyDataToGPU(GpuDataPtr src, int dstOffItems, int srcItemCount = -1)
+    {
+      Gu.Assert(src.ItemSizeBytes == this.ItemSizeBytes);
+      Gu.Assert(srcItemCount <= src.Count);
+      Gu.Assert(srcItemCount <= this.ItemCount);
 
-    //~GPUBuffer()
-    //{
-    //    Free();
-    //}
+      int srclengthBytes = (srcItemCount <= -1) ? (src.Count * _itemSize) : ((int)srcItemCount * _itemSize);
+
+      Bind();
+      {
+        IntPtr pdst = GL.MapBufferRange(BufferTarget, (IntPtr)dstOffItems, (IntPtr)srclengthBytes, BufferAccessMask.MapReadBit);
+        if (pdst == IntPtr.Zero)
+        {
+          Gu.BRThrowException("Failed to map OpenGL Buffer.");
+        }
+        IntPtr psrc = src.Lock();
+        unsafe
+        {
+          System.Buffer.MemoryCopy((void*)psrc, (void*)pdst, this.ItemCount, srclengthBytes);
+        }
+        src.Unlock();
+      }
+      Unbind();
+    }
     void Allocate(GpuDataPtr items)
     {
       _itemCount = items.Count;

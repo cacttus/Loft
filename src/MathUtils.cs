@@ -117,6 +117,15 @@ namespace PirateCraft
     {
       return (x & (x - 1)) == 0;
     }
+
+    public static double Ease(double a, double b, double time)
+    {
+      //Sigmoid "ease"
+      //Assuming time is normalized [0,1]
+      double k = 0.1; //Slope
+      double f = 1 / (1 + Math.Exp(-((time - 0.5) / k)));
+      return a * (1 - f) + b * f;
+    }
   }
   public struct RaycastHit
   {
@@ -209,6 +218,7 @@ namespace PirateCraft
     public vec3 Radius { get; private set; } = new vec3(0, 0, 0);
     public float RadiusLen2 { get; private set; } = 0;
     public bool IsPointRay { get { return Length == 0; } }
+    public bool IsPlayer = false;
     public vec3 Project(vec3 p)
     {
       //Project p onto ray returning projected point
@@ -444,11 +454,120 @@ namespace PirateCraft
     public double x;
     public double y;
     public double z;
-    public dvec3(dvec3 r)
+
+    public vec3 ToVec3()
     {
-      x = r.x;
-      y = r.y;
-      z = r.z;
+      return new vec3((float)x, (float)y, (float)z);
+    }
+
+    public static dvec3 CosineInterpolate(dvec3 a, dvec3 b, double time)
+    {
+      double ft = time * Math.PI;
+      double f = (1.0 - Math.Cos(ft)) * 0.5;
+      return a * (1 - f) + b * f;
+    }
+    public static dvec3 Zero { get { return new dvec3(0, 0, 0); } }
+    public static dvec3 one { get { return new dvec3(1, 1, 1); } }
+    public static dvec3 dvec3_MIN()
+    {
+      return new dvec3(double.MinValue, double.MinValue, double.MinValue);
+    }
+    public static dvec3 dvec3_MAX()
+    {
+      return new dvec3(double.MaxValue, double.MaxValue, double.MaxValue);
+    }
+    public dvec3(vec3 xyz)
+    {
+      x = xyz.x; y = xyz.y; z = xyz.z;
+    }
+    public OpenTK.Mathematics.Vector3d ToOpenTK()
+    {
+      return new OpenTK.Mathematics.Vector3d(x, y, z);
+    }
+    public double this[int i]
+    {
+      get
+      {
+        if (i == 0)
+        {
+          return x;
+        }
+        else if (i == 1)
+        {
+          return y;
+        }
+        else if (i == 2)
+        {
+          return z;
+        }
+
+        else
+        {
+          Gu.BRThrowException("invalid index " + i + " to dvec3");
+        }
+        return 0;
+      }
+      set
+      {
+        if (i == 0)
+        {
+          x = value;
+        }
+        else if (i == 1)
+        {
+          y = value;
+        }
+        else if (i == 2)
+        {
+          z = value;
+        }
+
+        else
+        {
+          Gu.BRThrowException("invalid index " + i + " to dvec3");
+        }
+      }
+
+    }
+    public dvec3 snap()
+    {
+      //return a vector with only the longest dimension (used to snap to a normal on a cube)
+      dvec3 ret;
+      double ax = Math.Abs(x);
+      double ay = Math.Abs(y);
+      double az = Math.Abs(z);
+      if (ax >= ay && ax >= az)
+      {
+        ret = new dvec3(x, 0, 0);
+      }
+      else if (ay >= ax && ay >= az)
+      {
+        ret = new dvec3(0, y, 0);
+      }
+      else
+      {
+        ret = new dvec3(0, 0, z);
+      }
+      return ret;
+    }
+    public dvec3(OpenTK.Mathematics.Vector3 v)
+    {
+      x = v.X;
+      y = v.Y;
+      z = v.Z;
+    }
+    public dvec3(dvec3 rhs)
+    {
+      this.x = rhs.x;
+      this.y = rhs.y;
+      this.z = rhs.z;
+    }
+    public dvec3(double[] vals)
+    {
+      Gu.Assert(vals.Length >= 3);
+      this.x = vals[0];
+      this.y = vals[1];
+      this.z = vals[2];
     }
     public dvec3(double dx, double dy, double dz)
     {
@@ -456,11 +575,197 @@ namespace PirateCraft
       y = dy;
       z = dz;
     }
-    public dvec3(vec3 r)
+    public dvec3(int rhs)
     {
-      x = (double)r.x;
-      y = (double)r.y;
-      z = (double)r.z;
+      x = (double)rhs;
+      y = (double)rhs;
+      z = (double)rhs;
+    }
+    public dvec3(double rhs)
+    {
+      x = rhs;
+      y = rhs;
+      z = rhs;
+    }
+    public dvec3 construct(double dx, double dy, double dz)
+    {
+      x = dx; y = dy; z = dz;
+      return this;
+    }
+    public override string ToString()
+    {
+      return "(" + x + "," + y + "," + z + ")";
+    }
+    //public dvec4 toVec4(double w)
+    //{
+    //  return new vec4(x, y, z, w);
+    //}
+    public static dvec3 minv(in dvec3 v_a, in dvec3 v_b)
+    {
+      dvec3 outv = new dvec3();
+
+      outv.x = Math.Min(v_a.x, v_b.x);
+      outv.y = Math.Min(v_a.y, v_b.y);
+      outv.z = Math.Min(v_a.z, v_b.z);
+
+      return outv;
+    }
+    public static dvec3 maxv(in dvec3 v_a, in dvec3 v_b)
+    {
+      dvec3 outv = new dvec3();
+
+      outv.x = Math.Max(v_a.x, v_b.x);
+      outv.y = Math.Max(v_a.y, v_b.y);
+      outv.z = Math.Max(v_a.z, v_b.z);
+
+      return outv;
+    }
+    public static dvec3 maxv_a(in dvec3 v_a, in dvec3 v_b)
+    {
+      dvec3 outv = new dvec3();
+
+      outv.x = Math.Max(Math.Abs(v_a.x), Math.Abs(v_b.x));
+      outv.y = Math.Max(Math.Abs(v_a.y), Math.Abs(v_b.y));
+      outv.z = Math.Max(Math.Abs(v_a.z), Math.Abs(v_b.z));
+      return outv;
+    }
+    public static double maxf_a(in dvec3 v_a, in dvec3 v_b)
+    {
+      dvec3 tmp = maxv_a(v_a, v_b);
+      return Math.Max(Math.Abs(tmp.x), Math.Max(Math.Abs(tmp.y), Math.Abs(tmp.z)));
+    }
+    //public vec2 xz()
+    //{
+    //  return new vec2(x, z);
+    //}
+    //public vec2 xy()
+    //{
+    //  return new vec2(x, y);
+    //}
+    public double length()
+    {
+      return (double)Math.Sqrt(x * x + y * y + z * z);
+    }
+    public double lengthd()
+    {
+      double dx = (double)x;
+      double dy = (double)y;
+      double dz = (double)z;
+
+      return Math.Sqrt(dx * dx + dy * dy + dz * dz);
+    }
+    public double length2()
+    {
+      return (x * x + y * y + z * z);
+    }
+    public double squaredLength()
+    {
+      return length2();
+    }
+    public dvec3 normalize()
+    {
+      //we may be able to get away with rsqrt here...
+      //but maybe not.
+      double a = length();
+      return normalize(a);
+    }
+    public dvec3 normalize(double len)
+    {
+      //we may be able to get away with rsqrt here...
+      //but maybe not.
+      // We should allow the double to hit infinity if we try to divide zero
+      if (len != 0)
+      {
+        double a1 = 1.0 / len;
+        x *= a1;
+        y *= a1;
+        z *= a1;
+      }
+      else
+      {
+        x = y = z = 0;
+      }
+      return this;
+    }
+    public void len_and_norm(out dvec3 n, out double len)
+    {
+      //Computes length and normal to avoid having do do len() then norm()
+      len = length();
+      n = this;
+      n.normalize(len);
+    }
+    public dvec3 normalized()
+    {
+      dvec3 ret = new dvec3(this);
+      return ret.normalize();
+    }
+    public dvec3 abs()
+    {
+      dvec3 ret = new dvec3(this);
+      ret.x = Math.Abs(ret.x);
+      ret.y = Math.Abs(ret.y);
+      ret.z = Math.Abs(ret.z);
+      return ret;
+    }
+    public double dot(in dvec3 v)
+    {
+      return (x * v.x + y * v.y + z * v.z);
+    }
+    public double distance(in dvec3 v1)
+    {
+      return ((this) - v1).length();
+    }
+    public double distance2(in dvec3 v1)
+    {
+      return ((this) - v1).length2();
+    }
+    public dvec3 cross(in dvec3 v1)
+    {
+      dvec3 vt;
+      vt.x = (y * v1.z) - (v1.y * z);
+      vt.y = (z * v1.x) - (v1.z * x);
+      vt.z = (x * v1.y) - (v1.x * y);
+
+      return vt;
+    }
+    public dvec3 lerpTo(in dvec3 v1, double t)
+    {
+      dvec3 ret = this + (v1 - this) * t;
+      return ret;
+    }
+    public dvec3 clampTo(in dvec3 vMin, in dvec3 vMax)
+    {
+      //Technically we can just use the #define for clamp() to get the same result.
+      //but my brain isn't working right now and i want to see this line for line
+      dvec3 outv = new dvec3(this);
+
+      if (outv.x < vMin.x)
+      {
+        outv.x = vMin.x;
+      }
+      if (outv.y < vMin.y)
+      {
+        outv.y = vMin.y;
+      }
+      if (outv.z < vMin.z)
+      {
+        outv.z = vMin.z;
+      }
+
+      if (outv.x > vMax.x)
+      {
+        outv.x = vMax.x;
+      }
+      if (outv.y > vMax.y)
+      {
+        outv.y = vMax.y;
+      }
+      if (outv.z > vMax.z)
+      {
+        outv.z = vMax.z;
+      }
+
+      return outv;
     }
     public static dvec3 operator -(in dvec3 d)
     {
@@ -514,8 +819,192 @@ namespace PirateCraft
     {
       return new dvec3(a / b.x, a / b.y, a / b.z);
     }
-    public string ToString() { return "(" + x + "," + y + "," + z + ")"; }
+    public static bool operator >(in dvec3 v1, in dvec3 v2)
+    {
+      return (v1.x > v2.x && v1.y > v2.y && v1.z > v2.z);
+    }
+    public static bool operator >=(in dvec3 v1, in dvec3 v2)
+    {
+      return (v1.x >= v2.x && v1.y >= v2.y && v1.z >= v2.z);
+    }
+    public static bool operator <(in dvec3 v1, in dvec3 v2)
+    {
+      return (v1.x < v2.x && v1.y < v2.y && v1.z < v2.z);
+    }
+    public static bool operator <=(in dvec3 v1, in dvec3 v2)
+    {
+      return (v1.x <= v2.x && v1.y <= v2.y && v1.z <= v2.z);
+    }
 
+    //uint32_t toUint() {
+    //  uint32_t ret = (uint32_t)(
+    //      ((uint32_t)0 << 16) |
+    //      ((uint32_t)r() << 16) |
+    //      ((uint32_t)g() << 8) |
+    //      ((uint32_t)b()));
+    //  return ret;
+    //}
+
+    //void fromUint(const uint32_t& i)
+    //{
+    //    r() = (i >> 16) & 0xFF;
+    //    g() = (i >> 8) & 0xFF;
+    //    b() = (i) & 0xFF;
+    //}
+
+    bool compareTo(in dvec3 rhs)
+    {
+      dvec3 lhs = this;
+
+      if (lhs.x < rhs.x)
+      {
+        return true;
+      }
+      else if (lhs.x > rhs.x)
+      {
+        return false;
+      }
+      else
+      {
+        if (lhs.y < rhs.y)
+        {
+          return true;
+        }
+        else if (lhs.y > rhs.y)
+        {
+          return false;
+        }
+        else
+        {
+          if (lhs.z < rhs.z)
+          {
+            return true;
+          }
+          else
+          {//if(lhs->z > rhs->z)
+            return false;
+          }
+        }
+      }
+    }
+
+    //// - Vector shorthands
+    public static dvec3 normalize(in dvec3 v1)
+    {
+      return (new dvec3(v1)).normalized();
+    }
+    public static dvec3 cross(in dvec3 v1, in dvec3 v2)
+    {
+      return (new dvec3(v1)).cross(new dvec3(v2));
+    }
+    public static double dot(in dvec3 v1, in dvec3 v2)
+    {
+      return (new dvec3(v1)).dot(new dvec3(v2));
+    }
+    //template<typename Tx>
+    //void bilinear_interpolate(
+    //    in dvec3 a,
+    //    in dvec3 b,
+    //    in dvec3 c,
+    //    in dvec3 d,
+    //    dvec3& __out_ avg,
+    //    double pct)
+    //{
+    //    dvec3 v1, v2, v3;
+    //    v1 = a + (b - a) * pct;
+    //    v2 = c + (d - c) * pct;
+    //    avg = v1 + (v2 - v1) * pct;
+    //}
+    //template<typename Tx>
+    public dvec3 reflect(in dvec3 n, bool normalize_this = false)
+    {
+      ///**NOTE this vector should be normalized
+      //This is an incident vector - the vector pointing down into the plane (not from the plane)
+      //Reflect off the plane to create the "radiant vector" the light that bounces off the plane
+      dvec3 that = this;
+      if (normalize_this)
+      {
+        that.normalize();
+      }
+      dvec3 ret = that - (n * n.dot(that)) * 2.0;
+      return ret;
+    }
+    //template<typename Tx>
+    //void checkNormalOrZero()
+    //{
+    //    //Make sure the number is a normal FP number
+    //    int cx = std::fpclassify(x);
+    //    int cy = std::fpclassify(y);
+    //    int cz = std::fpclassify(z);
+    //    if (cx != FP_ZERO && cx != FP_NORMAL)
+    //        x = 0.0f;
+    //    if (cy != FP_ZERO && cy != FP_NORMAL)
+    //        y = 0.0f;
+    //    if (cz != FP_ZERO && cz != FP_NORMAL)
+    //        z = 0.0f;
+    //}
+    //template<typename Tx>
+    //bool isNormaldouble()
+    //{
+    //    bool b = true;
+
+    //    //Make sure the number is a normal FP number
+    //    int cx = std::fpclassify(x);
+    //    int cy = std::fpclassify(y);
+    //    int cz = std::fpclassify(z);
+    //    //NAN
+    //    if (cx == FP_NAN)
+    //    {
+    //        b = false;
+    //    }
+    //    if (cy == FP_NAN)
+    //    {
+    //        b = false;
+    //    }
+    //    if (cz == FP_NAN)
+    //    {
+    //        b = false;
+    //    }
+    //    ////DEN
+    //    //If the number is too small who cares. Let it round to zero.
+    //    //AssertOrThrow2(cx!= FP_SUBNORMAL);
+    //    //AssertOrThrow2(cy!= FP_SUBNORMAL);
+    //    //AssertOrThrow2(cz!= FP_SUBNORMAL);
+    //    //INF
+    //    if (cx == FP_INFINITE)
+    //    {
+    //        b = false;
+    //    }
+    //    if (cy == FP_INFINITE)
+    //    {
+    //        b = false;
+    //    }
+    //    if (cz == FP_INFINITE)
+    //    {
+    //        b = false;
+    //    }
+
+    //    return b;
+    //}
+    //template<typename Tx>
+    //void checkNormalOrZeroAndLimitVector(double fMaxLength, bool bShowWarningMessage)
+    //{
+    //    //Normalize number
+    //    checkNormalOrZero();
+
+    //    // Make sure the vector length isn't too big.
+    //    if (squaredLength() >= (fMaxLength * fMaxLength))
+    //    {
+    //        if (bShowWarningMessage == true)
+    //            BRLogWarn("Object has launched into orbit: v=(", x, ", y, " ", z, ")");
+    //        *this = normalized() * fMaxLength;
+    //    }
+    //}
+
+    //class dvec3Basis : public VirtualMemory {
+    //public:
+    //    dvec3 _x, _y, _z;
+    //};
   }
   [StructLayout(LayoutKind.Sequential)]
   public struct vec3
@@ -524,6 +1013,18 @@ namespace PirateCraft
     public float y;
     public float z;
 
+    public dvec3 ToDVec3()
+    {
+      return new dvec3(x, y, z);
+    }
+
+
+    public static vec3 CosineInterpolate(vec3 a, vec3 b, float time)
+    {
+      float ft = time * (float)Math.PI;
+      float f = (1.0f - (float)Math.Cos(ft)) * 0.5f;
+      return a * (1.0f - f) + b * f;
+    }
     public static vec3 Zero { get { return new vec3(0, 0, 0); } }
     public static vec3 one { get { return new vec3(1, 1, 1); } }
     public static vec3 VEC3_MIN()
@@ -1101,6 +1602,7 @@ namespace PirateCraft
           c == '6' ||
           c == '7' ||
           c == '8' ||
+          c == '9' ||
           c == '0' ||
           c == 'a' ||
           c == 'b' ||
@@ -1120,7 +1622,7 @@ namespace PirateCraft
         }
         else
         {
-          Gu.Log.Error("Invalid token in hex string.");
+          Gu.Log.Error("Invalid token '" + c + "' in hex string.");
           Gu.DebugBreak();
         }
       }
@@ -3847,8 +4349,32 @@ namespace PirateCraft
         (d.y <= 0.0f) ? -1.0f : (d.y >= 1.0f) ? 1.0f : 0.0f,
         (d.z <= 0.0f) ? -1.0f : (d.z >= 1.0f) ? 1.0f : 0.0f
         );
-      
-      d.normalize();
+
+      if (d.squaredLength() > 1.1f)
+      {
+        // 8 points, 12 edges get normalized
+        d.normalize();
+      }
+
+      return d;
+    }
+    public vec3 Normal_PlaneOnly(vec3 point, vec3 dir)
+    {
+      //same thing but with help from direction vector to determine specific plane normal
+      vec3 d = (point - _min) / (_max - _min);
+      d = new vec3(
+        (d.x <= 0.0f) ? -1.0f : (d.x >= 1.0f) ? 1.0f : 0.0f,
+        (d.y <= 0.0f) ? -1.0f : (d.y >= 1.0f) ? 1.0f : 0.0f,
+        (d.z <= 0.0f) ? -1.0f : (d.z >= 1.0f) ? 1.0f : 0.0f
+        );
+      d = d * (dir.abs());
+      d = d.snap();
+      //normalize
+      d = new vec3(
+        (d.x <= 0.0f) ? -1.0f : (d.x >= 1.0f) ? 1.0f : 0.0f,
+        (d.y <= 0.0f) ? -1.0f : (d.y >= 1.0f) ? 1.0f : 0.0f,
+        (d.z <= 0.0f) ? -1.0f : (d.z >= 1.0f) ? 1.0f : 0.0f
+        );
 
       return d;
     }

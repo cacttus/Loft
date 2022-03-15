@@ -35,6 +35,12 @@ namespace PirateCraft
       float ret = (float)min + (max - min) * Next();
       return ret;
     }
+    public static double NextD(double min, double max)
+    {
+      //Inclusive
+      double ret = min + (max - min) * r.NextDouble();
+      return ret;
+    }
     public static float Next11()
     {
       float ret;

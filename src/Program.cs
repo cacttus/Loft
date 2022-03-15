@@ -77,31 +77,37 @@ namespace PirateCraft
   }
   public class MainWindow : GameWindow
   {
-    bool DELETE_WORLD_START_FRESH = true;
-    Camera3D _camera = null;
-    WorldObject _player_empty = null;
-    WorldObject _boxMeshThing = null;
-    int meshIdx = 0;
-    const float scale = 0.5f;
+    #region Members
+
+    private bool DELETE_WORLD_START_FRESH = true;
+    private Camera3D _camera = null;
+    private WorldObject _player_empty = null;
+    private WorldObject _boxMeshThing = null;
+    private int meshIdx = 0;
+    private const float scale = 0.5f;
     public InputState InputState = InputState.World;
-    FirstPersonMouseRotator _FPSRotator = new FirstPersonMouseRotator();
+    private FirstPersonMouseRotator _FPSRotator = new FirstPersonMouseRotator();
     private NativeWindowSettings _ns = NativeWindowSettings.Default;
-    WorldObject Sphere_Rotate_Quat_Test;
-    WorldObject Sphere_Rotate_Quat_Test2;
-    WorldObject Sphere_Rotate_Quat_Test3;
-    WorldObject pick = null;
-    WorldObject sword = null;
-    WorldObject left_hand = null;
-    WorldObject right_hand = null;
-    bool _bInitialized = true;
-    const float Base_Run_Speed = World.BlockSizeX * 3.0f;
-    const float Base_Jump_Speed = World.BlockSizeY * 40.0f;
-    const float MaxAirFriction = 10.0f;//friction percentage in velocity Units per second (1.0 means the velocity will reach 0 in one second) [0,1]. lower values result in less friction
-    CamMode CamMode = CamMode.Flying;
-    vec3 second_y_glob = new vec3(
+    private Gui _gui;
+    private WorldObject Sphere_Rotate_Quat_Test;
+    private WorldObject Sphere_Rotate_Quat_Test2;
+    private WorldObject Sphere_Rotate_Quat_Test3;
+    private WorldObject pick = null;
+    private WorldObject sword = null;
+    private WorldObject left_hand = null;
+    private WorldObject right_hand = null;
+    private bool _bInitialized = true;
+    private const float Base_Run_Speed = World.BlockSizeX * 3.0f;
+    private const float Base_Jump_Speed = World.BlockSizeY * 40.0f;
+    private const float MaxAirFriction = 10.0f;//friction percentage in velocity Units per second (1.0 means the velocity will reach 0 in one second) [0,1]. lower values result in less friction
+    private CamMode CamMode = CamMode.Flying;
+    private vec3 second_y_glob = new vec3(
      World.BlockSizeX * World.GlobBlocksX * .5f,
      World.BlockSizeY * World.GlobBlocksY * 2.0f,
      World.BlockSizeZ * World.GlobBlocksZ * .5f);
+
+    #endregion
+
     public MainWindow() : base(
        new GameWindowSettings()
        {
@@ -181,6 +187,7 @@ namespace PirateCraft
 
         //Cameras
         _camera = Gu.World.CreateCamera("Camera-001", this.Size.X, this.Size.Y, vec3.Zero);
+        _camera.Far = 2000.0f;
 
         //Character height
         _camera.Position_Local = new vec3(0, World.BlockSizeY * 1.8f, 0);
@@ -196,9 +203,11 @@ namespace PirateCraft
 
         Gu.Context.DebugDraw.DrawBoundBoxes = false;
 
-        CreateDebugObjects();
+        CreateGUI();
+        TestCreateDebugObjects();
         InitHandObjects();
         CreateCrosshair();
+        CreateSky();
 
         CursorVisible = true;
       }
@@ -265,58 +274,130 @@ namespace PirateCraft
       Crosshair.Material = crosshair_mat;
       _camera.AddChild(Crosshair);
     }
-    private void PlayDropSound()
+    private void CreateSky()
     {
-      Gu.Context.Audio.Play(new FileLoc("wood_1.ogg", FileStorage.Embedded));
-    }
-    private void PlayPickSound(ushort bc)
-    {
-      string embedded_file = "";
-      int num = 0;
-      if (bc == BlockItemCode.Brick ||
-          bc == BlockItemCode.Brick2 ||
-          bc == BlockItemCode.Feldspar ||
-          bc == BlockItemCode.Gravel
-               )
-      {
-        embedded_file = "rock";
-        num = 5;
-      }
-      else if (bc == BlockItemCode.Dirt ||
-               bc == BlockItemCode.Grass ||
-               bc == BlockItemCode.Cedar ||
-               bc == BlockItemCode.Cedar_Needles
-               )
-      {
-        embedded_file = "wood";
-        num = 4;
-      }
-      else if (bc == BlockItemCode.Sand
-               )
-      {
-        embedded_file = "glass";
-        num = 5;
-      }
-      else
-      {
-        embedded_file = "rock";
-        num = 5;
-      }
-      int r = Random.NextInt(1, num);
-      embedded_file += "_" + r.ToString() + ".ogg";
+      Texture2D tx_sky = Gu.Resources.LoadTexture(new FileLoc("hdri_sky2.jpg", FileStorage.Embedded), true, TexFilter.Trilinear);
+      Texture2D tx_sky_stars = Gu.Resources.LoadTexture(new FileLoc("hdri_stars.jpg", FileStorage.Embedded), true, TexFilter.Trilinear);
+      Texture2D tx_sun = Gu.Resources.LoadTexture(new FileLoc("tx64_sun.png", FileStorage.Embedded), true, TexFilter.Trilinear);
+      Texture2D tx_moon = Gu.Resources.LoadTexture(new FileLoc("tx64_moon.png", FileStorage.Embedded), true, TexFilter.Trilinear);
+      Texture2D tx_bloom = Gu.Resources.LoadTexture(new FileLoc("bloom.png", FileStorage.Embedded), true, TexFilter.Trilinear);
 
-      var x = Gu.Context.Audio.Play(new FileLoc(embedded_file, FileStorage.Embedded));
+      //Sky
+      Material sky_mat = new Material(Gu.Resources.LoadShader("v_sky", false, FileStorage.Embedded));
+      sky_mat.Textures.Add(Shader.TextureInput.Albedo, tx_sky);
+      sky_mat.Textures.Add(Shader.TextureInput.Albedo2, tx_sky_stars);
+      sky_mat.GpuRenderState.DepthTest = false;//Disable depth test.
+      var sky = Gu.World.CreateAndAddObject("sky", MeshData.GenSphere(DayNightCycle.SkyRadius, 128, 128, true, true), sky_mat);
+      sky.Mesh.DrawOrder = DrawOrder.First;
+      //sky.Constraints.Add(new FollowConstraint(_player_empty, FollowConstraint.FollowMode.Snap)); ;
+      sky.OnUpdate = (obj) =>
+      {
+        //Kind of sloppy way to do this whole thing. 
+        obj.Color =
+        new vec4(
+          (float)Gu.World.DayNightCycle.Color.x,
+          (float)Gu.World.DayNightCycle.Color.y,
+          (float)Gu.World.DayNightCycle.Color.z,
+          1
+          );
+        vec3 pe = _player_empty.WorldMatrix.extractTranslation();
+        obj.Position_Local = pe;
+
+        //TODO:
+        //sky_mat.SetUniform("_ufSkyBlend")
+      };
+
+
+      //Empty that rotates the sun / moon
+      var sun_moon_empty = Gu.World.CreateObject("sun_moon_empty", null, null);
+      sun_moon_empty.OnUpdate = (obj) =>
+      {
+        double ang = Gu.World.DayNightCycle.Time / Gu.World.DayNightCycle.DayLength * Math.PI * 2.0;
+        obj.Rotation_Local = quat.fromAxisAngle(new vec3(0, 0, 1), (float)ang);
+
+        vec3 pe = _player_empty.WorldMatrix.extractTranslation();
+        obj.Position_Local = pe;
+      };
+      Gu.World.AddObject(sun_moon_empty);
+
+      Material sun_moon_mat = new Material(Gu.Resources.LoadShader("v_sun_moon", false, FileStorage.Embedded));
+      sun_moon_mat.GpuRenderState.DepthTest = false;//Disable depth test.
+      sun_moon_mat.GpuRenderState.CullFace = false;//Disable depth test.
+      sun_moon_mat.GpuRenderState.Blend = true;
+
+      float sun_size = 13;
+      float moon_size = 23;
+
+      //Sun
+      var sun_mat = sun_moon_mat.Clone();
+      sun_mat.Textures.Add(Shader.TextureInput.Albedo, tx_sun);
+      var sun = Gu.World.CreateObject("sun", MeshData.GenPlane(sun_size, sun_size), sun_mat);
+      sun.Mesh.DrawOrder = DrawOrder.First;
+      sun.OnUpdate = (obj) =>
+      {
+        obj.Color = new vec4(.994f, .990f, .8f, 1);
+        obj.Position_Local = new vec3(DayNightCycle.SkyRadius, 0, 0);
+        obj.Rotation_Local = quat.fromAxisAngle(new vec3(0, 0, 1), (float)Math.PI / 2);
+      };
+      sun_moon_empty.AddChild(sun);
+
+
+      var bloom_mat = sun_moon_mat.Clone();
+      bloom_mat.Textures.Add(Shader.TextureInput.Albedo, tx_bloom);
+      var sun_bloom = Gu.World.CreateObject("sun_bloom", MeshData.GenPlane(sun_size, sun_size), bloom_mat);
+      sun_bloom.Mesh.DrawOrder = DrawOrder.First;
+      sun_bloom.OnUpdate = (obj) =>
+      {
+        vec3 dir = Gu.World.DayNightCycle.SunDirInv.ToVec3();
+        //ease multiplier so that the glare does not show on the horizon.
+        float horizon_mul = (float)MathUtils.Ease(0, 1, (double)dir.dot(new vec3(0, 1, 0)));
+        float bloom_dp = dir.dot(_camera.BasisZ);
+        float bloom_dp_pw = (float)Math.Pow(bloom_dp, 64);
+        obj.Color = new vec4(sun.Color.x, sun.Color.y, sun.Color.z, bloom_dp_pw * horizon_mul * 0.9413f);
+        obj.Scale_Local = new vec3(1.1f + bloom_dp * 30.0f, 0, 1.1f + bloom_dp * 30.0f);
+      };
+      sun.AddChild(sun_bloom);
+
+
+      //Moon
+      var moon_mat = sun_moon_mat.Clone();
+      moon_mat.Textures.Add(Shader.TextureInput.Albedo, tx_moon);
+      var moon = Gu.World.CreateObject("moon", MeshData.GenPlane(moon_size, moon_size), moon_mat);
+      moon.Mesh.DrawOrder = DrawOrder.First;
+      moon.OnUpdate = (obj) =>
+      {
+        obj.Color = new vec4(.78f, .78f, .92f, 1);
+        obj.Position_Local = new vec3(-DayNightCycle.SkyRadius, 0, 0);
+        obj.Rotation_Local = quat.fromAxisAngle(new vec3(0, 0, 1), -(float)Math.PI / 2);
+      };
+      sun_moon_empty.AddChild(moon);
+
+
+      var moon_bloom = Gu.World.CreateObject("moon_bloom", MeshData.GenPlane(moon_size, moon_size), bloom_mat);
+      moon_bloom.Mesh.DrawOrder = DrawOrder.First;
+      moon_bloom.OnUpdate = (obj) =>
+      {
+        vec3 dir = Gu.World.DayNightCycle.SunDirInv.ToVec3() * -1.0f;
+        //ease multiplier so that the glare does not show on the horizon.
+        float horizon_mul = (float)MathUtils.Ease(0, 1, (double)dir.dot(new vec3(0, 1, 0)));
+        float bloom_dp = dir.dot(_camera.BasisZ);
+        float bloom_dp_pw = (float)Math.Pow(bloom_dp, 64);
+        obj.Color = new vec4(moon.Color.x, moon.Color.y, moon.Color.z, bloom_dp_pw * horizon_mul * 0.3f);
+        obj.Scale_Local = new vec3(1.1f + bloom_dp * 4.0f, 0, 1.1f + bloom_dp * 4.0f);
+      };
+      moon.AddChild(moon_bloom);
+
+
     }
-    private void CreateDebugObjects()
+    private void TestCreateDebugObjects()
     {
       //Textures
       //   Texture2D noise = Noise3D.TestNoise();
-      Texture2D peron = Gu.Resources.LoadTexture(new FileLoc("main char.png", FileStorage.Embedded), true, TexFilter.Bilinear);
-      Texture2D grass = Gu.Resources.LoadTexture(new FileLoc("grass_base.png", FileStorage.Embedded), true, TexFilter.Bilinear);
-      Texture2D mclovin = Gu.Resources.LoadTexture(new FileLoc("mclovin.jpg", FileStorage.Embedded), true, TexFilter.Nearest);
-      Texture2D usopp = Gu.Resources.LoadTexture(new FileLoc("usopp.jpg", FileStorage.Embedded), true, TexFilter.Bilinear);
-      Texture2D hogback = Gu.Resources.LoadTexture(new FileLoc("hogback.jpg", FileStorage.Embedded), true, TexFilter.Trilinear);
-      Texture2D sky1 = Gu.Resources.LoadTexture(new FileLoc("hdri_sky2.jpg", FileStorage.Embedded), true, TexFilter.Trilinear);
+      Texture2D tx_peron = Gu.Resources.LoadTexture(new FileLoc("main char.png", FileStorage.Embedded), true, TexFilter.Bilinear);
+      Texture2D tx_grass = Gu.Resources.LoadTexture(new FileLoc("grass_base.png", FileStorage.Embedded), true, TexFilter.Bilinear);
+      Texture2D tx_mclovin = Gu.Resources.LoadTexture(new FileLoc("mclovin.jpg", FileStorage.Embedded), true, TexFilter.Nearest);
+      Texture2D tx_usopp = Gu.Resources.LoadTexture(new FileLoc("usopp.jpg", FileStorage.Embedded), true, TexFilter.Bilinear);
+      Texture2D tx_hogback = Gu.Resources.LoadTexture(new FileLoc("hogback.jpg", FileStorage.Embedded), true, TexFilter.Trilinear);
 
       //Objects
       //Integrity test of GPU memory.
@@ -328,21 +409,14 @@ namespace PirateCraft
       //{
       //  Gu.World.RemoveObject("BoxMesh-" + i.ToString());
       //}
-      Gu.World.CreateAndAddObject("TextureFront", MeshData.GenTextureFront(_camera, 0, 0, this.Size.X, this.Size.Y), new Material(Shader.DefaultDiffuse(), peron));
-      Gu.World.CreateAndAddObject("Plane.", MeshData.GenPlane(10, 10), new Material(Shader.DefaultDiffuse(), grass));
+      Gu.World.CreateAndAddObject("TextureFront", MeshData.GenTextureFront(_camera, 0, 0, this.Size.X, this.Size.Y), new Material(Shader.DefaultDiffuse(), tx_peron));
+      Gu.World.CreateAndAddObject("Plane.", MeshData.GenPlane(10, 10), new Material(Shader.DefaultDiffuse(), tx_grass));
       //  _boxMeshThing = Gu.World.FindObject("BoxMesh");
       //_boxMeshThing.Position = new vec3(0, _boxMeshThing.BoundBoxMeshBind.Height() * 0.5f, 0);
 
-      Sphere_Rotate_Quat_Test = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test", MeshData.GenSphere(1), new Material(Shader.DefaultDiffuse(), mclovin));
-      Sphere_Rotate_Quat_Test2 = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test2", MeshData.GenEllipsoid(new vec3(1.9f, 1, 1.5f)), new Material(Shader.DefaultDiffuse(), usopp));
-      Sphere_Rotate_Quat_Test3 = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test3", MeshData.GenEllipsoid(new vec3(1, 4, 4)), new Material(Shader.DefaultDiffuse(), hogback));
-
-      //TODO: sky shader. 
-      // Material sky_mat = new Material(Shader.DefaultDiffuse(), sky1);
-      // sky_mat.GpuRenderState.DepthTest = false;//Disable depth test.
-      // Gu.World.Sky = Gu.World.CreateObject("sky", MeshData.GenSphere(128, 128, 400, true, true), sky_mat);
-      // Gu.World.Sky.Mesh.DrawOrder = DrawOrder.First;
-      // Gu.World.Sky.Constraints.Add(new FollowConstraint(_camera, FollowConstraint.FollowMode.Snap));
+      Sphere_Rotate_Quat_Test = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test", MeshData.GenSphere(1), new Material(Shader.DefaultDiffuse(), tx_mclovin));
+      Sphere_Rotate_Quat_Test2 = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test2", MeshData.GenEllipsoid(new vec3(1.9f, 1, 1.5f)), new Material(Shader.DefaultDiffuse(), tx_usopp));
+      Sphere_Rotate_Quat_Test3 = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test3", MeshData.GenEllipsoid(new vec3(1, 4, 4)), new Material(Shader.DefaultDiffuse(), tx_hogback));
 
       //Animation test
       var cmp = new AnimationComponent();
@@ -358,30 +432,10 @@ namespace PirateCraft
       //Some fun parenting stuff.
       //  Sphere_Rotate_Quat_Test.AddChild(Sphere_Rotate_Quat_Test2.AddChild(Sphere_Rotate_Quat_Test3.AddChild(_boxMeshThing)));
     }
-    private void TestFonts()
+    private void CreateGUI()
     {
-      //TODO: we might need to use STB here. This is just .. ugh
-      try
-      {
-        //Font f = new Font(ttf_loc);
-        //System.Drawing.Bitmap b = f.RenderString("Hello World");
-        //b.Save("./test.bmp");
-        //var fff = b.RawFormat;
-        //var ffff = b.PixelFormat;
-        //System.Console.WriteLine("whate");
-        //System.Console.WriteLine(System.IO.Directory.GetCurrentDirectory());
-        //NRasterizer.OpenTypeReader r = new NRasterizer.OpenTypeReader();
-        //NRasterizer.Typeface face;
-
-        //using (var fs = File.Open(ttf_loc, FileMode.Open, FileAccess.Read, FileShare.None))
-        //{
-        //    face = r.Read(fsgit stat);
-        //}
-      }
-      catch (Exception ex)
-      {
-        Console.WriteLine(ex.ToString());
-      }
+      _gui = new Gui();
+      Gu.World.AddObject(_gui);
     }
     private void TestSound()
     {
@@ -467,7 +521,10 @@ namespace PirateCraft
       Menu();
       DebugKeyboard();
       EditBlocks();
-      TestEllipsoid_Box();
+      if (Gu.Context.DebugDraw.DrawBoundBoxes == true)
+      {
+        TestEllipsoid_Box();
+      }
 
     }
     bool CapsuleHit = false;
@@ -488,7 +545,7 @@ namespace PirateCraft
         basisY = vec3.Zero; //no cheating
         basisZ = _player_empty.BasisZ;
       }
-      
+
       //Modify speed multiplier based on state
       float speedMul = 1; //normal speed
       if (Gu.Keyboard.PressOrDown(Keys.LeftControl) || Gu.Keyboard.PressOrDown(Keys.RightControl))
@@ -533,7 +590,7 @@ namespace PirateCraft
           _player_empty.Velocity += new vec3(0, Base_Jump_Speed, 0);
         }
       }
-      
+
       if (InputState == InputState.World)
       {
         _FPSRotator.DoRotate(_player_empty, _camera, this);
@@ -686,7 +743,7 @@ namespace PirateCraft
         {
           if (PickSound_Time <= 0)
           {
-            PlayPickSound(b.Block);
+            Gu.World.PlayPickSound(b.Block);
             PickSound_Time = PickSound_Time_Max;
           }
         }
@@ -735,7 +792,7 @@ namespace PirateCraft
 
       Line3f proj_pt = _camera.Frustum.ScreenToWorld(projec_pos, TransformSpace.World, 0.001f, MaxEditDistance_Block);
       var pr = new PickRay3D(proj_pt);
-      var b = Gu.World.RaycastBlock(pr);
+      var b = Gu.World.RaycastBlock_2(pr);
 
       vec3? block_center = null;
       if (b.IsHit)
@@ -775,7 +832,7 @@ namespace PirateCraft
                 //Just being lazy.
                 if (block_center != null)
                 {
-                  PlayDropSound();
+                  Gu.World.PlayDropSound();
                   Gu.World.SetBlock(block_center.Value, BlockItemCode.Feldspar);
                 }
               }

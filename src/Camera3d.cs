@@ -260,11 +260,11 @@ namespace PirateCraft
       _view_h = h;
       Frustum = new Frustum(this);
     }
-    public override void Update(double dt, ref Box3f parentBoundBox)
+    public override void Update(World world, double dt, ref Box3f parentBoundBox)
     {
-      base.Update(dt, ref parentBoundBox);
+      base.Update(world, dt, ref parentBoundBox);
       ProjectionMatrix = mat4.projection(FOV, Viewport_Width, Viewport_Height, Near, Far);
-      var p = this.World.extractTranslation();
+      var p = this.WorldMatrix.extractTranslation();
       ViewMatrix = mat4.getLookAt(p, new vec3(p + BasisZ), new vec3(0, 1, 0));
       Frustum.Update();
     }

@@ -191,6 +191,23 @@ namespace PirateCraft
 
       return pix;
     }
+    public void flipV()
+    {
+      byte[] st = new byte[this.Data.Length];
+
+      int rowsize = this.BytesPerPixel * this.Width;
+      int h = this.Height;
+
+      // Swap the scanlines
+      for (int v = 0; v < this.Height; ++v)
+      {
+        //ptroff is just an offset into byte[]
+        //    memcpy(st->ptr() + v * rowsize, _pData->ptrOff((h - v - 1) * rowsize), rowsize);
+        Buffer.BlockCopy(Data, (h - v - 1) * rowsize, st, v * rowsize, rowsize);
+      }
+
+      this.Data = st;
+    }
     public void setPixel32(int x, int y, Pixel4ub pix)
     {
       int off = vofftos(x, y, Width) * BytesPerPixel;  //StaticBufffer is a char array so we must scale the size

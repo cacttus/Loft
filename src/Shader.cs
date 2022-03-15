@@ -143,6 +143,7 @@ namespace PirateCraft
       public string UniformName { get; }
       private TextureInput(string name) { UniformName = name; }
       public static TextureInput Albedo { get; private set; } = new TextureInput("_ufTexture2D_Albedo");
+      public static TextureInput Albedo2 { get; private set; } = new TextureInput("_ufTexture2D_Albedo2");
       public static TextureInput Normal { get; private set; } = new TextureInput("_ufTexture2D_Normal");
     }
 
@@ -231,7 +232,7 @@ namespace PirateCraft
       }
       Gpu.CheckGpuErrorsDbg();
     }
-    public void BeginRender(double dt, Camera3D cam, WorldObject ob, Material m, mat4[] instanceData)
+    public void BeginRender(double dt, Camera3D cam, WorldObject ob, Material m, mat4[] instanceData, DayNightCycle dnc)
     {
       //**Pre - render - update uniforms.
       Gpu.CheckGpuErrorsDbg();
@@ -241,7 +242,7 @@ namespace PirateCraft
         _boundTextures.Clear();
 
         Bind();
-        BindUniforms(dt, cam, ob, m, instanceData);
+        BindUniforms(dt, cam, ob, m, instanceData, dnc);
       }
       Gpu.CheckGpuErrorsDbg();
     }
@@ -362,7 +363,7 @@ namespace PirateCraft
         _uniformBlocks.Add(u_name, su);
       }
     }
-    private void BindUniforms(double dt, Camera3D cam, WorldObject ob, Material m, mat4[] instanceData)
+    private void BindUniforms(double dt, Camera3D cam, WorldObject ob, Material m, mat4[] instanceData, DayNightCycle dnc)
     {
       int dbg_n = 0;
       //TODO: cache uniform values and avoid updating
@@ -390,6 +391,10 @@ namespace PirateCraft
         {
           BindTexture(u, m, TextureInput.Albedo);
         }
+        else if (u.Name.Equals(TextureInput.Albedo2.UniformName))
+        {
+          BindTexture(u, m, TextureInput.Albedo2);
+        }
         else if (u.Name.Equals(TextureInput.Normal.UniformName))
         {
           BindTexture(u, m, TextureInput.Normal);
@@ -400,12 +405,12 @@ namespace PirateCraft
         }
         else if (u.Name.Equals("_ufMatrix_Normal"))
         {
-          var n_mat_tk = ob.World.inverseOf().ToOpenTK();
+          var n_mat_tk = ob.WorldMatrix.inverseOf().ToOpenTK();
           GL.UniformMatrix4(u.Location, false, ref n_mat_tk);
         }
         else if (u.Name.Equals("_ufMatrix_Model"))
         {
-          var m_mat_tk = ob.World.ToOpenTK();
+          var m_mat_tk = ob.WorldMatrix.ToOpenTK();
           GL.UniformMatrix4(u.Location, false, ref m_mat_tk);
         }
         else if (u.Name.Equals("_ufMatrix_View"))
@@ -422,7 +427,22 @@ namespace PirateCraft
         {
           GL.Uniform1(u.Location, nmap);
         }
-
+        else if (u.Name.Equals("_ufCamera_Basis_X"))
+        {
+          GL.ProgramUniform3(_glId, u.Location, cam.BasisX.x, cam.BasisX.y, cam.BasisX.z);
+        }
+        else if (u.Name.Equals("_ufCamera_Basis_Y"))
+        {
+          GL.ProgramUniform3(_glId, u.Location, cam.BasisY.x, cam.BasisY.y, cam.BasisY.z);
+        }
+        else if (u.Name.Equals("_ufCamera_Basis_Z"))
+        {
+          GL.ProgramUniform3(_glId, u.Location, cam.BasisZ.x, cam.BasisZ.y, cam.BasisZ.z);
+        }
+        else if (u.Name.Equals("_ufDayNightCycle_Blend"))
+        {
+          GL.ProgramUniform1(_glId, u.Location, (float) dnc.StarOrCloud_Blend);
+        }
         else
         {
           Gu.Log.WarnCycle("Unknown uniform variable '" + u.Name + "'.");
