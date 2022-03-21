@@ -146,6 +146,14 @@ namespace PirateCraft
       {
         _camera.Viewport_Width = e.Width;
         _camera.Viewport_Height = e.Height;
+        if (_camera.Viewport_Width <= 0 || _camera.Viewport_Height <= 0)
+        {
+          Gu.Log.Error("Window width and height are zero (OnResize), setting to 1");
+          _camera.Viewport_Width = (_camera.Viewport_Width == 0) ? 1 : _camera.Viewport_Width;
+          _camera.Viewport_Height = (_camera.Viewport_Height == 0) ? 1 : _camera.Viewport_Height;
+        }
+
+        Gu.Context.Renderer.resizeScreenBuffers(_camera.Viewport_Width, _camera.Viewport_Height);
       }
     }
     protected override void OnMouseMove(MouseMoveEventArgs e)
@@ -163,6 +171,7 @@ namespace PirateCraft
       {
         InitializeEverything();
       };
+
     }
     protected override void OnUpdateFrame(FrameEventArgs e)
     {
@@ -184,10 +193,14 @@ namespace PirateCraft
       {
         Gu.Init_RenderThread_Only(this);
 
-
+#if DEBUG
+        OperatingSystem.ShowConsole();
+#else
+        OperatingSystem.HideConsole();
+#endif
         //Cameras
         _camera = Gu.World.CreateCamera("Camera-001", this.Size.X, this.Size.Y, vec3.Zero);
-        _camera.Far = 2000.0f;
+        _camera.Far = 4000.0f;
 
         //Character height
         _camera.Position_Local = new vec3(0, World.BlockSizeY * 1.8f, 0);
@@ -265,7 +278,7 @@ namespace PirateCraft
            new v_v3c4() { _v = new vec3(0, size, 0), _c =   ch_c  }
          };
       WorldObject Crosshair = new WorldObject("crosshair");
-      Crosshair.Mesh = new MeshData("crosshair_mesh", PrimitiveType.Lines, v_v3c4.VertexFormat, Gpu.GetGpuDataPtr(verts.ToArray()));
+      Crosshair.Mesh = new MeshData("crosshair_mesh", PrimitiveType.Lines, Gpu.CreateVertexBuffer(verts.ToArray()));
       Crosshair.Mesh.DrawOrder = DrawOrder.Last;
       Crosshair.Position_Local = new vec3(0, 0, 3);
       Material crosshair_mat = new Material(Shader.DefaultFlatColorShader());
@@ -295,9 +308,9 @@ namespace PirateCraft
         //Kind of sloppy way to do this whole thing. 
         obj.Color =
         new vec4(
-          (float)Gu.World.DayNightCycle.Color.x,
-          (float)Gu.World.DayNightCycle.Color.y,
-          (float)Gu.World.DayNightCycle.Color.z,
+          (float)Gu.World.DayNightCycle.SkyColor.x,
+          (float)Gu.World.DayNightCycle.SkyColor.y,
+          (float)Gu.World.DayNightCycle.SkyColor.z,
           1
           );
         vec3 pe = _player_empty.WorldMatrix.extractTranslation();
@@ -312,7 +325,7 @@ namespace PirateCraft
       var sun_moon_empty = Gu.World.CreateObject("sun_moon_empty", null, null);
       sun_moon_empty.OnUpdate = (obj) =>
       {
-        double ang = Gu.World.DayNightCycle.Time / Gu.World.DayNightCycle.DayLength * Math.PI * 2.0;
+        double ang = Gu.World.DayNightCycle.DayTime_Seconds / Gu.World.DayNightCycle.DayLength_Seconds * Math.PI * 2.0;
         obj.Rotation_Local = quat.fromAxisAngle(new vec3(0, 0, 1), (float)ang);
 
         vec3 pe = _player_empty.WorldMatrix.extractTranslation();
@@ -348,7 +361,7 @@ namespace PirateCraft
       sun_bloom.Mesh.DrawOrder = DrawOrder.First;
       sun_bloom.OnUpdate = (obj) =>
       {
-        vec3 dir = Gu.World.DayNightCycle.SunDirInv.ToVec3();
+        vec3 dir = Gu.World.DayNightCycle.MoonDir.ToVec3();
         //ease multiplier so that the glare does not show on the horizon.
         float horizon_mul = (float)MathUtils.Ease(0, 1, (double)dir.dot(new vec3(0, 1, 0)));
         float bloom_dp = dir.dot(_camera.BasisZ);
@@ -377,7 +390,7 @@ namespace PirateCraft
       moon_bloom.Mesh.DrawOrder = DrawOrder.First;
       moon_bloom.OnUpdate = (obj) =>
       {
-        vec3 dir = Gu.World.DayNightCycle.SunDirInv.ToVec3() * -1.0f;
+        vec3 dir = Gu.World.DayNightCycle.MoonDir.ToVec3() * -1.0f;
         //ease multiplier so that the glare does not show on the horizon.
         float horizon_mul = (float)MathUtils.Ease(0, 1, (double)dir.dot(new vec3(0, 1, 0)));
         float bloom_dp = dir.dot(_camera.BasisZ);
@@ -651,19 +664,16 @@ namespace PirateCraft
         }
 
       }
-      if (Gu.Keyboard.Press(Keys.F4))
-      {
-        Material.DefaultDiffuse().Shader.lightingModel = ((Material.DefaultDiffuse().Shader.lightingModel + 1) % 3);
-      }
+
       if (Gu.Keyboard.Press(Keys.F5))
       {
         Box3f.nugs = (Box3f.nugs + 1) % Box3f.maxnugs;
         //Material.DefaultDiffuse().Shader.GGX_X = (Material.DefaultDiffuse().Shader.GGX_X + 0.01f) % 3.0f;
       }
-      //if (Gu.Keyboard.PressOrDown(Keys.F6))
-      //{
-      //  Material.DefaultDiffuse().Shader.GGX_Y = (Material.DefaultDiffuse().Shader.GGX_Y + 0.01f) % 3.0f;
-      //}
+      if (Gu.Keyboard.PressOrDown(Keys.F6))
+      {
+        Gu.Context.Renderer.saveScreenshot();
+      }
       if (Gu.Keyboard.Press(Keys.F7))
       {
         meshIdx = (meshIdx + 1) % 3;
@@ -688,10 +698,10 @@ namespace PirateCraft
         _player_empty.HasGravity = !_player_empty.HasGravity;
         _player_empty.AirFriction = MaxAirFriction - _player_empty.AirFriction;// ; //Movement Damping
       }
-      if (Gu.Keyboard.PressOrDown(Keys.F9))
+
+      if (Gu.Keyboard.Press(Keys.F10))
       {
-        Material.DefaultDiffuse().Shader.nmap += 0.01f;
-        Material.DefaultDiffuse().Shader.nmap = Material.DefaultDiffuse().Shader.nmap % 1;
+        OperatingSystem.ToggleShowConsole();
       }
       if (Gu.Keyboard.Press(Keys.F11))
       {
@@ -833,7 +843,7 @@ namespace PirateCraft
                 if (block_center != null)
                 {
                   Gu.World.PlayDropSound();
-                  Gu.World.SetBlock(block_center.Value, BlockItemCode.Feldspar);
+                  Gu.World.SetBlock(block_center.Value, BlockItemCode.Feldspar, BlockBits.Solid);
                 }
               }
 
@@ -854,7 +864,7 @@ namespace PirateCraft
       {
         var box = GetPicked_PlaceBlock_Box(b);
         block_center = box.center();
-        Gu.World.SetBlock(block_center.Value, BlockItemCode.Torch);
+        Gu.World.SetBlock(block_center.Value, BlockItemCode.Torch, BlockBits.Solid);
       }
     }
     private void TestEllipsoid_Box()
@@ -923,14 +933,24 @@ namespace PirateCraft
     }
     private void RenderFrame()
     {
-      Gu.Context.Renderer.BeginRender(this, new vec4(.3f, .3f, .3f, 1));
+      Gu.Context.Renderer.BeginEverything_New(this);
+
+      // Gu.Context.Renderer.BeginRender(this, new vec4(.3f, .3f, .3f, 1));
+
+      Gu.Context.Renderer.beginRenderDeferred();
+      Gu.Context.Renderer.endRenderDeferred();
+
+      Gu.Context.Renderer.beginRenderForward();
       {
         Gu.World.Render(Gu.Context.Delta, _camera);
         Gu.World.RenderDebug(Gu.Context.Delta, _camera);
       }
-      Gu.Context.Renderer.EndRender();
+      Gu.Context.Renderer.endRenderForward();
+      Gu.Context.Renderer.endRenderAndBlit(_camera);
 
       Gu.Context.DebugDraw.EndFrame();
+      Gu.Context.Renderer.EndEverything_New();
+      // Gu.Context.Renderer.EndRender();//Swap buffers
 
       Gu.Context.Gpu.ExecuteCallbacks_RenderThread(Gu.Context);
     }

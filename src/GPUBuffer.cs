@@ -15,15 +15,43 @@ namespace PirateCraft
     private int _itemCount = 0;
     private int _itemSize = 0;
 
+    private VertexFormat _format = null;
+    public VertexFormat Format { get { return _format; } }
+    public DrawElementsType DrawElementsType { get; private set; } = DrawElementsType.UnsignedInt;//only valid for buffertarget=elementarraybuffer
+
     public BufferTarget BufferTarget { get; private set; } = BufferTarget.ArrayBuffer;
     public int ItemCount { get { return _itemCount; } }
-    public int ItemSizeBytes { get { return _itemSize; } }
+    public int ItemSizeBytes { get { return _format.ItemSizeBytes; } }
 
-    public GPUBuffer(BufferTarget t, GpuDataPtr items)
+    public GPUBuffer(VertexFormat fmt, BufferTarget t, GpuDataPtr items)
     {
+      Gu.Assert(fmt != null);
+      Gu.Assert(items != null);
       BufferTarget = t;
+      _format = fmt;
       _glId = GL.GenBuffer();
       Allocate(items);
+
+      if (t == BufferTarget.ElementArrayBuffer)
+      {
+        if (fmt.ItemSizeBytes == 1)
+        {
+          DrawElementsType = DrawElementsType.UnsignedByte;
+        }
+        else if (fmt.ItemSizeBytes == 2)
+        {
+          DrawElementsType = DrawElementsType.UnsignedShort;
+        }
+        else if (fmt.ItemSizeBytes == 4)
+        {
+          DrawElementsType = DrawElementsType.UnsignedInt;
+        }
+        else
+        {
+          //Uh..
+          Gu.BRThrowException("Invalid element array buffer type.");
+        }
+      }
     }
     public override void Dispose_OpenGL_RenderThread()
     {
@@ -35,6 +63,7 @@ namespace PirateCraft
     public void Bind()
     {
       GL.BindBuffer(BufferTarget, _glId);
+      Gpu.CheckGpuErrorsDbg();
     }
     public void Unbind()
     {
@@ -47,21 +76,25 @@ namespace PirateCraft
       //GpuDataArray is a kind of proxy class that munges data into a managed byte array.
 
       //**TODO: fix this to use GpuDataPtr and raw copy - Get rid of GpuDataArray
+      GpuDataArray d = null;
 
       int offsetBytes = itemOffset * _itemSize;
       int lengthBytes = (itemCount <= -1) ? (_itemCount * _itemSize) : ((int)itemCount * _itemSize);
       Bind();
-      IntPtr pt = GL.MapBufferRange(BufferTarget, (IntPtr)offsetBytes, (IntPtr)lengthBytes, BufferAccessMask.MapReadBit);
-      if (pt == IntPtr.Zero)
       {
-        Gu.BRThrowException("Failed to map OpenGL Buffer."); 
+        IntPtr pt = GL.MapBufferRange(BufferTarget, (IntPtr)offsetBytes, (IntPtr)lengthBytes, BufferAccessMask.MapReadBit);
+        Gpu.CheckGpuErrorsDbg();
+        if (pt == IntPtr.Zero)
+        {
+          Gu.BRThrowException("Failed to map OpenGL Buffer.");
+        }
+        byte[] managedArray = new byte[lengthBytes];
+        Marshal.Copy(pt, managedArray, 0, (int)lengthBytes);
+        GL.UnmapBuffer(BufferTarget);
+        d = new GpuDataArray(_itemSize, _itemCount, managedArray);
       }
-      byte[] managedArray = new byte[lengthBytes];
-      Marshal.Copy(pt, managedArray, 0, (int)lengthBytes);
-      GL.UnmapBuffer(BufferTarget);
       Unbind();
 
-      GpuDataArray d = new GpuDataArray(_itemSize, _itemCount, managedArray);
       return d;
     }
     public void CopyDataToGPU(GpuDataPtr src, int dstOffItems, int srcItemCount = -1)
@@ -71,10 +104,12 @@ namespace PirateCraft
       Gu.Assert(srcItemCount <= this.ItemCount);
 
       int srclengthBytes = (srcItemCount <= -1) ? (src.Count * _itemSize) : ((int)srcItemCount * _itemSize);
+      int dstlengthBytes = this.ItemCount * this.ItemSizeBytes;
 
       Bind();
       {
-        IntPtr pdst = GL.MapBufferRange(BufferTarget, (IntPtr)dstOffItems, (IntPtr)srclengthBytes, BufferAccessMask.MapReadBit);
+        IntPtr pdst = GL.MapBufferRange(BufferTarget, (IntPtr)dstOffItems, (IntPtr)srclengthBytes, BufferAccessMask.MapWriteBit);
+        Gpu.CheckGpuErrorsDbg();
         if (pdst == IntPtr.Zero)
         {
           Gu.BRThrowException("Failed to map OpenGL Buffer.");
@@ -82,13 +117,14 @@ namespace PirateCraft
         IntPtr psrc = src.Lock();
         unsafe
         {
-          System.Buffer.MemoryCopy((void*)psrc, (void*)pdst, this.ItemCount, srclengthBytes);
+          System.Buffer.MemoryCopy((void*)psrc, (void*)pdst, dstlengthBytes, srclengthBytes);
         }
         src.Unlock();
       }
+      GL.UnmapBuffer(BufferTarget);
       Unbind();
     }
-    void Allocate(GpuDataPtr items)
+    private void Allocate(GpuDataPtr items)
     {
       _itemCount = items.Count;
       _itemSize = items.ItemSizeBytes;
@@ -100,6 +136,7 @@ namespace PirateCraft
           BufferUsageHint.StaticDraw
           );
       items.Unlock();
+      Gpu.CheckGpuErrorsDbg();
       Unbind();
 
     }

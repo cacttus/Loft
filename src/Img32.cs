@@ -21,6 +21,7 @@ namespace PirateCraft
       a = da;
     }
   }
+  //Note: this class initializes the data buffer when you create it. It requires a w/h
   public class Img32
   {
     public int Width { get; private set; } = 0;
@@ -44,16 +45,17 @@ namespace PirateCraft
     }
     public Img32(int w, int h)
     {
-      byte[] rgbValues = new byte[w * h * BytesPerPixel];
-      init(w, h, rgbValues);
+      //Note if data is null data will still get allocated
+      init(w, h, null);
     }
-    public Img32(int w, int h, byte[] rgbValues)
+    public Img32(int w, int h, byte[] data)
     {
-      if (rgbValues.Length % BytesPerPixel != 0)
+      //Note if data is null data will still get allocated
+      if (data != null && data.Length % BytesPerPixel != 0)
       {
         Gu.Log.Error("the input RGB values were not divisible by the given bytes per pixel. This will result in undefined behavior.");
       }
-      init(w, h, rgbValues);
+      init(w, h, data);
     }
     public void FlipBR()
     {
@@ -95,6 +97,10 @@ namespace PirateCraft
     {
       Width = w;
       Height = h;
+      if(data == null)
+      {
+        data = new byte[w * h * BytesPerPixel];
+      }
       Data = data;
     }
     public Img32 copySubImageTo(ivec2 off, ivec2 size)

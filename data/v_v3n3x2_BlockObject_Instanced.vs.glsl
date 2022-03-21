@@ -14,7 +14,7 @@ out vec3 _vsVertex; //should be frag pos.
 
 #define MAX_INSTANCES 32
 layout(std140) uniform _ufInstanceData_Block {
-    mat4 _ufInstanceData[MAX_INSTANCES];
+  mat4 _ufInstanceData[MAX_INSTANCES];
 };
 
 void main(void)

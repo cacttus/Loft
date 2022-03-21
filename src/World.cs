@@ -4,16 +4,448 @@ using System.Text;
 
 namespace PirateCraft
 {
-  [StructLayout(LayoutKind.Sequential)]
-  public struct GRay
+  public class Beam2
   {
-    public vec3 Color;
-    public vec3 Dir; //8
-    public GRay(vec3 c, vec3 d) { Color = c; Dir = d; }
-  };
+    //Beam me up!
+    public Beam2() { }
+    public short min = 0; // local block position in drome, min x,y ,z
+    public short max = 0;
+    // public byte[] light_min = new byte[4];
+    //  public byte[] light_max = new byte[4];
+    public float occlusion = 0; //amount of occlusion between blocks
+
+
+    //simpler lighting for now
+    public vec3 dir;// x_light, y_light, z_light; // -1,1
+    public vec3 color;// x_light, y_light, z_light; // -1,1
+    public short rays = 0;
+    public float decay = 0;
+
+    public List<Beam2> nextX = null;//next beam in the  along positive axis
+    public List<Beam2> prevX = null;
+    public List<Beam2> nextZ = null;//next beam in the 
+    public List<Beam2> prevZ = null;
+
+    public void Init(vec3 sun_dir, vec3 sun_color)
+    {
+      //reset / init beam
+      dir = sun_dir;
+      color = sun_color;
+      rays = 1;
+      decay = 1;
+    }
+  }
+  public struct VisibleBlockFaceData
+  {
+    public byte faceIdx; // 0 - 6
+    public short x, y, z;
+  }
+  public class BeamGrid2
+  {
+    //New beam grid with one collection of height beams only along x/z, beam2 that allows for shadows
+    //Easier to understand than BeamGrid.
+    private SortedDictionary<ivec2, List<Beam2>> Beams = new SortedDictionary<ivec2, List<Beam2>>(new ivec2.ivec2ComparerYX());//layer=z, stack=y -> bars=x : +/- y
+    public long UpdateStamp { get; private set; } = 0;//Microseconds of last modified
+
+    private const float LiquidOcclusion = 1.0f / 10.0f;
+    private const float OcclusionDistanceBlocks = 6.0f;//# of blocks until "black"
+    private float Ambient = 0.1f;
+    private vec3 AmbientColor = new vec3(1, 1, 1);
+
+    public void Build(World w, Drome d)
+    {
+      MakeBars(w, d);
+      Stitch();
+    }
+    public vec3 GetBlockFaceColor(int iface, int bx, int by, int bz)
+    {
+      vec3 out_color = vec3.Zero;
+      int xoff = bx, yoff = by, zoff = bz;
+      vec3 f_n = vec3.Zero; ;
+      if (iface == 0)
+      {
+        xoff -= 1;
+        f_n = new vec3(-1, 0, 0);
+      }
+      else if (iface == 1)
+      {
+        xoff += 1;
+        f_n = new vec3(1, 0, 0);
+      }
+      else if (iface == 2)
+      {
+        yoff -= 1;
+        f_n = new vec3(0, -1, 0);
+      }
+      else if (iface == 3)
+      {
+        yoff += 1;
+        f_n = new vec3(0, 1, 0);
+      }
+      else if (iface == 4)
+      {
+        zoff -= 1;
+        f_n = new vec3(0, 0, -1);
+      }
+      else if (iface == 5)
+      {
+        zoff += 1;
+        f_n = new vec3(0, 0, 1);
+      }
+      else
+      {
+        Gu.BRThrowException("Invalid block face id");
+      }
+
+      if (xoff == -1 || yoff == -1 || zoff == -1 ||
+        xoff == World.DromeBlocksX ||
+        yoff == World.DromeBlocksY ||
+        zoff == World.DromeBlocksZ
+        )
+      {
+        return out_color;
+      }
+
+
+      bool dbg_Found = false;
+      List<Beam2> beam_stack;
+      if (Beams.TryGetValue(new ivec2(xoff, zoff), out beam_stack))
+      {
+        foreach (var bb in beam_stack)
+        {
+          if (yoff >= bb.min && yoff <= bb.max)
+          {
+            float dist = ((float)yoff - (float)bb.min + 1.0f) / ((float)bb.max - (float)bb.min + 1.0f); //+1 because a block is one unit and max-min is one unit minimum
+            out_color = 
+              new vec3(Math.Clamp(Math.Clamp(bb.dir.dot(f_n), 0.0f, 1.0f) * bb.decay, 0.0f, 1.0f) * bb.color + Ambient * AmbientColor).clamp(0.0f,1.0f);
+            dbg_Found = true;
+            break;
+          }
+        }
+      }
+
+      if (dbg_Found == false)
+      {
+        //So this could be a plant. if it's a plant the visible face resting on a solid block would point towards the ground
+        //then the gotten block would not be within the beam grid. .. 
+        // maybe just remove solid faces that plants correspond to the ground ..
+        int n = 0;
+        n++;
+      }
+
+      return out_color;
+    }
+    public void ApplyDirLight(vec3 sun_dir, vec3 sun_color)
+    {
+      short x_min, x_max, x_inc;
+      short y_min, y_max, y_inc;
+      short z_min, z_max, z_inc;
+
+      float light_axis_x = sun_dir.x;
+      float light_axis_y = sun_dir.y;
+      float light_axis_z = sun_dir.z;
+
+      UpdateStamp = Gu.Microseconds();
+
+      //If we loop along the direction of the ray then there will be no duplicate lighting
+      for (int zi = 0; zi < World.DromeBlocksZ; zi++)
+      {
+        int zidx = zi;
+        if (light_axis_z < 0)
+        {
+          zidx = World.DromeBlocksZ - zi - 1;
+        }
+        for (int xi = 0; xi < World.DromeBlocksX; xi++)
+        {
+          int xidx = xi;
+          if (light_axis_x < 0)
+          {
+            xidx = World.DromeBlocksX - xi - 1;
+          }
+          if (Beams.TryGetValue(new ivec2(xidx, zidx), out var beams))
+          {
+            // * First set light at edge beam.
+            //Beams.count should always be > 0
+            bool is_edge_beam = false;
+            Beam2 edge = null;
+            if (light_axis_y < 0)
+            {
+              edge = beams[beams.Count - 1];
+              is_edge_beam = (edge.max == World.DromeBlocksY - 1);
+            }
+            else
+            {
+              edge = beams[0];
+              is_edge_beam = (edge.min == 0);
+            }
+
+            //edge of drome, the "full" sun value.
+            if (is_edge_beam)
+            {
+              edge.Init(sun_dir, sun_color);
+
+            }
+
+            // * Next spread light throughout the beam stack (2 neighbors)
+            foreach (var our_beam in beams)
+            {
+              List<Beam2> n_x = null;
+              if (light_axis_x < 0)
+              {
+                n_x = our_beam.prevX;
+              }
+              else
+              {
+                n_x = our_beam.nextX;
+              }
+              if (n_x != null)
+              {
+                foreach (var beam_n in n_x)
+                {
+                  TransferLight(our_beam, beam_n);
+                }
+              }
+
+              List<Beam2> n_z = null;
+              if (light_axis_z < 0)
+              {
+                n_z = our_beam.prevZ;
+              }
+              else
+              {
+                n_z = our_beam.nextZ;
+              }
+              if (n_z != null)
+              {
+                foreach (var beam_n in n_z)
+                {
+                  TransferLight(our_beam, beam_n);
+                }
+              }
+
+
+            }
+
+          }
+        }
+      }
+
+    }
+    private void MakeBars(World w, Drome d)
+    {
+      //Beams must only be air. Min / Max must be air blocks.
+      //Go through air blocks until we hit solid, that is a beam, then skip solid, air again, start new beam.
+
+      for (int zi = 0; zi < World.DromeBlocksZ; zi++)//Integral axis int(0,x) dx
+      {
+        for (int xi = 0; xi < World.DromeBlocksX; xi++)//Transmission axis
+        {
+          ivec2 v = new ivec2(xi, zi);
+
+          List<Beam2> beamlist = null;
+          Beam2 curBeam = null;
+          for (int yi = 0; yi < World.DromeBlocksY; yi++)
+          {
+            ushort b = d.GetBlock(xi, yi, zi);
+            var b_code = Block.GetVisibleBlockCode(b);
+            BlockTile bt = null;
+            w.BlockTiles.TryGetValue(b_code, out bt);
+            //We are solid block, end beam, or we are plant, or something else semi-transparent.
+
+            if ((b_code == BlockItemCode.Air) || (b_code == BlockItemCode.Water) || ((bt != null) && (bt.Opacity <= 0.9f)))
+            {
+              if (beamlist == null)
+              {
+                beamlist = new List<Beam2>();
+                Beams.Add(v, beamlist);
+              }
+
+              if (curBeam == null)
+              {
+                curBeam = new Beam2();
+                curBeam.min = (short)yi;
+                curBeam.occlusion = 0;
+              }
+
+              // 1 block = 1 occlusion
+              if ((bt != null) && (bt.Opacity <= 0.9f))
+              {
+                if (b_code == BlockItemCode.Water)
+                {
+                  var liquid = Block.GetLiquid(b);
+                  if (liquid > 0)
+                  {
+                    //Since the liquid is incorrectly getting added to solid blocks we have to make sure the block is not solid before adding liquid occlusion
+                    curBeam.occlusion += ((((float)liquid) / ((float)Block.MaxLiquid)) * LiquidOcclusion);
+                  }
+                }
+                else
+                {
+                  curBeam.occlusion += bt.Opacity;
+                }
+              }
+
+            }
+            else
+            {
+              if (bt == null && b_code != BlockItemCode.Air)
+              {
+                Gu.DebugBreak();//this is an error .. missing block tile probably.
+              }
+
+              //Solid block. End beam if started
+              if (curBeam != null)
+              {
+                curBeam.max = (short)(yi - 1); //the -1 is because this is solid, beams can only go from air->air
+                beamlist.Add(curBeam);
+                Gu.Assert(curBeam.max >= curBeam.min);//max equal min = 1 block
+                curBeam = null;
+              }
+            }
+
+
+          }//for
+
+          if (curBeam != null)
+          {
+            curBeam.max = (short)(World.DromeBlocksY - 1);
+            beamlist.Add(curBeam);
+            Gu.Assert(curBeam.max >= curBeam.min);
+          }
+          curBeam = null;
+          beamlist = null;
+
+        }//for 
+      }//for 
+    }
+    private void Stitch()
+    {
+      //Stitch up the beam stack (light path tunnels) along POSITIVE X or Z axis
+      //This stitches the WHOLE GRID
+      // If you edit a single block, we can stitch just that block it would be much faster.
+
+      int dbg_num_stitch = 0;
+
+      var stitchUP = (List<Beam2> cur, List<Beam2> next, bool do_x) =>
+      {
+        foreach (var beamA in cur)
+        {
+          foreach (var beamB in next)
+          {
+            if ((beamA.max < beamB.min) || (beamA.min > beamB.max))
+            {
+              //no hit
+            }
+            else
+            {
+              if (do_x)
+              {
+                if (beamA.nextX == null)
+                {
+                  beamA.nextX = new List<Beam2>();
+                }
+                if (beamB.prevX == null)
+                {
+                  beamB.prevX = new List<Beam2>();
+                }
+                beamA.nextX.Add(beamB);
+                beamB.prevX.Add(beamA);
+              }
+              else //do z
+              {
+                if (beamA.nextZ == null)
+                {
+                  beamA.nextZ = new List<Beam2>();
+                }
+                if (beamB.prevZ == null)
+                {
+                  beamB.prevZ = new List<Beam2>();
+                }
+                beamA.nextZ.Add(beamB);
+                beamB.prevZ.Add(beamA);
+              }
+              dbg_num_stitch++;
+
+            }
+
+          }
+        }
+      };
+
+      foreach (var kvp in Beams)
+      {
+        var cur_beam = kvp.Value;
+        if (Beams.TryGetValue(new ivec2(kvp.Key.x + 1, kvp.Key.y), out List<Beam2> nextx))
+        {
+          stitchUP(cur_beam, nextx, true);
+        }
+        if (Beams.TryGetValue(new ivec2(kvp.Key.x, kvp.Key.y + 1), out List<Beam2> nextz))
+        {
+          stitchUP(cur_beam, nextz, false);
+        }
+      }
+
+    }
+    private float CalculateDecay(float a1, float a2, float b1, float b2)
+    {
+      //calculate light decay from beam a to beam b
+      float decay = 0;
+      if (b2 >= a2)
+      {
+        if (b1 >= a1)
+        {
+          //We open below
+          decay = (b1 - a2) / (a1 - a2);
+        }
+        else
+        {
+          //we open to a bigger place, let in all the light
+          decay = (a1 - a2) / (a1 - a2); // 100% 
+        }
+      }
+      else
+      {
+        if (b1 >= a1)
+        {
+          //We open into a smaller cave, decay a lot
+          decay = (b1 - b2) / (a1 - a2);
+        }
+        else
+        {
+          //We open above
+          decay = (a1 - b2) / (a1 - a2);
+        }
+      }
+      return decay;
+    }
+    private void TransferLight(Beam2 from, Beam2 to)
+    {
+      float decay = CalculateDecay(from.min, from.max, to.min, to.max);
+      //For now we're using the dir light as the "reset" radiosity function. This resets rays and color.
+      to.dir = from.dir;
+      to.color = from.color; //TODO: color and dir would be (a+b)/2 for subsequent lights and directions
+      //raw occlusion doesn't work, we need a better system than this.
+      to.decay = from.decay * decay;// * (1.0f - Math.Clamp(from.occlusion / OcclusionDistanceBlocks, 0.0f, 1.0f)*0.01f);
+      to.rays = 1;
+    }
+
+  }//beamgrid21
+
   public enum GenState
   {
     Created, Queued, GenStart, GenEnd, Ready, Deleted,
+  }
+  public enum BlockBits
+  {
+    Solid,
+    Liquid,
+    SolidAndLiquid,
+    Fog,
+    All,
+  }
+  public static class BlockInfo
+  {
+    //Honeslty what we need is a BlockOpacity and set to 0 - 1 and tie it to BlockMaterial. 
   }
   public static class Block
   {
@@ -21,48 +453,167 @@ namespace PirateCraft
     //this class is just a utility methods for block
     //The effigious block
     //11  |  11 11  | 11 1111 1111 
-    //fog   liquid           item
-    // 0011110000000000
-    public static ushort Set_Block_Liquid(ushort block, ushort liquid_value_0_to_15)
+    //fog   liquid           item  = 10
+    private static int LiquidBitCount = 4;
+    public const int MaxLiquid = 0xF;//1111
+    private static int LiquidBitMask = 0x3C00;// 0011110000000000
+
+    private static int SolidBitCount = 10;
+    public const int MaxSolid = 0x3FF;//1111
+    private static int SolidBitMask = 0x3FF;// 0000001111111111
+
+    public static void SetBlock(ref ushort block, ushort block_solidcode_liquid_or_both, BlockBits bits)
     {
-      Gu.Assert(liquid_value_0_to_15 < 16);
-      return (ushort)(((int)block & 0x3C00) | (((int)liquid_value_0_to_15)<<10) & 0x3C00);
+      if (bits == BlockBits.All)
+      {
+        block = block_solidcode_liquid_or_both;
+      }
+      else if (bits == BlockBits.SolidAndLiquid)
+      {
+        //TODO: assuming w'er going to have more bits ..
+        block = block_solidcode_liquid_or_both;
+      }
+      else if (bits == BlockBits.Solid)
+      {
+        Block.SetSolid(ref block, block_solidcode_liquid_or_both);
+      }
+      else if (bits == BlockBits.Liquid)
+      {
+        Block.SetLiquid(ref block, block_solidcode_liquid_or_both);
+      }
+      else
+      {
+        Gu.BRThrowNotImplementedException();
+      }
     }
-    public static bool IsAir_Or_Missing(ushort b)
+    public static ushort GetVisibleBlockCode(ushort block)
     {
+      //Returns Blockitemcode.missing or blockitemcode.air if this block is not visible.
+      // otherwise returns WATER if it is water or, a solid block code (fog, etc need to also return a value)
+      var s = GetSolid(block);
+      if (s == BlockItemCode.Missing)
+      {
+        return s;
+      }
+      else if (s == BlockItemCode.Air)
+      {
+        if (GetLiquid(block) == 0)
+        {
+          return BlockItemCode.Air;
+        }
+        else
+        {
+          return BlockItemCode.Water; //water is a visible block. This is only returned if there is no solid block.
+        }
+      }
+      else
+      {
+        return s;
+      }
+    }
+    public static void SetLiquid(ref ushort block, ushort liquid_value)
+    {
+      Gu.Assert(liquid_value <= MaxLiquid);
+      block = (ushort)(((int)block & ~LiquidBitMask) | (((int)liquid_value) << SolidBitCount) & LiquidBitMask);
+    }
+    public static void AddLiquid(ref ushort block, short liquid_value)
+    {
+      //Add or remove liquid
+      var lqw = GetLiquid(block);
+      short newliq = (short)((int)lqw + (int)liquid_value);
+      if (newliq > Block.MaxLiquid)
+      {
+        newliq = Block.MaxLiquid;
+      }
+      if (newliq < 0)
+      {
+        newliq = 0;
+      }
+      ushort newliq_unsigned = (ushort)newliq;
+
+      SetLiquid(ref block, newliq_unsigned);
+    }
+    public static ushort GetLiquid(ushort block)
+    {
+      return (ushort)((((int)block & LiquidBitMask) >> SolidBitCount));
+    }
+    public static void SetSolid(ref ushort block, ushort solid_value)
+    {
+      //Sanity check
+      Gu.Assert(solid_value < BlockItemCode.MaxBlockItemCodes);
+      Gu.Assert(solid_value <= MaxSolid);
+      block = (ushort)(((int)block & ~SolidBitMask) | (((int)solid_value) << 0) & SolidBitMask);
+    }
+    public static ushort GetSolid(ushort block)
+    {
+
+      var solid_value = (ushort)((((int)block & SolidBitMask) >> 0));
+      Gu.Assert(solid_value < BlockItemCode.MaxBlockItemCodes);
+      return solid_value;
+    }
+    public static bool Is(ushort block, ushort blockitemcode)
+    {
+      return GetSolid(block) == blockitemcode;
+    }
+
+    public static bool IsFullOfWater(ushort block)
+    {
+      return Block.GetLiquid(block) == Block.MaxLiquid;
+    }
+    public static bool HasWater(ushort block)
+    {
+      return Block.GetLiquid(block) > 0;
+    }
+    public static bool HasNoWater(ushort block)
+    {
+      return Block.GetLiquid(block) == 0;
+    }
+    public static bool HasNoSolid(ushort b)
+    {
+      var s = Block.GetSolid(b);
+
       //Nothing but air
-      return b == BlockItemCode.Air || b == BlockItemCode.Missing;
+      return (s == BlockItemCode.Air || s == BlockItemCode.Missing || s == BlockItemCode.Water);
     }
-    public static bool IsMeshItem(ushort b)
+    public static bool HasSolid(ushort b)
+    {
+      return !HasNoSolid(b);
+    }
+    public static bool IsMeshItem(ushort bwhole)
     {
       //Items are special case cullables since they may not, or may cull entire faces.
-      return b == BlockItemCode.Torch;
+      return Block.Is(bwhole, BlockItemCode.Torch);
     }
-    public static bool CollidePlayer(ushort b)
+    public static bool CollidePlayer(ushort bwhole)
     {
+      var b = GetSolid(bwhole);
       return !(b == BlockItemCode.Tussock || b == BlockItemCode.Dandilion || b == BlockItemCode.RosePink || b == BlockItemCode.RoseRed || b == BlockItemCode.Seaweed);
     }
-    public static bool IsDecalOr2Sided(ushort b)
+    public static bool IsDecalOr2Sided(ushort bwhole)
     {
+      var b = GetSolid(bwhole);
+
       //In the future we'll probably keep a list of 2-sided billboards
-      return b == BlockItemCode.Tussock || b == BlockItemCode.Dandilion || b == BlockItemCode.RosePink || b == BlockItemCode.RoseRed || 
+      return b == BlockItemCode.Tussock || b == BlockItemCode.Dandilion || b == BlockItemCode.RosePink || b == BlockItemCode.RoseRed ||
         b == BlockItemCode.Cedar_Needles || b == BlockItemCode.Oak_Leaves || b == BlockItemCode.Seaweed;
     }
-    public static bool IsTransparent(ushort b)
+    public static bool IsSolidBlock(ushort bwhole)
     {
-      return b == BlockItemCode.Water;
-    }
-    public static bool IsSolidBlockNotDecal_OrWater(ushort b)
-    {
+      // THE BLOCK IS SOLID, NOT TRANSPARENT
       //This should return whether the block is a *solid (non-item) *non-transparent *block (6 solid sides). 
       // Used for face culling.
       //Technically it should index into a LUT to see whether this block-item is solid or not.
       //For now - we are just rendering blocks so we can return HasDensity for this.
-      return !IsAir_Or_Missing(b) && !IsMeshItem(b) && !IsDecalOr2Sided(b) && !IsTransparent(b);
+      return HasSolid(bwhole) && !IsMeshItem(bwhole) && !IsDecalOr2Sided(bwhole); //IsTransparent
     }
-    public static bool IsVisibleBlock(ushort b)
+    public static bool IsVisibleBlock(ushort bwhole)
     {
-      return !IsAir_Or_Missing(b);
+      var c = GetVisibleBlockCode(bwhole);
+      return c != BlockItemCode.Missing && c != BlockItemCode.Air;
+    }
+    public static bool IsNotVisible(ushort bwhole)
+    {
+      return !IsVisibleBlock(bwhole);
     }
   }
   public enum RegionState
@@ -76,10 +627,10 @@ namespace PirateCraft
     //This class determines what regions of globs/dromes have data, or are solid, this is used to
     //optimize the topology generator, and, unload empty regions of blocks, as empty areas have no data.
 
-    private int _value_count = 0;
-    private int _empty_count = 0;
-
     private const int RegionStateMaxBlocks = World.GlobBlocksX * World.GlobBlocksY * World.GlobBlocksZ;
+
+    private int _value_count = 0;
+    private int _empty_count = RegionStateMaxBlocks;
 
     public static RegionBlocks EmptyRegionState_Glob = new RegionBlocks();
     public bool HasValues
@@ -118,6 +669,11 @@ namespace PirateCraft
     }
     public RegionBlocks()
     {
+      //Note: Ctor does not get called.
+      Init();
+    }
+    public void Init()
+    {
       if (Block.IsVisibleBlock(Drome.InitialBlockValue))
       {
         _value_count = RegionStateMaxBlocks;
@@ -125,8 +681,8 @@ namespace PirateCraft
       }
       else
       {
-        _empty_count = RegionStateMaxBlocks;
         _value_count = 0;
+        _empty_count = RegionStateMaxBlocks;
       }
     }
     public RegionState State
@@ -173,10 +729,10 @@ namespace PirateCraft
   public class BlockItemCode
   {
     //Blocks
-    public const ushort Missing = 0; //block is missing, drome not loaded, - do not generate
-    public const ushort Air = 1; //air = empty = generate faces
-    public const ushort Land = 2;
-    public const ushort Land_Or_Water = 4;
+    public const ushort Missing = 0; //block is missing, maybe drome not loaded, not air /land/water
+    public const ushort Air = 1; //air = empty 
+    public const ushort Land = 2; //catch-all for land
+    public const ushort AnyVisible = 4; //unused right now
     public const ushort Grass = 5;
     public const ushort Dirt = 6;
     public const ushort Brick = 7;
@@ -193,7 +749,7 @@ namespace PirateCraft
     public const ushort Feldspar_Coal = 18;
     public const ushort Marble_White = 19;
     public const ushort Marble_Green = 20;
-    public const ushort Water = 21;
+    public const ushort Water = 21; //This is not a block this is just a code to determine visibility if there is no solid block
     public const ushort Seaweed = 22;
     public const ushort Clay = 23;
     public const ushort RedClay = 24;
@@ -203,9 +759,9 @@ namespace PirateCraft
     public const ushort Oak = 28;
 
     //MAX ** 
-    public const ushort MaxBlockItemCodes = 32;//This can be anywhere up to ushort - fog bits
-    //Items
-    //...
+    public const ushort MaxBlockItemCodes = 29;//This can be anywhere up to ushort - fog bits - water
+                                               //Items
+                                               //...
   }
   public class PickedBlock
   {
@@ -452,7 +1008,6 @@ namespace PirateCraft
     }
     public void Collect(Camera3D cam, Glob glob, DromeNode dn)
     {
-
       //Item collection
       if (visible_blockitems != null || visible_globs != null)
       {
@@ -558,20 +1113,54 @@ namespace PirateCraft
     // x-->  ^y /z  Center (our drome) = 13
 
     public DromeKernel ScalarFields = new DromeKernel();
-    public List<v_v3c3n3x2u1> async_verts = null;
-    public List<ushort> async_inds_op
-    {
-      get;
-      set;
-    } = null;
-    public List<ushort> async_inds_tp
-    {
-      get;
-      set;
-    } = null;
-    public Dictionary<BlockItem, List<vec3>> _blockitems = null;
+    public List<v_v3n3x2u1> async_verts = null;
+    public List<VisibleBlockFaceData> async_face_data = null;
+    public List<ushort> async_inds_op = null;
+    public List<ushort> async_inds_tp = null;
+    public Dictionary<BlockItem, List<vec3>> async_block_items = null;
+    public List<vec3> async_colors = null;
+
     public double DistanceToPlayer = 0;//Sort key for generating
     public ushort[] CopiedBlocks = null;//Note this is the block kernel of blocks + n
+
+    public void CreateBuffers()
+    {
+      if (async_verts == null)
+      {
+        async_verts = new List<v_v3n3x2u1>();
+      }
+      if (async_inds_op == null)
+      {
+        async_inds_op = new List<ushort>();
+      }
+      if (async_inds_tp == null)
+      {
+        async_inds_tp = new List<ushort>();
+      }
+      if (async_face_data == null)
+      {
+        async_face_data = new List<VisibleBlockFaceData>();
+      }
+      if (async_colors == null)
+      {
+        async_colors = new List<vec3>();
+      }
+    }
+    public void ReleaseBuffers()
+    {
+      async_verts?.Clear();
+      async_verts = null;
+      async_inds_op?.Clear();
+      async_inds_op = null;
+      async_inds_tp?.Clear();
+      async_inds_tp = null;
+      //async_face_data?.Clear(); //Note: Since we directly copy this stuff, it's not wise to clear it .. just in case we didn't set it to null
+      //async_face_data = null;
+      //async_block_items?.Clear();
+      //async_block_items = null;
+      async_colors?.Clear();
+      async_colors = null;
+    }
     public static int Kernel_Offset(int dx, int dy, int dz)
     {
       int off = World.GlobBlocksX_Gen_Kernel * World.GlobBlocksY_Gen_Kernel * dz +
@@ -663,7 +1252,66 @@ namespace PirateCraft
     public ivec3 Pos { get; private set; } = new ivec3(0, 0, 0);
     public Int64 GeneratedFrameStamp { get; private set; } = 0;
     public GenState State { get; set; } = GenState.Created;
+    public List<VisibleBlockFaceData> VisibleFaceData = null;
+    public long GpuFaceColors_UpdateStamp = 0;
 
+    public static int dbg_ncalc = 0;
+    public void CalculateLightsIfNeeded(bool force = false)
+    {
+      //This needs to update a VAO buffer that corresponds to vertexes, not just faces
+      //we can get rid of GpuFaceColors entirely and use something on MeshData
+      if (Drome.TryGetTarget(out var d))
+      {
+        if (d.GenState == GenState.Ready)
+        {
+          if (d.BeamGrid != null)
+          {
+            if (force || (GpuFaceColors_UpdateStamp < d.BeamGrid.UpdateStamp))
+            {
+              GpuFaceColors_UpdateStamp = d.BeamGrid.UpdateStamp;
+
+              if ((Opaque != null || Transparent != null) && (VisibleFaceData != null) && (VisibleFaceData.Count > 0))
+              {
+                //Note: the face colors is per vertex so we multiply by 4, however we are only lighting per face
+                //in the future .. maybe .. vertex colors and some kind of shadow blend thing.
+                vec3[] GpuFaceColors = new vec3[VisibleFaceData.Count * 4];
+                for (int fi = 0; fi < VisibleFaceData.Count; fi++)//foreach (var f in g.VisibleFaceData)
+                {
+                  var f = VisibleFaceData[fi];
+                  var c = d.BeamGrid.GetBlockFaceColor(f.faceIdx, f.x, f.y, f.z);
+
+                  GpuFaceColors[fi * 4 + 0] = c; //Hmm .. yes
+                  GpuFaceColors[fi * 4 + 1] = c;
+                  GpuFaceColors[fi * 4 + 2] = c;
+                  GpuFaceColors[fi * 4 + 3] = c;
+                }
+                //opaque and transparent need to be consolidated
+                if (Opaque != null)
+                {
+                  Opaque.VertexBuffers[1].CopyDataToGPU(Gpu.GetGpuDataPtr(GpuFaceColors), 0);
+                }
+                if (Transparent != null)
+                {
+                  Transparent.VertexBuffers[1].CopyDataToGPU(Gpu.GetGpuDataPtr(GpuFaceColors), 0);
+                }
+                dbg_ncalc++;
+              }
+
+            }
+          }
+        }
+        else
+        {
+          int n = 0;
+          n++;
+        }
+      }
+      else
+      {
+        int n = 0;
+        n++;
+      }
+    }
     public object lock_object = new object();
     public bool CanRender_and_HasRenderData
     {
@@ -868,6 +1516,7 @@ namespace PirateCraft
             {
               Children[ci] = new DromeNode();
               Children[ci]._box = Box.GetDivisionChild(ci);
+              //** Check the region state, exit if it is empty
               num_culled_child = Children[ci].CheckLeaf(root);
               if (num_culled_child == 8)
               {
@@ -954,7 +1603,7 @@ namespace PirateCraft
             pb.PickedBlockBoxes_Debug.Add(World.GetBlockBoxGlobalR3(cpos_r3));
           }
 
-          if (!Block.IsAir_Or_Missing(b) && (!pr.IsPlayer || (pr.IsPlayer && Block.CollidePlayer(b))))
+          if (!Block.HasNoSolid(b) && (!pr.IsPlayer || (pr.IsPlayer && Block.CollidePlayer(b))))
           {
             BoxAAHit bh = new BoxAAHit();
             //note pr is currently translated into static glob space
@@ -1063,22 +1712,28 @@ namespace PirateCraft
           {
             ret = RegionState.VisibleBlocksOnly;
           }
-          ret = RegionState.Empty_AndNoData;
+          else
+          {
+            ret = RegionState.Empty_AndNoData;
+          }
         }
         return ret;
       }
     }
     public void UpdateBlockModified(ushort oldb, ushort newb)
     {
-      if (!BlockCounts.ContainsKey(newb))
+      ushort old_state = Block.GetVisibleBlockCode(oldb);
+      ushort new_state = Block.GetVisibleBlockCode(newb);
+
+      if (!BlockCounts.ContainsKey(new_state))
       {
-        BlockCounts.Add(newb, 0);
+        BlockCounts.Add(new_state, 0);
       }
-      BlockCounts[newb] += 1;
-      BlockCounts[oldb] -= 1;
-      if (BlockCounts[oldb] <= 0)
+      BlockCounts[new_state] += 1;
+      BlockCounts[old_state] -= 1;
+      if (BlockCounts[old_state] <= 0)
       {
-        BlockCounts.Remove(oldb);
+        BlockCounts.Remove(old_state);
       }
 
     }
@@ -1108,7 +1763,9 @@ namespace PirateCraft
   {
     //Density / Block units / BVH Root
 
-    public Grid3D<GRay> LightGrid = null;
+    public BeamGrid2 BeamGrid = null;
+    //public BeamGrid2 BeamGrid2 = null;
+    //public Grid3D<GRay> LightGrid = null;
     public Grid3D<ushort> Blocks = new Grid3D<ushort>(World.DromeBlocksX, World.DromeBlocksY, World.DromeBlocksZ);
 
     public int _lock = 0;
@@ -1252,36 +1909,32 @@ namespace PirateCraft
         //**TODO: subdivide neighbors as as well when this block borders other globs.
       }
     }
-    public const ushort InitialBlockValue = BlockItemCode.Air;//MUST CHANGE REGION STATE
+    public const ushort InitialBlockValue = BlockItemCode.Air;
     public const int DromeBlockCount = World.DromeBlocksX * World.DromeBlocksY * World.DromeBlocksZ;
     public const int DromeRegionStateCount = World.DromeGlobsX * World.DromeGlobsY * World.DromeGlobsZ;
     public void AllocateBlocks()
     {
       Blocks.Allocate(Drome.InitialBlockValue);
-      //Blocks = new Block[Drome.DromeBlockCount];
-      //for (int bi = 0; bi < Drome.DromeBlockCount; bi++)
-      //{
-      //  Blocks[bi].Value = Drome.InitialBlockValue;
-      //}
     }
     public void AllocateRegionStates()
     {
       GlobRegionStates = new RegionBlocks[Drome.DromeRegionStateCount];
+      //foreach(var g in GlobRegionStates)
+      for (int i = 0; i < GlobRegionStates.Length; i++)
+      {
+        GlobRegionStates[i].Init();
+      }
     }
     public bool HasBlockData()
     {
       return Blocks.Grid != null;
     }
-    public void SetBlock(ivec3 local_block_pos_in_drome, ushort block, bool bInitialGen_Dont_DivideGlob)
+    public void SetBlock(ivec3 local_block_pos_in_drome, ushort block_solidcode_liquid_or_both, bool bInitialGen_Dont_DivideGlob, BlockBits bits)
     {
-      if (Block.IsAir_Or_Missing(block) && this.BlockStats.RegionState == RegionState.Empty_AndNoData)
-      {
-        //Don't initialize the regionstates & blocks if we don't have to.
-        //This check literally makes this 10x faster
-        return;
-      }
+      //Sets the actual block data code - does not account for what is in the block i.e. solid/liquid.. sets the whole code
+      //dontdivideglob - if this is false then we won't run the division routine to create a BVH, and queue affected nodes for update, set InitialGen to true when mining blocks 
+
       //We may be empty, in which case we need to reallocate our data.
-      //If the block is empty, though, then setting it to empty does nothing, as we are already empty.
       if (!HasBlockData())
       {
         //We cull blocks from empty globs to save memory.
@@ -1290,6 +1943,18 @@ namespace PirateCraft
       }
 
       ushort old = GetBlock(local_block_pos_in_drome);
+      // ushort old_solid = Block.GetSolid(old);
+      // ushort old_liquid = Block.GetLiquid(old);
+
+      ushort block = old;
+      Block.SetBlock(ref block, block_solidcode_liquid_or_both, bits);
+
+      if (bits == BlockBits.Liquid)
+      {
+        int n = 0;
+        n++;
+      }
+
       Blocks.Set(local_block_pos_in_drome, block);
 
       //See comments on drome.
@@ -1320,11 +1985,6 @@ namespace PirateCraft
         {
           DeleteGlobForModifiedBlock(mb);
         }
-        //else if (!solid_before && solid_after)
-        //{
-        //  //we are solid
-        //  DeleteGlobForModifiedBlock(block_pos_r3);
-        //}
         else
         {
           //we are solid
@@ -1333,16 +1993,15 @@ namespace PirateCraft
 
       }
     }
-    public ushort GetBlock(ivec3 local_pos_drome)
+    public ushort GetBlock(ivec3 local_pos_drome, IndexMode im = IndexMode.Throw)
     {
       //If we are empty, then we have deleted our Block[] data to save space. Return an empty block
       if (BlockStats.RegionState == RegionState.Empty_AndNoData)
       {
         return BlockItemCode.Air;
       }
-      return Blocks.Get(local_pos_drome, IndexMode.Throw);
-      //int off = Drome.BlockOffset(local_pos_drome);
-      //return Blocks[off];
+      var b = Blocks.Get(local_pos_drome, im);
+      return b;
     }
     public ushort GetBlock(int local_x, int local_y, int local_z)
     {
@@ -1352,14 +2011,11 @@ namespace PirateCraft
         return BlockItemCode.Air;
       }
       return Blocks.Get(local_x, local_y, local_z, IndexMode.Throw);
-      //int off = Drome.BlockOffset(local_x, local_y, local_z);
-      //return Blocks[off];
     }
-    public void SetBlock(vec3 pos_r3, ushort block)
+    public void SetBlock(vec3 pos_r3, ushort solid_liquid_both, BlockBits bits)
     {
       ivec3 b_pos = R3toI3BlockLocal_Drome(pos_r3);
-      SetBlock(b_pos, block, false);
-      //  Subdivide(this, pos_r3); // ?
+      SetBlock(b_pos, solid_liquid_both, false, bits);
     }
 
 
@@ -1375,7 +2031,9 @@ namespace PirateCraft
     public ushort BlockCode;
     public bool Dead = false;
     public List<ushort> ExistingBlocksOnly;//Missing = Any block, Air = air only, Value = Any non-air block, else - only the given block
-                                    //Minimax<int> Steps;
+                                           //Minimax<int> Steps;
+    private Minimax<int> Size; //size of hole
+
     private Drome drome;
     public vec3 PosR3Center()
     {
@@ -1403,7 +2061,38 @@ namespace PirateCraft
       }
       return Dead;
     }
-    public Walker(Drome d, Minimax<int> steps, ivec3 start_pos_local, ushort blockcode, float max_dist2_r3, List<ushort> existing)
+    public virtual void Carve(World w, Drome d)
+    {
+      //int siz = Random.Next(Size);
+      for (int zi = Size.Min; zi < Size.Max; zi++)
+      {
+        for (int yi = Size.Min; yi < Size.Max; yi++)
+        {
+          for (int xi = Size.Min; xi < Size.Max; xi++)
+          {
+            ivec3 vp = PosZ3 + new ivec3(xi, yi, zi);
+            if (w.IsBlockInsideDromeBounds(vp))
+            {
+              ushort cur_block = d.GetBlock(vp);
+              bool yes_we_can =
+               (ExistingBlocksOnly.Contains(BlockItemCode.Missing)) || // any block
+               ((ExistingBlocksOnly.Contains(BlockItemCode.Land)) && (cur_block != BlockItemCode.Air && (Block.GetLiquid(cur_block) == 0))) || //Only solid blocks
+               ((ExistingBlocksOnly.Contains(BlockItemCode.Water)) && (cur_block != BlockItemCode.Air && cur_block != BlockItemCode.Land)) || //Only water blocks
+               (ExistingBlocksOnly.Contains(cur_block)); // only the given blocks.
+
+
+              if (yes_we_can)
+              {
+                d.SetBlock(vp, BlockCode, true, BlockBits.Solid);
+              }
+            }
+
+          }
+        }
+      }
+
+    }
+    public Walker(Drome d, Minimax<int> steps, ivec3 start_pos_local, ushort blockcode, float max_dist2_r3, List<ushort> existing, Minimax<int> size)
     {
       Gu.Assert(d != null);
       drome = d;
@@ -1414,15 +2103,15 @@ namespace PirateCraft
       StartPosR3 = PosR3Center();
       MaxDist2_R3 = max_dist2_r3;
       ExistingBlocksOnly = existing;
+      Size = size;
     }
   }
   public class SnakeWalker : Walker
   {
     //This is cool for snake - like movement
     public vec3 Direction;
-
-    public SnakeWalker(Drome d, Minimax<int> steps, ivec3 start_pos_local, vec3 direction_normal, ushort block, float max_dist2_r3, List<ushort> existing) : 
-      base(d, steps, start_pos_local, block, max_dist2_r3,  existing)
+    public SnakeWalker(Drome d, Minimax<int> steps, ivec3 start_pos_local, vec3 direction_normal, ushort block, float max_dist2_r3, List<ushort> existing, Minimax<int> size) :
+      base(d, steps, start_pos_local, block, max_dist2_r3, existing, size)
     {
       Direction = direction_normal;
     }
@@ -1431,9 +2120,9 @@ namespace PirateCraft
       int move_blocks = 1;//blocks
                           //Move this guy statistically in the direction of his normal
 
-      float dx = Math.Abs(Random.Next() * Direction.x);
-      float dy = Math.Abs(Random.Next() * Direction.y);
-      float dz = Math.Abs(Random.Next() * Direction.z);
+      float dx = Math.Abs(Random.NextF() * Direction.x);
+      float dy = Math.Abs(Random.NextF() * Direction.y);
+      float dz = Math.Abs(Random.NextF() * Direction.z);
       if (dx >= dy && dx >= dz)
       {
         PosZ3.x += move_blocks * Math.Sign(Direction.x);
@@ -1453,8 +2142,8 @@ namespace PirateCraft
   {
     public Minimax<vec3> MovementProbability;
 
-    public RandomWalker(Drome d, Minimax<int> steps, ivec3 start_pos_local, Minimax<vec3> probability, ushort blockcode, float max_dist2_r3, List<ushort> existing) : 
-      base(d, steps, start_pos_local, blockcode, max_dist2_r3, existing)
+    public RandomWalker(Drome d, Minimax<int> steps, ivec3 start_pos_local, Minimax<vec3> probability, ushort blockcode, float max_dist2_r3, List<ushort> existing, Minimax<int> size) :
+      base(d, steps, start_pos_local, blockcode, max_dist2_r3, existing, size)
     {
       //max_dist2_r3 = the maximum distance SQUARED, in R3. Maxvalue means the walker can go forever (based on step count)
       MovementProbability = probability;
@@ -1464,25 +2153,23 @@ namespace PirateCraft
       int move_blocks = 1;//blocks
                           //Move this guy statistically in the direction of his normal
 
-      float rx = (Random.Next(MovementProbability.Min.x, MovementProbability.Max.x));
-      float ry = (Random.Next(MovementProbability.Min.y, MovementProbability.Max.y));
-      float rz = (Random.Next(MovementProbability.Min.z, MovementProbability.Max.z));
+      vec3 rxyz = Random.Next(MovementProbability);
 
-      float dx = Math.Abs(rx);
-      float dy = Math.Abs(ry);
-      float dz = Math.Abs(rz);
+      float dx = Math.Abs(rxyz.x);
+      float dy = Math.Abs(rxyz.y);
+      float dz = Math.Abs(rxyz.z);
 
       if (dx >= dy && dx >= dz)
       {
-        PosZ3.x += move_blocks * Math.Sign(rx);
+        PosZ3.x += move_blocks * Math.Sign(rxyz.x);
       }
       else if (dy >= dx && dy >= dz)
       {
-        PosZ3.y += move_blocks * Math.Sign(ry);
+        PosZ3.y += move_blocks * Math.Sign(rxyz.y);
       }
       else
       {
-        PosZ3.z += move_blocks * Math.Sign(rz);
+        PosZ3.z += move_blocks * Math.Sign(rxyz.z);
       }
       return base.Move();
     }
@@ -1513,18 +2200,23 @@ namespace PirateCraft
   public class BlockTile
   {
     //Provides the visible information for a block. Images. Mesh type. Visibility.
-
+    public const float BlockOpacity_Solid = 1.0f;
+    public const float BlockOpacity_Billboard = 0.5f;
+    public const float BlockOpacity_Liquid = 0.07f;
+    public const float BlockOpacity_Transparent = 0.0f;
     public ushort Code { get; private set; } = 0;
     public BlockFaceInfo[] FaceInfos { get; private set; } = new BlockFaceInfo[3];//top / side / bot
-    //TODO: variations
+                                                                                  //TODO: variations
+    public bool IsVisible() { return Opacity > 0 && Opacity < 1; }
     //For now we just have tile for this block, in the futre we can add dictionary<ushort, BFI[]> for changing block image on any type of block 
     public BlockFaceInfo[] Growth_Infos_Side { get; set; } = null;//Growth info for growing plants. <block type, top/side/bot faces> tpChanges to the Mid face based on whether this block is on, top of the same, on side of same, or on bot of same
     public Minimax<int> GrowthHeight = new Minimax<int>(1, 1);
     public float MineTime_Pickaxe { get; private set; } = 4;
     public BlockMeshType MeshType { get; private set; } = BlockMeshType.Block;
     public WorldObject Entity { get; private set; } = null;
-    public bool IsChainedPlant = false;
-    public BlockTile(ushort code, BlockFaceInfo[] faces, float hardness_pickaxe, BlockMeshType meshType, bool is_chained)
+    public bool IsChainedPlant { get; private set; } = false;
+    public float Opacity { get; private set; } = BlockOpacity_Transparent;
+    public BlockTile(ushort code, BlockFaceInfo[] faces, float hardness_pickaxe, BlockMeshType meshType, bool is_chained, float opacity)
     {
       Gu.Assert(faces.Length == 3);
       Code = code;
@@ -1532,9 +2224,12 @@ namespace PirateCraft
       MineTime_Pickaxe = hardness_pickaxe;
       MeshType = meshType;
       IsChainedPlant = is_chained; //TODO: make this into an enum or more general structure for block destroy/create
+      Opacity = opacity;
     }
     public MtTex[] GetUVPatch(BlockSide faceIdx, ushort b_above, ushort b_below)
     {
+      //Above / Below = this is used to grow blocks like grass -- Growth_Infos_Side
+      //int he future, of course this would be a kernel.
       if (FaceInfos == null)
       {
         return null;
@@ -1610,10 +2305,10 @@ namespace PirateCraft
       }
       else if (MeshType == BlockMeshType.Liquid)
       {
-        //skip
       }
       else
       {
+        // Do nothing
         Gu.BRThrowNotImplementedException();
       }
       if (EntityMaterial == null)
@@ -1693,32 +2388,49 @@ namespace PirateCraft
     //
     //                  + Midngiht
 
-    private double DayLengthSeconds = 10;// 60.0f * 5.0f;
-    private double NightLengthSeconds = 10;//60.0f * 5.0f;
+    private double DayLengthSeconds = 60;// 60.0f * 5.0f;
+    private double NightLengthSeconds = 60;//60.0f * 5.0f;
 
     public double StarOrCloud_Blend { get; private set; } = 0; //1 = day,  -1 = night
 
-    public double Time { get; private set; } = 0;
-    public double DayLength { get { return DayLengthSeconds + NightLengthSeconds; } }
-    public dvec3 SunDirInv { get; private set; } = new dvec3(0, 0, 1);//Inverted Direction of sun.
+    public double DayTime_Seconds { get; private set; } = 0;// Time in seconds
+    public double DayLength_Seconds { get { return DayLengthSeconds + NightLengthSeconds; } }
+    public dvec3 MoonDir { get; private set; } = new dvec3(0, 0, 1);//Direction of moon towards earth or inverse of sun
+    public dvec3 ActiveLightDir { get; private set; } = new dvec3(0, 0, 1);//Depending on whether it is night, or not this is the direction of sun / moon towards earth
     public const float SkyRadius = 400.0f;
 
     public float DayQuad0 { get; private set; } = 0;
     public float DayQuad1 { get; private set; } = 1;
 
-    public dvec3 Color;
+    public dvec3 SkyColor;
+    public dvec3 LightColor;
     //https://yorktown.cbe.wwu.edu/sandvig/shared/NetColors.aspx
-    private dvec3 NoonColor = new dvec3(vec4.FromHex("#FAFAD200").xyz());//Goldenrod
-    private dvec3 DuskColor = new dvec3(vec4.FromHex("#FF450000").xyz());//Gold FFD70000
-    private dvec3 DawnColor = new dvec3(vec4.FromHex("#FF450000").xyz());//Gold
-    private dvec3 MidnightColor = new dvec3(vec4.FromHex("#16163000").xyz());//Midnightblue
+    private dvec3 Sky_NoonColor = new dvec3(vec4.FromHex("#FAFAD200").xyz());//Goldenrod
+    private dvec3 Sky_DuskColor = new dvec3(vec4.FromHex("#FF450000").xyz());//Gold FFD70000
+    private dvec3 Sky_DawnColor = new dvec3(vec4.FromHex("#FF450000").xyz());//Gold
+    private dvec3 Sky_MidnightColor = new dvec3(vec4.FromHex("#16163000").xyz());//Midnightblue
+
+    private dvec3 Light_NoonColor = new dvec3(vec4.FromHex("#FAFAD200").xyz());//light goldenrod
+    private dvec3 Light_MidnightColor = new dvec3(vec4.FromHex("#E6E6FA00").xyz()); //a very faint lavender blue
+    private dvec3 Light_DuskColor { get { return (Light_NoonColor + Light_MidnightColor) * 0.5; } }//Gold FFD70000
+    private dvec3 Light_DawnColor { get { return Light_DuskColor; } }//orangered
+
+    public bool IsDay
+    {
+      get
+      {
+        return DayTime_Seconds < DayLengthSeconds;
+      }
+    }
 
     public void Update(double dt)
     {
-      Time = (Time + dt) % DayLength;
+      DayTime_Seconds = (DayTime_Seconds + dt) % DayLength_Seconds;
 
-      double time01 = Time / DayLength;
-      SunDirInv = new dvec3(Math.Cos(time01 * MathUtils.M_2PI), Math.Sin(time01 * MathUtils.M_2PI), 0);
+      double time01 = DayTime_Seconds / DayLength_Seconds;
+      MoonDir = new dvec3(Math.Cos(time01 * MathUtils.M_2PI), Math.Sin(time01 * MathUtils.M_2PI), 0);
+
+      ActiveLightDir = IsDay ? (MoonDir) : MoonDir * -1.0f;
 
       double d2 = DayLengthSeconds * 0.5;
       double n2 = NightLengthSeconds * 0.5;
@@ -1729,53 +2441,63 @@ namespace PirateCraft
       double d = d2 + d2 + n2;
       double e = d2 + d2 + n2 + n2;
 
-      dvec3 c_a = dvec3.Zero, c_b = dvec3.Zero;
+      dvec3 c_sky_a = dvec3.Zero, c_sky_b = dvec3.Zero;
+      dvec3 c_light_a = dvec3.Zero, c_light_b = dvec3.Zero;
       double t = 0;
 
       double dawndusk_duration_power = 4;
 
-      if (Time >= a && Time < b)
+      if (DayTime_Seconds >= a && DayTime_Seconds < b)
       {
-        c_a = DawnColor;
-        c_b = NoonColor;
-        t = (Time - a) / (b - a);
+        c_sky_a = Sky_DawnColor;
+        c_sky_b = Sky_NoonColor;
+        c_light_a = Light_DawnColor;
+        c_light_b = Light_NoonColor;
+        t = (DayTime_Seconds - a) / (b - a);
         t = 1 - (Math.Pow(1 - t, dawndusk_duration_power));
         DayQuad0 = 0;
         DayQuad1 = 1;
       }
-      else if (Time >= b && Time < c)
+      else if (DayTime_Seconds >= b && DayTime_Seconds < c)
       {
-        c_a = NoonColor;
-        c_b = DuskColor;
-        t = (Time - b) / (c - b);
+        c_sky_a = Sky_NoonColor;
+        c_sky_b = Sky_DuskColor;
+        c_light_a = Light_NoonColor;
+        c_light_b = Light_DuskColor;
+        t = (DayTime_Seconds - b) / (c - b);
         t = (Math.Pow(t, dawndusk_duration_power));
         DayQuad0 = 1;
         DayQuad1 = 0;
       }
-      else if (Time >= c && Time < d)
+      else if (DayTime_Seconds >= c && DayTime_Seconds < d)
       {
-        c_a = DuskColor;
-        c_b = MidnightColor;
-        t = (Time - c) / (d - c);
+        c_sky_a = Sky_DuskColor;
+        c_sky_b = Sky_MidnightColor;
+        c_light_a = Light_DuskColor;
+        c_light_b = Light_MidnightColor;
+        t = (DayTime_Seconds - c) / (d - c);
         t = 1 - (Math.Pow(1 - t, dawndusk_duration_power));
         DayQuad0 = 0;
         DayQuad1 = 1;
       }
-      else if (Time >= d && Time < e)
+      else if (DayTime_Seconds >= d && DayTime_Seconds < e)
       {
-        c_a = MidnightColor;
-        c_b = DawnColor;
-        t = (Time - d) / (e - d);
+        c_sky_a = Sky_MidnightColor;
+        c_sky_b = Sky_DawnColor;
+        c_light_a = Light_MidnightColor;
+        c_light_b = Light_DawnColor;
+        t = (DayTime_Seconds - d) / (e - d);
         t = (Math.Pow(t, dawndusk_duration_power));
         DayQuad0 = 1;
         DayQuad1 = 0;
       }
 
-      Color = dvec3.CosineInterpolate(c_a, c_b, t);
+      SkyColor = dvec3.CosineInterpolate(c_sky_a, c_sky_b, t);
+      LightColor = dvec3.CosineInterpolate(c_light_a, c_light_a, t);
 
       //0 star 1 cloud
       double daynight_tex_blendspd = 4;
-      double dot = SunDirInv.dot(new dvec3(0, 1, 0));
+      double dot = MoonDir.dot(new dvec3(0, 1, 0));
       dot = Math.Pow(Math.Abs(dot), daynight_tex_blendspd) * Math.Sign(dot);
       if (dot < 0)
       {
@@ -1801,11 +2523,11 @@ namespace PirateCraft
     public const float MaxTotalGlobs = 4096 * 2 * 2 * 2;
     public const float MaxRenderGlobs = 4096;
     public int MaxGlobsToGeneratePerFrame_Sync = 32;//number of glob copy operations per render side frame. This can slow down / speed up rendering.
-    public const float BlockSizeX = 8.0f;
-    public const float BlockSizeY = 8.0f;
-    public const float BlockSizeZ = 8.0f;
+    public const float BlockSizeX = 32.0f;
+    public const float BlockSizeY = 32.0f;
+    public const float BlockSizeZ = 32.0f;
     public const int GlobBlocksX = 8;
-    public const int GlobBlocksY = 8;//Note: now this must be <=8 since we are using ushort
+    public const int GlobBlocksY = 8;//Note2: change the GlobSHader Uniform buffer to match this^cubed //Note: now this must be <=8 since we are using ushort
     public const int GlobBlocksZ = 8;
     public const int GlobBlocks_Kernel_MarginX = 1;//Extra amount of blocks copied to the generator for neighbor information
     public const int GlobBlocks_Kernel_MarginY = 1;
@@ -1825,7 +2547,10 @@ namespace PirateCraft
     public const float DromeWidthX = GlobWidthX * DromeGlobsX;
     public const float DromeWidthY = GlobWidthY * DromeGlobsY;
     public const float DromeWidthZ = GlobWidthZ * DromeGlobsZ;
+    public const float CrustHeightDromes = 2;
+    public const float CrustHeight = CrustHeightDromes * DromeWidthY;
     public const float DropDestroyTime_Seconds = (60) * 3; // x minutes
+    private const int MaxInitialGenerationWaitTime_ms = 1000 * 15;
 
     public readonly vec3 BlockRadiusR3 = new vec3(BlockSizeX * 0.5f, BlockSizeY * 0.5f, BlockSizeZ * 0.5f);//Radius from center of glob to the corner.
     public readonly vec3 GlobRadiusR3 = new vec3(GlobWidthX * 0.5f, GlobWidthY * 0.5f, GlobWidthZ * 0.5f);//Radius from center of glob to the corner.
@@ -1838,8 +2563,8 @@ namespace PirateCraft
       }
     }
     public const long Abandon_DeleteTime_DromeNode_ms = 1000 * 5; // * X seconds
-    public const long Abandon_DeleteTime_Drome_ms = 1000 * 60; // Dromes stay in memory longer than their nodes. We need the scalar field data more often. When they are fully generated they can be discarded.
-    public float DeleteMaxDistance { get { return (GenRadiusShell * (float)_currentShell); } }//distance beyond which things are deleted
+    public const long Abandon_DeleteTime_Drome_ms = 1000 * 10; // Dromes stay in memory longer than their nodes. We need the scalar field data more often. When they are fully generated they can be discarded.
+    public float DeleteMaxDistance { get { return (GenRadiusShell * (float)(_maxShells + 1)); } }//distance beyond which things are deleted, this must be greater than max gen distance to prevent ping pong loading
     public float GenerateDistance { get { return (GenRadiusShell * (float)_currentShell); } } //distance under which things are generated
     public float RenderDistance { get { return (GenRadiusShell) * _maxShells; /* (GlobWidthX * 16) * (GlobWidthX * 16); */ } }
 
@@ -1848,7 +2573,7 @@ namespace PirateCraft
     #region Members
     public DayNightCycle DayNightCycle = new DayNightCycle();
     private int _currentShell = 1;
-    private const int _maxShells = 32;//keep this < Min(DromeGlobs) to prevent generating more dromes
+    private const int _maxShells = 16;//keep this < Min(DromeGlobs) to prevent generating more dromes
     private long _lastShellIncrementTimer_ms = 0;
     private long _lastShellIncrementTimer_ms_Max = 500;
     private ivec3 playerLastGlob = new ivec3(0, 0, 0);
@@ -1916,12 +2641,7 @@ namespace PirateCraft
     public World()
     {
     }
-    private FileLoc GetTileFile(TileImage img)
-    {
-      WorldStaticData.TileImages.TryGetValue(img, out var loc);
-      Gu.Assert(loc != null);
-      return loc;
-    }
+
     public void Initialize(WorldObject player, string worldName, bool delete_world_start_fresh, int limit_y_axis = 0)
     {
       Player = player;
@@ -1948,6 +2668,8 @@ namespace PirateCraft
 
       InitWorldDiskFile(delete_world_start_fresh);
 
+      DayNightCycle.Update(0);
+
       Gu.Log.Info("Building initail grid");
       BuildDromeGrid(Player.WorldMatrix.extractTranslation(), GenRadiusShell, true);
       //I'm assuming since this is cube voxesl we're going to do physics on the integer grid, we don't need triangle data then.
@@ -1967,8 +2689,41 @@ namespace PirateCraft
       AutoSaveWorld(dt);
 
       DayNightCycle.Update(dt);
+
+      if (Gu.Context.FrameStamp % 120 == 0)
+      {
+        LightDromes();
+      }
     }
-    private const int MaxInitialGenerationWaitTime_ms = 1000 * 15;
+    int dbg_nLit_Frame = 0;
+    int dbg_nullBG_Frame = 0;
+    private void LightDromes()
+    {
+      dbg_nLit_Frame = 0;
+      dbg_nullBG_Frame = 0;
+      foreach (var d in _dromes.Values)
+      {
+        if (d.GenState == GenState.Ready)
+        {
+          LightDrome_Async(d);
+        }
+      }
+    }
+    void LightDrome_Async(Drome d)
+    {
+      if (d.BeamGrid != null)
+      {
+        vec3 v = (DayNightCycle.ActiveLightDir.ToVec3());
+
+        d.BeamGrid.ApplyDirLight(v, this.DayNightCycle.LightColor.ToVec3());
+        dbg_nLit_Frame++;
+      }
+      else
+      {
+        //This gets hit when dromes are getting unloaded
+        dbg_nullBG_Frame++;
+      }
+    }
     private void WaitForAllDromesToGenerate()
     {
       System.Diagnostics.Stopwatch st = new System.Diagnostics.Stopwatch();
@@ -2414,6 +3169,14 @@ namespace PirateCraft
 
     public void Render(double Delta, Camera3D camera)
     {
+      DrawCall_UniformData ud = new DrawCall_UniformData()
+      {
+        dt = Delta,
+        cam = camera,
+        ob = dummy,
+        dnc = DayNightCycle,
+      };
+
       //Render to this camera.
       camera.BeginRender();
       {
@@ -2423,7 +3186,7 @@ namespace PirateCraft
           _renderObs_Ordered[DrawOrder.First].Sort((x, y) => x.UniqueID.CompareTo(y.UniqueID));
           foreach (var ob in _renderObs_Ordered[DrawOrder.First])
           {
-            DrawObMesh(ob, Delta, camera);
+            DrawObMesh(ob, ud);
           }
         }
         //Second World Objects
@@ -2432,28 +3195,45 @@ namespace PirateCraft
           _renderObs_Ordered[DrawOrder.Mid].Sort((x, y) => x.UniqueID.CompareTo(y.UniqueID));
           foreach (var ob in _renderObs_Ordered[DrawOrder.Mid])
           {
-            DrawObMesh(ob, Delta, camera);
+            DrawObMesh(ob, ud);
             _renderObs_Ordered[DrawOrder.First].Sort((x, y) => x.UniqueID.CompareTo(y.UniqueID));
           }
         }
 
+        ud.ob = dummy;
         //Globs
+        Glob.dbg_ncalc = 0;
         List<MeshData> visible_op = new List<MeshData>();
         List<MeshData> visible_tp = new List<MeshData>();
         foreach (var g in _stuff.visible_globs)
         {
+          bool gvisible = false;
           //No PVS, render all at first
           if (g.Value.Opaque != null)
           {
             visible_op.Add(g.Value.Opaque);
+            gvisible = true;
           }
           if (g.Value.Transparent != null)
           {
             visible_tp.Add(g.Value.Transparent);
+            gvisible = true;
+          }
+          if (gvisible)
+          {
+            g.Value.CalculateLightsIfNeeded(); //TODO: this should probably be async and launched for all globs via thread pool
           }
         }
 
-        _worldMaterial_Op.Draw(Delta, visible_op.ToArray(), camera, dummy, this.DayNightCycle);
+        //TESTING Disable fog when under water -- not really but if the b
+        //int he futruer player block (camer visible)= water then diable fog
+        ud.shaderData._fFogBlend = 0.56361f;
+        if(Player.Position_World.y < 0)
+        {
+          ud.shaderData._fFogBlend = 0.0f;
+        }
+
+        _worldMaterial_Op.Draw(visible_op.ToArray(), ud);
         float min = 0;
         float max = 1;
         int steps = 4;
@@ -2466,19 +3246,9 @@ namespace PirateCraft
           // GL.DepthRange(0.25f, 0.50f);
           //_worldMaterial_Tp.Draw(Delta, visible_tp.ToArray(), camera, dummy);
           // GL.DepthRange(0.0f, 0.25f);
-          _worldMaterial_Tp.Draw(Delta, visible_tp.ToArray(), camera, dummy, this.DayNightCycle);
-
+          _worldMaterial_Tp.Draw(visible_tp.ToArray(), ud);
 
         }
-
-        //add worldobject to the scene
-        //set to object invisible
-        //set instances to visible.
-        //update the worldobject normally
-        //then draw the worldobject normally.
-
-        //problem is invalid boundbox and draw routine since block objects can have components.
-        //we still need a better instancing system
 
         //Block Objects DrawBlockObjects
         foreach (var ite in _stuff.visible_blockitems)
@@ -2498,7 +3268,8 @@ namespace PirateCraft
               instances[i_inst] = mat4.getTranslation(kvp.Value);
               i_inst++;
             }
-            bi.WorldObject.Material.Draw(Delta, bi.WorldObject.Mesh, camera, bi.WorldObject, instances);
+            ud.ob = bi.WorldObject;
+            bi.WorldObject.Material.Draw(bi.WorldObject.Mesh, instances, ud);
           }
         }
 
@@ -2510,7 +3281,7 @@ namespace PirateCraft
         _renderObs_Ordered[DrawOrder.Last].Sort((x, y) => x.UniqueID.CompareTo(y.UniqueID));
         foreach (var ob in _renderObs_Ordered[DrawOrder.Last])
         {
-          DrawObMesh(ob, Delta, camera);
+          DrawObMesh(ob, ud);
         }
       }
 
@@ -2537,10 +3308,18 @@ namespace PirateCraft
         if (_debugDrawLines == null)
         {
           _debugDrawLines = CreateObject("debug_lines", null, new Material(Gu.Resources.LoadShader("v_v3c4_debugdraw", false, FileStorage.Embedded)));
-          _debugDrawLines.Mesh = new MeshData("Debugasfd", PrimitiveType.Lines, DebugDraw.VertexFormat, IndexFormatType.Uint32);
         }
-        _debugDrawLines.Mesh.CreateBuffers(Gpu.GetGpuDataPtr(Gu.Context.DebugDraw.LinePoints.ToArray()), Gpu.GetGpuDataPtr(Gu.Context.DebugDraw.LineInds.ToArray()), false);
-        DrawObMesh(_debugDrawLines, Delta, camera);
+        _debugDrawLines.Mesh = new MeshData("Debugasfd", PrimitiveType.Lines,
+          Gpu.CreateVertexBuffer(Gu.Context.DebugDraw.LinePoints.ToArray()),
+          Gpu.CreateIndexBuffer(Gu.Context.DebugDraw.LineInds.ToArray()),
+          false
+          );
+        DrawCall_UniformData ud = new DrawCall_UniformData()
+        {
+          dt = Delta,
+          cam = camera
+        };
+        DrawObMesh(_debugDrawLines, ud);
       }
       if (Gu.Context.DebugDraw.Points.Count > 0)
       {
@@ -2549,10 +3328,17 @@ namespace PirateCraft
         if (_debugDrawPoints == null)
         {
           _debugDrawPoints = CreateObject("debug_points", null, new Material(Gu.Resources.LoadShader("v_v3c4_debugdraw", false, FileStorage.Embedded)));
-          _debugDrawPoints.Mesh = new MeshData("Debugds", PrimitiveType.Points, DebugDraw.VertexFormat);
         }
-        _debugDrawPoints.Mesh.CreateBuffers(Gpu.GetGpuDataPtr(Gu.Context.DebugDraw.Points.ToArray()), null, false);
-        DrawObMesh(_debugDrawPoints, Delta, camera);
+        _debugDrawPoints.Mesh = new MeshData("Debugds", PrimitiveType.Points,
+          Gpu.CreateVertexBuffer(Gu.Context.DebugDraw.Points.ToArray()),
+          false
+          );
+        DrawCall_UniformData ud = new DrawCall_UniformData()
+        {
+          dt = Delta,
+          cam = camera
+        };
+        DrawObMesh(_debugDrawPoints, ud);
       }
     }
     private void CollectObjects(Camera3D cam, WorldObject ob)
@@ -2575,24 +3361,25 @@ namespace PirateCraft
         CollectObjects(cam, c);
       }
     }
-    private void DrawObMesh(WorldObject ob, double Delta, Camera3D camera)
+    private void DrawObMesh(WorldObject ob, DrawCall_UniformData ud)
     {
+      ud.ob = ob;
       if (ob.Mesh != null)
       {
-        ob.Material.Draw(Delta, new MeshData[] { ob.Mesh }, camera, ob, this.DayNightCycle);
+        ob.Material.Draw(ob.Mesh, ud);
       }
       else
       {
         //this is technically an error
       }
     }
-    private BlockTile AddBlockTile(ushort code, BlockFaceInfo[] faces, float hardness_pickaxe, BlockMeshType meshType, bool is_chained)
+    private BlockTile AddBlockTile(ushort code, BlockFaceInfo[] faces, float hardness_pickaxe, BlockMeshType meshType, bool is_chained, float opacity)
     {
       if (BlockTiles == null)
       {
         BlockTiles = new Dictionary<ushort, BlockTile>();
       }
-      var bt = new BlockTile(code, faces, hardness_pickaxe, meshType, is_chained);
+      var bt = new BlockTile(code, faces, hardness_pickaxe, meshType, is_chained, opacity);
       BlockTiles.Add(code, bt);
       return bt;
     }
@@ -2662,38 +3449,39 @@ namespace PirateCraft
       //This is used to index into the megatex to find the generated UV coordinates.
 
       //solid blocks
-      AddBlockTile(BlockItemCode.Grass, MakeFaces(TileImage.Grass, TileVis.Opaque, TileImage.GrassSide, TileVis.Opaque, TileImage.Dirt, TileVis.Opaque), HardnessValue.Dirt, BlockMeshType.Block, false);
-      AddBlockTile(BlockItemCode.Dirt, MakeFaces_x3(TileImage.Dirt), HardnessValue.Dirt, BlockMeshType.Block, false);
-      AddBlockTile(BlockItemCode.Brick, MakeFaces_x3(TileImage.Brick), HardnessValue.Gravel, BlockMeshType.Block, false);
-      AddBlockTile(BlockItemCode.Brick2, MakeFaces_x3(TileImage.Brick2), HardnessValue.Gravel, BlockMeshType.Block, false);
-      AddBlockTile(BlockItemCode.Gravel, MakeFaces_x3(TileImage.Gravel), HardnessValue.Gravel, BlockMeshType.Block, false);
-      AddBlockTile(BlockItemCode.Sand, MakeFaces_x3(TileImage.Sand), HardnessValue.Dirt, BlockMeshType.Block, false);
-      AddBlockTile(BlockItemCode.Cedar_Needles, MakeFaces_x3(TileImage.Cedar_Needles, TileVis.Decal), HardnessValue.Leaf, BlockMeshType.Block, false);
-      AddBlockTile(BlockItemCode.Cedar, MakeFaces(TileImage.Cedar_Top, TileVis.Opaque, TileImage.Cedar, TileVis.Opaque, TileImage.Cedar_Top, TileVis.Opaque), HardnessValue.Wood, BlockMeshType.Block, false);
-      AddBlockTile(BlockItemCode.Feldspar, MakeFaces_x3(TileImage.Feldspar), HardnessValue.Rock, BlockMeshType.Block, false);
-      AddBlockTile(BlockItemCode.Feldspar_Coal, MakeFaces_x3(TileImage.Feldspar_Coal), HardnessValue.Rock, BlockMeshType.Block, false);
-      AddBlockTile(BlockItemCode.Marble_Green, MakeFaces_x3(TileImage.Marble_Green), HardnessValue.DeepRock, BlockMeshType.Block, false);
-      AddBlockTile(BlockItemCode.Marble_White, MakeFaces_x3(TileImage.Marble_White), HardnessValue.DeepRock, BlockMeshType.Block, false);
-      AddBlockTile(BlockItemCode.Clay, MakeFaces_x3(TileImage.Clay), HardnessValue.Wood, BlockMeshType.Block, false);
-      AddBlockTile(BlockItemCode.RedClay, MakeFaces_x3(TileImage.RedClay), HardnessValue.Wood, BlockMeshType.Block, false);
-      AddBlockTile(BlockItemCode.Oak_Leaves, MakeFaces_x3(TileImage.Oak_Leaves, TileVis.Decal), HardnessValue.Leaf, BlockMeshType.Block, false);
-      AddBlockTile(BlockItemCode.Oak, MakeFaces(TileImage.Cedar_Top, TileVis.Opaque, TileImage.Oak, TileVis.Opaque, TileImage.Cedar_Top, TileVis.Opaque), HardnessValue.Leaf, BlockMeshType.Block, false);
+      AddBlockTile(BlockItemCode.Grass, MakeFaces(TileImage.Grass, TileVis.Opaque, TileImage.GrassSide, TileVis.Opaque, TileImage.Dirt, TileVis.Opaque), HardnessValue.Dirt, BlockMeshType.Block, false, BlockTile.BlockOpacity_Solid);
+      AddBlockTile(BlockItemCode.Dirt, MakeFaces_x3(TileImage.Dirt), HardnessValue.Dirt, BlockMeshType.Block, false, BlockTile.BlockOpacity_Solid);
+      AddBlockTile(BlockItemCode.Brick, MakeFaces_x3(TileImage.Brick), HardnessValue.Gravel, BlockMeshType.Block, false, BlockTile.BlockOpacity_Solid);
+      AddBlockTile(BlockItemCode.Brick2, MakeFaces_x3(TileImage.Brick2), HardnessValue.Gravel, BlockMeshType.Block, false, BlockTile.BlockOpacity_Solid);
+      AddBlockTile(BlockItemCode.Gravel, MakeFaces_x3(TileImage.Gravel), HardnessValue.Gravel, BlockMeshType.Block, false, BlockTile.BlockOpacity_Solid);
+      AddBlockTile(BlockItemCode.Sand, MakeFaces_x3(TileImage.Sand), HardnessValue.Dirt, BlockMeshType.Block, false, BlockTile.BlockOpacity_Solid);
+      AddBlockTile(BlockItemCode.Cedar_Needles, MakeFaces_x3(TileImage.Cedar_Needles, TileVis.Decal), HardnessValue.Leaf, BlockMeshType.Block, false, BlockTile.BlockOpacity_Solid);
+      AddBlockTile(BlockItemCode.Cedar, MakeFaces(TileImage.Cedar_Top, TileVis.Opaque, TileImage.Cedar, TileVis.Opaque, TileImage.Cedar_Top, TileVis.Opaque), HardnessValue.Wood, BlockMeshType.Block, false, BlockTile.BlockOpacity_Billboard);
+      AddBlockTile(BlockItemCode.Feldspar, MakeFaces_x3(TileImage.Feldspar), HardnessValue.Rock, BlockMeshType.Block, false, BlockTile.BlockOpacity_Solid);
+      AddBlockTile(BlockItemCode.Feldspar_Coal, MakeFaces_x3(TileImage.Feldspar_Coal), HardnessValue.Rock, BlockMeshType.Block, false, BlockTile.BlockOpacity_Solid);
+      AddBlockTile(BlockItemCode.Marble_Green, MakeFaces_x3(TileImage.Marble_Green), HardnessValue.DeepRock, BlockMeshType.Block, false, BlockTile.BlockOpacity_Solid);
+      AddBlockTile(BlockItemCode.Marble_White, MakeFaces_x3(TileImage.Marble_White), HardnessValue.DeepRock, BlockMeshType.Block, false, BlockTile.BlockOpacity_Solid);
+      AddBlockTile(BlockItemCode.Clay, MakeFaces_x3(TileImage.Clay), HardnessValue.Wood, BlockMeshType.Block, false, BlockTile.BlockOpacity_Solid);
+      AddBlockTile(BlockItemCode.RedClay, MakeFaces_x3(TileImage.RedClay), HardnessValue.Wood, BlockMeshType.Block, false, BlockTile.BlockOpacity_Solid);
+      AddBlockTile(BlockItemCode.Oak_Leaves, MakeFaces_x3(TileImage.Oak_Leaves, TileVis.Decal), HardnessValue.Leaf, BlockMeshType.Block, false, BlockTile.BlockOpacity_Billboard);
+      AddBlockTile(BlockItemCode.Oak, MakeFaces(TileImage.Cedar_Top, TileVis.Opaque, TileImage.Oak, TileVis.Opaque, TileImage.Cedar_Top, TileVis.Opaque), HardnessValue.Leaf, BlockMeshType.Block, false, BlockTile.BlockOpacity_Solid);
 
       //liquid
-      AddBlockTile(BlockItemCode.Water, MakeFaces_x3(TileImage.Water, TileVis.Transparent), HardnessValue.Water, BlockMeshType.Liquid, false);
+      //**This is no longer used
+      AddBlockTile(BlockItemCode.Water, MakeFaces_x3(TileImage.Water, TileVis.Transparent), HardnessValue.Water, BlockMeshType.Liquid, false, BlockTile.BlockOpacity_Liquid);
 
       //billboard
-      var t = AddBlockTile(BlockItemCode.Tussock, MakeFaces_x3(TileImage.Tussock), HardnessValue.Leaf, BlockMeshType.Billboard, true);
+      var t = AddBlockTile(BlockItemCode.Tussock, MakeFaces_x3(TileImage.Tussock), HardnessValue.Leaf, BlockMeshType.Billboard, true, BlockTile.BlockOpacity_Billboard);
       t.Growth_Infos_Side = new BlockFaceInfo[3] {
         new BlockFaceInfo(GetTileFile(TileImage.Tussock_Stalk_Bot), TileVis.Decal),
         new BlockFaceInfo(GetTileFile(TileImage.Tussock_Stalk_Mid), TileVis.Decal),
         new BlockFaceInfo(GetTileFile(TileImage.Tussock_Stalk_Top), TileVis.Decal)
       };
       t.GrowthHeight = new Minimax<int>(1, 3);
-      AddBlockTile(BlockItemCode.Dandilion, MakeFaces_x3(TileImage.Dandilion), HardnessValue.Leaf, BlockMeshType.Billboard, false);
-      AddBlockTile(BlockItemCode.Seaweed, MakeFaces_x3(TileImage.Seaweed), HardnessValue.Leaf, BlockMeshType.Billboard, false);
-      AddBlockTile(BlockItemCode.RosePink, MakeFaces_x3(TileImage.RosePink), HardnessValue.Leaf, BlockMeshType.Billboard, false);
-      AddBlockTile(BlockItemCode.RoseRed, MakeFaces_x3(TileImage.RoseRed), HardnessValue.Leaf, BlockMeshType.Billboard, false);
+      AddBlockTile(BlockItemCode.Dandilion, MakeFaces_x3(TileImage.Dandilion), HardnessValue.Leaf, BlockMeshType.Billboard, false, BlockTile.BlockOpacity_Billboard);
+      AddBlockTile(BlockItemCode.Seaweed, MakeFaces_x3(TileImage.Seaweed), HardnessValue.Leaf, BlockMeshType.Billboard, false, BlockTile.BlockOpacity_Billboard);
+      AddBlockTile(BlockItemCode.RosePink, MakeFaces_x3(TileImage.RosePink), HardnessValue.Leaf, BlockMeshType.Billboard, false, BlockTile.BlockOpacity_Billboard);
+      AddBlockTile(BlockItemCode.RoseRed, MakeFaces_x3(TileImage.RoseRed), HardnessValue.Leaf, BlockMeshType.Billboard, false, BlockTile.BlockOpacity_Billboard);
 
       //mesh objs
       AddBlockItem(BlockItemCode.Torch, new FileLoc("torch.glb", FileStorage.Embedded), new vec3(1, 1, 1));
@@ -2753,7 +3541,11 @@ namespace PirateCraft
       _worldMegatex.getFont(new FileLoc("EmilysCandy-Regular.ttf", FileStorage.Embedded));
 
       _worldMegatex.loadImages();
-      return _worldMegatex.compile(true);
+      var cmp = _worldMegatex.compile(true);
+
+      cmp.Albedo.SetFilter(TextureMinFilter.NearestMipmapLinear, TextureMagFilter.Nearest);
+
+      return cmp;
     }
     #endregion
 
@@ -2766,26 +3558,26 @@ namespace PirateCraft
     {
       string embedded_file = "";
       int num = 0;
-      if (bc == BlockItemCode.Brick ||
-          bc == BlockItemCode.Brick2 ||
-          bc == BlockItemCode.Feldspar ||
-          bc == BlockItemCode.Gravel
+      if (Block.Is(bc, BlockItemCode.Brick) ||
+          Block.Is(bc, BlockItemCode.Brick2) ||
+          Block.Is(bc, BlockItemCode.Feldspar) ||
+          Block.Is(bc, BlockItemCode.Gravel)
                )
       {
         embedded_file = "rock";
         num = 5;
       }
-      else if (bc == BlockItemCode.Dirt ||
-               bc == BlockItemCode.Grass ||
-               bc == BlockItemCode.Cedar ||
-               bc == BlockItemCode.Oak_Leaves ||
-               bc == BlockItemCode.Cedar_Needles
+      else if (Block.Is(bc, BlockItemCode.Dirt) ||
+               Block.Is(bc, BlockItemCode.Grass) ||
+               Block.Is(bc, BlockItemCode.Cedar) ||
+               Block.Is(bc, BlockItemCode.Oak_Leaves) ||
+               Block.Is(bc, BlockItemCode.Cedar_Needles)
                )
       {
         embedded_file = "wood";
         num = 4;
       }
-      else if (bc == BlockItemCode.Sand
+      else if (Block.Is(bc, BlockItemCode.Sand)
                )
       {
         embedded_file = "glass";
@@ -2834,7 +3626,7 @@ namespace PirateCraft
 
             if (b.Drome != null)
             {
-              b.Drome.SetBlock(b.BlockPosLocalZ3, BlockItemCode.Air, false);
+              b.Drome.SetBlock(b.BlockPosLocalZ3, BlockItemCode.Air, false, BlockBits.Solid);
             }
             else
             {
@@ -2908,15 +3700,22 @@ namespace PirateCraft
         return;
       }
 
-      bool globTopologyBefore = glob.Opaque != null || glob.Transparent != null;
+      //Copy everything
+
       glob.Opaque = null;
       glob.Transparent = null;
+      glob.VisibleFaceData = null;
+      glob.BlockItems = null;
 
       if (qgd.async_inds_op != null && qgd.async_inds_op.Count > 0)
       {
         glob.Opaque = new MeshData("", OpenTK.Graphics.OpenGL4.PrimitiveType.Triangles,
-           v_v3c3n3x2u1.VertexFormat, Gpu.GetGpuDataPtr(qgd.async_verts.ToArray()),
-           IndexFormatType.Uint16, Gpu.GetGpuDataPtr(qgd.async_inds_op.ToArray())
+          new List<GPUBuffer>{
+            Gpu.CreateVertexBuffer(qgd.async_verts.ToArray()),
+            Gpu.CreateVertexBuffer(qgd.async_colors.ToArray())
+          },
+          Gpu.CreateIndexBuffer(qgd.async_inds_op.ToArray()),
+          false
            );
         qgd.async_inds_op.Clear();
         qgd.async_inds_op = null;
@@ -2925,30 +3724,40 @@ namespace PirateCraft
       {
         //This is unnecessary I mean, just a separate index buffer would be ok. For now this is my hack.
         glob.Transparent = new MeshData("", OpenTK.Graphics.OpenGL4.PrimitiveType.Triangles,
-           v_v3c3n3x2u1.VertexFormat, Gpu.GetGpuDataPtr(qgd.async_verts.ToArray()),
-           IndexFormatType.Uint16, Gpu.GetGpuDataPtr(qgd.async_inds_tp.ToArray())
+          new List<GPUBuffer>{
+            Gpu.CreateVertexBuffer(qgd.async_verts.ToArray()),
+            Gpu.CreateVertexBuffer(qgd.async_colors.ToArray())
+          },
+          Gpu.CreateIndexBuffer(qgd.async_inds_tp.ToArray()),
+          false
            );
         qgd.async_inds_tp.Clear();
         qgd.async_inds_tp = null;
       }
-
-      //Copy items
-      if (qgd._blockitems != null && qgd._blockitems.Count > 0)
+      if (qgd.async_face_data != null)
       {
-        glob.BlockItems = qgd._blockitems;
-        qgd._blockitems = null;
+        glob.VisibleFaceData = qgd.async_face_data;
+        qgd.async_face_data = null;
+      }
+      if (qgd.async_block_items != null && qgd.async_block_items.Count > 0)
+      {
+        glob.BlockItems = qgd.async_block_items;
+        qgd.async_block_items = null;
       }
 
       qgd.ScalarFields.Unlock();
 
 
+      glob.CalculateLightsIfNeeded(true);
+
       //Avoid memory leaks
-      qgd.async_verts?.Clear();
-      qgd.async_verts = null;
+
+      qgd.ReleaseBuffers();
       qgd = null;
 
       glob.State = GenState.Ready;
     }
+
     private void BuildDromeGrid(vec3 origin, float awareness_radius, bool logprogress = false)
     {
       List<Glob> newGlobs = new List<Glob>();
@@ -3042,9 +3851,16 @@ namespace PirateCraft
           item = BlockItemCode.Dirt;
         }
       }
-      else if (yz3 < -2)
+
+      Block.SetSolid(ref item, item);//redundant, but safer
+
+      if (yz3 < -2 && item == BlockItemCode.Air)
       {
-        item = BlockItemCode.Water;
+        Block.SetLiquid(ref item, Block.MaxLiquid);// = BlockItemCode.Water;
+
+        ushort test = Block.GetLiquid(item);
+        int n = 0;
+        n++;
       }
 
       return item;
@@ -3076,50 +3892,65 @@ namespace PirateCraft
 
         HeightGrid_Stuff_Grass_Stoneshell(d);
 
+        Minimax<int> smallHole = new Minimax<int>(0, 1);
+        Minimax<int> bigHole = new Minimax<int>(-1, 1);
+        Minimax<int> hugeHole = new Minimax<int>(-2, 1);
+
+        Minimax<int> any_height_drome = new Minimax<int>(0, (int)((float)(World.DromeBlocksY - 1)));
+
         //Instead of D, now we should pass the kernel
-        MakeOre(d, new Minimax<int>(0, (int)((float)(World.DromeBlocksY - 1) /* (9.0f / 10.0f)*/)), .006f, new Minimax<int>(16, 64), BlockItemCode.Feldspar_Coal, new List<ushort> { BlockItemCode.Feldspar });
-        MakeOre(d, new Minimax<int>(0, (int)((float)(World.DromeBlocksY - 1) /* (2.0f / 3.0f) */)), .0001f, new Minimax<int>(4, 10), BlockItemCode.Marble_White, new List<ushort> { BlockItemCode.Feldspar });
-        MakeOre(d, new Minimax<int>(0, (int)((float)(World.DromeBlocksY - 1) /* (2.0f / 3.0f) */)), .0001f, new Minimax<int>(6, 32), BlockItemCode.Marble_Green, new List<ushort> { BlockItemCode.Feldspar });
-        MakeOre(d, new Minimax<int>(0, (int)((float)(World.DromeBlocksY - 1) /* (2.0f / 3.0f) */)), .001f, new Minimax<int>(32, 128), BlockItemCode.RedClay, new List<ushort> { BlockItemCode.Grass, BlockItemCode.Dirt, BlockItemCode.Sand });
-        
+        MakeOre(d, any_height_drome, .006f, new Minimax<int>(16, 64), BlockItemCode.Feldspar_Coal, new List<ushort> { BlockItemCode.Feldspar }, bigHole);
+        MakeOre(d, any_height_drome, .0001f, new Minimax<int>(4, 10), BlockItemCode.Marble_White, new List<ushort> { BlockItemCode.Feldspar }, smallHole);
+        MakeOre(d, any_height_drome, .0001f, new Minimax<int>(6, 32), BlockItemCode.Marble_Green, new List<ushort> { BlockItemCode.Feldspar }, smallHole);
+        MakeOre(d, any_height_drome, .001f, new Minimax<int>(32, 128), BlockItemCode.RedClay, new List<ushort> { BlockItemCode.Grass, BlockItemCode.Dirt, BlockItemCode.Sand }, bigHole);
+
         //Rocks in dirt / dirt in rocks
-        MakeOre(d, new Minimax<int>(0, (int)((float)(World.DromeBlocksY - 1) /* (2.0f / 3.0f) */)), .001f, new Minimax<int>(32, 128), BlockItemCode.Feldspar, new List<ushort> { BlockItemCode.Grass, BlockItemCode.Dirt, BlockItemCode.Sand });
-        MakeOre(d, new Minimax<int>(0, (int)((float)(World.DromeBlocksY - 1) /* (2.0f / 3.0f) */)), .001f, new Minimax<int>(32, 128), BlockItemCode.Dirt, new List<ushort> { BlockItemCode.Grass, BlockItemCode.Sand, BlockItemCode.Feldspar });
-
-        //Idk, just trying out carving the WOOORRRLLLLDDD
-        MakeOre(d, new Minimax<int>(0, (int)((float)(World.DromeBlocksY - 1) /* (2.0f / 3.0f) */)), .0009f, new Minimax<int>(128, 1024), BlockItemCode.Air, new List<ushort> { BlockItemCode.Land });
-
+        MakeOre(d, any_height_drome, .001f, new Minimax<int>(32, 128), BlockItemCode.Feldspar, new List<ushort> { BlockItemCode.Grass, BlockItemCode.Dirt, BlockItemCode.Sand }, bigHole);
+        MakeOre(d, any_height_drome, .001f, new Minimax<int>(32, 128), BlockItemCode.Dirt, new List<ushort> { BlockItemCode.Grass, BlockItemCode.Sand, BlockItemCode.Feldspar }, bigHole);
 
         //Under Water
-        MakeOre(d, new Minimax<int>(0, (int)((float)(World.DromeBlocksY - 1) /* (2.0f / 3.0f) */)), .0001f, new Minimax<int>(32, 64), BlockItemCode.Gravel, new List<ushort> {  BlockItemCode.Sand });
-        MakeOre(d, new Minimax<int>(0, (int)((float)(World.DromeBlocksY - 1) /* (2.0f / 3.0f) */)), .0001f, new Minimax<int>(32, 128), BlockItemCode.Clay, new List<ushort> { BlockItemCode.Sand });
-        
-        MakeOre(d, new Minimax<int>(0, (int)((float)(World.DromeBlocksY - 1) /* (2.0f / 3.0f) */)), .001f, new Minimax<int>(128, 512), BlockItemCode.Brick, new List<ushort> { BlockItemCode.Air });
-        MakeOre(d, new Minimax<int>(0, (int)((float)(World.DromeBlocksY - 1) /* (2.0f / 3.0f) */)), .0001f, new Minimax<int>(511, 512), BlockItemCode.Brick2, new List<ushort> { BlockItemCode.Air });
+        MakeOre(d, any_height_drome, .0001f, new Minimax<int>(32, 64), BlockItemCode.Gravel, new List<ushort> { BlockItemCode.Sand }, hugeHole);
+        MakeOre(d, any_height_drome, .0001f, new Minimax<int>(32, 128), BlockItemCode.Clay, new List<ushort> { BlockItemCode.Sand }, hugeHole);
 
+        //MakeOre(d, new Minimax<int>(0, (int)((float)(World.DromeBlocksY - 1) /* (2.0f / 3.0f) */)), .001f, new Minimax<int>(128, 512), BlockItemCode.Brick, new List<ushort> { BlockItemCode.Air });
+        //MakeOre(d, new Minimax<int>(0, (int)((float)(World.DromeBlocksY - 1) /* (2.0f / 3.0f) */)), .0001f, new Minimax<int>(511, 512), BlockItemCode.Brick2, new List<ushort> { BlockItemCode.Air });
+
+        var surface_drop = new List<ushort> { BlockItemCode.Air, BlockItemCode.Cedar_Needles, BlockItemCode.Oak_Leaves };
+        var surface_or_seafloor_drop = new List<ushort> { BlockItemCode.Water, BlockItemCode.Air, BlockItemCode.Cedar_Needles, BlockItemCode.Oak_Leaves };
+
+        var grass_or_dirt_soil = new List<ushort>() { BlockItemCode.Grass, BlockItemCode.Dirt };
+        var any_block_soil = new List<ushort>() { BlockItemCode.AnyVisible };
+        var sand_soil = new List<ushort>() { BlockItemCode.Sand };
 
         List<ivec3> seeds;
+        //Idk, just trying out carving the WOOORRRLLLLDDD
+        seeds = PlantSurfaceSeeds(d, .0009f, any_block_soil, surface_drop);
+        seeds.AddRange(PlantDeepSeeds(d, any_height_drome, .0009f, any_block_soil));
+        MakeCaves(d, seeds, new Minimax<int>(128, 1024), new List<ushort> { BlockItemCode.Land }, new Minimax<int>(-2, 2));
 
+        //Water / waterfalls
+        seeds = PlantSurfaceSeeds(d, Random.NextInt(0, 3), any_block_soil, surface_drop);
+        DropLiquid(d, seeds, Block.MaxLiquid);
 
-        seeds = PlantSeeds(d, 0.01f, new List<ushort>() { BlockItemCode.Grass, BlockItemCode.Dirt }, false, new List<ushort> { BlockItemCode.Cedar_Needles, BlockItemCode.Oak_Leaves });
-        GrowTrees(d, seeds, BlockItemCode.Cedar, BlockItemCode.Cedar_Needles, 9, new Minimax<vec3>(new vec3(-.4f, -1, -.4f), new vec3(.4f, 1.5f, .4f)), new Minimax<int>(1,2));
+        seeds = PlantSurfaceSeeds(d, 0.01f, grass_or_dirt_soil, surface_drop);
+        GrowTrees(d, seeds, BlockItemCode.Cedar, BlockItemCode.Cedar_Needles, 9, new Minimax<vec3>(new vec3(-.4f, -1, -.4f), new vec3(.4f, 1.5f, .4f)), new Minimax<int>(1, 2), new Minimax<int>(-1, 1));
 
-        seeds = PlantSeeds(d, 0.064f, new List<ushort>() { BlockItemCode.Grass, BlockItemCode.Dirt }, false, new List<ushort> { BlockItemCode.Cedar_Needles, BlockItemCode.Oak_Leaves });
-        GrowTrees(d, seeds, BlockItemCode.Oak, BlockItemCode.Oak_Leaves, 16, new Minimax<vec3>(new vec3(-1, -0.1f, -1), new vec3(1, 1, 1)), new Minimax<int>(3, 8));
+        seeds = PlantSurfaceSeeds(d, 0.064f, grass_or_dirt_soil, surface_drop);
+        GrowTrees(d, seeds, BlockItemCode.Oak, BlockItemCode.Oak_Leaves, 16, new Minimax<vec3>(new vec3(-1, -0.1f, -1), new vec3(1, 1, 1)), new Minimax<int>(3, 8), new Minimax<int>(-1, 1));
 
-        seeds = PlantSeeds(d, 0.7f, new List<ushort>() { BlockItemCode.Grass, BlockItemCode.Dirt }, false, new List<ushort> { BlockItemCode.Cedar_Needles, BlockItemCode.Oak_Leaves });
+        seeds = PlantSurfaceSeeds(d, 0.7f, grass_or_dirt_soil, surface_drop);
         GrowSeeds(d, seeds, BlockItemCode.Tussock);
 
-        seeds = PlantSeeds(d, 0.06f, new List<ushort>() { BlockItemCode.Grass, BlockItemCode.Dirt }, false, new List<ushort> { BlockItemCode.Cedar_Needles, BlockItemCode.Oak_Leaves });
+        seeds = PlantSurfaceSeeds(d, 0.06f, grass_or_dirt_soil, surface_drop);
         GrowSeeds(d, seeds, BlockItemCode.Dandilion);
 
-        seeds = PlantSeeds(d, 0.04f, new List<ushort>() { BlockItemCode.Grass, BlockItemCode.Dirt }, false, new List<ushort> { BlockItemCode.Cedar_Needles, BlockItemCode.Oak_Leaves });
+        seeds = PlantSurfaceSeeds(d, 0.04f, grass_or_dirt_soil, surface_drop);
         GrowSeeds(d, seeds, BlockItemCode.RoseRed);
 
-        seeds = PlantSeeds(d, 0.04f, new List<ushort>() { BlockItemCode.Grass, BlockItemCode.Dirt }, false, new List<ushort> { BlockItemCode.Cedar_Needles, BlockItemCode.Oak_Leaves });
+        seeds = PlantSurfaceSeeds(d, 0.04f, grass_or_dirt_soil, surface_drop);
         GrowSeeds(d, seeds, BlockItemCode.RosePink);
 
-        seeds = PlantSeeds(d, 0.02f, new List<ushort>() { BlockItemCode.Sand }, false);
+        seeds = PlantSurfaceSeeds(d, 0.4f, sand_soil, surface_or_seafloor_drop);
         GrowSeeds(d, seeds, BlockItemCode.Seaweed);
 
         if (d.BlockStats.RegionState == RegionState.Empty_AndNoData)
@@ -3128,10 +3959,127 @@ namespace PirateCraft
           d.Blocks.Grid = null;
         }
 
-        // LightDrome_Async(d);
+        SettleLiquids(qdd, d);
+
+        if (d.BeamGrid == null)
+        {
+          d.BeamGrid = new BeamGrid2();
+          d.BeamGrid.Build(this, d);
+        }
+        //if (d.BeamGrid2 == null)
+        //{
+        //  d.BeamGrid2 = new BeamGrid2();
+        //  d.BeamGrid2.Build(this, d);
+        //}
+        LightDrome_Async(d);
 
       }
       d.GenState = GenState.GenEnd;
+
+    }
+    private void SettleLiquids(QueuedDromeData qdd, Drome d)
+    {
+      ivec3[] water_neighbors = new ivec3[]
+      {
+        new ivec3(-1, 0, 0),
+        new ivec3( 1, 0, 0),
+        new ivec3( 0,-1, 0),
+        new ivec3( 0, 0,-1),
+        new ivec3( 0, 0, 1),
+      };
+      //we need to grab water from upper and mid-level dromes as well
+      for (int iy = DromeBlocksY - 2; iy >= 0; iy--)
+      {
+        for (int iset = 0; iset < 20; iset++)
+        {
+          bool set = false;
+          //For each layer, simulate water, if we find it.
+          for (int iz = 0; iz < DromeBlocksZ; iz++)
+          {
+            for (int ix = 0; ix < DromeBlocksX; ix++)
+            {
+              //Rule: blockes don't lose liquid when water travels down
+              //if a block below has less liquid, it gets added teh liquid above, but above does not change
+              //horizontally, blocks lose 1 liquid for every spread.
+              //step 1 - pull down water from above
+              //step 2.1 - spread water every 20 blocks or so .. 
+              //step 2.2 - spread water if ground is below, or on side
+
+              ivec3 b_cur_pos = new ivec3(ix, iy, iz);
+
+              ushort b_cur_liq_new = 0;
+              // 1 pull down from abpve
+              //TODO: get liquid .. uniform for all dromes and neighbors
+              ushort b_above = d.GetBlock(ix, iy + 1, iz);
+              ushort b_above_liq = Block.GetLiquid(b_above);
+              ushort b_cur = d.GetBlock(ix, iy, iz);
+              if (b_above_liq > 0)
+              {
+                if (Block.IsSolidBlock(b_cur))
+                {
+                  //Only add liquid to block below if the liquid above is greater. This way the simulation doesn't poop
+                  ushort b_cur_liq = Block.GetLiquid(b_cur);
+                  if (b_above_liq > b_cur_liq)
+                  {
+                    Block.AddLiquid(ref b_cur, (short)b_above_liq);
+
+                    b_cur_liq_new = Block.GetLiquid(b_cur);
+
+                    d.SetBlock(b_cur_pos, b_cur_liq_new, true, BlockBits.Liquid);
+                    set = true;
+
+                  }
+                }
+              }
+
+              b_cur_liq_new = Block.GetLiquid(b_cur);
+
+              // Spread around
+              if (iy - 1 >= 0)//**TODO: simulate other dromes
+              {
+                ushort b_below = d.GetBlock(ix, iy - 1, iz);
+                if (Block.IsSolidBlock(b_below))
+                {
+                  //spread to neighbors
+                  foreach (var wn in water_neighbors)
+                  {
+                    ivec3 b_npos = b_cur_pos + wn;
+                    ushort b_nblk = d.GetBlock(b_npos, IndexMode.Clamp); //*** TODO: Simulate other dromes
+                    ushort b_n_liq = Block.GetLiquid(b_nblk);
+                    ushort b_n_sol = Block.GetSolid(b_nblk);
+                    //Spread the liquid if the neighbor has greater liquid
+                    if (b_cur_liq_new > 0 && ((int)b_cur_liq_new - (int)b_n_liq > 1))//so we dont flip flop >1 - 1
+                    {
+                      if (!Block.IsSolidBlock(b_n_sol))
+                      {
+                        //sub 1 for each neighbor
+                        short new_m1 = (short)((int)b_cur_liq_new - 1);// hmm.. maybe 1, 2, 3 who knows
+                        if (new_m1 < 0)
+                        {
+                          new_m1 = 0;
+                        }
+                        Block.SetLiquid(ref b_nblk, (ushort)new_m1);
+                        ushort b_n_liquid_new = Block.GetLiquid(b_nblk);
+                        d.SetBlock(b_npos, b_n_liquid_new, true, BlockBits.Liquid);
+                        set = true;
+                      }
+                    }
+                  }
+                }
+              }
+
+            }//for x
+          }//for z
+
+          if (set == false)
+          {
+            break;
+          }
+
+
+        }//for..iset
+
+      }
 
     }
     private void HeightGrid_Stuff_Grass_Stoneshell(Drome d)
@@ -3171,17 +4119,17 @@ namespace PirateCraft
                 above = d.GetBlock(ix, iy + 1, iz);
               }
 
-              if (((thisone == BlockItemCode.Dirt && (above == BlockItemCode.Air)) || (Block.IsSolidBlockNotDecal_OrWater(thisone) && (y_z3 < 0) && (above == BlockItemCode.Water))))
+              if (((Block.Is(thisone, BlockItemCode.Dirt) && (Block.Is(above, BlockItemCode.Air))) || (Block.IsSolidBlock(thisone) && (y_z3 < 0) && Block.IsFullOfWater(above))))
               {
                 ivec3 v = new ivec3(ix, iy, iz);
                 //trying to set sand on ocean floor
-                d.SetBlock(v, (y_z3 < 0) ? BlockItemCode.Sand : BlockItemCode.Grass, true);
+                d.SetBlock(v, (y_z3 < 0) ? BlockItemCode.Sand : BlockItemCode.Grass, true, BlockBits.Solid);
                 setGrass = true;
               }
             }
             else
             {
-              if (Block.IsAir_Or_Missing(thisone))
+              if (Block.HasNoSolid(thisone))
               {
                 break;
               }
@@ -3196,10 +4144,24 @@ namespace PirateCraft
             if (grassdistance > (4 + randoid))
             {
               ivec3 v = new ivec3(ix, iy, iz);
-              d.SetBlock(v, BlockItemCode.Feldspar, true);
+              d.SetBlock(v, BlockItemCode.Feldspar, true, BlockBits.Solid);
             }
 
 
+          }
+        }
+      }
+    }
+    void DropLiquid(Drome d, List<ivec3> water_seeds, ushort liquid_level)
+    {
+      foreach (var seed_pos in water_seeds)
+      {
+        if (IsBlockInsideDromeBounds(seed_pos))
+        {
+          ushort b = d.GetBlock(seed_pos);
+          if (!Block.IsSolidBlock(b)) // TODO: we can override blocks if some are more "dominant"
+          {
+            d.SetBlock(seed_pos, liquid_level, true, BlockBits.Liquid);
           }
         }
       }
@@ -3252,9 +4214,9 @@ namespace PirateCraft
           if (IsBlockInsideDromeBounds(growth_pos))
           {
             ushort b = d.GetBlock(growth_pos);
-            if (Block.IsAir_Or_Missing(b)) // TODO: we can override blocks if some are more "dominant"
+            if (Block.HasNoSolid(b)) // TODO: we can override blocks if some are more "dominant"
             {
-              d.SetBlock(growth_pos, item, true);
+              d.SetBlock(growth_pos, item, true, BlockBits.Solid);
             }
 
           }
@@ -3279,20 +4241,25 @@ namespace PirateCraft
             float dens = BaseLandDensity(block_world);
             ivec3 z3 = new ivec3(x, y, z);
             ushort created_value = CreateBlock(dens, block_world, z3);
-            d.SetBlock(new ivec3(x, y, z), created_value, true);
+            d.SetBlock(new ivec3(x, y, z), created_value, true, BlockBits.All);
           }
         }
+
       }
     }
-    private List<ivec3> PlantSeeds(Drome d, float density01, List<ushort> allowedSoilTypes, bool water, List<ushort> skipDrop = null)
+    private List<ivec3> PlantSurfaceSeeds(Drome d, float density01, List<ushort> allowedSoilTypes, List<ushort> skipDrop = null)
+    {
+      int seeds = (int)((float)DromeBlocksX * (float)DromeBlocksZ * density01);
+      return PlantSurfaceSeeds(d, seeds, allowedSoilTypes, skipDrop);
+    }
+    private List<ivec3> PlantSurfaceSeeds(Drome d, int count, List<ushort> allowedSoilTypes, List<ushort> skipDrop = null)
     {
       List<ivec3> planted = new List<ivec3>();
-      int seeds = (int)((float)DromeBlocksX * (float)DromeBlocksZ * density01);
-      for (int iseed = 0; iseed < seeds; iseed++)
+      for (int iseed = 0; iseed < count; iseed++)
       {
         int rx = (int)Random.Next(0, DromeBlocksX - 1);
         int rz = (int)Random.Next(0, DromeBlocksZ - 1);
-        ivec3 v = DropBlock(d, rx, rz, allowedSoilTypes, water, skipDrop);
+        ivec3 v = DropBlock(d, rx, rz, allowedSoilTypes, skipDrop);
         if (v.x >= 0)
         {
           planted.Add(v);
@@ -3300,7 +4267,7 @@ namespace PirateCraft
       }
       return planted;
     }
-    private void MakeOre(Drome d, Minimax<int> ore_height, float density01, Minimax<int> steps, ushort ore_block_code, List<ushort> existingBlocks)
+    private void MakeOre(Drome d, Minimax<int> ore_height, float density01, Minimax<int> steps, ushort ore_block_code, List<ushort> existingBlocks, Minimax<int> size)
     {
       List<Walker> walkers = new List<Walker>();
       List<ivec3> ore_seeds = new List<ivec3>();
@@ -3314,82 +4281,122 @@ namespace PirateCraft
         ore_pos.z = (int)Random.Next(0, DromeBlocksZ - 1);
         ore_pos.y = Random.Next(ore_height);
 
-        if (!Block.IsAir_Or_Missing(d.GetBlock(ore_pos)))
+        if (!Block.HasNoSolid(d.GetBlock(ore_pos)))
         {
-          walkers.Add(new RandomWalker(d, steps, ore_pos, probabilitye, ore_block_code, (World.GlobWidthX * World.GlobWidthX), existingBlocks));
+          walkers.Add(new RandomWalker(d, steps, ore_pos, probabilitye, ore_block_code, (World.GlobWidthX * World.GlobWidthX), existingBlocks, size));
           ore_seeds.Add(ore_pos);
         }
       }
       SimulateWalkers(d, walkers);
 
     }
-    private ivec3 DropBlock(Drome d, int x, int z, List<ushort> target_soil_types, bool water, List<ushort> skipDrop)
+    private List<ivec3> PlantDeepSeeds(Drome d, Minimax<int> height, float density01, List<ushort> target_soil_types)
     {
+      //Plant seeds within the land on target soils.
+      List<ivec3> seedList = new List<ivec3>();
+      bool any = target_soil_types.Contains(BlockItemCode.Missing);
+      int max_tries = 16;//try this many times to randomly place seed, else, give up
+      ivec3 seed_pos;
+      int seeds = (int)((float)DromeBlocksX * (float)DromeBlocksY * (float)DromeBlocksZ * density01);
+      for (int iseed = 0; iseed < seeds; iseed++)
+      {
+        for (int itry = 0; itry < max_tries; itry++)
+        {
+          seed_pos.x = (int)Random.Next(0, DromeBlocksX - 1);
+          seed_pos.z = (int)Random.Next(0, DromeBlocksZ - 1);
+          seed_pos.y = Random.Next(height);
+
+          ushort this_blk = d.GetBlock(seed_pos);
+          ushort liquid = Block.GetLiquid(this_blk) > 0 ? BlockItemCode.Water : BlockItemCode.Missing;
+          ushort solid = Block.GetSolid(this_blk);
+
+          if (any || target_soil_types.Contains(solid) || target_soil_types.Contains(liquid))
+          {
+            seedList.Add(seed_pos);
+            break;
+          }
+
+        }
+
+      }
+      return seedList;
+    }
+    private void MakeCaves(Drome d, List<ivec3> seeds, Minimax<int> steps, List<ushort> existingBlocks, Minimax<int> size)
+    {
+      List<Walker> walkers = new List<Walker>();
+      List<ivec3> ore_seeds = new List<ivec3>();
+
+      var probabilitye = new Minimax<vec3>(new vec3(-1, -4, -1), new vec3(1, 0, 1));
+
+      foreach (var seed in seeds)
+      {
+        if (!Block.HasNoSolid(d.GetBlock(seed)))
+        {
+          vec3 prob = Random.Next(probabilitye);
+          walkers.Add(new SnakeWalker(d, steps, seed, prob, BlockItemCode.Air, (World.GlobWidthX * World.GlobWidthX), existingBlocks, size));
+          ore_seeds.Add(seed);
+        }
+      }
+      SimulateWalkers(d, walkers);
+    }
+    private ivec3 DropBlock(Drome d, int x, int z, List<ushort> target_soil_types, List<ushort> ignore_as_air)
+    {
+      //Set TargetSoilTypes to Missing
       //Doesn't actually set the block. Just drop from the top to the given ground.
       //target block is the allowed block we can drop onto (soil for planting, sand .. )
+
+      //Don't put missing in here.
+      Gu.Assert(!target_soil_types.Contains(BlockItemCode.Missing));
+      Gu.Assert(!ignore_as_air.Contains(BlockItemCode.Missing));
+
       for (int dy = DromeBlocksY - 1; dy >= 0; dy--)
       {
-        var cpos = new ivec3(x, dy, z);
-        var npos = new ivec3(x, dy - 1, z);
+        var this_one = new ivec3(x, dy, z);
+        var below_us = new ivec3(x, dy - 1, z);
 
-        if (IsBlockInsideDromeBounds(cpos) && IsBlockInsideDromeBounds(npos))
+        if (IsBlockInsideDromeBounds(this_one) && IsBlockInsideDromeBounds(below_us))
         {
-          ushort this_blk = d.GetBlock(cpos);
-          if ((skipDrop != null) && (skipDrop.Contains(this_blk)))
+          ushort this_blk = d.GetBlock(this_one);
+          ushort this_liquid = Block.GetLiquid(this_blk) > 0 ? BlockItemCode.Water : BlockItemCode.Missing;
+          ushort this_solid = Block.GetSolid(this_blk);
+
+          //Ignore dropping on these blocks int his array
+          if ((ignore_as_air != null) && (ignore_as_air.Contains(this_solid) || ignore_as_air.Contains(this_liquid)))
           {
-            // this is a block we want to generate past, such as tree leaves - keep droppin
           }
-          else if (water)
+          else if (this_solid > 0 || this_liquid > 0)
           {
-            if ((this_blk != BlockItemCode.Water) && (!Block.IsAir_Or_Missing(this_blk)))
-            {
-              break;
-            }
-            else
-            {
-              //we are a water item, and we're in water - keep droppin
-            }
-          }
-          else
-          {
-            if (!Block.IsAir_Or_Missing(this_blk))
-            {
-              break;
-            }
-            else
-            {
-              //air - keep droppin
-            }
+            //This block isn't in "ignore" Invalid block - don't plant.
+            break;
           }
 
-          ushort soil = d.GetBlock(npos);
-          if (!Block.IsAir_Or_Missing(soil))
+          var block_below = d.GetBlock(below_us);
+          ushort below_liquid = Block.GetLiquid(block_below) > 0 ? BlockItemCode.Water : BlockItemCode.Missing;
+          ushort below_solid = Block.GetSolid(block_below);
+
+          if (target_soil_types.Contains(below_liquid) ||
+            target_soil_types.Contains(below_solid) ||
+            (target_soil_types.Contains(BlockItemCode.AnyVisible) && Block.IsVisibleBlock(block_below)))
           {
-            if (target_soil_types.Contains(soil))
-            {
-              return cpos;
-            }
-            else
-            {
-              //Failed - we planted onto something that is not dirt (or taret type)
-              break;
-            }
+            return this_one;
           }
+
+
         }
 
       }
       //May have been completely solid
       return new ivec3(-1, -1, -1);
     }
-    private void GrowTrees(Drome d, List<ivec3> seeds, ushort bark_block, ushort leaf_block, int leafWalker_Count, Minimax<vec3> foliage_shape, Minimax<int> trunkHeight)
+    private void GrowTrees(Drome d, List<ivec3> seeds, ushort bark_block, ushort leaf_block, int leafWalker_Count, Minimax<vec3> foliage_shape, Minimax<int> trunkHeight, Minimax<int> size)
     {
       foreach (var seed in seeds)
       {
         //if seed is tree
-        GrowTree(d, seed, bark_block, leaf_block, leafWalker_Count, foliage_shape, trunkHeight);
+        GrowTree(d, seed, bark_block, leaf_block, leafWalker_Count, foliage_shape, trunkHeight, size);
       }
     }
-    private void GrowTree(Drome d, ivec3 start_pos, ushort bark_block, ushort leaf_block, int leafWalker_Count, Minimax<vec3> foliage_shape, Minimax<int> trunk_Height)
+    private void GrowTree(Drome d, ivec3 start_pos, ushort bark_block, ushort leaf_block, int leafWalker_Count, Minimax<vec3> foliage_shape, Minimax<int> trunk_Height, Minimax<int> size)
     {
       ivec3 cp = start_pos;
       vec3 d_origin = d.OriginR3;
@@ -3401,7 +4408,7 @@ namespace PirateCraft
         pos.y += y;
         if (IsBlockInsideDromeBounds(pos))
         {
-          d.SetBlock(pos, bark_block, true);
+          d.SetBlock(pos, bark_block, true, BlockBits.Solid);
         }
         else
         {
@@ -3415,15 +4422,15 @@ namespace PirateCraft
 
       List<Walker> walkers = new List<Walker>();
       Minimax<int> steps = new Minimax<int>(5, 10);
-      for(int iw=0; iw<leafWalker_Count; iw++) {
-        walkers.Add(new RandomWalker(d, steps, pos, foliage_shape, leaf_block, maxdist2, new List<ushort> { BlockItemCode.Air }));
+      for (int iw = 0; iw < leafWalker_Count; iw++)
+      {
+        walkers.Add(new RandomWalker(d, steps, pos, foliage_shape, leaf_block, maxdist2, new List<ushort> { BlockItemCode.Air }, size));
       }
       SimulateWalkers(d, walkers);
     }
     private void SimulateWalkers(Drome d, List<Walker> walkers)
     {
       //simulate walkers until they reach maxdist2
-
       vec3 d_origin = d.OriginR3;
       int dbg_nCountWhile = 0;
       while (walkers.Count > 0)
@@ -3436,20 +4443,8 @@ namespace PirateCraft
             walkers.RemoveAt(0);
             break;
           }
-          else if (IsBlockInsideDromeBounds(p.PosZ3))
-          {
-            ushort cur_block = d.GetBlock(p.PosZ3);
-            bool yes_we_can =
-             (p.ExistingBlocksOnly.Contains(BlockItemCode.Missing)) || // any block
-             ((p.ExistingBlocksOnly.Contains(BlockItemCode.Land)) && (cur_block != BlockItemCode.Air && cur_block != BlockItemCode.Water)) || //Only solid blocks
-             ((p.ExistingBlocksOnly.Contains(BlockItemCode.Water)) && (cur_block != BlockItemCode.Air && cur_block != BlockItemCode.Land)) || //Only water blocks
-             (p.ExistingBlocksOnly.Contains(cur_block)); // only the given blocks.
 
-            if (yes_we_can)
-            {
-              d.SetBlock(p.PosZ3, p.BlockCode, true);
-            }
-          }
+          p.Carve(this, d);
 
         }
 
@@ -3460,7 +4455,6 @@ namespace PirateCraft
     //private void LightDrome_Async(Drome d)
     //{
     //  ///do this only once we've set up the glob shader
-
 
     //  vec3 sun_color = vec4.FromHex("#FFD70000").xyz();
     //  vec3 sun_dir = new vec3(-1, -1, -1).normalized();
@@ -3584,7 +4578,7 @@ namespace PirateCraft
     //}
     #endregion
 
-    private bool IsBlockInsideDromeBounds(ivec3 block_pos)
+    public bool IsBlockInsideDromeBounds(ivec3 block_pos)
     {
       return block_pos.x >= 0 && block_pos.y >= 0 && block_pos.z >= 0 &&
         block_pos.x < DromeBlocksX && block_pos.y < DromeBlocksY && block_pos.z < DromeBlocksZ;
@@ -3652,7 +4646,17 @@ namespace PirateCraft
               gblock_y,
               gblock_z);
 
-            if (Block.IsAir_Or_Missing(our_block))
+            ivec3 gblock_xyz = new ivec3(gblock_x, gblock_y, gblock_z);
+
+            ivec3 dblock_xyz = World.LocalGlobBlockPos_To_LocalDromeBlockPos(glob.Pos, gblock_xyz);
+
+            ushort solid_block = Block.GetSolid(our_block);
+            ushort liquid_block = Block.GetLiquid(our_block);
+
+            bool hassolid = Block.HasSolid(our_block);
+            bool haswater = Block.HasWater(our_block);
+
+            if (!hassolid && !haswater)
             {
               continue;
             }
@@ -3661,71 +4665,94 @@ namespace PirateCraft
             vec3 block_pos_rel_R3_Center = block_pos_rel_R3 + new vec3(World.BlockSizeX * 0.5f, World.BlockSizeY * 0.5f, World.BlockSizeZ * 0.5f);
             vec3 block_pos_abs_R3_Center = block_pos_rel_R3_Center + glob.OriginR3;
 
-            if (Block.IsMeshItem(our_block))
+            if (hassolid)
             {
-              BlockItem bi = null;
-              if (BlockItems.TryGetValue(our_block, out bi))
+              if (Block.IsMeshItem(our_block))
               {
-                List<vec3> vecs = null;
-                if (qgd._blockitems == null)
+                BlockItem bi = null;
+                if (BlockItems.TryGetValue(solid_block, out bi))
                 {
-                  qgd._blockitems = new Dictionary<BlockItem, List<vec3>>();
+                  List<vec3> vecs = null;
+                  if (qgd.async_block_items == null)
+                  {
+                    qgd.async_block_items = new Dictionary<BlockItem, List<vec3>>();
+                  }
+                  if (!qgd.async_block_items.TryGetValue(bi, out vecs))
+                  {
+                    vecs = new List<vec3>();
+                    qgd.async_block_items.Add(bi, vecs);
+                  }
+                  vecs.Add(block_pos_abs_R3_Center);
                 }
-                if (!qgd._blockitems.TryGetValue(bi, out vecs))
+                else
                 {
-                  vecs = new List<vec3>();
-                  qgd._blockitems.Add(bi, vecs);
+                  Gu.Log.Error("The block item for code '" + solid_block + "' was not found ");
                 }
-                vecs.Add(block_pos_abs_R3_Center);
+              }
+              else if (BlockTiles.TryGetValue(solid_block, out BlockTile bt))
+              {
+                qgd.CreateBuffers();
+
+                ushort b_above = qgd.GetBlock_Glob_Drome(gblock_x, gblock_y + 1, gblock_z);
+                ushort b_below = qgd.GetBlock_Glob_Drome(gblock_x, gblock_y - 1, gblock_z);
+
+                b_above = Block.GetSolid(b_above);
+                b_below = Block.GetSolid(b_above);
+
+                if (bt.MeshType == BlockMeshType.Billboard)
+                {
+                  TopologizeGlob_Billboard(drome, glob, bt, block_pos_rel_R3, our_block, b_above, b_below, qgd, gblock_xyz, dblock_xyz);
+                }
+                else if (bt.MeshType == BlockMeshType.Block)
+                {
+                  TopologizeGlob_Block(drome, glob, bt, block_pos_rel_R3, our_block, b_above, b_below, qgd, gblock_xyz, false, dblock_xyz);
+                }
+
               }
               else
               {
-                Gu.Log.Error("The block item for code '" + our_block + "' was not found ");
+                //Could not find block tile
+                Gu.Log.Error("Could not find block tile for code '" + solid_block + "' ");
+                Gu.DebugBreak();
               }
+
             }
-            else if (BlockTiles.TryGetValue(our_block, out BlockTile bt))
+
+            if (haswater)
             {
-              if (qgd.async_verts == null)
-              {
-                qgd.async_verts = new List<v_v3c3n3x2u1>();
-              }
-              if (qgd.async_inds_op == null)
-              {
-                qgd.async_inds_op = new List<ushort>();
-              }
-              if (qgd.async_inds_tp == null)
-              {
-                qgd.async_inds_tp = new List<ushort>();
-              }
+              qgd.CreateBuffers();
 
-              ushort b_above = qgd.GetBlock_Glob_Drome(gblock_x, gblock_y + 1, gblock_z);
-              ushort b_below = qgd.GetBlock_Glob_Drome(gblock_x, gblock_y - 1, gblock_z);
+              //ushort[] b_n = new ushort[]
+              //{
+              //  qgd.GetBlock_Glob_Drome(gblock_x-1, gblock_y, gblock_z),
+              //  qgd.GetBlock_Glob_Drome(gblock_x+1, gblock_y, gblock_z),
+              //  qgd.GetBlock_Glob_Drome(gblock_x, gblock_y-1, gblock_z),
+              //  qgd.GetBlock_Glob_Drome(gblock_x, gblock_y+1, gblock_z),
+              //  qgd.GetBlock_Glob_Drome(gblock_x, gblock_y, gblock_z-1),
+              //  qgd.GetBlock_Glob_Drome(gblock_x, gblock_y, gblock_z+1),
+              //};
+              //for(int bi=0; bi<6; bi++)
+              //{
+              //  b_n[bi] = Block.GetLiquid(b_n[bi]);
+              //}
 
-              if (bt.MeshType == BlockMeshType.Billboard)
+              if (BlockTiles.TryGetValue(BlockItemCode.Water, out BlockTile bt))
               {
-                TopologizeGlob_Billboard(drome, glob, bt, block_pos_rel_R3, our_block, b_above, b_below, qgd, gblock_x, gblock_y, gblock_z);
-              }
-              else if (bt.MeshType == BlockMeshType.Block)
-              {
-                TopologizeGlob_Block(drome, glob, bt, block_pos_rel_R3, our_block, b_above, b_below, qgd, gblock_x, gblock_y, gblock_z);
-              }
-              else if (bt.MeshType == BlockMeshType.Liquid)
-              {
-                TopologizeGlob_Block(drome, glob, bt, block_pos_rel_R3, our_block, b_above, b_below, qgd, gblock_x, gblock_y, gblock_z);
+                ushort b_above = qgd.GetBlock_Glob_Drome(gblock_x, gblock_y + 1, gblock_z);
+                ushort b_below = qgd.GetBlock_Glob_Drome(gblock_x, gblock_y - 1, gblock_z);
 
-              }
+                b_above = Block.GetLiquid(b_above);
+                b_below = Block.GetLiquid(b_above);
 
-            }
-            else
-            {
-              //Could not find block tile
-              Gu.Log.Error("Could not find block tile for code '" + our_block + "' ");
-              Gu.DebugBreak();
+                //We can expand the growthinfos if we want to use different trextures (may not be oto mu0udsofuoifujh
+                TopologizeGlob_Block(drome, glob, bt, block_pos_rel_R3, our_block, b_above, b_below, qgd, gblock_xyz, true, dblock_xyz);
+                //TopologizeGlob_Liquid(drome, glob, bt, block_pos_rel_R3, our_block, b_above, b_below, qgd, gblock_x, gblock_y, gblock_z);
+              }
             }
 
-          }
-        }
-      }
+          }//for x
+        }//for y
+      }//for z
       qgd.CopiedBlocks = null;
 
       if (glob.State != GenState.Deleted)
@@ -3734,7 +4761,11 @@ namespace PirateCraft
       }
 
     }
-    private void TopologizeGlob_Billboard(Drome drome, Glob glob, BlockTile bt, vec3 block_pos_rel_R3, ushort our_block, ushort b_above, ushort b_below, QueuedGlobData_WithKernel qgd, int gblock_x, int gblock_y, int gblock_z)
+    private void TopologizeGlob_Billboard(Drome drome, Glob glob, BlockTile bt, vec3 block_pos_rel_R3,
+      ushort our_block, ushort b_above, ushort b_below,
+      QueuedGlobData_WithKernel qgd,
+      ivec3 gblock_xyz,
+      ivec3 dblock_xyz)
     {
       MtTex[] patches = bt.GetUVPatch(BlockSide.Left, b_above, b_below); //Just pass Zero here, because all the side faces for billboards are the same for now
 
@@ -3745,41 +4776,46 @@ namespace PirateCraft
         vec2[] texs = new vec2[4];
         texs = patches[BlockTileUVSide.Side].GetQuadTexs();
 
-        Light_And_AddBlockFaceV4I6(iface, gblock_x, gblock_y, gblock_z, drome, glob, qgd, our_block, block_pos_rel_R3, WorldStaticData.bb_verts_face_zup, WorldStaticData.bb_face_inds_zup, texs);
+        Light_And_AddBlockFaceV4I6(iface,
+          gblock_xyz,
+          drome, glob, qgd,
+          our_block, b_above, b_below,
+          block_pos_rel_R3, WorldStaticData.bb_verts_face_zup, WorldStaticData.bb_face_inds_zup, texs, false, dblock_xyz);
       }
     }
-    private void TopologizeGlob_Block(Drome drome, Glob glob, BlockTile bt, vec3 block_pos_rel_R3, ushort our_block, ushort b_above, ushort b_below, QueuedGlobData_WithKernel qgd, int gblock_x, int gblock_y, int gblock_z)
+
+    private void TopologizeGlob_Block(Drome drome, Glob glob, BlockTile bt, vec3 block_pos_rel_R3,
+      ushort our_block, ushort b_above, ushort b_below,
+      QueuedGlobData_WithKernel qgd, ivec3 gblock_xyz, bool liquid,
+      ivec3 dblock_xyz)
     {
       //    6    7
       // 2    3
       //    4    5
       // 0    1
 
-      //if(our_block == BlockItemCode.Water)
-      //{
-      //  int n = 0;
-      //  n++;
-      //}
-
       for (int iface = 0; iface < 6; ++iface)
       {
         //TODO: remove the "default" condition in grid. very slow. Replace with "global drome" code
         ushort b_n = qgd.GetBlock_Glob_Drome(
-          gblock_x + WorldStaticData.n_off[iface].x,
-          gblock_y + WorldStaticData.n_off[iface].y,
-          gblock_z + WorldStaticData.n_off[iface].z);
-        bool b = Block.IsAir_Or_Missing(b_n) && Block.IsTransparent(our_block);
-        //if (b)
-        //{
-        //  int n = 0;
-        //  n++;
-        //}
-        //for some weird reason we have to include missing blocks for water..
+          gblock_xyz.x + WorldStaticData.n_off[iface].x,
+          gblock_xyz.y + WorldStaticData.n_off[iface].y,
+          gblock_xyz.z + WorldStaticData.n_off[iface].z);
+
+        //Neighbor cull check
         if (
-          (Block.IsAir_Or_Missing(b_n) || (Block.IsTransparent(b_n) && !Block.IsTransparent(our_block))) || //Solid blocks - don't gen missing, but if it's air, or water, gen.
-          (Block.IsDecalOr2Sided(b_n) && !Block.IsTransparent(our_block)) || //always topo next to decals (for now)
-          Block.IsMeshItem(b_n) || //always topo next to meshes (for now)
-          (Block.IsAir_Or_Missing(b_n) && Block.IsTransparent(our_block)))
+          //  bt.IsVisible()
+
+          (!liquid && (
+          (Block.HasNoSolid(b_n)) || //Solid blocks - don't gen missing, but if it's air, or water, gen.
+          (Block.IsDecalOr2Sided(b_n)) || //always topo next to decals (for now)
+          Block.IsMeshItem(b_n)  //always topo next to meshes (for now)
+          ))
+          //Hack liquid
+          ||
+          (liquid && ((!Block.HasWater(b_n) && (Block.Is(b_n, BlockItemCode.Air) || (!Block.IsSolidBlock(our_block) && (iface == 3)))))) // face 3 = top (because water does not ever each top) only cull if the cur is solid
+
+          )
         {
           MtTex[] patches = bt.GetUVPatch((BlockSide)iface, b_above, b_below);
           vec2[] texs = new vec2[4];
@@ -3811,16 +4847,40 @@ namespace PirateCraft
             texs[3] = WorldStaticData.bx_verts_face[iface, 3]._x;
           }
 
-          Light_And_AddBlockFaceV4I6(iface, gblock_x, gblock_y, gblock_z, drome, glob, qgd, our_block, block_pos_rel_R3, WorldStaticData.bx_verts_face, WorldStaticData.bx_face_inds, texs);
+          Light_And_AddBlockFaceV4I6(iface,
+            gblock_xyz,
+            drome, glob, qgd,
+            our_block, b_above, b_below,
+            block_pos_rel_R3, WorldStaticData.bx_verts_face, WorldStaticData.bx_face_inds, texs, liquid,
+            dblock_xyz);
 
         }
       }
     }
+    private void TopologizeGlob_LiquidBlock(Drome drome, Glob glob, BlockTile bt, vec3 block_pos_rel_R3, ushort our_block, ushort b_above, ushort b_below, QueuedGlobData_WithKernel qgd, int gblock_x, int gblock_y, int gblock_z)
+    {
+      //get neighbor kernel
+      ushort[] nblock = new ushort[6];
+      for (int ni = 0; ni < 6; ++ni)
+      {
+        nblock[ni] = qgd.GetBlock_Glob_Drome(
+          gblock_x + WorldStaticData.n_off[ni].x,
+          gblock_y + WorldStaticData.n_off[ni].y,
+          gblock_z + WorldStaticData.n_off[ni].z);
+      }
 
-    private void Light_And_AddBlockFaceV4I6(int iface,
-      int gblock_x, int gblock_y, int gblock_z,
-      Drome drome, Glob glob, QueuedGlobData_WithKernel qgd, ushort our_block, vec3 block_pos_rel_R3,
-      v_v3n3x2[,] verts_face, uint[] inds_face, vec2[] texs_face)
+      for (int iface = 0; iface < 6; ++iface)
+      {
+        //TODO: remove the "default" condition in grid. very slow. Replace with "global drome" code
+
+
+
+      }
+    }
+    private void Light_And_AddBlockFaceV4I6(int iface, ivec3 gblock_xyz,
+    Drome drome, Glob glob, QueuedGlobData_WithKernel qgd, ushort our_block, ushort b_above, ushort b_below, vec3 block_pos_rel_R3,
+    v_v3n3x2[,] verts_face, uint[] inds_face, vec2[] texs_face, bool liquid,
+    ivec3 dblock_xyz)
     {
       uint foff = (uint)qgd.async_verts.Count;
 
@@ -3829,37 +4889,58 @@ namespace PirateCraft
       Gu.Assert(inds_face.Length == 6);
       Gu.Assert(texs_face.Length == 4);
 
-      //Light
-      vec3 color;
-      if (drome != null && drome.LightGrid != null)
-      {
-        //Get the neighboring GRay (or clamp) to get this ray. Then reflect the incoming light ray off the surface and multiply by color to compute the color
-        //No visibility is used here (kinda sucks). this is jsut .. forever .. and again
-        //FUN!
-        GRay g = drome.LightGrid.Get(gblock_x + WorldStaticData.n_off[iface].x, gblock_y + WorldStaticData.n_off[iface].y, gblock_z + WorldStaticData.n_off[iface].z);
-        color = g.Color * WorldStaticData.bx_norms[iface].dot(g.Dir.reflect(WorldStaticData.bx_norms[iface]));
-      }
-      else
-      {
-        color = new vec3(1, 1, 1);
-      }
 
-
-      //Verts + Indexes
+      //Verts + Indexes   
       vec3 block_pos_abs_R3 = block_pos_rel_R3 + glob.OriginR3;
       for (int vi = 0; vi < 4; ++vi)
       {
-        qgd.async_verts.Add(new v_v3c3n3x2u1()
+        float liquid_height = 0;
+        //subtract some height from liquid
+        //Test / Hack - subtract some height from the water to make it more cooler
+        //in the future we will use this to calculate actual water height.
+        if (liquid && (
+          (iface == 0 && (vi == 2 || vi == 3)) ||
+          (iface == 1 && (vi == 2 || vi == 3)) ||
+          (iface == 3) ||
+          (iface == 4 && (vi == 2 || vi == 3)) ||
+          (iface == 5 && (vi == 2 || vi == 3))
+          ))
         {
-          _v = verts_face[iface, vi]._v + block_pos_abs_R3,
-          _c = color,
+          if (b_above > 0)
+          {
+            //We are attaching to liquid above
+            liquid_height = 0;
+          }
+          else
+          {
+            var liquuuud = Block.GetLiquid(our_block);
+            liquid_height = BlockSizeY * ((float)liquuuud / ((float)(Block.MaxLiquid)));
+          }
+
+        }
+
+        //Points (blocks)
+        qgd.async_verts.Add(new v_v3n3x2u1()
+        {
+          _v = verts_face[iface, vi]._v + block_pos_abs_R3 - new vec3(0, liquid_height, 0),
           _n = verts_face[iface, vi]._n,
           _x = texs_face[vi],
           _u = 0//TODO: material id
         });
-      }
 
-      if (!Block.IsTransparent(our_block) && !Block.IsDecalOr2Sided(our_block))
+        //Colors for points
+        qgd.async_colors.Add(new vec3(1, 1, 1));
+
+      }
+      qgd.async_face_data.Add(new VisibleBlockFaceData()
+      {
+        faceIdx = (byte)iface,
+        x = (short)dblock_xyz.x,
+        y = (short)dblock_xyz.y,
+        z = (short)dblock_xyz.z
+      });
+
+      if (!Block.IsDecalOr2Sided(our_block))
       {
         for (int ii = 0; ii < 6; ++ii)
         {
@@ -3971,14 +5052,14 @@ namespace PirateCraft
       _dromes.TryGetValue(dvi, out ret);
       return ret;
     }
-    public void SetBlock(vec3 pos_r3, ushort b)
+    public void SetBlock(vec3 pos_r3, ushort b, BlockBits bits)
     {
       //ivec3 block_i3 = R3ToI3BlockGlobal(pt);
       foreach (var d in _dromes)
       {
         if (d.Value.Box.containsPointBottomLeftInclusive(pos_r3))
         {
-          d.Value.SetBlock(pos_r3, b);
+          d.Value.SetBlock(pos_r3, b, bits);
         }
       }
     }
@@ -4037,7 +5118,7 @@ namespace PirateCraft
       qgd.MyGlob = g;
       d.Lock();
       //    CopyGlobBlocks_Sync(d, qgd);
-      qgd._blockitems = new Dictionary<BlockItem, List<vec3>>();//completely new. do not copy .. we generate it.
+      qgd.async_block_items = new Dictionary<BlockItem, List<vec3>>();//completely new. do not copy .. we generate it.
 
       double dist = (qgd.MyGlob.CenterR3 - Player.Position_World).length();
       qgd.DistanceToPlayer = dist;
@@ -4569,7 +5650,7 @@ namespace PirateCraft
           dbg_nblockcheck++;
           ivec3 b3i = Drome.R3toI3BlockLocal_Drome(cpos_r3);
           ushort b = cur_drome.GetBlock(b3i);
-          if (!Block.IsAir_Or_Missing(b))
+          if (!Block.HasNoSolid(b))
           {
             //b.IsEmpty()==false is sufficient for a hit. (drome,i3) is sufficient for the information too.
             //You don't need the other data than for more information.
@@ -4632,6 +5713,13 @@ namespace PirateCraft
     #endregion
 
     #region Private: Files
+
+    private FileLoc GetTileFile(TileImage img)
+    {
+      WorldStaticData.TileImages.TryGetValue(img, out var loc);
+      Gu.Assert(loc != null);
+      return loc;
+    }
 
     private void InitWorldDiskFile(bool delete_world_start_fresh)
     {

@@ -99,7 +99,7 @@ namespace PirateCraft
         Material.GpuRenderState.DepthTest = false;
         Material.Textures[Shader.TextureInput.Albedo] = tx.Albedo;
 
-        Mesh = new MeshData("gui_mesh", OpenTK.Graphics.OpenGL4.PrimitiveType.Points, v_v4v4v4v2u2.VertexFormat, Gpu.GetGpuDataPtr(_verts));
+        Mesh = new MeshData("gui_mesh", OpenTK.Graphics.OpenGL4.PrimitiveType.Points, Gpu.CreateVertexBuffer(_verts));
         Mesh.DrawOrder = DrawOrder.Last;
       }
     }
@@ -112,12 +112,12 @@ namespace PirateCraft
         //  guiShader->addUniform (Frustum.TopLEft)
         //  **Camera.BasisXYZ -> This is already a shader uniform.
       }
-      if (Mesh != null && Mesh.VertexBuffer != null)
+      if (Mesh != null && Mesh.VertexBuffers != null && Mesh.VertexBuffers.Count>0)
       {
         var pt = Gpu.GetGpuDataPtr(_verts);
-        Mesh.VertexBuffer.CopyDataToGPU(pt, 0, _numVerts);
+        Mesh.VertexBuffers[0].CopyDataToGPU(pt, 0, _numVerts);
       }
-
+       
       _numVerts = 0;
     }
     public void DrawText(vec2 pos, string text)

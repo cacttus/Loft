@@ -4,6 +4,50 @@ using OpenTK.Graphics.OpenGL4;
 
 namespace PirateCraft
 {
+  [StructLayout(LayoutKind.Sequential)]
+  public struct GpuShaderData
+  {
+    public GpuShaderData() { }
+    public float _fFogDamp = 2.8f;
+    public float _fFogBlend = 0.56361f;
+    public float _fFogDivisor = 1200.0f; //Begin of fog distance
+    public float _pad1 = 0;
+    //
+    public vec3 _vFogColor = new vec3(0.8407f, 0.89349f, 0.981054f);
+    public float _pad5 = 0;
+    //
+    public int _iPointLightCount = 0;
+    public float _fHdrSampleExp = 1;   //Exponent to use converting input color textures to HDR
+    public float _fHdrToneMapExp = 1;  //Exponent to use when tone mapping back to LDR
+    public int _iShadowBoxCount = 0;
+    //
+    public vec3 _vViewPos = new vec3(0, 0, 0);//Camera position
+    public int _iDirLightCount = 0;
+    //
+    public vec3 _vViewDir = new vec3(0, 0, -1);
+    public float _fTimeSeconds = 0;
+    //
+    public vec3 _vAmbientColor = new vec3(0.24f, 0.26f, 0.261f);
+    public float _fAmbientIntensity = 0.5f;
+    //
+    public float _fFocalDepth = 0.0f;
+    public float _fFocalRange = 25.0f;
+    public float _pad2 = 0;
+    public float _pad3 = 0;
+  };
+  //stuff needed to render
+  public class DrawCall_UniformData
+  {
+    public double? dt = null;
+    public Camera3D cam = null;
+    public WorldObject ob = null;
+    public Material m = null;
+    public mat4[] instanceData = null;
+    public DayNightCycle dnc = null;
+    public Func<ShaderUniform, bool> customUniforms = null;//Input: a uniform variable name that you must bind to, output: true if you handled it, false if not
+    public Func<Shader, ShaderUniformBlock, bool> customUniformBlocks = null;//Input: a uniform variable name that you must bind to, output: true if you handled it, false if not
+    public GpuShaderData shaderData;
+  }
   public enum ShaderLoadState
   {
     None,
@@ -24,7 +68,7 @@ namespace PirateCraft
       GL.CompileShader(_glId);
       Gpu.CheckGpuErrorsRt();
     }
-    
+
     public override void Dispose_OpenGL_RenderThread()
     {
       if (GL.IsShader(_glId))
@@ -40,13 +84,14 @@ namespace PirateCraft
     public string Value { get; private set; } = "unset";
     public int SizeBytes { get; private set; } = 0;
     public ActiveUniformType Type { get; private set; } = ActiveUniformType.Int;
-
-    public ShaderUniform(int location, int u_size, ActiveUniformType u_type, string u_name)
+    public bool Active { get; private set; } = false;
+    public ShaderUniform(int location, int u_size, ActiveUniformType u_type, string u_name, bool active)
     {
       Location = location; ;
       Name = u_name;
       Type = u_type;
       SizeBytes = u_size;
+      Active = active;
     }
   }
   public class ShaderUniformBlock : OpenGLResource
@@ -54,20 +99,23 @@ namespace PirateCraft
     private int _iUboId = -2;
     private int _iBlockIndex = -1;
     private int _iBindingIndex = -1;
-    public int BufferSizeBytes { get; private set; } = 0;
     private bool _bHasBeenSet = false;
 
+    public bool Active { get; private set; } = false;
+    public int BufferSizeBytes { get; private set; } = 0;
     public string Name { get; private set; }
+
     public override void Dispose_OpenGL_RenderThread()
     {
       GL.DeleteBuffer(_iUboId);
     }
-    public ShaderUniformBlock(string name, int iBlockIndex, int iBindingIndex, int iBufferByteSize)
+    public ShaderUniformBlock(string name, int iBlockIndex, int iBindingIndex, int iBufferByteSize, bool active)
     {
       Name = name;
       BufferSizeBytes = iBufferByteSize;
       _iBindingIndex = iBindingIndex;
       _iBlockIndex = iBlockIndex;
+      Active = active;
 
       _iUboId = GL.GenBuffer();
       GL.BindBuffer(BufferTarget.UniformBuffer, _iUboId);
@@ -148,10 +196,10 @@ namespace PirateCraft
     }
 
     //Just debug stuff that will go away.
-    public float GGX_X = .8f;
-    public float GGX_Y = .8f;
-    public int lightingModel = 2;
-    public float nmap = 0.5f;
+    //public float GGX_X = .8f;
+    //public float GGX_Y = .8f;
+    //public int lightingModel = 2;
+    //public float nmap = 0.5f;
 
     private List<string> _shaderErrors = new List<string>();
 
@@ -199,15 +247,40 @@ namespace PirateCraft
         }
         else
         {
-          Gu.Log.Error("Failed to load shader '" + Name + "'.\r\n" + String.Join("\r\n", _shaderErrors.ToArray()));
-          Gu.Log.Info("--VERTEX SOURCE--\r\n" + vsSrc);
-          Gu.Log.Info("--GEOM SOURCE--\r\n" + gsSrc);
-          Gu.Log.Info("--FRAG SOURCE--\r\n" + psSrc);
+          if (!String.IsNullOrEmpty(gsSrc))
+          {
+            Gu.Log.Info("--VERTEX SOURCE--" + Environment.NewLine + GetReadableShaderSourceCode(vsSrc));
+          }
+          if (!String.IsNullOrEmpty(gsSrc))
+          {
+            Gu.Log.Info("--GEOM SOURCE--" + Environment.NewLine + GetReadableShaderSourceCode(gsSrc));
+          }
+          if (!String.IsNullOrEmpty(psSrc))
+          {
+            Gu.Log.Info("--FRAG SOURCE--" + Environment.NewLine + GetReadableShaderSourceCode(psSrc));
+          }
+          Gu.Log.Error("Failed to load shader '" + Name + "'." + Environment.NewLine + String.Join(Environment.NewLine, _shaderErrors.ToArray()));
 
           Gu.DebugBreak();
         }
       }
       Gpu.CheckGpuErrorsDbg();
+    }
+
+    private string GetReadableShaderSourceCode(string vs)
+    {
+      StringBuilder stringBuilder = new StringBuilder();
+      var lines = vs.Split('\n');
+      for (int iLine = 0; iLine < lines.Length; iLine++)
+      {
+        string line = lines[iLine];
+        string r = String.Format("{0,5}", (iLine + 1).ToString());
+        stringBuilder.Append(r);
+        stringBuilder.Append("  ");
+        stringBuilder.Append(line);
+        stringBuilder.Append(Environment.NewLine);
+      }
+      return stringBuilder.ToString();
     }
     public override void Dispose_OpenGL_RenderThread()
     {
@@ -232,7 +305,8 @@ namespace PirateCraft
       }
       Gpu.CheckGpuErrorsDbg();
     }
-    public void BeginRender(double dt, Camera3D cam, WorldObject ob, Material m, mat4[] instanceData, DayNightCycle dnc)
+    //double dt, Camera3D cam, WorldObject ob, Material m, mat4[] instanceData, DayNightCycle dnc
+    public void BeginRender(DrawCall_UniformData dat)
     {
       //**Pre - render - update uniforms.
       Gpu.CheckGpuErrorsDbg();
@@ -242,7 +316,7 @@ namespace PirateCraft
         _boundTextures.Clear();
 
         Bind();
-        BindUniforms(dt, cam, ob, m, instanceData, dnc);
+        BindUniforms(dat);//dt, cam, ob, m, instanceData, dnc
       }
       Gpu.CheckGpuErrorsDbg();
     }
@@ -253,7 +327,7 @@ namespace PirateCraft
       {
         if (tu.Value != null)
         {
-          tu.Value.Unbind(tu.Key);
+          tu.Value.Unbind();
         }
       }
       _currUnit = TextureUnit.Texture0;
@@ -331,11 +405,33 @@ namespace PirateCraft
           continue;
         }
 
+        bool active = true;
         int location = GL.GetUniformLocation(GetGlId(), u_name);
-        Gu.Assert(location >= 0);
+
         u_name = u_name.Substring(0, u_name_len);
 
-        ShaderUniform su = new ShaderUniform(location, u_size, u_type, u_name);
+        if (location < 0)
+        {
+          active = false;
+          if (!u_name.Contains('.'))
+          {
+            //There will be tons of inactive uniforms for structures. struct.name
+            //But for what we're doing if it isn't a structure it should be used.
+            Gu.DebugBreak();
+          }
+          Gu.Log.Debug("Inactive uniform: " + u_name);
+          //Not necessarily an error
+          //GetUniformLocation "This function returns -1 if name does not correspond to an active uniform variable in program,
+          //if name starts with the reserved prefix "gl_", or if name is associated with an atomic counter or a named uniform block."
+          //Uniform variables that are structures or arrays of structures may be queried by calling glGetUniformLocation for each
+          //field within the structure. The array element operator "[]" and the structure field operator "." may be used in name in
+          //order to select elements within an array or fields within a structure. The result of using these operators is not allowed
+          //to be another structure, an array of structures, or a subcomponent of a vector or a matrix. Except if the last part of name
+          //indicates a uniform variable array, the location of the first element of an array can be retrieved by using the name of the
+          //array, or by using the name appended by "[0]".
+        }
+
+        ShaderUniform su = new ShaderUniform(location, u_size, u_type, u_name, active);
         _uniforms.Add(u_name, su);
       }
 
@@ -356,92 +452,102 @@ namespace PirateCraft
         int u_name_len = 0;
         GL.GetActiveUniformBlockName(GetGlId(), i, u_name.Length, out u_name_len, out u_name);
         Gpu.CheckGpuErrorsRt();
-
         u_name = u_name.Substring(0, u_name_len);
 
-        ShaderUniformBlock su = new ShaderUniformBlock(u_name, i, binding, buffer_size_bytes);// u_size, u_type, u_name);
+        bool active = true;
+        if (binding < 0)
+        {
+          active = false;
+          Gu.Log.Debug("Inactive uniform: " + u_name);
+        }
+
+        ShaderUniformBlock su = new ShaderUniformBlock(u_name, i, binding, buffer_size_bytes, active);// u_size, u_type, u_name);
         _uniformBlocks.Add(u_name, su);
       }
     }
-    private void BindUniforms(double dt, Camera3D cam, WorldObject ob, Material m, mat4[] instanceData, DayNightCycle dnc)
+    private void BindUniforms(DrawCall_UniformData dat)
     {
+      Gu.Assert(dat != null);
       int dbg_n = 0;
       //TODO: cache uniform values and avoid updating
       foreach (var u in _uniforms.Values)
       {
+        if (u.Active == false)
+        {
+          continue;
+        }
         dbg_n++;
         //bind uniforms based on name.
         if (u.Name.Equals("_ufCamera_Position"))
         {
-          GL.ProgramUniform3(_glId, u.Location, cam.Position_World.x, cam.Position_World.y, cam.Position_World.z);
-        }
-        else if (u.Name.Equals("_ufLightModel_GGX_X"))
-        {
-          GL.Uniform1(u.Location, GGX_X);
-        }
-        else if (u.Name.Equals("_ufLightModel_GGX_Y"))
-        {
-          GL.Uniform1(u.Location, GGX_Y);
-        }
-        else if (u.Name.Equals("_ufLightModel_Index"))
-        {
-          GL.Uniform1(u.Location, lightingModel);
+          Gu.Assert(dat.cam != null);
+          GL.ProgramUniform3(_glId, u.Location, dat.cam.Position_World.x, dat.cam.Position_World.y, dat.cam.Position_World.z);
         }
         else if (u.Name.Equals(TextureInput.Albedo.UniformName))
         {
-          BindTexture(u, m, TextureInput.Albedo);
+          Gu.Assert(dat.m != null);
+          BindTexture(u, dat.m, TextureInput.Albedo);
         }
         else if (u.Name.Equals(TextureInput.Albedo2.UniformName))
         {
-          BindTexture(u, m, TextureInput.Albedo2);
+          Gu.Assert(dat.m != null);
+          BindTexture(u, dat.m, TextureInput.Albedo2);
         }
         else if (u.Name.Equals(TextureInput.Normal.UniformName))
         {
-          BindTexture(u, m, TextureInput.Normal);
+          Gu.Assert(dat.m != null);
+          BindTexture(u, dat.m, TextureInput.Normal);
         }
         else if (u.Name.Equals("_ufWorldObject_Color"))
         {
-          GL.ProgramUniform4(_glId, u.Location, ob.Color.x, ob.Color.y, ob.Color.z, ob.Color.w);
+          GL.ProgramUniform4(_glId, u.Location, dat.ob.Color.x, dat.ob.Color.y, dat.ob.Color.z, dat.ob.Color.w);
         }
         else if (u.Name.Equals("_ufMatrix_Normal"))
         {
-          var n_mat_tk = ob.WorldMatrix.inverseOf().ToOpenTK();
+          Gu.Assert(dat.ob != null);
+          var n_mat_tk = dat.ob.WorldMatrix.inverseOf().ToOpenTK();
           GL.UniformMatrix4(u.Location, false, ref n_mat_tk);
         }
         else if (u.Name.Equals("_ufMatrix_Model"))
         {
-          var m_mat_tk = ob.WorldMatrix.ToOpenTK();
+          var m_mat_tk = dat.ob.WorldMatrix.ToOpenTK();
           GL.UniformMatrix4(u.Location, false, ref m_mat_tk);
         }
         else if (u.Name.Equals("_ufMatrix_View"))
         {
-          var v_mat_tk = cam.ViewMatrix.ToOpenTK();
+          Gu.Assert(dat.cam != null);
+          var v_mat_tk = dat.cam.ViewMatrix.ToOpenTK();
           GL.UniformMatrix4(u.Location, false, ref v_mat_tk);
         }
         else if (u.Name.Equals("_ufMatrix_Projection"))
         {
-          var p_mat_tk = cam.ProjectionMatrix.ToOpenTK();
+          Gu.Assert(dat.cam != null);
+          var p_mat_tk = dat.cam.ProjectionMatrix.ToOpenTK();
           GL.UniformMatrix4(u.Location, false, ref p_mat_tk);
-        }
-        else if (u.Name.Equals("_ufNormalMap_Blend"))
-        {
-          GL.Uniform1(u.Location, nmap);
         }
         else if (u.Name.Equals("_ufCamera_Basis_X"))
         {
-          GL.ProgramUniform3(_glId, u.Location, cam.BasisX.x, cam.BasisX.y, cam.BasisX.z);
+          Gu.Assert(dat.cam != null);
+          GL.ProgramUniform3(_glId, u.Location, dat.cam.BasisX.x, dat.cam.BasisX.y, dat.cam.BasisX.z);
         }
         else if (u.Name.Equals("_ufCamera_Basis_Y"))
         {
-          GL.ProgramUniform3(_glId, u.Location, cam.BasisY.x, cam.BasisY.y, cam.BasisY.z);
+          Gu.Assert(dat.cam != null);
+          GL.ProgramUniform3(_glId, u.Location, dat.cam.BasisY.x, dat.cam.BasisY.y, dat.cam.BasisY.z);
         }
         else if (u.Name.Equals("_ufCamera_Basis_Z"))
         {
-          GL.ProgramUniform3(_glId, u.Location, cam.BasisZ.x, cam.BasisZ.y, cam.BasisZ.z);
+          Gu.Assert(dat.cam != null);
+          GL.ProgramUniform3(_glId, u.Location, dat.cam.BasisZ.x, dat.cam.BasisZ.y, dat.cam.BasisZ.z);
         }
         else if (u.Name.Equals("_ufDayNightCycle_Blend"))
         {
-          GL.ProgramUniform1(_glId, u.Location, (float) dnc.StarOrCloud_Blend);
+          Gu.Assert(dat.dnc != null);
+          GL.ProgramUniform1(_glId, u.Location, (float)dat.dnc.StarOrCloud_Blend);
+        }
+        else if (dat.customUniforms != null && dat.customUniforms(u))
+        {
+          //Handled a custom uniform.
         }
         else
         {
@@ -452,20 +558,47 @@ namespace PirateCraft
       }
       foreach (var u in _uniformBlocks.Values)
       {
+        if (u.Active == false)
+        {
+          continue;
+        }
         if (u.Name.Equals("_ufInstanceData_Block"))
         {
-          int m4size = Marshal.SizeOf(default(mat4));
-          int num_bytes_to_copy = m4size * instanceData.Length;
-          if (num_bytes_to_copy > u.BufferSizeBytes)
-          {
-            num_bytes_to_copy = u.BufferSizeBytes;
-            Gu.Log.WarnCycle("Exceeded max index count of " + u.BufferSizeBytes / m4size + " matrices. Tried to copy " + instanceData.Length + " instance matrices.");
-          }
-          var handle = GCHandle.Alloc(instanceData, GCHandleType.Pinned);
-          u.copyUniformData(handle.AddrOfPinnedObject(), num_bytes_to_copy);
-          handle.Free();
+          //Gu.Assert(dat.instanceData != null);
+          //int m4size = Marshal.SizeOf(default(mat4));
+          //int num_bytes_to_copy = m4size * dat.instanceData.Length;
+          //if (num_bytes_to_copy > u.BufferSizeBytes)
+          //{
+          //  num_bytes_to_copy = u.BufferSizeBytes;
+          //  Gu.Log.WarnCycle("Exceeded max index count of " + u.BufferSizeBytes / m4size + " matrices. Tried to copy " + dat.instanceData.Length + " instance matrices.");
+          //}
+          //var handle = GCHandle.Alloc(dat.instanceData, GCHandleType.Pinned);
+          //u.copyUniformData(handle.AddrOfPinnedObject(), num_bytes_to_copy);
+          //handle.Free();
 
-          u.bindUniformFast();
+          //u.bindUniformFast();
+
+          BindUniformBlock(u, dat.instanceData, dat.instanceData.Length);
+        }
+        else if (u.Name.Equals("_ufGpuShaderData_Block"))
+        {
+          //if (dat.shaderData == null)
+          //{
+          //  Gu.Log.WarnCycle("Shader data was null, sending default data. This needs to be fixed.");
+          //dat.shaderData = new GpuShaderData();
+          dat.shaderData._vViewPos = dat.cam.Position_World;
+          dat.shaderData._vViewDir = dat.cam.BasisZ;
+          float blend = 1.0f;
+          if (dat.dnc != null)
+          {
+            dat.shaderData._vFogColor = (1 - blend) * dat.shaderData._vFogColor + (blend) * dat.dnc.SkyColor.ToVec3();
+          }
+          //}
+          BindUniformBlock(u, dat.shaderData, 1);
+        }
+        else if (dat.customUniformBlocks != null && dat.customUniformBlocks(this,u))
+        {
+          //Handled a custom uniform.
         }
         else
         {
@@ -474,6 +607,22 @@ namespace PirateCraft
       }
       //Check for errors.
       Gpu.CheckGpuErrorsDbg();
+    }
+    public void BindUniformBlock<T>(ShaderUniformBlock u, T data, int count)
+    {
+      Gu.Assert(data != null);
+      int item_size = Marshal.SizeOf(default(T));
+      int num_bytes_to_copy = item_size * count;// dat.instanceData.Length;
+      if (num_bytes_to_copy > u.BufferSizeBytes)
+      {
+        num_bytes_to_copy = u.BufferSizeBytes;
+        Gu.Log.WarnCycle("Exceeded max index count of " + u.BufferSizeBytes / item_size + " matrices. Tried to copy " + count + " block instances.");
+      }
+      var handle = GCHandle.Alloc(data, GCHandleType.Pinned);
+      u.copyUniformData(handle.AddrOfPinnedObject(), num_bytes_to_copy);
+      handle.Free();
+
+      u.bindUniformFast();
     }
     private void BindTexture(ShaderUniform su, Material m, TextureInput tu)
     {

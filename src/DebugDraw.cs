@@ -11,7 +11,6 @@ namespace PirateCraft
     public List<v_v3c4> LinePoints = new List<v_v3c4>();
     public List<uint> LineInds = new List<uint>();
     public List<v_v3c4> Points = new List<v_v3c4>();
-    public static VertexFormat VertexFormat = v_v3c4.VertexFormat;
 
     public bool DrawBoundBoxes { get; set; } = false;
 
@@ -47,7 +46,7 @@ namespace PirateCraft
     public void Ellipsoid(int slices, int stacks, vec3 radius, vec3 pos, vec4 color)
     {
       v_v3n3x2[] verts;
-      uint[] inds;
+      ushort[] inds;
 
       MeshData.GenEllipsoid(out verts, out inds, radius, slices, stacks, false, false);
 

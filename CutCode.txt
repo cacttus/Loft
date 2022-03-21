@@ -506,3 +506,541 @@
       }
       return false;
     }
+
+        //public static void Render(Camera3D cam, List<MeshData> meshes, Shader m)
+    //{
+    //   //Render a single material to a group of meshes (faster)
+    //   Gu.Assert(m != null);
+    //   Gu.Assert(RenderState == RenderPipelineState.Begin);
+    //   foreach (MeshData mesh in meshes)
+    //   {
+    //      mesh.Draw();
+    //   }
+    //}
+    //public static void Render(Camera3D cam, WorldObject ob, Material m)
+    //{
+    //   //Render single material to a single object with object data included
+    //   Gu.Assert(m != null);
+    //   Gu.Assert(RenderState == RenderPipelineState.Begin);
+    //   m.GpuRenderState.SetState();
+    //   Render(cam, ob.Mesh, m.Shader, m.Shader);
+    //}
+    ////We're using instanced rendering so vs sohuld be instanced as well.
+    //private static void Render(Camera3D bc, MeshData ms, Shader shader, Texture tex)// InstancedVisibleSet vs) << TODO
+    //{
+
+    //   Gu.Assert(RenderState == RenderPipelineState.Begin);
+
+    //   if (tex != null)
+    //   {
+    //      //TODO material
+    //      tex.Bind();
+    //      GL.ActiveTexture(TextureUnit.Texture0);
+    //   }
+
+    //   Gpu.CheckGpuErrorsDbg();
+    //   shader.Bind();
+    //   ms.Draw();
+    //   shader.Unbind();
+    //   Gpu.CheckGpuErrorsDbg();
+
+    //   if (tex != null)
+    //   {
+    //      tex.Unbind();
+    //   }
+
+    //   ////GL.Disable(EnableCap.CullFace);
+    //   //GL.ClearColor(color.x, color.y, color.z, color.W);
+
+    //   //_objMainShader = new BaseShader();
+    //   //_objMainShader.Load();
+    //}
+
+    //        void renderGrid(float r, float g, float b, int nSlices, float fSliceWidth, Vec3f center)
+    //        {
+    //            GL.PushAttrib(AttribMask.AllAttribBits);
+
+    //            GL.Disable(EnableCap.CullFace);
+
+    //            float gridWidth_2 = nSlices * fSliceWidth / 2.0f;
+
+    //            GL.LineWidth(1.0f);
+    //            GL.Begin(PrimitiveType.Lines);
+    //            GL.Color3(r, g, b);
+    //            //Horiz lines
+    //            for (int i = 0; i < nSlices + 1; ++i)
+    //            {
+    //                GL.Vertex3(center.x - (gridWidth_2),
+    //                    center.y - 0,
+    //                    center.z - (gridWidth_2) + (fSliceWidth * (float)i)
+    //                    );
+    //                GL.Vertex3(center.x + (gridWidth_2),
+    //                    center.y - 0,
+    //                    center.z - (gridWidth_2) + (fSliceWidth * (float)i)
+    //                    );
+    //            }
+    //            for (int i = 0; i < nSlices + 1; ++i)
+    //            {
+    //                GL.Vertex3(center.x - (gridWidth_2) + (fSliceWidth * (float)i),
+    //                    center.y - 0,
+    //                    center.z - (gridWidth_2)
+    //                    );
+    //                GL.Vertex3(center.x - (gridWidth_2) + (fSliceWidth * (float)i),
+    //                    center.y - 0,
+    //                    center.z + (gridWidth_2)
+    //                    );
+    //            }
+    //            GL.End();
+
+    //            GL.PopAttrib();
+
+    //   }
+
+
+
+
+
+    public class BeamGrid
+  {
+    //Algorithm:
+    //construct a grid of beams along each axis corresponding to the "air" between blocks
+    // beams that have their tips at block faces are direct light
+    // beams that pass laterally across faces are indirect light
+    //when lights update - (every few frames or so)
+    //  trace rays through the beams and compute light at each end of the beam for each block face +x+y+z,-x-y-z
+    //update all visible globs that have been touched by the light update
+    //send light data to the gpu as a separate buffer from the mesh buffer
+    //TODO: we may use points for block faces in the future and a g shader, however that is too much work rn
+
+    //Builds a grid of "beams" for hacky radiosity lighting 
+    //This is .. so confusing .. fortunately.. it's just temporary (yeah, right)
+    //The BeamsXYZ are the beams along that axis stacked on top of each other
+    //Row = transmission axis, the axis that goes through the beams 
+    //layer = layer axis, the axis that we iterate over
+    //Iterate over X, Y, Z through each transmission beam topology = color
+    // "Stacked Beam Grid"
+    //The algorithm is inefficient it needs to have some hierarchical structure
+    private SortedDictionary<ivec2, List<Beam>> BeamsX = new SortedDictionary<ivec2, List<Beam>>(new ivec2.ivec2ComparerYX());//layer=z, stack=y -> bars=x : +/- y
+    private SortedDictionary<ivec2, List<Beam>> BeamsY = new SortedDictionary<ivec2, List<Beam>>(new ivec2.ivec2ComparerYX());//layer=z, stack=x -> bars=y : +/- x
+    private SortedDictionary<ivec2, List<Beam>> BeamsZ = new SortedDictionary<ivec2, List<Beam>>(new ivec2.ivec2ComparerYX());//layer=x, stack=y -> bars=z : +/- z
+    private int[] OrderX = new int[] { 0, 1, 2 }; //Iteration orders: bars, stack, layer
+    private int[] OrderY = new int[] { 1, 0, 2 };
+    private int[] OrderZ = new int[] { 2, 1, 0 };
+    public long UpdateStamp { get; private set; } = 0;//Microseconds of last modified
+
+    #region Public guys
+
+    public void Build(World w, Drome d)
+    {
+      //Pass in: 0 = Beam axis, 1 = transmission axis (stack), 2 = iteration / integral axis (layer)
+      BuildAxis(w, d, BeamsX, OrderX); // X -> ZY
+      BuildAxis(w, d, BeamsY, OrderY);// Y -> ZX
+      BuildAxis(w, d, BeamsZ, OrderZ);//Z -> YX
+      Stitch(BeamsX);
+      Stitch(BeamsY);
+      Stitch(BeamsZ);
+    }
+    public vec3 GetBlockFaceColor(int iface, int bx, int by, int bz)
+    {
+      //face = 0 1 2 3 4 5
+      // -x +x -y +y -z +z
+      //Construct the beam axis for the given face
+      // ContributeColor Direct
+      // ContributeColor Indirect * 0.1
+      // ContributeCOlor Indirect  * 0.1 
+      //byxz - block index in drome
+      Gu.Assert(BeamsX != null && BeamsY != null && BeamsZ != null);
+      vec3 c_out = vec3.Zero;
+
+      int off_x = 0, stack_x = 0, layer_x = 0;
+      int off_y = 0, stack_y = 0, layer_y = 0;
+      int off_z = 0, stack_z = 0, layer_z = 0;
+      float mul_x = 0, mul_y = 0, mul_z = 0;
+      float d_ct = 0.8f; //direct contrib
+      float i_ct = 0.1f; //indirect contrib
+
+      //Note: if we are outside drome, we'd need to use neighbor data, or have some mechanism to transmit this grid neighbor-wise
+      if (iface == 0)
+      {
+        //-x
+        bx -= 1;
+        mul_x = d_ct;
+        mul_y = mul_z = i_ct;
+      }
+      else if (iface == 1)
+      {
+        //+x
+        bx += 1;
+        mul_x = d_ct;
+        mul_y = mul_z = i_ct;
+      }
+      else if (iface == 2)
+      {
+        //-y
+        by -= 1;
+        mul_y = d_ct;
+        mul_x = mul_z = i_ct;
+      }
+      else if (iface == 3)
+      {
+        //+y
+        by += 1;
+        mul_y = d_ct;
+        mul_x = mul_z = i_ct;
+      }
+      else if (iface == 4)
+      {
+        //-z
+        bz -= 1;
+        mul_z = d_ct;
+        mul_y = mul_x = i_ct;
+      }
+      else if (iface == 5)
+      {
+        //+z
+        bz += 1;
+        mul_z = d_ct;
+        mul_y = mul_x = i_ct;
+      }
+
+      off_x = bx;// x-> y, z
+      stack_x = by;
+      layer_x = bz;
+      mul_x = d_ct;
+
+      off_y = by; // y -> x, z
+      stack_y = bx;
+      layer_y = bz;
+      mul_y = i_ct;
+
+      off_z = bz; // z -> y, x
+      stack_z = by;
+      layer_z = bx;
+      mul_z = i_ct;
+
+      ContributeColor(ref c_out, mul_x, off_x, stack_x, layer_x, BeamsX);
+      ContributeColor(ref c_out, mul_y, off_y, stack_y, layer_y, BeamsY);
+      ContributeColor(ref c_out, mul_z, off_z, stack_z, layer_z, BeamsZ);
+
+      return c_out;
+    }
+    public void ApplyDirLight(vec3 dir, vec3 color)
+    {
+      UpdateStamp = Gu.Microseconds();
+
+      //Applies a directional light / sun to the grid
+      ApplyDirLight(dir, color, BeamsX, OrderX);
+      ApplyDirLight(dir, color, BeamsY, OrderY);
+      ApplyDirLight(dir, color, BeamsZ, OrderZ);
+    }
+
+    #endregion
+
+    #region Private guys
+
+    private void ContributeColor(ref vec3 out_color, float contribution, int block, int stack, int layer, SortedDictionary<ivec2, List<Beam>> beam_grid)
+    {
+      //semi-transparent blocks should really be their own beams.
+      List<Beam> beam_stack;
+      if (beam_grid.TryGetValue(new ivec2(stack, layer), out beam_stack))
+      {
+        foreach (var bb in beam_stack)
+        {
+          if (block >= bb.min && block <= bb.max)
+          {
+            float dist = ((float)block - (float)bb.min + 1.0f) / ((float)bb.max - (float)bb.min + 1.0f); //+1 because a block is one unit and max-min is one unit minimum
+            out_color += bb.color_min + (bb.color_max - bb.color_min) * dist;// ((1 - dist) * bb.color_min + (dist) * bb.color_max) * contribution;
+            return;
+          }
+
+        }
+      }
+      //Note this function should ALWAYS exit early. if it does't there is an error
+
+    }
+    private void ApplyDirLight(vec3 dir, vec3 color, SortedDictionary<ivec2, List<Beam>> stacked_beam_grid, int[] idx)
+    {
+      int[] max = new int[] {
+        (idx[0] == 0) ? World.DromeBlocksX : ((idx[0] == 1) ? World.DromeBlocksY : World.DromeBlocksZ),
+        (idx[1] == 0) ? World.DromeBlocksX : ((idx[1] == 1) ? World.DromeBlocksY : World.DromeBlocksZ),
+        (idx[2] == 0) ? World.DromeBlocksX : ((idx[2] == 1) ? World.DromeBlocksY : World.DromeBlocksZ),
+      };
+
+
+      float light_axis = (idx[0] == 0) ? dir.y : ((idx[0] == 1) ? dir.x : dir.y);
+
+      bool negative = light_axis < 0;
+      float light_value = Math.Abs(light_axis);
+      float ambient = 0.1f;
+
+      //make smeitransparent blocks their own beams 
+      // then transmit light from beam end to beam end 
+      // or some kind of transmission data between beam ends .. simpler but less accurate
+      for (int layer = 0; layer < max[2]; layer++) //trans
+      {
+        for (int stack = 0; stack < max[0]; stack++)
+        {
+          int stack_reversed_or_not = stack;
+          if (negative)
+          {
+            stack_reversed_or_not = max[0] - stack - 1;
+          }
+          ivec2 vval = new ivec2(stack_reversed_or_not, layer);
+          if (stacked_beam_grid.TryGetValue(vval, out var beam_chain))
+          {
+            //beams should not be null
+            for (int iBeam = 0; iBeam < beam_chain.Count; iBeam++)
+            {
+              Beam our_beam = beam_chain[iBeam];
+              List<Beam> neighbor = null;
+
+              if (iBeam == 0)
+              {
+                //set initial light on the drome edge
+                //our_beam.color_min = our_beam.color_max = transY * color;
+                our_beam.light_min = our_beam.light_max = light_value + ambient;
+                our_beam.color_max = our_beam.color_min = color;
+              }
+
+              if (!negative)
+              {
+                if (our_beam.next == null)
+                {
+                  continue;
+                }
+                neighbor = our_beam.next;
+              }
+              else
+              {
+                if (our_beam.prev == null)
+                {
+                  continue;
+                }
+                neighbor = our_beam.prev;
+              }
+
+
+              //loop all children and send the light
+              foreach (var his_neighbor in neighbor)
+              {
+                //Skip transmission for now.. later
+                float a1 = our_beam.min, a2 = our_beam.max, b1 = his_neighbor.min, b2 = his_neighbor.max;
+
+                float t_decay = CalculateDecay(a1, a2, b1, b2);
+                //Send light - light whole beam for now
+                his_neighbor.light_min = t_decay * light_value + ambient;
+                his_neighbor.light_max = t_decay * light_value + ambient;
+
+                his_neighbor.color_min = his_neighbor.light_min * color;
+                his_neighbor.color_max = his_neighbor.light_max * color;
+
+              }
+            }
+          }
+        }
+      }
+    }
+    private float CalculateDecay(float a1, float a2, float b1, float b2)
+    {
+      float decay = 0;
+      if (b2 >= a2)
+      {
+        if (b1 >= a1)
+        {
+          //We open below
+          decay = (b1 - a2) / (a1 - a2);
+        }
+        else
+        {
+          //we open to a bigger place, let in all the light
+          decay = (a1 - a2) / (a1 - a2); // 100% 
+        }
+      }
+      else
+      {
+        if (b1 >= a1)
+        {
+          //We open into a smaller cave, decay a lot
+          decay = (b1 - b2) / (a1 - a2);
+        }
+        else
+        {
+          //We open above
+          decay = (a1 - b2) / (a1 - a2);
+        }
+      }
+      return decay;
+    }
+    private void Stitch(SortedDictionary<ivec2, List<Beam>> beams)
+    {
+      //Stitch up the beam stack (light path tunnels) for each layer for one of the 3 beam axes.
+      //This stitches the WHOLE GRID
+      // If you edit a single block, we can stitch just that block it would be much faster.
+
+      int dbg_num_stitch = 0;
+      System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch(); ;
+      sw.Start();
+      KeyValuePair<ivec2, List<Beam>>? last = null;
+      int last_layer = -1;
+      foreach (var kvp in beams)
+      {
+        //Note: iterating beams is sequential by x -> y.
+        if (kvp.Key.Layer != last_layer)
+        {
+          //We are iterating over a new layer axis.
+          last_layer = kvp.Key.Layer;
+          last = null;
+        }
+
+        //check to see if we skipped a stack = opaque on that beam
+        if (last == null || (last.Value.Key.Stack < kvp.Key.Stack - 1))
+        {
+          //Not set, beginning of transmission stack or
+          //There was no grid data, next layer.
+          last = kvp;
+        }
+        else if (last.Value.Key.Stack == kvp.Key.Stack - 1)
+        {
+          //We are a neighbor, stitch up the beams
+          foreach (var beamA in last.Value.Value)
+          {
+            foreach (var beamB in kvp.Value)
+            {
+              //face value for a beam starts at the first face within the drome
+              //so (x, for example)
+              //                            ^ Light ray
+              //| |------------>| |---------|------->| |
+              //  ^ beam Face   ^ next block face   ^ and so on
+              //^ block start
+              if ((beamA.max < beamB.min) || (beamA.min > beamB.max))
+              {
+                //no hit
+              }
+              else
+              {
+                if (beamA.next == null)
+                {
+                  beamA.next = new List<Beam>();
+                }
+                if (beamB.prev == null)
+                {
+                  //prev is used to reverse iterate
+                  beamB.prev = new List<Beam>();
+                }
+                dbg_num_stitch++;
+                //Circular dependnecy, weak ref to let it die
+                beamA.next.Add(beamB);
+                beamB.prev.Add(beamA);
+              }
+
+            }
+          }
+
+          //Set us to last.
+          last = kvp;
+
+        }
+
+
+
+      }//for
+      sw.Stop();
+      var x = sw.ElapsedMilliseconds;
+      int n = 0;
+      n++;
+    }
+    private void BuildAxis(World w, Drome d, SortedDictionary<ivec2, List<Beam>> beams, int[] idx)
+    {
+      //Beams must only be air. Min / Max must be air blocks.
+      //Go through air blocks until we hit solid, that is a beam, then skip solid, air again, start new beam.
+      int[] max = new int[] {
+        (idx[0] == 0) ? World.DromeBlocksX : ((idx[0] == 1) ? World.DromeBlocksY : World.DromeBlocksZ),
+        (idx[1] == 0) ? World.DromeBlocksX : ((idx[1] == 1) ? World.DromeBlocksY : World.DromeBlocksZ),
+        (idx[2] == 0) ? World.DromeBlocksX : ((idx[2] == 1) ? World.DromeBlocksY : World.DromeBlocksZ),
+      };
+
+      for (int layerIdx = 0; layerIdx < max[2]; layerIdx++)//Integral axis int(0,x) dx
+      {
+        for (int stackIdx = 0; stackIdx < max[1]; stackIdx++)//Transmission axis
+        {
+          ivec2 v = new ivec2(stackIdx, layerIdx);
+
+          List<Beam> beamlist = null;
+          Beam curBeam = null;
+          for (int beamIdx = 0; beamIdx < max[0]; beamIdx++)
+          {
+            int b_x = (idx[0] == 0) ? beamIdx : ((idx[0] == 1) ? stackIdx : layerIdx);//xi
+            int b_y = (idx[1] == 0) ? beamIdx : ((idx[1] == 1) ? stackIdx : layerIdx);//yi
+            int b_z = (idx[2] == 0) ? beamIdx : ((idx[2] == 1) ? stackIdx : layerIdx);//zi
+
+            ushort b = d.GetBlock(b_x, b_y, b_z);
+            var b_code = Block.GetVisibleBlockCode(b);
+            BlockTile bt = null;
+            w.BlockTiles.TryGetValue(b_code, out bt);
+            //We are solid block, end beam, or we are plant, or something else semi-transparent.
+            if ((b_code == BlockItemCode.Air) || ((bt != null) && (bt.Opacity <= 0.9f)))
+            {
+              if (beamlist == null)
+              {
+                beamlist = new List<Beam>();
+                beams.Add(v, beamlist);
+              }
+
+              if (curBeam == null)
+              {
+                curBeam = new Beam();
+                curBeam.min = (short)beamIdx;
+                curBeam.occlusion = 0;
+              }
+              curBeam.occlusion += bt != null ? bt.Opacity : 0; //Could be a plant
+            }
+            else
+            {
+              //Solid block. End beam if started
+              if (curBeam != null)
+              {
+                curBeam.max = (short)(beamIdx - 1); //the -1 is because this is solid, beams can only go from air->air
+                beamlist.Add(curBeam);
+                Gu.Assert(curBeam.max >= curBeam.min);//max equal min = 1 block
+                curBeam = null;
+              }
+            }
+
+
+
+          }//for
+
+          if (curBeam != null)
+          {
+            //**TODO: Transmit beam information from neighbor glob .. 
+            curBeam.max = (short)(max[0] - 1);
+            beamlist.Add(curBeam);
+            Gu.Assert(curBeam.max >= curBeam.min);
+          }
+          curBeam = null;
+          beamlist = null;
+        }//for 
+      }//for 
+
+    }
+    #endregion
+
+  }
+    //I think we can simplify the beam greid
+  // SO inestead of 3 axes just 1 axis - y - y beams 
+  //so take the light ray and just go through each beam
+  //light travels in all directions on the cube
+  public class Beam
+  {
+    //Beam me up!
+    public Beam() { }
+    public short min = 0; // local block position in drome, min x,y ,z
+    public short max = 0;
+    public float occlusion = 0; //amount of occlusion between blocks
+    public vec3 color_min = vec3.Zero;  // light multiplied by color
+    public vec3 color_max = vec3.Zero;
+    public float light_min = 0; //the computed light intensity
+    public float light_max = 0;
+    public List<Beam> next = null;//next beam in the stack
+    public List<Beam> prev = null;
+  }

@@ -105,8 +105,6 @@ namespace PirateCraft
     int _iWidth = 0;
     int _iHeight = 0;
     float _fSizeRatio = 0;
-    TexWrap _eWrapU = TexWrap.Repeat;
-    TexWrap _eWrapV = TexWrap.Repeat;
     vec2 _uv_p0, _uv_p1;
     FileLoc _strImgName;
     int _iPatchImg = 0;  //0-8 for 9p, or 0-2 for 3p
@@ -125,10 +123,6 @@ namespace PirateCraft
     public MtNode node() { return _pMtNode; }        //mega texture node
     public void setNode(MtNode n) { _pMtNode = n; }  //mega texture node
     public Img32 img() { return _pImg; }
-    public void setWrapU(TexWrap e) { _eWrapU = e; }
-    public void setWrapV(TexWrap e) { _eWrapV = e; }
-    public TexWrap getWrapU() { return _eWrapU; }
-    public TexWrap getWrapV() { return _eWrapV; }
 
     public void setImg(Img32 img)
     {
@@ -654,7 +648,7 @@ namespace PirateCraft
     *  @param nPatches - number of patches to expect - this is more of a debug thing to prevent invalid patches
     *  @param bPreloaded - if we already loaded the image (skips validation and texture coords)
     *  @param bLoadNow - Load the image immediately in this function (skips validation of texture coords)
-*/
+    */
     public MtTexPatch getTex(FileLoc img, int nPatches = 1, bool bPreloaded = false, bool bLoadNow = false)
     {
       Gu.Assert(nPatches > 0);

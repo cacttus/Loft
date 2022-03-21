@@ -25,11 +25,14 @@ namespace PirateCraft
     public WindowContext(GameWindow g)
     {
       GameWindow = g;
+    }
+    public void Init()
+    {
       Gpu = new Gpu();
       Renderer = new Renderer();
+      Renderer.init(GameWindow.Size.X, GameWindow.Size.Y, null);
       Audio = new AudioManager();
     }
-
     public void Update()
     {
       //For first frame run at a smooth time.

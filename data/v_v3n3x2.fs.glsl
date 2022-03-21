@@ -1,22 +1,23 @@
 ﻿#include "v_glsl_version.glsl"
+#include "v_forward_header.glsl"
 
 #define PHONG 1
 //#define BLINN_PHONG 1
 //#define GGX 1
-struct GpuLight {
-    vec3 _pos;
-    float _radius;
-    vec3 _color;
-    float _power; // This would be the falloff curve  ^x
-};
-//We may just use HDRI in the future, but for now . 
-struct GpuDirLight {
-    vec3 _dir;
-    float _pad;
-    vec3 _color;
-    float _power;
-};
-
+//struct GpuLight {
+//    vec3 _pos;
+//    float _radius;
+//    vec3 _color;
+//    float _power; // This would be the falloff curve  ^x
+//};
+////We may just use HDRI in the future, but for now . 
+//struct GpuDirLight {
+//    vec3 _dir;
+//    float _pad;
+//    vec3 _color;
+//    float _power;
+//};
+//
 uniform sampler2D _ufTexture2D_Albedo;
 uniform sampler2D _ufTexture2D_Normal;
 
@@ -25,39 +26,27 @@ in vec2 _vsTcoords;
 in vec3 _vsVertex;
 
 uniform vec3 _ufCamera_Position;
-uniform int _ufLightModel_Index;
-uniform float _ufLightModel_GGX_X;
-uniform float _ufLightModel_GGX_Y;
-uniform float _ufNormalMap_Blend;
+//uniform int _ufLightModel_Index;
+//uniform float _ufLightModel_GGX_X;
+//uniform float _ufLightModel_GGX_Y;
+//uniform float _ufNormalMap_Blend;
 uniform uint _vsPick_Color;
 
-out vec4 _psColorOut;
-
-mat3 getLightMatrix(in vec3 planeNormal, in vec3 planeVertex){
-	float d = - dot(planeVertex, planeNormal);
-	vec3 pv = planeVertex+1.0;	//random neighbor vertex
-	float dist = dot(planeNormal, pv) + d;	//distnace from p to plane
-	vec3 pp = pv - (planeNormal * dist); // - project p onto plane
-	vec3 tangent = normalize(pp - planeVertex); // normalize tangent arbitrary direction
-	vec3 bitangent = cross(planeNormal, tangent);
-
-	// vec3 tangent = normalize(cross(vec3(1,0,0), planeNormal));
-	// vec3 binormal = normalize(cross(planeNormal, tangent));
-		
-	//note this should produce a matrix the same as the plaen matrix for normals at 0,1,0
-	
-	return mat3(tangent, planeNormal, bitangent);
-}
 
 void main(void)
 {
+int _ufLightModel_Index = 1;
+float _ufLightModel_GGX_X=1;
+float _ufLightModel_GGX_Y=1;
+float _ufNormalMap_Blend=0.5f;
+
     GpuDirLight sun;
     sun._dir = normalize(vec3(-1,-1,-1));
     sun._color = vec3(244.0f/255.0f, 233.0f/255.0f, 155.0f/255.0f);//F4E99B
     sun._power = 1f;
     
 #define NUM_LIGHTS 3
-    GpuLight lights[NUM_LIGHTS];
+    GpuPointLight lights[NUM_LIGHTS];
     lights[0]._pos = vec3(0,20,0);
     lights[0]._radius = 30.0f;
     lights[0]._color = vec3(.87652f,.89013f,.63232f);
@@ -139,6 +128,7 @@ void main(void)
         finalDiffuseColor = vec3(1,1,1);
         finalSpecColor = vec3(0,0,0);
     }
-    _psColorOut.xyz = finalDiffuseColor *  tx_albedo.rgb + finalSpecColor;
-    _psColorOut.w = 1.0f; //tex.a - but alpha compositing needs to be implemented.
+
+        setColorOutput(new vec4(finalDiffuseColor.rgb *  tx_albedo.rgb, 1));
+       setPickOutput(0);
 }

@@ -117,7 +117,10 @@ namespace PirateCraft
     {
       return (x & (x - 1)) == 0;
     }
-
+    public static bool IsPowerOfTwo(int x)
+    {
+      return (x & (x - 1)) == 0;
+    }
     public static double Ease(double a, double b, double time)
     {
       //Sigmoid "ease"
@@ -1142,6 +1145,13 @@ namespace PirateCraft
       y = rhs;
       z = rhs;
     }
+    public vec3 clamp(float a, float b)
+    {
+      x = Math.Clamp(x, a, b);
+      y = Math.Clamp(y, a, b);
+      z = Math.Clamp(z, a, b);
+      return this;
+    }
     public vec3 construct(float dx, float dy, float dz)
     {
       x = dx; y = dy; z = dz;
@@ -1814,7 +1824,38 @@ namespace PirateCraft
     {
       return new ivec2(a.x - f, a.y - f);
     }
+    public class ivec2EqualityComparer : IEqualityComparer<ivec2>
+    {
+      public bool Equals(ivec2 a, ivec2 b)
+      {
+        return a.x == b.x && a.y == b.y;
+      }
+
+      public int GetHashCode(ivec2 a)
+      {
+        return a.GetHashCode();//.x.GetHashCode() + a.y.GetHashCode() + a.z.GetHashCode();
+      }
+    }
     public string ToString() { return "(" + x + "," + y + ")"; }
+
+    public class ivec2ComparerYX : IComparer<ivec2>
+    {
+      //Compares y first
+      public int Compare(ivec2 a, ivec2 b)
+      {
+        if (a.y != b.y)
+        {
+          return a.y - b.y;
+        }
+        else if (a.x != b.x)
+        {
+          return a.x - b.x;
+        }
+        return 0;
+      }
+    }
+    public int Stack { get { return x; } }
+    public int Layer { get { return y; } }
   }
   [StructLayout(LayoutKind.Sequential)]
   public struct uvec2
@@ -1958,6 +1999,26 @@ namespace PirateCraft
       public int GetHashCode(ivec3 a)
       {
         return a.GetHashCode();//.x.GetHashCode() + a.y.GetHashCode() + a.z.GetHashCode();
+      }
+    }
+    public class ivec3ComparerZYX : IComparer<ivec3>
+    {
+      //Compares z first, y, then x
+      public int Compare(ivec3 a, ivec3 b)
+      {
+        if (a.z != b.z)
+        {
+          return a.z - b.z;
+        }
+        else if (a.y != b.y)
+        {
+          return a.y - b.y;
+        }
+        else if (a.x != b.x)
+        {
+          return a.x - b.x;
+        }
+        return 0;
       }
     }
     public vec3 toVec3() { return new vec3((float)x, (float)y, (float)z); }
@@ -3058,7 +3119,7 @@ namespace PirateCraft
       ret.z = _m43;
       return ret;
     }
-    public mat4 getOrtho(float left, float right, float top, float bottom, float neard, float fard)
+    public static mat4 getOrtho(float left, float right, float top, float bottom, float neard, float fard)
     {
       mat4 mm = new mat4();
 

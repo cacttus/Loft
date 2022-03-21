@@ -1,4 +1,28 @@
 ﻿
+Converters
+std\:\:shared_ptr<([a-zA-Z0-9_]+)>    $1
+uint32_t                              uint
+int32_t                               int
+const string_t&                       string
+
+transmission grid for block face
+per face -> point
+geom 
+
+glob - stores transmission grid
+update -> light changes -> update globs -> update light for globs via transmission grid
+
+Quickies
+  * TODO
+    Replace Block.Is... with BlockTile.Opacity. this is how lighting is calculated
+
+  * transparency to look good
+    buffers
+
+  * finish ui add minimal ui
+    some debug text .. 
+    ui at bottom
+
 
 Issues right now Physics
   * box normal  STILL wrong -picking will place block inside of lbock sometimes

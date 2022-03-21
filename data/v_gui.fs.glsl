@@ -1,4 +1,5 @@
 ﻿#include "v_glsl_version.glsl"
+#include "v_forward_header.glsl"
 
 
 layout(location = 0) out vec4 _gColorOut;
@@ -36,6 +37,7 @@ void main(){
   float g = float((_pick_color.y>>16) & 0xFF) / 255.0;
   float b = float((_pick_color.y>>8) & 0xFF) / 255.0;
   
-  _gColorOut = tx * vec4(r, g, b, 1.0);
+    setColorOutput(tx * vec4(r, g, b, 1.0));
+  setPickOutput(_pick_color.x);
  // _gPickOut = _pick_color.x;
 }

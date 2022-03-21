@@ -1,4 +1,5 @@
 ﻿using System.Reflection;
+using OpenTK.Graphics.OpenGL4;
 using System.Runtime.InteropServices;
 namespace PirateCraft
 {
@@ -407,7 +408,8 @@ namespace PirateCraft
         }
 
         root.Mesh = new MeshData(mesh.Name, mesh_prim_type,
-            v_v3n3x2.VertexFormat, Gpu.GetGpuDataPtr(verts.ToArray()));
+          Gpu.CreateVertexBuffer(verts.ToArray())
+            );
       }
       else
       {
@@ -421,8 +423,9 @@ namespace PirateCraft
           }
         }
         root.Mesh = new MeshData(mesh.Name, mesh_prim_type,
-           v_v3n3x2.VertexFormat, Gpu.GetGpuDataPtr(verts.ToArray()),
-           IndexFormatType.Uint32, Gpu.GetGpuDataPtr(indices_uint.ToArray()));
+          Gpu.CreateVertexBuffer(verts.ToArray()),
+          Gpu.CreateIndexBuffer(indices_uint.ToArray())
+          );
       }
 
       //TODO: materials
@@ -562,15 +565,9 @@ namespace PirateCraft
 
       if (ret == null)
       {
-        //string vert = Gu.ReadTextFile(new FileLoc(vert_name, FileStorage.Embedded));
-        //string geom = gs ? Gu.ReadTextFile(new FileLoc(geom_name, FileStorage.Embedded)) : "";
-        //string frag = Gu.ReadTextFile(new FileLoc(frag_name, FileStorage.Embedded));
-
-
         string vert = Shader.ProcessFile(new FileLoc(vert_name, FileStorage.Embedded));
         string geom = gs ? Shader.ProcessFile(new FileLoc(geom_name, FileStorage.Embedded)) : "";
         string frag = Shader.ProcessFile(new FileLoc(frag_name, FileStorage.Embedded));
-
 
         ret = new Shader(generic_name, vert, frag, geom);
         Shaders.Add(cache_loc, new WeakReference<Shader>(ret));
@@ -714,6 +711,11 @@ namespace PirateCraft
       return ret;
     }
 
+    public static void SaveTexture(FileLoc loc, int glTexId, TextureTarget target)
+    {
+      Img32 img = Gpu.GetTextureDataFromGpu(glTexId, target);
+      SaveImage(loc.QualifiedPath, img);
+    }
     //public Font LoadFont(FileLoc loc)
     //{
     //  Font font = new Font();

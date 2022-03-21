@@ -7,6 +7,14 @@ using OpenTK.Windowing.Desktop;
 
 namespace PirateCraft
 {
+  public static class Filesystem
+  {
+    public static string GetFilenameDateTimeNOW()
+    {
+      //return a windows safe filename with datenow
+      return DateTime.Now.ToString("yyyy.MM.dd.HH.mm.ss.fff");
+    }
+  }
   // Global Utils. static Class
   public static class Gu
   {
@@ -54,18 +62,21 @@ namespace PirateCraft
 
       Log = new Log(Gu.LocalCachePath);
       Gu.Log.Info("Initializing Globals");
+      Resources = new ResourceManager();
 
       Gu.Log.Info("Base Dir=" + System.IO.Directory.GetCurrentDirectory());
 
       Gu.Log.Info("Register Context");
-      RegisterContext(g);
+      var ctx = RegisterContext(g);
       SetContext(g);
+      ctx.Init();
 
-      Resources = new ResourceManager();
     }
-    private static void RegisterContext(MainWindow g)
+    private static WindowContext RegisterContext(MainWindow g)
     {
-      Contexts.Add(g, new WindowContext(g));
+      var ctx = new WindowContext(g);
+      Contexts.Add(g, ctx);
+      return ctx;
     }
     public static void SetContext(MainWindow g)
     {

@@ -1,5 +1,5 @@
 ﻿#include "v_glsl_version.glsl"
-
+#include "v_forward_header.glsl"
 
 uniform sampler2D _ufTexture2D_Albedo;
 uniform sampler2D _ufTexture2D_Normal;
@@ -12,7 +12,6 @@ in vec3 _vsVertex;
 
 uniform vec3 _ufCamera_Position;
 
-out vec4 _psColorOut;
 
 void main(void)
 {
@@ -28,6 +27,6 @@ void main(void)
 
   vec4 finalDiffuseColor = _ufWorldObject_Color;// vec4(1,1,1,1);
 
-  _psColorOut.xyz = finalDiffuseColor.rgb *  tx_albedo.rgb;
-  _psColorOut.w = 1.0f; //tex.a - but alpha compositing needs to be implemented.
+  setColorOutput(new vec4(finalDiffuseColor.rgb *  tx_albedo.rgb, 1));
+  setPickOutput(0);
 }

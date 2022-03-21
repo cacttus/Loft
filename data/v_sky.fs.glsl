@@ -1,4 +1,5 @@
 ﻿#include "v_glsl_version.glsl"
+#include "v_forward_header.glsl"
 
 uniform sampler2D _ufTexture2D_Albedo;
 uniform sampler2D _ufTexture2D_Albedo2;
@@ -21,5 +22,7 @@ void main(void)
 
   vec4 finalDiffuseColor = _ufWorldObject_Color;
 
-  _psColorOut = /*finalDiffuseColor  *  tx_star * (1-_ufDayNightCycle_Blend) + */ finalDiffuseColor * tx_cloud /** (_ufDayNightCycle_Blend)*/;
+ // _psColorOut = /*finalDiffuseColor  *  tx_star * (1-_ufDayNightCycle_Blend) + */ finalDiffuseColor * tx_cloud /** (_ufDayNightCycle_Blend)*/;
+    setColorOutput(finalDiffuseColor * tx_cloud);
+  setPickOutput(0);
 }

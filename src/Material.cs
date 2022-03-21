@@ -55,11 +55,11 @@ namespace PirateCraft
     public Material Clone(bool shallow = true)
     {
       Gu.Assert(shallow == true);//Not supported to clone the shader or textures
-     
+
       Material other = new Material();
 
       other.GpuRenderState = this.GpuRenderState.Clone();
-      other.Shader = this.Shader; 
+      other.Shader = this.Shader;
       if (this.Textures != null)
       {
         other.Textures = new Dictionary<Shader.TextureInput, Texture2D>(this.Textures);
@@ -84,23 +84,31 @@ namespace PirateCraft
       }
       return _defaultDiffuse;
     }
-    public void Draw(double dt, MeshData[] meshes, Camera3D camera, WorldObject ob, DayNightCycle dnc)
+    public void Draw(MeshData mesh, DrawCall_UniformData dat)
     {
       GpuRenderState.SetState();
-
-      Shader.BeginRender(dt, camera, ob, this, null, dnc);
-      foreach (var m in meshes)
-      {
-        m.Draw(null);
-      }
-
+      dat.m = this;
+      Shader.BeginRender(dat);
+      mesh.Draw();
       Shader.EndRender();
     }
-    public void Draw(double dt, MeshData mesh, Camera3D camera, WorldObject ob, mat4[] instances = null, DayNightCycle dnc = null)
+    public void Draw(MeshData[] meshes, DrawCall_UniformData dat)
+    {
+      GpuRenderState.SetState();
+      dat.m = this;
+      Shader.BeginRender(dat);
+      foreach (var m in meshes)
+      {
+        m.Draw();
+      }
+      Shader.EndRender();
+    }
+    public void Draw(MeshData mesh, mat4[] instances, DrawCall_UniformData dat)
     {
       GpuRenderState.SetState();
 
-      Shader.BeginRender(dt, camera, ob, this, instances, dnc);
+      dat.m = this;
+      Shader.BeginRender(dat);
 
       mesh.Draw(instances);
 

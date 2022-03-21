@@ -252,6 +252,9 @@ namespace PirateCraft
     public int Viewport_Width { get { return _view_w; } set { _view_w = value; } }
     public int Viewport_Height { get { return _view_h; } set { _view_h = value; } }
 
+    private bool _bRasterMode = false;
+    private mat4 _savedProjection = mat4.identity();
+
     public Camera3D(string name, int w, int h, float near = 1, float far = 1000) : base(name)
     {
       //Do not select camera (at least not active camera) since we wont be able to hit anything else.
@@ -275,6 +278,21 @@ namespace PirateCraft
     }
     public void EndRender()
     {
+    }
+    public void beginRaster()
+    {
+      //The second viewport call isn't necessary, however, this is "just in case'
+      GL.Viewport(0, 0, Viewport_Width, Viewport_Height);
+      GL.Scissor(0, 0, Viewport_Width, Viewport_Height);
+      //Enter orthorgraphic projection mode for drawing images directly to the screen.
+      _bRasterMode = true;
+      _savedProjection = ProjectionMatrix;
+      //Note: in the past the width/height of viewport has been off by -1 (math issue)
+      ProjectionMatrix = mat4.getOrtho(Viewport_X, (float)Viewport_Width, Viewport_Y, (float)Viewport_Height, -1.0f, 1.0f);
+    }
+    public void endRaster()
+    {
+      ProjectionMatrix = _savedProjection;
     }
     //public override void Resize(Viewport vp) { }
     //public override void Update(double dt) { base.Update(dt); }

@@ -1,4 +1,5 @@
 ﻿#include "v_glsl_version.glsl"
+#include "v_forward_header.glsl"
 
 uniform sampler2D _ufTexture2D_Albedo;
 
@@ -9,8 +10,6 @@ uniform vec3 _ufCamera_Basis_Z; //view normal
 in vec2 _vsTcoords;
 in vec3 _vsVertex;
 
-out vec4 _psColorOut;
-
 void main(void)
 {
   //This will be white if it isn't present. For now .. we'll add 'moon texture' later.
@@ -18,5 +17,6 @@ void main(void)
 
   vec4 finalDiffuseColor = _ufWorldObject_Color;
 
-  _psColorOut  = finalDiffuseColor *  tx_albedo;
+  setColorOutput(finalDiffuseColor *  tx_albedo);
+  setPickOutput(0);
 }

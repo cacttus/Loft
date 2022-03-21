@@ -13,42 +13,19 @@ namespace PirateCraft
     Linear, //Simple linear filtering of texels (no mipmapping, regardless if it is set)
     Bilinear, //Linear filter texture, but use nearest mipmap (smooth with some noticable mipmap jumps). 
     Trilinear //Linear filter texture, linear filter between mipmaps. (very smooth / blurry).
-  }
-  public enum TextureChannel
-  {
-    Channel0,
-    Channel1,
-    Channel2,
-    Channel3,
-    Channel4,
-    Channel5,
-    Channel6,
-    Channel7,
-    Channel8,
-    Channel9,
-    Channel10,
-    Channel11,
-    Channel12,
-    Channel13,
-    Channel14,
-    Channel15,
-    Channel16,
-  }
-  public enum TexWrap
-  {
-    Clamp,
-    Repeat
+      , Separate
   }
   public class Texture2D : OpenGLResource
   {
     public static NormalMapFormat NormalMapFormat { get; private set; } = NormalMapFormat.Yup;
     private static Dictionary<Shader.TextureInput, Texture2D> _defaults = new Dictionary<Shader.TextureInput, Texture2D>();
 
+    private int _numMipmaps = 0; // if zero mipmapping disabledd
     public float Width { get; private set; } = 0;
     public float Height { get; private set; } = 0;
-    public TexFilter TexFilter { get; private set; } = TexFilter.Nearest;
-    public TextureWrapMode TextureWrapMode { get; private set; } = TextureWrapMode.ClampToEdge;
-
+    private bool MipmappingEnabled { get { return _numMipmaps > 0; } }
+    public TexFilter Filter { get; private set; } = TexFilter.Nearest;
+    public TextureWrapMode WrapMode { get; private set; } = TextureWrapMode.ClampToEdge;
     public PixelFormat GlPixelFormat
     {
       get
@@ -85,22 +62,57 @@ namespace PirateCraft
       }
       return numMipMaps;
     }
-    private void LoadToGpu(Img32 bmp, bool mipmaps, TexFilter filter, TextureWrapMode wrap)
-    {
-      Width = bmp.Width;
-      Height = bmp.Height;
-      TexFilter = filter;
-      TextureWrapMode = TextureWrapMode;
 
-      int ts = Gu.Context.Gpu.GetMaxTextureSize();
-      if (Width >= ts)
-      {
-        Gu.BRThrowException("Texture is too large");
-      }
-      if (Height >= ts)
-      {
-        Gu.BRThrowException("Texture is too large");
-      }
+    class BoundTexture2DState
+    {
+      public TextureUnit Unit;
+      public int BindingId;
+    }
+    static Stack<BoundTexture2DState> _states = new Stack<BoundTexture2DState>();
+    private static TextureUnit GetActiveTexture()
+    {
+      int tex_unit = 0;
+      GL.GetInteger(GetPName.ActiveTexture, out tex_unit);
+      return (TextureUnit)tex_unit;
+    }
+    private static void PushState()
+    {
+      TextureUnit tex_unit = GetActiveTexture();
+      int tex_binding = 0;
+      GL.GetInteger(GetPName.TextureBinding2D, out tex_binding);
+
+      _states.Push(new BoundTexture2DState() { Unit = tex_unit, BindingId = tex_binding });
+    }
+    private static void PopState()
+    {
+      BoundTexture2DState state = _states.Pop();
+      GL.ActiveTexture(state.Unit);
+      GL.BindTexture(TextureTarget.Texture2D, state.BindingId);
+    }
+    public void SetWrap(TextureWrapMode wrap)
+    {
+      Gu.Assert(GL.IsTexture(this.GetGlId()));
+      WrapMode = wrap;
+      PushState();
+      Bind(GetActiveTexture());
+      GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)WrapMode);
+      GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)WrapMode);
+      PopState();
+    }
+    public void SetFilter(TextureMinFilter min, TextureMagFilter mag)
+    {
+      Gu.Assert(GL.IsTexture(this.GetGlId()));
+      Filter = TexFilter.Separate;
+      PushState();
+      Bind(GetActiveTexture());
+      GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)min);//LinearMipmapLinear
+      GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)mag);
+      PopState();
+    }
+    public void SetFilter(TexFilter filter)
+    {
+      Filter = filter;
+
       TextureMinFilter min = TextureMinFilter.Nearest;
       TextureMagFilter mag = TextureMagFilter.Nearest;
       if (filter == TexFilter.Linear)
@@ -110,7 +122,7 @@ namespace PirateCraft
       }
       else if (filter == TexFilter.Nearest)
       {
-        if (mipmaps)
+        if (MipmappingEnabled)
         {
           //Mipmap nearest is smoother than simply nearest, it looks better
           min = TextureMinFilter.NearestMipmapNearest;
@@ -123,7 +135,7 @@ namespace PirateCraft
       }
       else if (filter == TexFilter.Bilinear)
       {
-        if (mipmaps)
+        if (MipmappingEnabled)
         {
           min = TextureMinFilter.LinearMipmapNearest;
           mag = TextureMagFilter.Linear;
@@ -135,7 +147,7 @@ namespace PirateCraft
       }
       else if (filter == TexFilter.Trilinear)
       {
-        if (mipmaps)
+        if (MipmappingEnabled)
         {
           min = TextureMinFilter.LinearMipmapLinear;
           mag = TextureMagFilter.Linear;
@@ -149,21 +161,38 @@ namespace PirateCraft
       {
         Gu.BRThrowNotImplementedException();
       }
+      SetFilter(min, mag);
+
+    }
+    private void LoadToGpu(Img32 bmp, bool mipmaps, TexFilter filter, TextureWrapMode wrap)
+    {
+      Width = bmp.Width;
+      Height = bmp.Height;
+      Filter = filter;
+      WrapMode = WrapMode;
+
+      int ts = Gu.Context.Gpu.GetMaxTextureSize();
+      if (Width >= ts)
+      {
+        Gu.BRThrowException("Texture is too large");
+      }
+      if (Height >= ts)
+      {
+        Gu.BRThrowException("Texture is too large");
+      }
+
+      _numMipmaps = 1;
+      if (mipmaps)
+      {
+        _numMipmaps = GetNumMipmaps((int)Width, (int)Height);
+      }
 
       _glId = GL.GenTexture();
       GL.BindTexture(TextureTarget.Texture2D, GetGlId());
-      GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)min);//LinearMipmapLinear
-      GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)mag);
-      GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)wrap);
-      GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)wrap);
+      SetFilter(filter);
+      SetWrap(wrap);
 
-      int numMipmaps = 1;
-      if (mipmaps)
-      {
-        numMipmaps = GetNumMipmaps((int)Width, (int)Height);
-      }
-
-      GL.TexStorage2D(TextureTarget2d.Texture2D, numMipmaps, SizedInternalFormat.Rgba8, (int)Width, (int)Height);
+      GL.TexStorage2D(TextureTarget2d.Texture2D, _numMipmaps, SizedInternalFormat.Rgba8, (int)Width, (int)Height);
 
       //var raw = Gpu.SerializeGPUData(bmp.Data);
       var raw = Gpu.GetGpuDataPtr(bmp.Data);
@@ -177,7 +206,7 @@ namespace PirateCraft
           PixelType.UnsignedByte,
           raw.Lock());
       raw.Unlock();
-      
+
       if (mipmaps)
       {
         GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
@@ -225,6 +254,7 @@ namespace PirateCraft
       }
       return texture;
     }
+    TextureUnit _boundUnit = TextureUnit.Texture0;
     public void Bind(TextureUnit unit)
     {
       if (GetGlId() == 0)
@@ -232,12 +262,13 @@ namespace PirateCraft
         throw new System.Exception("Texture ID was 0 when binding texture.");
       }
 
+      _boundUnit = unit;
       GL.ActiveTexture(unit);
       GL.BindTexture(TextureTarget.Texture2D, GetGlId());
     }
-    public void Unbind(TextureUnit unit)
+    public void Unbind()
     {
-      GL.ActiveTexture(unit);
+      GL.ActiveTexture(_boundUnit);
       GL.BindTexture(TextureTarget.Texture2D, 0);
     }
 

@@ -1,10 +1,10 @@
 ﻿#include "v_glsl_version.glsl"
+#include "v_forward_header.glsl"
 
 in vec4 _vsColorOut;
 
-out vec4 _psColorOut;
-
 void main(void)
 {
-    _psColorOut = _vsColorOut;
+  setColorOutput(_vsColorOut);
+  setPickOutput(0);
 }
