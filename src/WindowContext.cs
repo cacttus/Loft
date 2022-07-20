@@ -2,7 +2,7 @@
 using System;
 
 namespace PirateCraft
-{
+{ 
   //Graphics Contxt + Window Frame Sync
   public class WindowContext
   {
