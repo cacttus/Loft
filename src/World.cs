@@ -2630,7 +2630,7 @@ namespace PirateCraft
     private const string SaveWorldVersion = "0.01";
     private const string SaveWorldHeader = "WorldFilev" + SaveWorldVersion;
     private const int DromeFileVersion = 1;
-    private double AutoSaveTimeoutSeconds = 5;
+    private double AutoSaveTimeoutSeconds = 2;
     private double AutoSaveTimeout = 0;
 
     public string WorldSavePath = "";
@@ -2671,21 +2671,22 @@ namespace PirateCraft
       DayNightCycle.Update(0);
 
       Gu.Log.Info("Building initail grid");
-      BuildDromeGrid(Player.WorldMatrix.extractTranslation(), GenRadiusShell, true);
+     
+      //* BuildDromeGrid(Player.WorldMatrix.extractTranslation(), GenRadiusShell, true);
       //I'm assuming since this is cube voxesl we're going to do physics on the integer grid, we don't need triangle data then.
-      WaitForAllDromesToGenerate();
-      UpdateLiterallyEverything_Blockish(Camera); // This will generate the globs
-      WaitForAllGlobsToGenerate();
+      //* WaitForAllDromesToGenerate();
+      //* UpdateLiterallyEverything_Blockish(Camera); // This will generate the globs
+      //* WaitForAllGlobsToGenerate();
     }
     public void Update(double dt, Camera3D cam)
     {
       Gu.Assert(Player != null);
 
-      BuildWorld();
+     // BuildWorld();
       UpdateObjects(dt);
       CollectVisibleObjects(cam);
-      UpdateLiterallyEverything_Blockish(cam);
-      LaunchGlobAndDromeQueues();
+     // UpdateLiterallyEverything_Blockish(cam);
+     // LaunchGlobAndDromeQueues();
       AutoSaveWorld(dt);
 
       DayNightCycle.Update(dt);
@@ -5760,8 +5761,8 @@ namespace PirateCraft
       using (var br = new System.IO.BinaryWriter(fs, enc))
       {
         br.Write((string)SaveWorldHeader);
-        br.Write(Player.Position_World);
-        br.Write(Player.Position_World);
+        br.Write(Player.Position_Local);
+        br.Write(Player.Rotation_Local);
       }
     }
     private bool TryLoadWorld()
@@ -5779,7 +5780,7 @@ namespace PirateCraft
       }
 
       using (var fs = System.IO.File.OpenRead(worldfn))
-      using (var br = new System.IO.BinaryReader(fs, enc))
+      using (var  br = new System.IO.BinaryReader(fs, enc))
       {
         string h = br.ReadString();
         if (h != SaveWorldHeader)

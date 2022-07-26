@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using OpenTK.Audio.OpenAL;
 
-//This is absolute shit here. I didn't want to code this
+//Translation: This is full of bugs. This needs to be fixed.
 namespace PirateCraft
 {
   public class AudioManager : IDisposable

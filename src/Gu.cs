@@ -40,7 +40,7 @@ namespace PirateCraft
     public static Log Log { get; set; } = null;
     public static WindowContext Context { get; private set; }
     public static readonly string EmbeddedDataPath = "PirateCraft.data.";
-    public static World World = new World();
+    public static ICDTest World = new ICDTest();
     public static PCMouse Mouse { get { return Context.PCMouse; } }
     public static PCKeyboard Keyboard { get { return Context.PCKeyboard; } }
     public static ResourceManager Resources { get; private set; } = null;

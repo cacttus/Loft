@@ -79,12 +79,12 @@ namespace PirateCraft
   {
     #region Members
 
-    private bool DELETE_WORLD_START_FRESH = true;
+    private bool DELETE_WORLD_START_FRESH = false; 
     private Camera3D _camera = null;
     private WorldObject _player_empty = null;
     private WorldObject _boxMeshThing = null;
     private int meshIdx = 0;
-    private const float scale = 0.5f;
+    private const float scale = 0.75f; //RESOLUTION scale
     public InputState InputState = InputState.World;
     private FirstPersonMouseRotator _FPSRotator = new FirstPersonMouseRotator();
     private NativeWindowSettings _ns = NativeWindowSettings.Default;
@@ -97,8 +97,8 @@ namespace PirateCraft
     private WorldObject left_hand = null;
     private WorldObject right_hand = null;
     private bool _bInitialized = true;
-    private const float Base_Run_Speed = World.BlockSizeX * 3.0f;
-    private const float Base_Jump_Speed = World.BlockSizeY * 40.0f;
+    private const float Base_Run_Speed = World.BlockSizeX * 0.25f;
+    private const float Base_Jump_Speed = World.BlockSizeY * 0.75f;
     private const float MaxAirFriction = 10.0f;//friction percentage in velocity Units per second (1.0 means the velocity will reach 0 in one second) [0,1]. lower values result in less friction
     private CamMode CamMode = CamMode.Flying;
     private vec3 second_y_glob = new vec3(
@@ -203,7 +203,7 @@ namespace PirateCraft
         _camera.Far = 4000.0f;
 
         //Character height
-        _camera.Position_Local = new vec3(0, World.BlockSizeY * 1.8f, 0);
+        _camera.Position_Local = new vec3(0, .5f, 0);
 
         _player_empty = Gu.World.CreateAndAddObject("player-empty", null, null, second_y_glob);
         _player_empty.Collides = false;
