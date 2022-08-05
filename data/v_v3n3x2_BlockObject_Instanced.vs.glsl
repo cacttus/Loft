@@ -1,6 +1,7 @@
 ﻿#include "v_glsl_version.glsl"
 
 //uniform Mat4f normal_matrix;            
+uniform mat4 _ufMatrix_Model;
 uniform mat4 _ufMatrix_View;            
 uniform mat4 _ufMatrix_Projection;
 
@@ -21,10 +22,10 @@ void main(void)
 {
   mat4 matrix_model;
   if( gl_InstanceID >= MAX_INSTANCES ) {
-    matrix_model = mat4(1.0f);
+    matrix_model = _ufMatrix_Model;
   }
   else {
-    matrix_model = _ufInstanceData[gl_InstanceID];
+    matrix_model = _ufInstanceData[gl_InstanceID] * _ufMatrix_Model;
   }
 
   gl_Position =  (_ufMatrix_Projection* _ufMatrix_View * matrix_model ) * vec4(_v301, 1) ;

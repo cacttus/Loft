@@ -116,8 +116,9 @@ namespace PirateCraft
     public static int dbg_numDrawElements_Frame = 0;
     public static int dbg_numDrawArrays_Frame = 0;
     private static long dbg_frame = 0;
-    public void Draw(mat4[] instances = null)
+    public void Draw(mat4[] instances)
     {
+      //@param instances - Can be null in which case we draw a mesh without an accompanying instance transform
       Gu.Assert(_vao != null);
       if (Gu.Context.FrameStamp != dbg_frame)
       {

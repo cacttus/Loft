@@ -89,7 +89,7 @@ namespace PirateCraft
       GpuRenderState.SetState();
       dat.m = this;
       Shader.BeginRender(dat);
-      mesh.Draw();
+      mesh.Draw(dat.instanceData);
       Shader.EndRender();
     }
     public void Draw(MeshData[] meshes, DrawCall_UniformData dat)
@@ -99,20 +99,8 @@ namespace PirateCraft
       Shader.BeginRender(dat);
       foreach (var m in meshes)
       {
-        m.Draw();
+        m.Draw(dat.instanceData);
       }
-      Shader.EndRender();
-    }
-    public void Draw(MeshData mesh, mat4[] instances, DrawCall_UniformData dat)
-    {
-      GpuRenderState.SetState();
-
-      dat.m = this;
-      dat.instanceData = instances;
-      Shader.BeginRender(dat);
-
-      mesh.Draw(instances);
-
       Shader.EndRender();
     }
     public Texture2D GetTextureOrDefault(Shader.TextureInput texture_input)

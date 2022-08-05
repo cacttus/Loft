@@ -839,5 +839,14 @@
       cpy.Clear();
       _parent?.RemoveChild(this);
     }
+    public void Iterate(Action<WorldObject> act)
+    {
+      //Run an action on all children.
+      act(this);
+      foreach (var c in Children)
+      {
+        c.Iterate(act);
+      }
+    }
   }
 }

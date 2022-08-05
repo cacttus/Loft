@@ -1,6 +1,4 @@
 ﻿So
-* So, BlockItems are Mesh items. We need to fix this, they aren't instanced correctly. This was half done.
-  * Fix BlockItems. - Right Click -> Bug (palce torch)
 * text / font
 * gui
 * topo - build on top of World.cs

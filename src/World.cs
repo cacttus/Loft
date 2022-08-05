@@ -4,7 +4,7 @@ using System.Text;
 
 namespace PirateCraft
 {
-    public struct VisibleBlockFaceData
+  public struct VisibleBlockFaceData
   {
     public byte faceIdx; // 0 - 6
     public short x, y, z;
@@ -1886,7 +1886,7 @@ namespace PirateCraft
       // .. in that sense .. technikcally .. we need to have instances be worldobjects and share the mesh data.
       //however .. no i don't want to do that. We have one object that we udated .. 
 
-      Box3f bi_box = new Box3f(instance_pos - WorldObject.BoundBox._min, instance_pos + WorldObject.BoundBox._max);
+      Box3f bi_box = new Box3f(instance_pos + WorldObject.BoundBox._min, instance_pos + WorldObject.BoundBox._max);
       if (cam.Frustum.HasBox(bi_box))
       {
         //**TODO: instead of BB center we can return BB min value.
@@ -1900,7 +1900,14 @@ namespace PirateCraft
       FileLoc = loc;
       var objs = Gu.Resources.LoadObjects(loc);
       WorldObject = objs[0];
-      WorldObject.Material = new Material(Gu.Resources.LoadShader("v_v3n3x2_BlockObject_Instanced", false, FileStorage.Embedded));
+
+      WorldObject.Scale_Local = scale;
+      WorldObject.Position_Local = new vec3(0, -World.BlockSizeY * 0.5f, 0); // Move the object to the base of the block.
+
+      WorldObject.Iterate((WorldObject o) =>
+      {
+        o.Material = World.BlockObjectMaterial;
+      });
     }
   }
   public class DayNightCycle
@@ -2040,7 +2047,7 @@ namespace PirateCraft
     {
       Render, VisibleRender
     }
-
+    public static Material BlockObjectMaterial = null;
     //These top variables are critical generation control variables.
     public int LimitYAxisGeneration = 0;//0 = off, >0 - limit globs generated along Y axis (faster generation)
     public const float MaxTotalGlobs = 4096 * 2 * 2 * 2;
@@ -2184,7 +2191,9 @@ namespace PirateCraft
         _renderObs_Ordered.Add((DrawOrder)do_i, new List<WorldObject>());
       }
 
-      CreateWorldMaterial();
+      DefineBlockTiles();
+      CreateMaterials();
+      CreateBlockItems();
 
       //Generate the mesh data we use to create cubess
       WorldStaticData.Generate();
@@ -2194,12 +2203,18 @@ namespace PirateCraft
       DayNightCycle.Update(0);
 
       Gu.Log.Info("Building initail grid");
-     
+
       //* BuildDromeGrid(Player.WorldMatrix.extractTranslation(), GenRadiusShell, true);
       //I'm assuming since this is cube voxesl we're going to do physics on the integer grid, we don't need triangle data then.
       //* WaitForAllDromesToGenerate();
       //* UpdateLiterallyEverything_Blockish(Camera); // This will generate the globs
       //* WaitForAllGlobsToGenerate();
+    }
+    private void CreateBlockItems()
+    {
+
+      //mesh objs
+      AddBlockItem(BlockItemCode.Torch, new FileLoc("torch.glb", FileStorage.Embedded), new vec3(1, 1, 1));
     }
     public void Update(double dt, Camera3D cam)
     {
@@ -2214,7 +2229,7 @@ namespace PirateCraft
 
       DayNightCycle.Update(dt);
 
- 
+
     }
     int dbg_nLit_Frame = 0;
     int dbg_nullBG_Frame = 0;
@@ -2675,7 +2690,7 @@ namespace PirateCraft
       //Render to this camera.
       camera.BeginRender();
       {
-        //First World Objects (sky)
+        //Draw First World Objects (sky)
         if (_renderObs_Ordered.Keys.Contains(DrawOrder.First))
         {
           _renderObs_Ordered[DrawOrder.First].Sort((x, y) => x.UniqueID.CompareTo(y.UniqueID));
@@ -2723,7 +2738,7 @@ namespace PirateCraft
         //TESTING Disable fog when under water -- not really but if the b
         //int he futruer player block (camer visible)= water then diable fog
         ud.shaderData._fFogBlend = 0.56361f;
-        if(Player.Position_World.y < 0)
+        if (Player.Position_World.y < 0)
         {
           ud.shaderData._fFogBlend = 0.0f;
         }
@@ -2750,27 +2765,27 @@ namespace PirateCraft
         {
           Box3f dummy = Box3f.Zero;
           dummy.genResetLimits();
-          ite.Key.WorldObject.Update(this, Delta, ref dummy);
+          //Update the base object, blockobjects share a single object
           if (ite.Value.Count > 0)
           {
+            ite.Key.WorldObject.Update(this, Delta, ref dummy);
             BlockItem bi = ite.Key;
-            //We could probably remove this from the loop
-            mat4[] instances = new mat4[ite.Value.Count];
+            ud.instanceData = new mat4[ite.Value.Count];
             int i_inst = 0;
             foreach (var kvp in ite.Value)
             {
               //we are iterating by distance here so we are automatically sorted
-              instances[i_inst] = mat4.getTranslation(kvp.Value);
+              ud.instanceData[i_inst] = mat4.getTranslation(kvp.Value);
               i_inst++;
             }
-            ud.ob = bi.WorldObject;
-            bi.WorldObject.Material.Draw(bi.WorldObject.Mesh, instances, ud);
+            DrawObMesh(bi.WorldObject, ud);
           }
         }
+        ud.instanceData = null;//null this so we dont f up
 
       }
 
-      //Last World Objects
+      //Draw Last order World Objects
       if (_renderObs_Ordered.Keys.Contains(DrawOrder.Last))
       {
         _renderObs_Ordered[DrawOrder.Last].Sort((x, y) => x.UniqueID.CompareTo(y.UniqueID));
@@ -2867,6 +2882,10 @@ namespace PirateCraft
       {
         //this is technically an error
       }
+      foreach (var c in ob.Children)
+      {
+        DrawObMesh(c, ud);
+      }
     }
     private BlockTile AddBlockTile(ushort code, BlockFaceInfo[] faces, float hardness_pickaxe, BlockMeshType meshType, bool is_chained, float opacity)
     {
@@ -2918,10 +2937,8 @@ namespace PirateCraft
         new BlockFaceInfo(GetTileFile(bot_img), bot_vis)
       };
     }
-    private void CreateWorldMaterial()
+    private void CreateMaterials()
     {
-      DefineBlockTiles();
-
       var maps = CreateAtlas();
       var s = Gu.Resources.LoadShader("v_Glob", false, FileStorage.Embedded);
       _worldMaterial_Op = new Material(s, maps.Albedo, maps.Normal);
@@ -2935,6 +2952,9 @@ namespace PirateCraft
       {
         bt.Value.DefineEntity(maps.Albedo, maps.Normal);
       }
+
+      //Block Material
+      BlockObjectMaterial = new Material(Gu.Resources.LoadShader("v_v3n3x2_BlockObject_Instanced", false, FileStorage.Embedded));
     }
     private void DefineBlockTiles()
     {
@@ -2977,9 +2997,6 @@ namespace PirateCraft
       AddBlockTile(BlockItemCode.Seaweed, MakeFaces_x3(TileImage.Seaweed), HardnessValue.Leaf, BlockMeshType.Billboard, false, BlockTile.BlockOpacity_Billboard);
       AddBlockTile(BlockItemCode.RosePink, MakeFaces_x3(TileImage.RosePink), HardnessValue.Leaf, BlockMeshType.Billboard, false, BlockTile.BlockOpacity_Billboard);
       AddBlockTile(BlockItemCode.RoseRed, MakeFaces_x3(TileImage.RoseRed), HardnessValue.Leaf, BlockMeshType.Billboard, false, BlockTile.BlockOpacity_Billboard);
-
-      //mesh objs
-      AddBlockItem(BlockItemCode.Torch, new FileLoc("torch.glb", FileStorage.Embedded), new vec3(1, 1, 1));
     }
     private MegaTex.CompiledTextures CreateAtlas()
     {
@@ -5261,7 +5278,7 @@ namespace PirateCraft
       }
 
       using (var fs = System.IO.File.OpenRead(worldfn))
-      using (var  br = new System.IO.BinaryReader(fs, enc))
+      using (var br = new System.IO.BinaryReader(fs, enc))
       {
         string h = br.ReadString();
         if (h != SaveWorldHeader)

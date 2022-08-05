@@ -3959,7 +3959,7 @@ namespace PirateCraft
     }
     public float DistanceToCam2(Camera3D cam)
     {
-      //Squared distance to camera viewport
+      //Squared distance to camera viewport from box FACE
       //technically this is incorrect since the distance would be the projection onto the viewport, and not the center of the viewport
       //Return
       // - float.maxvalue if there is no hit
@@ -3978,14 +3978,19 @@ namespace PirateCraft
 
       vec3 v = (bc - p);
       float t = 0;
-      RayIntersect_t(p, v, ref t);
-
-      if (t < 0 || t > 1)
+      float len = 0;
+      if (RayIntersect_t(p, v, ref t))
       {
-        Gu.DebugBreak();//This should never happen (we test for included point above)
+        len = (v * t).length2();
+      }
+      else
+      {
+        //The box likely, had no volume, or, was invalid min/max. Use Center
+        //This is still an error, if the box has no volume then the object is invalid.
+        len = v.length2();
+        Gu.DebugBreak(); 
       }
 
-      float len = (v * t).length2();
       return len;
     }
     public float FrustumDistance_2_Exact(Camera3D cam)
