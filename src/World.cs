@@ -4,432 +4,11 @@ using System.Text;
 
 namespace PirateCraft
 {
-  public class Beam2
-  {
-    //Beam me up!
-    public Beam2() { }
-    public short min = 0; // local block position in drome, min x,y ,z
-    public short max = 0;
-    // public byte[] light_min = new byte[4];
-    //  public byte[] light_max = new byte[4];
-    public float occlusion = 0; //amount of occlusion between blocks
-
-
-    //simpler lighting for now
-    public vec3 dir;// x_light, y_light, z_light; // -1,1
-    public vec3 color;// x_light, y_light, z_light; // -1,1
-    public short rays = 0;
-    public float decay = 0;
-
-    public List<Beam2> nextX = null;//next beam in the  along positive axis
-    public List<Beam2> prevX = null;
-    public List<Beam2> nextZ = null;//next beam in the 
-    public List<Beam2> prevZ = null;
-
-    public void Init(vec3 sun_dir, vec3 sun_color)
-    {
-      //reset / init beam
-      dir = sun_dir;
-      color = sun_color;
-      rays = 1;
-      decay = 1;
-    }
-  }
-  public struct VisibleBlockFaceData
+    public struct VisibleBlockFaceData
   {
     public byte faceIdx; // 0 - 6
     public short x, y, z;
   }
-  public class BeamGrid2
-  {
-    //New beam grid with one collection of height beams only along x/z, beam2 that allows for shadows
-    //Easier to understand than BeamGrid.
-    private SortedDictionary<ivec2, List<Beam2>> Beams = new SortedDictionary<ivec2, List<Beam2>>(new ivec2.ivec2ComparerYX());//layer=z, stack=y -> bars=x : +/- y
-    public long UpdateStamp { get; private set; } = 0;//Microseconds of last modified
-
-    private const float LiquidOcclusion = 1.0f / 10.0f;
-    private const float OcclusionDistanceBlocks = 6.0f;//# of blocks until "black"
-    private float Ambient = 0.1f;
-    private vec3 AmbientColor = new vec3(1, 1, 1);
-
-    public void Build(World w, Drome d)
-    {
-      MakeBars(w, d);
-      Stitch();
-    }
-    public vec3 GetBlockFaceColor(int iface, int bx, int by, int bz)
-    {
-      vec3 out_color = vec3.Zero;
-      int xoff = bx, yoff = by, zoff = bz;
-      vec3 f_n = vec3.Zero; ;
-      if (iface == 0)
-      {
-        xoff -= 1;
-        f_n = new vec3(-1, 0, 0);
-      }
-      else if (iface == 1)
-      {
-        xoff += 1;
-        f_n = new vec3(1, 0, 0);
-      }
-      else if (iface == 2)
-      {
-        yoff -= 1;
-        f_n = new vec3(0, -1, 0);
-      }
-      else if (iface == 3)
-      {
-        yoff += 1;
-        f_n = new vec3(0, 1, 0);
-      }
-      else if (iface == 4)
-      {
-        zoff -= 1;
-        f_n = new vec3(0, 0, -1);
-      }
-      else if (iface == 5)
-      {
-        zoff += 1;
-        f_n = new vec3(0, 0, 1);
-      }
-      else
-      {
-        Gu.BRThrowException("Invalid block face id");
-      }
-
-      if (xoff == -1 || yoff == -1 || zoff == -1 ||
-        xoff == World.DromeBlocksX ||
-        yoff == World.DromeBlocksY ||
-        zoff == World.DromeBlocksZ
-        )
-      {
-        return out_color;
-      }
-
-
-      bool dbg_Found = false;
-      List<Beam2> beam_stack;
-      if (Beams.TryGetValue(new ivec2(xoff, zoff), out beam_stack))
-      {
-        foreach (var bb in beam_stack)
-        {
-          if (yoff >= bb.min && yoff <= bb.max)
-          {
-            float dist = ((float)yoff - (float)bb.min + 1.0f) / ((float)bb.max - (float)bb.min + 1.0f); //+1 because a block is one unit and max-min is one unit minimum
-            out_color = 
-              new vec3(Math.Clamp(Math.Clamp(bb.dir.dot(f_n), 0.0f, 1.0f) * bb.decay, 0.0f, 1.0f) * bb.color + Ambient * AmbientColor).clamp(0.0f,1.0f);
-            dbg_Found = true;
-            break;
-          }
-        }
-      }
-
-      if (dbg_Found == false)
-      {
-        //So this could be a plant. if it's a plant the visible face resting on a solid block would point towards the ground
-        //then the gotten block would not be within the beam grid. .. 
-        // maybe just remove solid faces that plants correspond to the ground ..
-        int n = 0;
-        n++;
-      }
-
-      return out_color;
-    }
-    public void ApplyDirLight(vec3 sun_dir, vec3 sun_color)
-    {
-      short x_min, x_max, x_inc;
-      short y_min, y_max, y_inc;
-      short z_min, z_max, z_inc;
-
-      float light_axis_x = sun_dir.x;
-      float light_axis_y = sun_dir.y;
-      float light_axis_z = sun_dir.z;
-
-      UpdateStamp = Gu.Microseconds();
-
-      //If we loop along the direction of the ray then there will be no duplicate lighting
-      for (int zi = 0; zi < World.DromeBlocksZ; zi++)
-      {
-        int zidx = zi;
-        if (light_axis_z < 0)
-        {
-          zidx = World.DromeBlocksZ - zi - 1;
-        }
-        for (int xi = 0; xi < World.DromeBlocksX; xi++)
-        {
-          int xidx = xi;
-          if (light_axis_x < 0)
-          {
-            xidx = World.DromeBlocksX - xi - 1;
-          }
-          if (Beams.TryGetValue(new ivec2(xidx, zidx), out var beams))
-          {
-            // * First set light at edge beam.
-            //Beams.count should always be > 0
-            bool is_edge_beam = false;
-            Beam2 edge = null;
-            if (light_axis_y < 0)
-            {
-              edge = beams[beams.Count - 1];
-              is_edge_beam = (edge.max == World.DromeBlocksY - 1);
-            }
-            else
-            {
-              edge = beams[0];
-              is_edge_beam = (edge.min == 0);
-            }
-
-            //edge of drome, the "full" sun value.
-            if (is_edge_beam)
-            {
-              edge.Init(sun_dir, sun_color);
-
-            }
-
-            // * Next spread light throughout the beam stack (2 neighbors)
-            foreach (var our_beam in beams)
-            {
-              List<Beam2> n_x = null;
-              if (light_axis_x < 0)
-              {
-                n_x = our_beam.prevX;
-              }
-              else
-              {
-                n_x = our_beam.nextX;
-              }
-              if (n_x != null)
-              {
-                foreach (var beam_n in n_x)
-                {
-                  TransferLight(our_beam, beam_n);
-                }
-              }
-
-              List<Beam2> n_z = null;
-              if (light_axis_z < 0)
-              {
-                n_z = our_beam.prevZ;
-              }
-              else
-              {
-                n_z = our_beam.nextZ;
-              }
-              if (n_z != null)
-              {
-                foreach (var beam_n in n_z)
-                {
-                  TransferLight(our_beam, beam_n);
-                }
-              }
-
-
-            }
-
-          }
-        }
-      }
-
-    }
-    private void MakeBars(World w, Drome d)
-    {
-      //Beams must only be air. Min / Max must be air blocks.
-      //Go through air blocks until we hit solid, that is a beam, then skip solid, air again, start new beam.
-
-      for (int zi = 0; zi < World.DromeBlocksZ; zi++)//Integral axis int(0,x) dx
-      {
-        for (int xi = 0; xi < World.DromeBlocksX; xi++)//Transmission axis
-        {
-          ivec2 v = new ivec2(xi, zi);
-
-          List<Beam2> beamlist = null;
-          Beam2 curBeam = null;
-          for (int yi = 0; yi < World.DromeBlocksY; yi++)
-          {
-            ushort b = d.GetBlock(xi, yi, zi);
-            var b_code = Block.GetVisibleBlockCode(b);
-            BlockTile bt = null;
-            w.BlockTiles.TryGetValue(b_code, out bt);
-            //We are solid block, end beam, or we are plant, or something else semi-transparent.
-
-            if ((b_code == BlockItemCode.Air) || (b_code == BlockItemCode.Water) || ((bt != null) && (bt.Opacity <= 0.9f)))
-            {
-              if (beamlist == null)
-              {
-                beamlist = new List<Beam2>();
-                Beams.Add(v, beamlist);
-              }
-
-              if (curBeam == null)
-              {
-                curBeam = new Beam2();
-                curBeam.min = (short)yi;
-                curBeam.occlusion = 0;
-              }
-
-              // 1 block = 1 occlusion
-              if ((bt != null) && (bt.Opacity <= 0.9f))
-              {
-                if (b_code == BlockItemCode.Water)
-                {
-                  var liquid = Block.GetLiquid(b);
-                  if (liquid > 0)
-                  {
-                    //Since the liquid is incorrectly getting added to solid blocks we have to make sure the block is not solid before adding liquid occlusion
-                    curBeam.occlusion += ((((float)liquid) / ((float)Block.MaxLiquid)) * LiquidOcclusion);
-                  }
-                }
-                else
-                {
-                  curBeam.occlusion += bt.Opacity;
-                }
-              }
-
-            }
-            else
-            {
-              if (bt == null && b_code != BlockItemCode.Air)
-              {
-                Gu.DebugBreak();//this is an error .. missing block tile probably.
-              }
-
-              //Solid block. End beam if started
-              if (curBeam != null)
-              {
-                curBeam.max = (short)(yi - 1); //the -1 is because this is solid, beams can only go from air->air
-                beamlist.Add(curBeam);
-                Gu.Assert(curBeam.max >= curBeam.min);//max equal min = 1 block
-                curBeam = null;
-              }
-            }
-
-
-          }//for
-
-          if (curBeam != null)
-          {
-            curBeam.max = (short)(World.DromeBlocksY - 1);
-            beamlist.Add(curBeam);
-            Gu.Assert(curBeam.max >= curBeam.min);
-          }
-          curBeam = null;
-          beamlist = null;
-
-        }//for 
-      }//for 
-    }
-    private void Stitch()
-    {
-      //Stitch up the beam stack (light path tunnels) along POSITIVE X or Z axis
-      //This stitches the WHOLE GRID
-      // If you edit a single block, we can stitch just that block it would be much faster.
-
-      int dbg_num_stitch = 0;
-
-      var stitchUP = (List<Beam2> cur, List<Beam2> next, bool do_x) =>
-      {
-        foreach (var beamA in cur)
-        {
-          foreach (var beamB in next)
-          {
-            if ((beamA.max < beamB.min) || (beamA.min > beamB.max))
-            {
-              //no hit
-            }
-            else
-            {
-              if (do_x)
-              {
-                if (beamA.nextX == null)
-                {
-                  beamA.nextX = new List<Beam2>();
-                }
-                if (beamB.prevX == null)
-                {
-                  beamB.prevX = new List<Beam2>();
-                }
-                beamA.nextX.Add(beamB);
-                beamB.prevX.Add(beamA);
-              }
-              else //do z
-              {
-                if (beamA.nextZ == null)
-                {
-                  beamA.nextZ = new List<Beam2>();
-                }
-                if (beamB.prevZ == null)
-                {
-                  beamB.prevZ = new List<Beam2>();
-                }
-                beamA.nextZ.Add(beamB);
-                beamB.prevZ.Add(beamA);
-              }
-              dbg_num_stitch++;
-
-            }
-
-          }
-        }
-      };
-
-      foreach (var kvp in Beams)
-      {
-        var cur_beam = kvp.Value;
-        if (Beams.TryGetValue(new ivec2(kvp.Key.x + 1, kvp.Key.y), out List<Beam2> nextx))
-        {
-          stitchUP(cur_beam, nextx, true);
-        }
-        if (Beams.TryGetValue(new ivec2(kvp.Key.x, kvp.Key.y + 1), out List<Beam2> nextz))
-        {
-          stitchUP(cur_beam, nextz, false);
-        }
-      }
-
-    }
-    private float CalculateDecay(float a1, float a2, float b1, float b2)
-    {
-      //calculate light decay from beam a to beam b
-      float decay = 0;
-      if (b2 >= a2)
-      {
-        if (b1 >= a1)
-        {
-          //We open below
-          decay = (b1 - a2) / (a1 - a2);
-        }
-        else
-        {
-          //we open to a bigger place, let in all the light
-          decay = (a1 - a2) / (a1 - a2); // 100% 
-        }
-      }
-      else
-      {
-        if (b1 >= a1)
-        {
-          //We open into a smaller cave, decay a lot
-          decay = (b1 - b2) / (a1 - a2);
-        }
-        else
-        {
-          //We open above
-          decay = (a1 - b2) / (a1 - a2);
-        }
-      }
-      return decay;
-    }
-    private void TransferLight(Beam2 from, Beam2 to)
-    {
-      float decay = CalculateDecay(from.min, from.max, to.min, to.max);
-      //For now we're using the dir light as the "reset" radiosity function. This resets rays and color.
-      to.dir = from.dir;
-      to.color = from.color; //TODO: color and dir would be (a+b)/2 for subsequent lights and directions
-      //raw occlusion doesn't work, we need a better system than this.
-      to.decay = from.decay * decay;// * (1.0f - Math.Clamp(from.occlusion / OcclusionDistanceBlocks, 0.0f, 1.0f)*0.01f);
-      to.rays = 1;
-    }
-
-  }//beamgrid21
   public enum GenState
   {
     Created, Queued, GenStart, GenEnd, Ready, Deleted,
@@ -1255,62 +834,7 @@ namespace PirateCraft
     public long GpuFaceColors_UpdateStamp = 0;
 
     public static int dbg_ncalc = 0;
-    public void CalculateLightsIfNeeded(bool force = false)
-    {
-      //This needs to update a VAO buffer that corresponds to vertexes, not just faces
-      //we can get rid of GpuFaceColors entirely and use something on MeshData
-      if (Drome.TryGetTarget(out var d))
-      {
-        if (d.GenState == GenState.Ready)
-        {
-          if (d.BeamGrid != null)
-          {
-            if (force || (GpuFaceColors_UpdateStamp < d.BeamGrid.UpdateStamp))
-            {
-              GpuFaceColors_UpdateStamp = d.BeamGrid.UpdateStamp;
 
-              if ((Opaque != null || Transparent != null) && (VisibleFaceData != null) && (VisibleFaceData.Count > 0))
-              {
-                //Note: the face colors is per vertex so we multiply by 4, however we are only lighting per face
-                //in the future .. maybe .. vertex colors and some kind of shadow blend thing.
-                vec3[] GpuFaceColors = new vec3[VisibleFaceData.Count * 4];
-                for (int fi = 0; fi < VisibleFaceData.Count; fi++)//foreach (var f in g.VisibleFaceData)
-                {
-                  var f = VisibleFaceData[fi];
-                  var c = d.BeamGrid.GetBlockFaceColor(f.faceIdx, f.x, f.y, f.z);
-
-                  GpuFaceColors[fi * 4 + 0] = c; //Hmm .. yes
-                  GpuFaceColors[fi * 4 + 1] = c;
-                  GpuFaceColors[fi * 4 + 2] = c;
-                  GpuFaceColors[fi * 4 + 3] = c;
-                }
-                //opaque and transparent need to be consolidated
-                if (Opaque != null)
-                {
-                  Opaque.VertexBuffers[1].CopyDataToGPU(Gpu.GetGpuDataPtr(GpuFaceColors), 0);
-                }
-                if (Transparent != null)
-                {
-                  Transparent.VertexBuffers[1].CopyDataToGPU(Gpu.GetGpuDataPtr(GpuFaceColors), 0);
-                }
-                dbg_ncalc++;
-              }
-
-            }
-          }
-        }
-        else
-        {
-          int n = 0;
-          n++;
-        }
-      }
-      else
-      {
-        int n = 0;
-        n++;
-      }
-    }
     public object lock_object = new object();
     public bool CanRender_and_HasRenderData
     {
@@ -1762,7 +1286,6 @@ namespace PirateCraft
   {
     //Density / Block units / BVH Root
 
-    public BeamGrid2 BeamGrid = null;
     //public BeamGrid2 BeamGrid2 = null;
     //public Grid3D<GRay> LightGrid = null;
     public Grid3D<ushort> Blocks = new Grid3D<ushort>(World.DromeBlocksX, World.DromeBlocksY, World.DromeBlocksZ);
@@ -2691,40 +2214,11 @@ namespace PirateCraft
 
       DayNightCycle.Update(dt);
 
-      if (Gu.Context.FrameStamp % 120 == 0)
-      {
-        LightDromes();
-      }
+ 
     }
     int dbg_nLit_Frame = 0;
     int dbg_nullBG_Frame = 0;
-    private void LightDromes()
-    {
-      dbg_nLit_Frame = 0;
-      dbg_nullBG_Frame = 0;
-      foreach (var d in _dromes.Values)
-      {
-        if (d.GenState == GenState.Ready)
-        {
-          LightDrome_Async(d);
-        }
-      }
-    }
-    void LightDrome_Async(Drome d)
-    {
-      if (d.BeamGrid != null)
-      {
-        vec3 v = (DayNightCycle.ActiveLightDir.ToVec3());
 
-        d.BeamGrid.ApplyDirLight(v, this.DayNightCycle.LightColor.ToVec3());
-        dbg_nLit_Frame++;
-      }
-      else
-      {
-        //This gets hit when dromes are getting unloaded
-        dbg_nullBG_Frame++;
-      }
-    }
     private void WaitForAllDromesToGenerate()
     {
       System.Diagnostics.Stopwatch st = new System.Diagnostics.Stopwatch();
@@ -3222,7 +2716,7 @@ namespace PirateCraft
           }
           if (gvisible)
           {
-            g.Value.CalculateLightsIfNeeded(); //TODO: this should probably be async and launched for all globs via thread pool
+            //g.Value.CalculateLightsIfNeeded(); //TODO: this should probably be async and launched for all globs via thread pool
           }
         }
 
@@ -3749,8 +3243,6 @@ namespace PirateCraft
       qgd.ScalarFields.Unlock();
 
 
-      glob.CalculateLightsIfNeeded(true);
-
       //Avoid memory leaks
 
       qgd.ReleaseBuffers();
@@ -3961,18 +3453,6 @@ namespace PirateCraft
         }
 
         SettleLiquids(qdd, d);
-
-        if (d.BeamGrid == null)
-        {
-          d.BeamGrid = new BeamGrid2();
-          d.BeamGrid.Build(this, d);
-        }
-        //if (d.BeamGrid2 == null)
-        //{
-        //  d.BeamGrid2 = new BeamGrid2();
-        //  d.BeamGrid2.Build(this, d);
-        //}
-        LightDrome_Async(d);
 
       }
       d.GenState = GenState.GenEnd;
