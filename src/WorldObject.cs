@@ -7,11 +7,7 @@
     }
     public abstract void Update(double dt, WorldObject myObj);
   }
-  //public class MeshComponent : Component
-  //{
-  //  MeshData MeshData { get; set; }//Data blocks can be shared.
-  //  public override void Update(double dt, WorldObject myObj) { }
-  //}
+
   public class EventComponent : Component
   {
     public ActionState State { get; private set; } = ActionState.Stop;

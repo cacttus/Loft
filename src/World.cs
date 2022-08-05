@@ -430,7 +430,6 @@ namespace PirateCraft
     }
 
   }//beamgrid21
-
   public enum GenState
   {
     Created, Queued, GenStart, GenEnd, Ready, Deleted,
@@ -2350,6 +2349,7 @@ namespace PirateCraft
   }
   public class BlockItem
   {
+    //This is a mesh object for blocks. 
     public FileLoc FileLoc { get; private set; }
     public WorldObject WorldObject { get; private set; }
     public float IsVisible(Camera3D cam, vec3 instance_pos)
@@ -2573,7 +2573,7 @@ namespace PirateCraft
     #region Members
     public DayNightCycle DayNightCycle = new DayNightCycle();
     private int _currentShell = 1;
-    private const int _maxShells = 16;//keep this < Min(DromeGlobs) to prevent generating more dromes
+    private const int _maxShells = 4;//keep this < Min(DromeGlobs) to prevent generating more dromes
     private long _lastShellIncrementTimer_ms = 0;
     private long _lastShellIncrementTimer_ms_Max = 500;
     private ivec3 playerLastGlob = new ivec3(0, 0, 0);
@@ -2682,11 +2682,11 @@ namespace PirateCraft
     {
       Gu.Assert(Player != null);
 
-     // BuildWorld();
+      BuildWorld();
       UpdateObjects(dt);
       CollectVisibleObjects(cam);
-     // UpdateLiterallyEverything_Blockish(cam);
-     // LaunchGlobAndDromeQueues();
+      UpdateLiterallyEverything_Blockish(cam);
+      LaunchGlobAndDromeQueues();
       AutoSaveWorld(dt);
 
       DayNightCycle.Update(dt);
@@ -5172,6 +5172,7 @@ namespace PirateCraft
         {
           //We're doing file operations on another thread eeww
           var drome = TryLoadDrome(qdd.gpos);
+
           if (drome == null)
           {
             GenerateDrome_Async(qdd);

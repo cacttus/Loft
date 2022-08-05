@@ -578,7 +578,7 @@ namespace PirateCraft
 
           //u.bindUniformFast();
 
-          BindUniformBlock(u, dat.instanceData, dat.instanceData.Length);
+          BindUniformBlock(u, dat.instanceData);
         }
         else if (u.Name.Equals("_ufGpuShaderData_Block"))
         {
@@ -594,9 +594,9 @@ namespace PirateCraft
             dat.shaderData._vFogColor = (1 - blend) * dat.shaderData._vFogColor + (blend) * dat.dnc.SkyColor.ToVec3();
           }
           //}
-          BindUniformBlock(u, dat.shaderData, 1);
+          BindUniformBlock(u, new GpuShaderData[]{dat.shaderData});
         }
-        else if (dat.customUniformBlocks != null && dat.customUniformBlocks(this,u))
+        else if (dat.customUniformBlocks != null && dat.customUniformBlocks(this, u))
         {
           //Handled a custom uniform.
         }
@@ -608,17 +608,24 @@ namespace PirateCraft
       //Check for errors.
       Gpu.CheckGpuErrorsDbg();
     }
-    public void BindUniformBlock<T>(ShaderUniformBlock u, T data, int count)
+    public void BindUniformBlock<T>(ShaderUniformBlock u, T[] items)
     {
-      Gu.Assert(data != null);
-      int item_size = Marshal.SizeOf(default(T));
-      int num_bytes_to_copy = item_size * count;// dat.instanceData.Length;
+      Gu.Assert(items != null);
+
+      int item_size = 0;
+      if (!typeof(T).IsValueType)
+      {
+        throw new Exception("Input items must be value type. If items are array, use array value type.");
+      }
+      item_size = Marshal.SizeOf(typeof(T));//default(T) 
+
+      int num_bytes_to_copy = item_size * items.Length;// dat.instanceData.Length;
       if (num_bytes_to_copy > u.BufferSizeBytes)
       {
         num_bytes_to_copy = u.BufferSizeBytes;
-        Gu.Log.WarnCycle("Exceeded max index count of " + u.BufferSizeBytes / item_size + " matrices. Tried to copy " + count + " block instances.");
+        Gu.Log.WarnCycle("Exceeded max index count of " + u.BufferSizeBytes / item_size + " matrices. Tried to copy " + items.Length + " block instances.");
       }
-      var handle = GCHandle.Alloc(data, GCHandleType.Pinned);
+      var handle = GCHandle.Alloc(items, GCHandleType.Pinned);
       u.copyUniformData(handle.AddrOfPinnedObject(), num_bytes_to_copy);
       handle.Free();
 

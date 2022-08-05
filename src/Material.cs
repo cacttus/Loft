@@ -108,6 +108,7 @@ namespace PirateCraft
       GpuRenderState.SetState();
 
       dat.m = this;
+      dat.instanceData = instances;
       Shader.BeginRender(dat);
 
       mesh.Draw(instances);

@@ -79,7 +79,7 @@ namespace PirateCraft
   {
     #region Members
 
-    private bool DELETE_WORLD_START_FRESH = false; 
+    private bool DELETE_WORLD_START_FRESH = true; 
     private Camera3D _camera = null;
     private WorldObject _player_empty = null;
     private WorldObject _boxMeshThing = null;

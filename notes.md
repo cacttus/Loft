@@ -1,4 +1,29 @@
-﻿
+﻿So
+* So, BlockItems are Mesh items. We need to fix this, they aren't instanced correctly. This was half done.
+  * Fix BlockItems. - Right Click -> Bug (palce torch)
+* text / font
+* gui
+* topo - build on top of World.cs
+* get renderer to alias
+* variable block heights for different world areas
+* Rename world to WorldArea, we are not infinite.
+* Remove generation code.
+* So, keeping dromes, i think the reason for dromes was that Glob files were too many and it was slow.
+
+
+UC
+click "generate land"
+create a flat land
+click subdiv button (toggle)
+land shows with subdiv
+clidk again -> land shows without subdiv
+
+UC
+click block face
+block is placed (this is already hadndled in world)
+
+
+
 Converters
 std\:\:shared_ptr<([a-zA-Z0-9_]+)>    $1
 uint32_t                              uint
