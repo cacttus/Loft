@@ -115,6 +115,7 @@ namespace PirateCraft
     }
     public static void BRThrowNotImplementedException()
     {
+      Gu.DebugBreak();
       throw new NotImplementedException();
     }
     public static void Assert(bool x, [CallerLineNumber] int lineNumber = 0, [CallerMemberName] string caller = null)

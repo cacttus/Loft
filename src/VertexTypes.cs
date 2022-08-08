@@ -160,14 +160,68 @@ namespace PirateCraft
       foreach (var comp in Components)
       {
         GL.EnableVertexAttribArray(previousFormatMaxAttribLocation + comp.Value.AttribLocation);
-        GL.VertexAttribPointer(
-          previousFormatMaxAttribLocation + comp.Value.AttribLocation,
-          comp.Value.ComponentCount,
-          comp.Value.DataType,
-          false,
-          ItemSizeBytes,
-          (IntPtr)(0 + comp.Value.ByteOffset)
-        );
+        if (comp.Value.DataType == VertexAttribPointerType.Byte ||
+            comp.Value.DataType == VertexAttribPointerType.UnsignedByte ||
+            comp.Value.DataType == VertexAttribPointerType.Short ||
+            comp.Value.DataType == VertexAttribPointerType.UnsignedShort ||
+            comp.Value.DataType == VertexAttribPointerType.Int ||
+            comp.Value.DataType == VertexAttribPointerType.UnsignedInt)
+        {
+          //OpenTK is so weird. Same enum, but in a separate enum?
+          VertexAttribIntegerType intType = VertexAttribIntegerType.Int;
+
+          if (comp.Value.DataType == VertexAttribPointerType.Byte)
+          {
+            intType = VertexAttribIntegerType.Byte;
+          }
+          else if (comp.Value.DataType == VertexAttribPointerType.UnsignedByte)
+          {
+            intType = VertexAttribIntegerType.UnsignedByte;
+          }
+          else if (comp.Value.DataType == VertexAttribPointerType.Short)
+          {
+            intType = VertexAttribIntegerType.Short;
+          }
+          else if (comp.Value.DataType == VertexAttribPointerType.UnsignedShort)
+          {
+            intType = VertexAttribIntegerType.UnsignedShort;
+          }
+          else if (comp.Value.DataType == VertexAttribPointerType.Int)
+          {
+            intType = VertexAttribIntegerType.Int;
+          }
+          else if (comp.Value.DataType == VertexAttribPointerType.UnsignedInt)
+          {
+            intType = VertexAttribIntegerType.UnsignedInt;
+          }
+          else
+          {
+            Gu.BRThrowNotImplementedException();
+          }
+
+          GL.VertexAttribIPointer(
+            previousFormatMaxAttribLocation + comp.Value.AttribLocation,
+            comp.Value.ComponentCount,
+            intType,
+            ItemSizeBytes,
+            (IntPtr)(0 + comp.Value.ByteOffset)
+          );
+        }
+        else if (comp.Value.DataType == VertexAttribPointerType.Float ||
+                 comp.Value.DataType == VertexAttribPointerType.Double)
+        {
+          GL.VertexAttribPointer(
+            previousFormatMaxAttribLocation + comp.Value.AttribLocation,
+            comp.Value.ComponentCount,
+            comp.Value.DataType,
+            false,
+            ItemSizeBytes,
+            (IntPtr)(0 + comp.Value.ByteOffset)
+          );
+        }
+
+
+
       }
 
     }

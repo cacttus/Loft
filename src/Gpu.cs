@@ -761,7 +761,7 @@ namespace PirateCraft
       // char* buf = new char[bufsiz_bytes];
       // glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, (GLvoid*)bi.getData()->ptr());
       //glGetTexImage(GL_TEXTURE_2D, iMipLevel, GL_RGBA, GL_UNSIGNED_BYTE, (GLvoid*)bi.getData()->ptr());
-      Img32 image = new Img32(w, h, null);
+      Img32 image = new Img32(w, h, null, Img32.PixelFormat.RGBA);
       var handle = GCHandle.Alloc(image.Data, GCHandleType.Pinned);
       GL.GetTexImage(eTexTargetSide, iMipLevel, calculatedFmt, calculatedType, handle.AddrOfPinnedObject());
       handle.Free();

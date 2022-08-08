@@ -665,7 +665,8 @@ namespace PirateCraft
               }
               else if (image.SourceComp == StbImageSharp.ColorComponents.RedGreenBlue)
               {
-                pf = Img32.PixelFormat.RGB;
+                // ** Note : STB converts RGB images to RGBA wiht the above function's parameter so the nagive sourceComp is RGB, the input format is still RGBA.
+                pf = Img32.PixelFormat.RGBA; 
               }
               else
               {

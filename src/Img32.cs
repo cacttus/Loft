@@ -24,7 +24,9 @@ namespace PirateCraft
   //Note: this class initializes the data buffer when you create it. It requires a w/h
   public class Img32
   {
-    public enum PixelFormat {
+    public enum PixelFormat
+    {
+      Undefined,
       RGB,
       BGR,
       RGBA,
@@ -33,11 +35,35 @@ namespace PirateCraft
     public int Width { get; private set; } = 0;
     public int Height { get; private set; } = 0;
     public byte[] Data { get; private set; }
-    public int BytesPerPixel { get { return 4; } private set { } }//Always 4BPP in our system.
+    public int BytesPerPixel
+    {
+      get
+      {
+        if (Format == PixelFormat.RGBA || Format == PixelFormat.BGRA)
+        {
+          //In this system we should always return 4.
+          return 4;
+        }
+        else if (Format == PixelFormat.RGB || Format == PixelFormat.BGR)
+        {
+          //This isn't supported explicitly. STB image converts all images to RGBA.
+          Gu.DebugBreak();
+          return 3;
+        }
+        else
+        {
+          Gu.BRThrowNotImplementedException();
+          return 0;
+        }
+      }
+      private set
+      {
+      }
+    }//Always 4BPP in our system.
     public static Img32 Default1x1(byte r, byte g, byte b, byte a) { return new Img32(1, 1, new byte[] { r, g, b, a }, PixelFormat.RGBA); }
-    public PixelFormat Format {get; private set;} = PixelFormat.RGBA;
-    public Img32() 
-    { 
+    public PixelFormat Format { get; private set; } = PixelFormat.Undefined;
+    public Img32()
+    {
     }
     public Img32 Clone()
     {
@@ -58,12 +84,8 @@ namespace PirateCraft
     public Img32(int w, int h, byte[] data, PixelFormat sc = PixelFormat.RGBA)
     {
       //Note if data is null data will still get allocated
-      if (data != null && data.Length % BytesPerPixel != 0)
-      {
-        Gu.Log.Error("the input RGB values were not divisible by the given bytes per pixel. This will result in undefined behavior.");
-      }
       init(w, h, data, sc);
-    } 
+    }
     public void FlipBR()
     {
       byte[] newData = new byte[Data.Length];
@@ -100,15 +122,18 @@ namespace PirateCraft
       }
       Data = newData;
     }
-    public void init(int w, int h, byte[] data, PixelFormat sc = PixelFormat.RGBA)
+    public void init(int w, int h, byte[] data, PixelFormat sc)
     {
       Width = w;
       Height = h;
       Format = sc;
-      if(data == null)
+      if (data == null)
       {
         data = new byte[w * h * BytesPerPixel];
       }
+        
+      Gu.Assert(data.Length == BytesPerPixel * w * h);
+
       Data = data;
     }
     public Img32 copySubImageTo(ivec2 off, ivec2 size)

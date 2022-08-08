@@ -257,7 +257,7 @@ namespace PirateCraft
     {
       int nCount = 0;
       //   Bitmap b = new Bitmap(_bsiz, _bsiz, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-      Img32 b = new Img32(_bsiz, _bsiz);
+      Img32 b = new Img32(_bsiz, _bsiz, Img32.PixelFormat.RGBA);
       int z = 0;// (int z = 0; z < _bsiz; z++)
       {
         for (int y = 0; y < _bsiz; y++)

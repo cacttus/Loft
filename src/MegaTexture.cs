@@ -446,7 +446,7 @@ namespace PirateCraft
       }
 
       Img32 img = new Img32();
-      img.init(_fontTextureWidth, _fontTextureHeight, imgData);
+      img.init(_fontTextureWidth, _fontTextureHeight, imgData, Img32.PixelFormat.RGBA);
 
       //Stb creates the image upside-down for OpenGL, h owever in our GUi
       //we create it right-side up, then store it upside down, so we need to flip it rightise up first.
@@ -616,7 +616,8 @@ namespace PirateCraft
       _bCache = bCache;
       if (bAddDefaultPixel)
       {
-        var tp = GetTex(new Img32(1, 1, new byte[] { 255, 255, 255, 255 }));
+        int defsiz = 1;
+        var tp = GetTex(new Img32(defsiz, defsiz, Enumerable.Repeat((byte)255, defsiz*defsiz*4).ToArray(), Img32.PixelFormat.RGBA));
         DefaultPixel = tp.GetTexs()[0];
       }
       Name = name;
@@ -860,7 +861,7 @@ namespace PirateCraft
           }
         }
 
-        master_albedo.init(iImageSize, iImageSize, pData);
+        master_albedo.init(iImageSize, iImageSize, pData, Img32.PixelFormat.RGBA);
 
         //delete[] pData;
 

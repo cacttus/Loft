@@ -15,10 +15,10 @@ flat out uvec2 _pick_colorVS;
 
 void main() {
   _rectVS = _v401;
-	_clipVS = _v402;
+  _clipVS = _v402;
   _texVS = _v403;
   _texsizVS = _v201;
   _pick_colorVS = _u201;
     
-	gl_Position =  vec4(_v401.x, _v401.y, -1, 1);	
+  gl_Position =  vec4(_v401.x, _v401.y, -1, 1);	
 }

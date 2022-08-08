@@ -334,7 +334,7 @@ namespace PirateCraft
       }
       if (Texture == null)
       {
-        //invisible
+        //invisible, or container element
         return;
       }
 
@@ -414,19 +414,8 @@ namespace PirateCraft
       v._tex.z = _q2Tex._max.x;  // GL - top right *this essentially flips it upside down
       v._tex.w = _q2Tex._max.y;
 
-      if (Texture != null)
-      {
-        v._texsiz.x = Math.Abs(Texture.uv1.x - Texture.uv0.x);
-        v._texsiz.y = Math.Abs(Texture.uv0.y - Texture.uv1.y);  // Uv0 - uv1 - because we flipped coords bove
-      }
-      else
-      {
-        Gu.BRThrowNotImplementedException();
-        //this is untested
-        //*this is for "Fixed" textures, e.g. fonts and text.  We compute them in UiLabel first
-        //v._texsiz.x = fabsf(v._tex.z - v._tex.x);
-        //v._texsiz.y = fabsf(v._tex.w - v._tex.y);  // y is flipfloped again
-      }
+      v._texsiz.x = Math.Abs(Texture.uv1.x - Texture.uv0.x);
+      v._texsiz.y = Math.Abs(Texture.uv1.y - Texture.uv0.y);  // Uv0 - uv1 - because we flipped coords bove
 
       //**Texture Adjust - modulating repeated textures causes seaming issues, especially with texture filtering
       // adjust the texture coordinates by some pixels to account for that.  0.5f seems to work well.
@@ -462,7 +451,7 @@ namespace PirateCraft
          ((uint)(Color.x * 255.0f) << 24) |
           ((uint)(Color.y * 255.0f) << 16) |
           ((uint)(Color.z * 255.0f) << 8) |
-          ((uint)(Color.w * 255.0f) << 8)
+          ((uint)(Color.w * 255.0f) << 0)
       );
 
       verts.Add(v);
@@ -1258,6 +1247,7 @@ namespace PirateCraft
     public GuiComponent()
     {
       _megaTex = new MegaTex("gui_megatex", true, true);
+
       Screen = new UiScreen();
     }
     public Font LoadFont(FileLoc loc)

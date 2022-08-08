@@ -240,7 +240,7 @@ namespace PirateCraft
             Gu.BRThrowNotImplementedException();
           }
 
-          Img32 b = new Img32(1, 1, dat);
+          Img32 b = new Img32(1, 1, dat, Img32.PixelFormat.RGBA);
           tex = new Texture2D(b, false, TexFilter.Nearest);
         }
         else
