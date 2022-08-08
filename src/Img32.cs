@@ -24,12 +24,18 @@ namespace PirateCraft
   //Note: this class initializes the data buffer when you create it. It requires a w/h
   public class Img32
   {
+    public enum PixelFormat {
+      RGB,
+      BGR,
+      RGBA,
+      BGRA,
+    }
     public int Width { get; private set; } = 0;
     public int Height { get; private set; } = 0;
     public byte[] Data { get; private set; }
     public int BytesPerPixel { get { return 4; } private set { } }//Always 4BPP in our system.
-    public static Img32 Default1x1(byte r, byte g, byte b, byte a) { return new Img32(1, 1, new byte[] { r, g, b, a }); }
-
+    public static Img32 Default1x1(byte r, byte g, byte b, byte a) { return new Img32(1, 1, new byte[] { r, g, b, a }, PixelFormat.RGBA); }
+    public PixelFormat Format {get; private set;} = PixelFormat.RGBA;
     public Img32() 
     { 
     }
@@ -40,23 +46,24 @@ namespace PirateCraft
       m.Height = Height;
       m.BytesPerPixel = BytesPerPixel;
       m.Data = new byte[Data.Length];
+      m.Format = Format;
       Buffer.BlockCopy(Data, 0, m.Data, 0, Data.Length);
       return m;
     }
-    public Img32(int w, int h)
+    public Img32(int w, int h, PixelFormat sc = PixelFormat.RGBA)
     {
       //Note if data is null data will still get allocated
-      init(w, h, null);
+      init(w, h, null, sc);
     }
-    public Img32(int w, int h, byte[] data)
+    public Img32(int w, int h, byte[] data, PixelFormat sc = PixelFormat.RGBA)
     {
       //Note if data is null data will still get allocated
       if (data != null && data.Length % BytesPerPixel != 0)
       {
         Gu.Log.Error("the input RGB values were not divisible by the given bytes per pixel. This will result in undefined behavior.");
       }
-      init(w, h, data);
-    }
+      init(w, h, data, sc);
+    } 
     public void FlipBR()
     {
       byte[] newData = new byte[Data.Length];
@@ -93,10 +100,11 @@ namespace PirateCraft
       }
       Data = newData;
     }
-    public void init(int w, int h, byte[] data)
+    public void init(int w, int h, byte[] data, PixelFormat sc = PixelFormat.RGBA)
     {
       Width = w;
       Height = h;
+      Format = sc;
       if(data == null)
       {
         data = new byte[w * h * BytesPerPixel];
@@ -105,7 +113,7 @@ namespace PirateCraft
     }
     public Img32 copySubImageTo(ivec2 off, ivec2 size)
     {
-      Img32 ret = new Img32(size.x, size.y);
+      Img32 ret = new Img32(size.x, size.y, Format);
       // ret.init(size.x, size.y);//ret.create(size.x, size.y);
       ret.copySubImageFrom(new ivec2(0, 0), off, size, this);
       return ret;

@@ -591,6 +591,12 @@ namespace PirateCraft
       public Texture2D Albedo = null;
       public Texture2D Normal = null;
     }
+    public enum MtClearColor
+    {
+      White,
+      BlackNoAlpha,
+      DebugRainbow//create a rainbow of colors, for debugging
+    }
 
     private Dictionary<string, MtTexPatch> _mapTexs = new Dictionary<string, MtTexPatch>();
     private int _iStartWH = 256;
@@ -602,6 +608,7 @@ namespace PirateCraft
     private bool _bDefaultPixel = false;
     private static UInt64 genId = 0;
     public MtTex DefaultPixel = null;
+    public string Name { get; private set; } = "";
 
     public MegaTex(string name, bool bCache, bool bAddDefaultPixel) //: Texture2D(name, TextureFormat::Image4ub, ctx)
     {
@@ -612,6 +619,7 @@ namespace PirateCraft
         var tp = GetTex(new Img32(1, 1, new byte[] { 255, 255, 255, 255 }));
         DefaultPixel = tp.GetTexs()[0];
       }
+      Name = name;
     }
     public MtFont GetFont(FileLoc img)
     {
@@ -710,7 +718,7 @@ namespace PirateCraft
 
       //_bImagesLoaded = true;
     }
-    public CompiledTextures Compile(bool flip_y_texture_coords = false)
+    public CompiledTextures Compile(bool flip_y_texture_coords = false, MtClearColor clearColor = MtClearColor.BlackNoAlpha)
     {
       Img32 master_albedo = null, master_normal = null;
 
@@ -813,8 +821,47 @@ namespace PirateCraft
         //Compose Master Image
         master_albedo = new Img32();
         int datSiz = iImageSize * iImageSize * 4;
-        Byte[] pData = Enumerable.Repeat((byte)0, datSiz).ToArray();//memset,0
+
+        Byte[] pData = null;
+        if (clearColor == MtClearColor.BlackNoAlpha)
+        {
+          pData = Enumerable.Repeat((byte)0, datSiz).ToArray();//memset,0
+        }
+        else if (clearColor == MtClearColor.White)
+        {
+          pData = Enumerable.Repeat((byte)255, datSiz).ToArray();//memset,0
+        }
+        else if (clearColor == MtClearColor.DebugRainbow)
+        {
+          vec3 blue = new vec3(0, 0, 1);
+          vec3 red = new vec3(1, 0, 0);
+          vec3 green = new vec3(0, 1, 0);
+          vec3 yellow = new vec3(1, 1, 0);
+          //biliear interp
+          //blue-->red
+          //green-->yellow
+
+          pData = Enumerable.Repeat((byte)0, datSiz).ToArray();//memset,0
+          for (var yi = 0; yi < iImageSize; yi++)
+          {
+            for (var xi = 0; xi < iImageSize; xi++)
+            {
+              float fx = (float)xi / (float)iImageSize;
+              float fy = (float)yi / (float)iImageSize;
+              vec3 br = blue + (red - blue) * fx;
+              vec3 gy = green + (yellow - green) * fx;
+              vec3 brgy = br + (gy-br) * fy;
+
+              pData[(yi * iImageSize + xi) * 4 + 0] = (byte)(brgy.x * 255.0); //BRGA .. wtf
+              pData[(yi * iImageSize + xi) * 4 + 1] = (byte)(brgy.y * 255.0);
+              pData[(yi * iImageSize + xi) * 4 + 2] = (byte)(brgy.z * 255.0);
+              pData[(yi * iImageSize + xi) * 4 + 3] = 255;
+            }
+          }
+        }
+
         master_albedo.init(iImageSize, iImageSize, pData);
+
         //delete[] pData;
 
         float imgW = (float)iImageSize;
@@ -847,7 +894,7 @@ namespace PirateCraft
         }
         if (_bCache)
         {
-          string imgName = System.IO.Path.Combine(Gu.LocalCachePath, "ui_master.png");
+          string imgName = System.IO.Path.Combine(Gu.LocalCachePath, "mt_" + Name + "_albedo.png");
           ResourceManager.SaveImage(imgName, master_albedo);
         }
         else
@@ -864,7 +911,7 @@ namespace PirateCraft
 
         Gu.Log.Debug("MegaTex - Creating Normal Map.");
         master_normal = master_albedo.createNormalMap();
-        string nmapname_dbg = System.IO.Path.Combine(Gu.LocalCachePath, "ui_master_nm.png");
+        string nmapname_dbg = System.IO.Path.Combine(Gu.LocalCachePath, "mt_" + Name + "_normal.png");
         ResourceManager.SaveImage(nmapname_dbg, master_normal);
         output.Normal = new Texture2D(master_normal, true, TexFilter.Nearest);
       }

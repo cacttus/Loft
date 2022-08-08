@@ -9,32 +9,33 @@ namespace PirateCraft
   {
     private static Material _defaultDiffuse = null; //Default color material / shader.
     private static Material _defaultFlatColor = null; //Default color material / shader.
-
+    public string Name { get;set;} = "material-unnamd";
 
     //Clonable members
     public Dictionary<Shader.TextureInput, Texture2D> Textures { get; private set; } = new Dictionary<Shader.TextureInput, Texture2D>();
     public Shader Shader { get; private set; } = null;
     public GpuRenderState GpuRenderState { get; set; } = new GpuRenderState(); //The rendering state of the material: clipping, depth, alpha, culling, etc
 
-    public Material(Shader s) :
-       this(s, null, Shader.TextureInput.Albedo)
+    public Material(string name, Shader s) :
+       this(name, s, null, Shader.TextureInput.Albedo)
     {
     }
-    public Material(Shader s, Texture2D albedo) :
-       this(s, albedo, Shader.TextureInput.Albedo)
+    public Material(string name, Shader s, Texture2D albedo) :
+       this(name, s, albedo, Shader.TextureInput.Albedo)
     {
     }
-    public Material(Shader s, Texture2D single_tex, Shader.TextureInput single_tex_input) :
- this(s, new Dictionary<Shader.TextureInput, Texture2D>() { { single_tex_input, single_tex } })
+    public Material(string name, Shader s, Texture2D single_tex, Shader.TextureInput single_tex_input) :
+ this(name, s, new Dictionary<Shader.TextureInput, Texture2D>() { { single_tex_input, single_tex } })
     {
     }
-    public Material(Shader s, Texture2D albedo, Texture2D normal) :
-       this(s, new Dictionary<Shader.TextureInput, Texture2D>() { { Shader.TextureInput.Albedo, albedo }, { Shader.TextureInput.Normal, normal } })
+    public Material(string name, Shader s, Texture2D albedo, Texture2D normal) :
+       this(name, s, new Dictionary<Shader.TextureInput, Texture2D>() { { Shader.TextureInput.Albedo, albedo }, { Shader.TextureInput.Normal, normal } })
     {
     }
     private Material() { }
-    public Material(Shader s, Dictionary<Shader.TextureInput, Texture2D> textures = null)
+    public Material(string name, Shader s, Dictionary<Shader.TextureInput, Texture2D> textures = null)
     {
+      this.Name = name;
       Textures = new Dictionary<Shader.TextureInput, Texture2D>();
       if (textures != null)
       {
@@ -60,6 +61,7 @@ namespace PirateCraft
 
       other.GpuRenderState = this.GpuRenderState.Clone();
       other.Shader = this.Shader;
+      other.Name = this.Name + "-copy";
       if (this.Textures != null)
       {
         other.Textures = new Dictionary<Shader.TextureInput, Texture2D>(this.Textures);
@@ -71,7 +73,7 @@ namespace PirateCraft
       //TODO: - the input shader should also be default.
       if (_defaultFlatColor == null)
       {
-        _defaultFlatColor = new Material(Shader.DefaultFlatColorShader());
+        _defaultFlatColor = new Material("DefaultFlatColor",Shader.DefaultFlatColorShader());
       }
       return _defaultFlatColor;
     }
@@ -80,7 +82,7 @@ namespace PirateCraft
       //TODO: - the input shader should also be default.
       if (_defaultDiffuse == null)
       {
-        _defaultDiffuse = new Material(Shader.DefaultDiffuse());
+        _defaultDiffuse = new Material("DefaultDiffuse",Shader.DefaultDiffuse());
       }
       return _defaultDiffuse;
     }

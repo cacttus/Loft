@@ -30,7 +30,7 @@ namespace PirateCraft
     {
       get
       {
-        return PixelFormat.Bgra;
+        return PixelFormat.Rgba;//Bgra; //Why did we have this as Bgra?
       }
       private set
       {

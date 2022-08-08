@@ -2156,7 +2156,7 @@ namespace PirateCraft
     }
     private Material _worldMaterial_Op = null;
     private Material _worldMaterial_Tp = null;
-    private MegaTex _worldMegatex = new MegaTex("tex", true, true);
+    private MegaTex _worldMegatex = new MegaTex("tex", true, false);
     private const string SaveWorldVersion = "0.01";
     private const string SaveWorldHeader = "WorldFilev" + SaveWorldVersion;
     private const int DromeFileVersion = 1;
@@ -2819,7 +2819,7 @@ namespace PirateCraft
         Gpu.CheckGpuErrorsDbg();
         if (_debugDrawLines == null)
         {
-          _debugDrawLines = CreateObject("debug_lines", null, new Material(Gu.Resources.LoadShader("v_v3c4_debugdraw", false, FileStorage.Embedded)));
+          _debugDrawLines = CreateObject("debug_lines", null, new Material("debugLines",Gu.Resources.LoadShader("v_v3c4_debugdraw", false, FileStorage.Embedded)));
         }
         _debugDrawLines.Mesh = new MeshData("Debugasfd", PrimitiveType.Lines,
           Gpu.CreateVertexBuffer(Gu.Context.DebugDraw.LinePoints.ToArray()),
@@ -2839,7 +2839,7 @@ namespace PirateCraft
         Gpu.CheckGpuErrorsDbg();
         if (_debugDrawPoints == null)
         {
-          _debugDrawPoints = CreateObject("debug_points", null, new Material(Gu.Resources.LoadShader("v_v3c4_debugdraw", false, FileStorage.Embedded)));
+          _debugDrawPoints = CreateObject("debug_points", null, new Material("debugPoints",Gu.Resources.LoadShader("v_v3c4_debugdraw", false, FileStorage.Embedded)));
         }
         _debugDrawPoints.Mesh = new MeshData("Debugds", PrimitiveType.Points,
           Gpu.CreateVertexBuffer(Gu.Context.DebugDraw.Points.ToArray()),
@@ -2943,8 +2943,8 @@ namespace PirateCraft
     {
       var maps = CreateAtlas();
       var s = Gu.Resources.LoadShader("v_Glob", false, FileStorage.Embedded);
-      _worldMaterial_Op = new Material(s, maps.Albedo, maps.Normal);
-      _worldMaterial_Tp = new Material(s, maps.Albedo, maps.Normal);
+      _worldMaterial_Op = new Material("worldMaterial_Op",s, maps.Albedo, maps.Normal);
+      _worldMaterial_Tp = new Material("worldMaterial_Tp",s, maps.Albedo, maps.Normal);
       _worldMaterial_Tp.GpuRenderState.Blend = true;
       _worldMaterial_Tp.GpuRenderState.DepthTest = true;
       _worldMaterial_Tp.GpuRenderState.CullFace = false;
@@ -2956,7 +2956,7 @@ namespace PirateCraft
       }
 
       //Block Material
-      BlockObjectMaterial = new Material(Gu.Resources.LoadShader("v_v3n3x2_BlockObject_Instanced", false, FileStorage.Embedded));
+      BlockObjectMaterial = new Material("BlockObject",Gu.Resources.LoadShader("v_v3n3x2_BlockObject_Instanced", false, FileStorage.Embedded));
     }
     private void DefineBlockTiles()
     {

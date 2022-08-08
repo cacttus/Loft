@@ -270,12 +270,12 @@ namespace PirateCraft
       _pBlittedForward.init(iWidth, iHeight, _pBlittedDepth, _pPick);
 
       _pQuadMesh = MeshData.createScreenQuadMesh(iWidth, iHeight);
-      _forwardMaterial = new Material(Gu.Resources.LoadShader("v_v3x2_forward", false, FileStorage.Embedded));
+      _forwardMaterial = new Material("forwardMaterial",Gu.Resources.LoadShader("v_v3x2_forward", false, FileStorage.Embedded));
       _forwardMaterial.GpuRenderState.CullFace = false;
       _forwardMaterial.GpuRenderState.DepthTest = false;
 
       //TODO: actual deferred lighting .. is it needed ? idk. d_v3x2_lighting..
-      _deferredMaterial = new Material(Gu.Resources.LoadShader("v_v3x2_deferred", false, FileStorage.Embedded));
+      _deferredMaterial = new Material("deferredMaterial",Gu.Resources.LoadShader("v_v3x2_deferred", false, FileStorage.Embedded));
       _deferredMaterial.GpuRenderState.CullFace = true;
       _deferredMaterial.GpuRenderState.DepthTest = true;
 

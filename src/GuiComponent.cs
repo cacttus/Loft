@@ -109,15 +109,15 @@ namespace PirateCraft
   public class UiElementBase
   {
     //Units are in design-space pixels
-    public float _top = 0;
-    public float _left = 0;  //These are all in pixels.
-    public float _right = 0;
-    public float _bottom = 0;
-    public Box2f Texs;
-    public vec4 Color;
+    public float Top { get; set; } = 0;
+    public float Left { get; set; } = 0;  //These are all in pixels.
+    public float Right { get; set; } = 0;
+    public float Bottom { get; set; } = 0;
+    public Box2f Texs { get; set; }
+    public vec4 Color { get; set; }
 
-    public float WidthPX { get { return _right - _left; } }
-    public float HeightPX { get { return _bottom - _top; } }
+    public float WidthPX { get { return Right - Left; } }
+    public float HeightPX { get { return Bottom - Top; } }
   }
   public class UiElement : UiElementBase
   {
@@ -167,10 +167,15 @@ namespace PirateCraft
     public UiDimUnit PadUnitRight { get; set; } = UiDimUnit.Pixel;
     public UiDimUnit PadUnitBot { get; set; } = UiDimUnit.Pixel;
     public UiDimUnit PadUnitLeft { get; set; } = UiDimUnit.Pixel;
-    public float _padTop;
-    public float _padRight;
-    public float _padBot;
-    public float _padLeft;
+    public float PadTop { get { return _padTop; } set { _padTop = value; } }
+    public float PadRight { get { return _padRight; } set { _padRight = value; } }
+    public float PadBot { get { return _padBot; } set { _padBot = value; } }
+    public float PadLeft { get { return _padLeft; } set { _padLeft = value; } }
+
+    public float _padTop = 0;
+    public float _padRight = 0;
+    public float _padBot = 0;
+    public float _padLeft = 0;
 
     //Texture
     public MtTex Texture = null;
@@ -342,7 +347,7 @@ namespace PirateCraft
       {
         float wPx = WidthPX;
         _q2Tex._min.x = Texture.uv0.x;
-        _q2Tex._max.x = Texture.uv0.x * _tileScale.x;
+        _q2Tex._max.x = Texture.uv1.x + (Texture.uv1.x - Texture.uv0.x) * _tileScale.x;
       }
       else if (SizeModeX == UiImageSizeMode.Computed)
       {
@@ -355,15 +360,14 @@ namespace PirateCraft
 
       if (SizeModeY == UiImageSizeMode.Expand)
       {
-        _q2Tex._min.y = Texture.uv1.y;
-        _q2Tex._max.y = Texture.uv0.y;
+        _q2Tex._min.y = Texture.uv0.y;
+        _q2Tex._max.y = Texture.uv1.y;
       }
       else if (SizeModeY == UiImageSizeMode.Tile)
       {
         float hPx = HeightPX;
-        _q2Tex._min.y = Texture.uv1.y;
-        _q2Tex._max.y = Texture.uv1.y * _tileScale.y;
-
+        _q2Tex._min.y = Texture.uv0.y;
+        _q2Tex._max.y = Texture.uv1.y + (Texture.uv1.y - Texture.uv0.y) * _tileScale.y;
       }
       else if (SizeModeY == UiImageSizeMode.Computed)
       {
@@ -426,15 +430,8 @@ namespace PirateCraft
 
       //**Texture Adjust - modulating repeated textures causes seaming issues, especially with texture filtering
       // adjust the texture coordinates by some pixels to account for that.  0.5f seems to work well.
-      float pixAdjust = 0.51f;  // # of pixels to adjust texture by
-                                //#ifdef _DEBUG
-                                //    if (GetAsyncKeyState(VK_LEFT) & 0x8000) {
-                                //        pixAdjust -= 0.005;
-                                //    }
-                                //    if (GetAsyncKeyState(VK_RIGHT) & 0x8000) {
-                                //        pixAdjust += 0.005;
-                                //    }
-                                //#endif
+      float pixAdjust = 0.0f;  // # of pixels to adjust texture by
+
       float w1px = 0;                  // 1 pixel subtract from the u/v to prevent creases during texture modulation
       float h1px = 0;
 
@@ -608,10 +605,10 @@ namespace PirateCraft
       w1 = 1;//UiScreen::getDesignMultiplierW();
       h1 = 1;//UiScreen::getDesignMultiplierH();
 
-      _b2ComputedQuad._min.x = left;
       _b2ComputedQuad._min.y = top;
       _b2ComputedQuad._max.x = right;
       _b2ComputedQuad._max.y = bot;
+      _b2ComputedQuad._min.x = left;
 
       // Set to false if we're controllig coordinates of this element (cursor, or window position)
       //  if (getShouldScalePositionToDesign() == true) {
@@ -677,7 +674,7 @@ namespace PirateCraft
     private void ComputeContentQuad()
     {
       // Reset content quad to 0,0
-      _b2ContentQuad._min = _b2ContentQuad._max = new vec2(_left, _top);
+      _b2ContentQuad._min = _b2ContentQuad._max = new vec2(Left, Top);
 
       float dbgwidth = WidthPX;
       float dbgheight = HeightPX;
@@ -693,23 +690,23 @@ namespace PirateCraft
           if (ele.LayoutVisible)
           {
             // Add padding for static elements
-            float effR = ele._right;
-            float effT = ele._bottom;
+            float effR = ele.Right;
+            float effT = ele.Bottom;
             if (ele.Position == UiPositionMode.Static)
             {
-              effR -= (ele._padLeft + ele._padRight);
+              effR -= (ele.PadLeft + ele.PadRight);
             }
             if (ele.Position == UiPositionMode.Static)
             {
-              effT -= (ele._padTop + ele._padBot);
+              effT -= (ele.PadTop + ele.PadBot);
             }
 
             // w/h adjust
             effR -= 1;
             effT -= 1;
 
-            fright = Math.Max(fright, _left + effR);
-            fbottom = Math.Max(fbottom, _top + effT);
+            fright = Math.Max(fright, Left + effR);
+            fbottom = Math.Max(fbottom, Top + effT);
 
             // expand contenet quad
             _b2ContentQuad.ExpandByPoint(new vec2(fright, fbottom));
@@ -732,10 +729,10 @@ namespace PirateCraft
     {
       //Add the child to the parent.
       float fr, fl, ft, fb;
-      ft = _b2ComputedQuad._min.y + ele._top;//top
-      fr = _b2ComputedQuad._min.x + ele._right;//right
-      fb = _b2ComputedQuad._min.y + ele._bottom;//bot
-      fl = _b2ComputedQuad._min.x + ele._left;//left
+      ft = _b2ComputedQuad._min.y + ele.Top;//top
+      fr = _b2ComputedQuad._min.x + ele.Right;//right
+      fb = _b2ComputedQuad._min.y + ele.Bottom;//bot
+      fl = _b2ComputedQuad._min.x + ele.Left;//left
 
       if (fl > fr || ft > fb)
       {
@@ -886,7 +883,7 @@ namespace PirateCraft
       {
         Gu.BRThrowException("GUI error - tried to run calc algorithm without any UILines created");
       }
-      float myWidth = _right - _left;
+      float myWidth = Right - Left;
       UiLine line = vecLines[vecLines.Count - 1];
 
       // Autos get zero first so we an compute the fixed
@@ -945,11 +942,11 @@ namespace PirateCraft
         line = vecLines[vecLines.Count - 1];
       }
 
-      ele._left = line._left + line._width + pl; // ele->left() = line->_left + line->_width + pl;
-      ele._right = line._left + wpx; // ele->right() = ele->left().px() + wpx;  // wpx, not wpx_pad
+      ele.Left = line._left + line._width + pl; // ele->left() = line->_left + line->_width + pl;
+      ele.Right = line._left + wpx; // ele->right() = ele->left().px() + wpx;  // wpx, not wpx_pad
       line._width += wpx_pad;
-      ele._top = line._top + pt; //ele->top() = line->_top + pt;
-      ele._bottom = line._top + hpx; //ele->bottom() = ele->top().px() + hpx;  // hpx, not hpx_pad
+      ele.Top = line._top + pt; //ele->top() = line->_top + pt;
+      ele.Bottom = line._top + hpx; //ele->bottom() = ele->top().px() + hpx;  // hpx, not hpx_pad
 
       ele.ValidateQuad();
 
@@ -997,8 +994,8 @@ namespace PirateCraft
       float wpx = 0, hpx = 0;
       ele.ComputeWH(ref wpx, ref hpx);  // Cannot be auto
       ele.ApplyMinMax(ref wpx, ref hpx);
-      ele._right = ele._left + wpx;
-      ele._bottom = ele._top + hpx;
+      ele.Right = ele.Left + wpx;
+      ele.Bottom = ele.Top + hpx;
       ValidateQuad();
     }
     private void ComputeWH(ref float wpx, ref float hpx)
@@ -1082,9 +1079,9 @@ namespace PirateCraft
     }
     private void ValidateQuad()
     {
-      if ((_right < _left) || (_bottom < _top))
+      if ((Right < Left) || (Bottom < Top))
       {
-        Gu.Log.Error("Computed Quad is invalid, rtbl= " + _right + "," + _left + "," + _bottom + "," + _top + ".");
+        Gu.Log.Error("Computed Quad is invalid, rtbl= " + Right + "," + Left + "," + Bottom + "," + Top + ".");
       }
     }
 
@@ -1110,10 +1107,10 @@ namespace PirateCraft
       int designWidth = 1920;
       int designHeight = 1080;
 
-      _right = designWidth - 1;    // Gu::getViewport()->getWidth();
-      _bottom = designHeight - 1;  // Gu::getViewport()->getHeight();
-      _top = 0;
-      _left = 0;
+      Right = designWidth - 1;    // Gu::getViewport()->getWidth();
+      Bottom = designHeight - 1;  // Gu::getViewport()->getHeight();
+      Top = 0;
+      Left = 0;
 
     }
     public override void Update(WorldObject wo, WindowContext ct)
@@ -1145,7 +1142,7 @@ namespace PirateCraft
         vec2 viewport_wh = new vec2(Gu.World.Camera.Viewport_Width, Gu.World.Camera.Viewport_Height);
 
         // Gui2d doesn't have a parent, so we have to compute the quads to create a valid clip region.
-        ComputeQuads(viewport_wh, _top, _right, _bottom, _left);
+        ComputeQuads(viewport_wh, Top, Right, Bottom, Left);
 
         PerformLayout(viewport_wh, false);
         //_bDebugForceLayoutChange = false;
@@ -1258,7 +1255,6 @@ namespace PirateCraft
     public static FileLoc Entypo_Symbols = new FileLoc("Entypo.ttf", FileStorage.Embedded);
     public static FileLoc FontAwesome_Symbols = new FileLoc("fontawesome.ttf", FileStorage.Embedded);
 
-
     public GuiComponent()
     {
       _megaTex = new MegaTex("gui_megatex", true, true);
@@ -1273,11 +1269,11 @@ namespace PirateCraft
     public override void OnCreate(WorldObject myObj)
     {
       _megaTex.LoadImages();
-      MegaTex.CompiledTextures tx = _megaTex.Compile(true);
+      MegaTex.CompiledTextures tx = _megaTex.Compile(true, MegaTex.MtClearColor.DebugRainbow);
       if (tx != null)
       {
         _shader = Gu.Resources.LoadShader("v_gui", true, FileStorage.Embedded);
-        myObj.Material = new Material(_shader);
+        myObj.Material = new Material("GuiMT", _shader);
         myObj.Material.GpuRenderState.DepthTest = false;
         myObj.Material.Textures[Shader.TextureInput.Albedo] = tx.Albedo;
       }
@@ -1326,10 +1322,10 @@ namespace PirateCraft
       UiElement e = new UiElement();
       e.Color = color;
       e.Texture = _megaTex.DefaultPixel;
-      e._left = pos.x;
-      e._right = pos.x + wh.x;
-      e._top = pos.y;
-      e._bottom = pos.y + wh.y;
+      e.Left = pos.x;
+      e.Right = pos.x + wh.x;
+      e.Top = pos.y;
+      e.Bottom = pos.y + wh.y;
       return e;
     }
 

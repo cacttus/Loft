@@ -626,7 +626,12 @@ namespace PirateCraft
           StbImageWriteSharp.ImageWriter writer = new StbImageWriteSharp.ImageWriter();
 
           Img32 img2 = image.Clone();
-          img2.FlipBR(); //flip back before saving
+          if (image.Format != Img32.PixelFormat.RGBA)
+          {
+            Gu.Log.Error("Invalid pixel format when saving image");
+            Gu.DebugBreak();
+            //          img2.FlipBR(); //flip back before saving
+          }
 
           writer.WritePng(img2.Data, image.Width, image.Height, StbImageWriteSharp.ColorComponents.RedGreenBlueAlpha, fs);
         }
@@ -652,15 +657,25 @@ namespace PirateCraft
             StbImageSharp.ImageResult image = StbImageSharp.ImageResult.FromStream(fs, StbImageSharp.ColorComponents.RedGreenBlueAlpha);
             if (image != null)
             {
-              b = new Img32(image.Width, image.Height, image.Data);
-              if(image.SourceComp == StbImageSharp.ColorComponents.RedGreenBlueAlpha)
+              Img32.PixelFormat pf = Img32.PixelFormat.RGBA;
+              if (image.SourceComp == StbImageSharp.ColorComponents.RedGreenBlueAlpha)
               {
-                b.FlipBA();
+                //RGBA is the basic texture2d format. We convert everything to RGBA for simplicity.
+                pf = Img32.PixelFormat.RGBA;
               }
-              b.FlipBR();
-              //   else if(image.SourceComp == StbImageSharp.ColorComponents.RedGreenBlue)
-              //  {
-            //  }
+              else if (image.SourceComp == StbImageSharp.ColorComponents.RedGreenBlue)
+              {
+                pf = Img32.PixelFormat.RGB;
+              }
+              else
+              {
+                //We don't handle images not stored as RGBAyet. Use some kind of flip routine to create RGBA.
+                // b.FlipBA();
+                // b.FlipBR();
+                Gu.DebugBreak();
+              }
+              b = new Img32(image.Width, image.Height, image.Data, pf);
+
             }
             fs.Close();
           }
