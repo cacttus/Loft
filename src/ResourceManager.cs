@@ -556,7 +556,7 @@ namespace PirateCraft
     public Shader LoadShader(string generic_name, bool gs, FileStorage storage, bool use_cached = true)
     {
       string vert_name = generic_name + ".vs.glsl";
-      string geom_name = gs ? generic_name + ".fs.glsl" : "";
+      string geom_name = gs ? generic_name + ".gs.glsl" : "";
       string frag_name = generic_name + ".fs.glsl";
       string fileloc_name = vert_name + "-" + geom_name + "-" + frag_name; //hacky, but it will work
       var cache_loc = new FileLoc(vert_name, storage);

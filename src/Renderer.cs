@@ -18,7 +18,7 @@ namespace PirateCraft
     public const uint c_iInvalidPickId = 0;//0xFFFFFFFF;
 
     private uint _iid = 0;
-    private WeakReference<Renderer> _pRenderer = null;
+    private WeakReference<Renderer> _pRenderer ;
     private uint _uiLastSelectedPixelId = 0;//Note: This is relative to the last UserSelectionSet - the Id here is not fixed.
     public uint getSelectedPixelId() { return _uiLastSelectedPixelId; }
 

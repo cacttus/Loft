@@ -12,6 +12,7 @@ namespace PirateCraft
 {
   public class MathUtils
   {
+    public const double FUZZY_EQUALS_EPSILON = 0.0002f;
     public const float M_PI = (float)(Math.PI);
     public const float M_2PI = (float)(Math.PI * 2.0f);
     public const float M_PI_2 = (float)(Math.PI * 0.5f);
@@ -128,6 +129,11 @@ namespace PirateCraft
       double k = 0.1; //Slope
       double f = 1 / (1 + Math.Exp(-((time - 0.5) / k)));
       return a * (1 - f) + b * f;
+    }
+    public static bool FuzzyEquals(double a, double b, double e = FUZZY_EQUALS_EPSILON)
+    {
+      // Epsilon cusyhion equals
+      return (((b) <= ((a) + (e))) && ((b) >= ((a) - (e))));
     }
   }
   public struct RaycastHit
@@ -448,7 +454,7 @@ namespace PirateCraft
       ret.y = (float)Math.Max(a.y, b.y);
       return ret;
     }
-    public string ToString() { return "(" + x + "," + y + ")"; }
+    public override string ToString() { return "(" + x + "," + y + ")"; }
 
   }
   [StructLayout(LayoutKind.Sequential)]
@@ -1836,7 +1842,7 @@ namespace PirateCraft
         return a.GetHashCode();//.x.GetHashCode() + a.y.GetHashCode() + a.z.GetHashCode();
       }
     }
-    public string ToString() { return "(" + x + "," + y + ")"; }
+    public override string ToString() { return "(" + x + "," + y + ")"; }
 
     public class ivec2ComparerYX : IComparer<ivec2>
     {
@@ -1860,16 +1866,12 @@ namespace PirateCraft
   [StructLayout(LayoutKind.Sequential)]
   public struct uvec2
   {
-    public uvec2(int dx, int dy) { x = dx; y = dy; }
-    public Int32 x { get; set; }
-    public Int32 y { get; set; }
-    static public implicit operator uvec2(int f)
+    public uvec2(uint dx, uint dy) { x = dx; y = dy; }
+    public uint x { get; set; }
+    public uint y { get; set; }
+    static public implicit operator uvec2(uint f)
     {
       return new uvec2(f, f);
-    }
-    public static uvec2 operator -(uvec2 d)
-    {
-      return new uvec2(-d.x, -d.y);
     }
     public static uvec2 operator +(uvec2 a, uvec2 b)
     {
@@ -1879,7 +1881,7 @@ namespace PirateCraft
     {
       return new uvec2(a.x - b.x, a.y - b.y);
     }
-    public static uvec2 operator *(uvec2 a, int b)
+    public static uvec2 operator *(uvec2 a, uint b)
     {
       return new uvec2(a.x * b, a.y * b);
     }
@@ -1887,15 +1889,15 @@ namespace PirateCraft
     {
       return new uvec2(a.x * b.x, a.y * b.y);
     }
-    public static uvec2 operator /(uvec2 a, int b)
+    public static uvec2 operator /(uvec2 a, uint b)
     {
       return new uvec2(a.x / b, a.y / b);
     }
-    public static uvec2 operator -(uvec2 a, int f)
+    public static uvec2 operator -(uvec2 a, uint f)
     {
       return new uvec2(a.x - f, a.y - f);
     }
-    public string ToString() { return "(" + x + "," + y + ")"; }
+    public override string ToString() { return "(" + x + "," + y + ")"; }
   }
   [StructLayout(LayoutKind.Sequential)]
   public struct ivec3
@@ -2022,7 +2024,7 @@ namespace PirateCraft
       }
     }
     public vec3 toVec3() { return new vec3((float)x, (float)y, (float)z); }
-    public string ToString() { return "(" + x + "," + y + "," + z + ")"; }
+    public override string ToString() { return "(" + x + "," + y + "," + z + ")"; }
   }
   [StructLayout(LayoutKind.Sequential)]
   public struct ivec4
@@ -2112,7 +2114,7 @@ namespace PirateCraft
 
       return ret;
     }
-    public string ToString()
+    public override string ToString()
     {
       return
           "" + _m11 + ", " + _m12 + "," + "\n" +
@@ -2445,7 +2447,7 @@ namespace PirateCraft
       //quat ret = new quat(q1[k0], q1[k1], q1[k2], q1[k3]);
       return q;
     }
-    public string ToString()
+    public override string ToString()
     {
       return
           "" + _m11 + ", " + _m12 + "," + _m13 + ", " + "\n" +
@@ -3216,7 +3218,7 @@ namespace PirateCraft
 
     //   return true;
     // }
-    public string ToString()
+    public override string ToString()
     {
       return
           "" + _m11 + ", " + _m12 + "," + _m13 + ", " + _m14 + "\n" +
@@ -3441,7 +3443,7 @@ namespace PirateCraft
     }
     public static quat Identity = new quat(0, 0, 0, 1);
 
-    public string ToString() { return "(" + x.ToString() + ", " + y.ToString() + "," + z.ToString() + ", " + w.ToString() + ")"; }
+    public override string ToString() { return "(" + x.ToString() + ", " + y.ToString() + "," + z.ToString() + ", " + w.ToString() + ")"; }
   }
   [StructLayout(LayoutKind.Sequential)]
   public struct Box2f
@@ -3451,6 +3453,11 @@ namespace PirateCraft
 
     public float Width() { return _max.x - _min.x; }
     public float Height() { return _max.y - _min.y; }
+
+    public float Top { get { return _min.y; } }
+    public float Bottom { get { return _max.y; } }
+    public float Left { get { return _min.x; } }
+    public float Right { get { return _max.x; } }
 
     public vec2 TopRight() { return new vec2(_max.x, _min.y); }
     public vec2 BotRight() { return new vec2(_max.x, _max.y); }
@@ -3631,7 +3638,7 @@ namespace PirateCraft
 
       return bHit;
     }
-    public string ToString() { return "" + _min.ToString() + ", " + _max.ToString() + ")"; }
+    public override string ToString() { return "" + _min.ToString() + ", " + _max.ToString() + ")"; }
   }
   [StructLayout(LayoutKind.Sequential)]
   public struct Box2i
@@ -3663,7 +3670,7 @@ namespace PirateCraft
       _max.x = maxx;
       _max.y = maxy;
     }
-    public string ToString() { return "" + _min.ToString() + ", " + _max.ToString() + ")"; }
+    public override string ToString() { return "" + _min.ToString() + ", " + _max.ToString() + ")"; }
   }
   [StructLayout(LayoutKind.Sequential)]
   public struct Box3i
@@ -3695,7 +3702,7 @@ namespace PirateCraft
         }
       }
     }
-    public string ToString() { return "" + _min.ToString() + ", " + _max.ToString() + ")"; }
+    public override string ToString() { return "" + _min.ToString() + ", " + _max.ToString() + ")"; }
 
   }
   [StructLayout(LayoutKind.Sequential)]
@@ -3988,7 +3995,7 @@ namespace PirateCraft
         //The box likely, had no volume, or, was invalid min/max. Use Center
         //This is still an error, if the box has no volume then the object is invalid.
         len = v.length2();
-        Gu.DebugBreak(); 
+        Gu.DebugBreak();
       }
 
       return len;
@@ -4753,7 +4760,7 @@ namespace PirateCraft
 
       return ret;
     }
-    public string ToString() { return "" + _min.ToString() + ", " + _max.ToString() + ")"; }
+    public override string ToString() { return "" + _min.ToString() + ", " + _max.ToString() + ")"; }
 
   }
   [StructLayout(LayoutKind.Sequential)]

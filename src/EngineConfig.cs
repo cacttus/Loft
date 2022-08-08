@@ -13,6 +13,7 @@ namespace PirateCraft
     public bool EnableDebugErrorChecking = true;
     public bool EnableRuntimeErrorChecking = true;
     public bool BreakOnGraphicsError = true;
+    public bool ShowGuiBoxesAndDisableClipping = false;
     public EngineConfig()
     {
     }

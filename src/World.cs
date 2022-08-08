@@ -2156,7 +2156,7 @@ namespace PirateCraft
     }
     private Material _worldMaterial_Op = null;
     private Material _worldMaterial_Tp = null;
-    private MegaTex _worldMegatex = new MegaTex("tex", true);
+    private MegaTex _worldMegatex = new MegaTex("tex", true, true);
     private const string SaveWorldVersion = "0.01";
     private const string SaveWorldHeader = "WorldFilev" + SaveWorldVersion;
     private const int DromeFileVersion = 1;
@@ -2228,8 +2228,6 @@ namespace PirateCraft
       AutoSaveWorld(dt);
 
       DayNightCycle.Update(dt);
-
-
     }
     int dbg_nLit_Frame = 0;
     int dbg_nullBG_Frame = 0;
@@ -2340,6 +2338,10 @@ namespace PirateCraft
         wo.Unlink();
         Objects.Remove(name);
         wo.OnDestroyed?.Invoke(wo);
+        foreach (var cmp in wo.Components)
+        {
+          cmp.OnDestroy(wo);
+        }
         wo = null;
       }
       else
@@ -3004,16 +3006,16 @@ namespace PirateCraft
       //Must be called after context is set.
       foreach (var resource in WorldStaticData.TileImages)
       {
-        MtTexPatch p = _worldMegatex.getTex(resource.Value);
+        MtTexPatch p = _worldMegatex.GetTex(resource.Value);
 
         if (p == null)
         {
           Gu.Log.Error("Tex patch " + resource.Value.QualifiedPath + " was not found in the megatex. Check the filename, and make sure it's embedded (or on disk).");
           Gu.DebugBreak();
         }
-        else if (p.getTexs().Count > 0)
+        else if (p.GetTexs().Count > 0)
         {
-          MtTex mtt = p.getTexs()[0];
+          MtTex mtt = p.GetTexs()[0];
           foreach (var block in BlockTiles)
           {
             //Block Faces
@@ -3050,10 +3052,10 @@ namespace PirateCraft
 
       }
 
-      _worldMegatex.getFont(new FileLoc("EmilysCandy-Regular.ttf", FileStorage.Embedded));
+      _worldMegatex.GetFont(new FileLoc("EmilysCandy-Regular.ttf", FileStorage.Embedded));
 
-      _worldMegatex.loadImages();
-      var cmp = _worldMegatex.compile(true);
+      _worldMegatex.LoadImages();
+      var cmp = _worldMegatex.Compile(true);
 
       cmp.Albedo.SetFilter(TextureMinFilter.NearestMipmapLinear, TextureMagFilter.Nearest);
 
@@ -4284,8 +4286,7 @@ namespace PirateCraft
 
     private void TopologizeGlob_Block(Drome drome, Glob glob, BlockTile bt, vec3 block_pos_rel_R3,
       ushort our_block, ushort b_above, ushort b_below,
-      QueuedGlobData_WithKernel qgd, ivec3 gblock_xyz, bool liquid,
-      ivec3 dblock_xyz)
+      QueuedGlobData_WithKernel qgd, ivec3 gblock_xyz, bool liquid, ivec3 dblock_xyz)
     {
       //    6    7
       // 2    3

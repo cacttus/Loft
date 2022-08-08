@@ -1,10 +1,6 @@
 ﻿#include "v_glsl_version.glsl"
 #include "v_forward_header.glsl"
 
-
-layout(location = 0) out vec4 _gColorOut;
-//layout(location = 1) out uint _gPickOut;
-
 uniform sampler2D _ufTexture_Albedo;
 
 in vec2 _vert;

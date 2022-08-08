@@ -157,8 +157,8 @@ namespace PirateCraft
     List<MtTex> _vecTexs = new List<MtTex>();
     MegaTex _pMegaTex = null;
 
-    public FileLoc getName() { return _strName; }
-    public List<MtTex> getTexs() { return _vecTexs; }
+    public FileLoc GetName() { return _strName; }
+    public List<MtTex> GetTexs() { return _vecTexs; }
 
     public MtTexPatch(MegaTex mt, FileLoc imgName)
     {
@@ -176,31 +176,31 @@ namespace PirateCraft
     {
       if (_vecTexs.Count() == 0)
       {
-        Gu.Log.Error("Image patch was invalid for " + getName() + ".");
+        Gu.Log.Error("Image patch was invalid for " + GetName() + ".");
       }
       else if (_vecTexs.Count() == 1)
       {
         if (_vecTexs[0].img() == null)
         {
           //If image isn't null, then it was already provided and should be loaded.
-          if (!getName().Exists)
+          if (!GetName().Exists)
           {
-            Gu.Log.Error("Failed to load, image file '" + getName() + "' didn't exist");
+            Gu.Log.Error("Failed to load, image file '" + GetName() + "' didn't exist");
             Gu.DebugBreak();
           }
           else
           {
-            Img32 img = ResourceManager.LoadImage(getName());
+            Img32 img = ResourceManager.LoadImage(GetName());
             _vecTexs[0].setImg(img);
           }
         }
       }
       else
       {
-        List<Img32> imgs = parseImagePatch(getName());
+        List<Img32> imgs = parseImagePatch(GetName());
         if (imgs.Count != _vecTexs.Count)
         {
-          Gu.Log.Error("Tex Count Mismatch, or texture not found for '" + getName() + "'.");
+          Gu.Log.Error("Tex Count Mismatch, or texture not found for '" + GetName() + "'.");
           Gu.DebugBreak();
         }
         else
@@ -282,7 +282,7 @@ namespace PirateCraft
       _fontTextureWidth = Gu.EngineConfig.FontBitmapSize;// Gu::getConfig().getFontBitmapSize();
       _fontTextureHeight = Gu.EngineConfig.FontBitmapSize;
 
-      Gu.Log.Info("Creating font '" + getName() + "'. size=" + _fontTextureWidth + "x" + _fontTextureHeight + ".  Baked Char Size =" + _iBakedCharSizePixels);
+      Gu.Log.Info("Creating font '" + GetName() + "'. size=" + _fontTextureWidth + "x" + _fontTextureHeight + ".  Baked Char Size =" + _iBakedCharSizePixels);
 
       //_pFontBuffer = std::make_shared<BinaryFile>("<none>");
       //if (Gu::getPackage().getFile(getName(), _pFontBuffer) == false)
@@ -293,7 +293,7 @@ namespace PirateCraft
       //}
 
       //byte[] bytes = null;
-      using (var s = getName().GetStream())
+      using (var s = GetName().GetStream())
       using (var ms = new MemoryStream())
       {
         s.CopyTo(ms);
@@ -417,13 +417,13 @@ namespace PirateCraft
       Img32 img = createFontImage(atlasData);
       if (false)
       {
-        Gu.Log.Info("Saving " + System.IO.Path.GetFileName(getName().QualifiedPath) + "...");
-        string imgName = "./data/cache/dbg_font_" + System.IO.Path.GetFileName(getName().QualifiedPath) + ".png";
+        Gu.Log.Info("Saving " + System.IO.Path.GetFileName(GetName().QualifiedPath) + "...");
+        string imgName = "./data/cache/dbg_font_" + System.IO.Path.GetFileName(GetName().QualifiedPath) + ".png";
         ResourceManager.SaveImage(imgName, img);
       }
-      MtTex mt = new MtTex(getName(), 0);
+      MtTex mt = new MtTex(GetName(), 0);
       mt.setImg(img);
-      getTexs().Add(mt);
+      GetTexs().Add(mt);
 
       _bInitialized = true;
     }
@@ -455,7 +455,20 @@ namespace PirateCraft
 
       return img;
     }
-    public void getCharQuad(int cCode, int cCodePrev, float fontSize, ref float outWidth, ref float outHeight, ref Box2f texs,
+
+    float getKernAdvanceWidth(float fontSize, int cCodePrev, int cCode)
+    {
+      //Get an additional width to add or subtract for kerning.
+      float fKern = 0.0f;
+      if (cCodePrev >= 0)
+      {
+        int kern = StbTrueTypeSharp.StbTrueType.stbtt_GetCodepointKernAdvance(_fontInfo, cCode, cCodePrev);
+        fKern = (float)kern * _fScaleForPixelHeight;
+        fKern *= fontSizeToFontScale(fontSize);
+      }
+      return fKern;
+    }
+    public void getCharQuad(int cCode, float fontSize, ref float outWidth, ref float outHeight, ref Box2f texs,
                              ref float padTop, ref float padRight, ref float padBot, ref float padLeft)
     {
       //The return of this function is the information needed to create a 3D quad
@@ -482,12 +495,12 @@ namespace PirateCraft
       float curX = 0, curY = 0;  //Dummies
       unsafe
       {
-        fixed(StbTrueTypeSharp.StbTrueType.stbtt_packedchar* charinfo_pt = _charInfo) 
+        fixed (StbTrueTypeSharp.StbTrueType.stbtt_packedchar* charinfo_pt = _charInfo)
         {
           StbTrueTypeSharp.StbTrueType.stbtt_GetPackedQuad(charinfo_pt, _fontTextureWidth, _fontTextureHeight, cCode - _firstChar, &curX, &curY, &stbQuad, 0);
         }
       }
-      if (getTexs().Count == 0)
+      if (GetTexs().Count == 0)
       {
         //You didn't save the image
         Gu.Log.Error("Failure to save font image somewhere.");
@@ -497,17 +510,17 @@ namespace PirateCraft
 
       //**TExs
       //Scale hte returned texcoodrs from [0,1] to the width of the baked texture
-      float tw = getTexs()[0].uv1.x - getTexs()[0].uv0.x;  //top left, origin
-      float th = getTexs()[0].uv0.y - getTexs()[0].uv1.y;  //This is flipped; We are in OpenGL tcoords, however our origin is at the top left
+      float tw = GetTexs()[0].uv1.x - GetTexs()[0].uv0.x;  //top left, origin
+      float th = GetTexs()[0].uv0.y - GetTexs()[0].uv1.y;  //This is flipped; We are in OpenGL tcoords, however our origin is at the top left
 
       //Scale
       float dv = stbQuad.t1 - stbQuad.t0;
       float du = stbQuad.s1 - stbQuad.s0;
       vec2 uv0, uv1;
-      uv0.x = getTexs()[0].uv0.x + stbQuad.s0 * tw;
-      uv0.y = getTexs()[0].uv1.y + stbQuad.t0 * th;  //Bottom-left = uv1
-      uv1.x = getTexs()[0].uv0.x + stbQuad.s1 * tw;
-      uv1.y = getTexs()[0].uv1.y + stbQuad.t1 * th;
+      uv0.x = GetTexs()[0].uv0.x + stbQuad.s0 * tw;
+      uv0.y = GetTexs()[0].uv1.y + stbQuad.t0 * th;  //Bottom-left = uv1
+      uv1.x = GetTexs()[0].uv0.x + stbQuad.s1 * tw;
+      uv1.y = GetTexs()[0].uv1.y + stbQuad.t1 * th;
 
       //Don't flip Y - we will do that in the regenmesh
       texs = new Box2f(uv0, uv1);
@@ -539,16 +552,7 @@ namespace PirateCraft
       fAdvWidth *= fScale;
       fBearing *= fScale;
 
-      //Kerning, adds to padding not really necessary but, I assume it makes fonts look better rarely
-      float fKern = 0.0f;
-      if (cCodePrev >= 0)
-      {
-        //untested
-        int kern = StbTrueTypeSharp.StbTrueType.stbtt_GetCodepointKernAdvance(_fontInfo, cCode, cCodePrev);
-        fKern = (float)kern * _fScaleForPixelHeight;
-        fKern *= fScale;
-      }
-      advWidth += (int)fKern;
+
 
       //Compute the glyph padding values, and spaceing
       //for some reason space has a negative x0
@@ -588,28 +592,30 @@ namespace PirateCraft
       public Texture2D Normal = null;
     }
 
-    Dictionary<string, MtTexPatch> _mapTexs = new Dictionary<string, MtTexPatch>();
-    int _iStartWH = 256;
-    int _iGrowWH = 128;
-    int _iMaxTexSize = 0;
-    // Img32 _pMaster = null;//No need to save this. We generate textures, and we can save them.
-    MtNode _pRoot = null;
-    MegaTexCompileState _eState = MegaTexCompileState.NotCompiled;
-    bool _bCache = false;
+    private Dictionary<string, MtTexPatch> _mapTexs = new Dictionary<string, MtTexPatch>();
+    private int _iStartWH = 256;
+    private int _iGrowWH = 128;
+    private int _iMaxTexSize = 0;
+    private MtNode _pRoot = null;
+    private MegaTexCompileState _eState = MegaTexCompileState.NotCompiled;
+    private bool _bCache = false;
+    private bool _bDefaultPixel = false;
+    private static UInt64 genId = 0;
+    public MtTex DefaultPixel = null;
 
-    public MegaTex(string name, bool bCache) //: Texture2D(name, TextureFormat::Image4ub, ctx)
+    public MegaTex(string name, bool bCache, bool bAddDefaultPixel) //: Texture2D(name, TextureFormat::Image4ub, ctx)
     {
+      //bAddDefaultPixel - add a 1x1 white pixel texture to this image.
       _bCache = bCache;
+      if (bAddDefaultPixel)
+      {
+        var tp = GetTex(new Img32(1, 1, new byte[] { 255, 255, 255, 255 }));
+        DefaultPixel = tp.GetTexs()[0];
+      }
     }
-
-    public MtFont getFont(FileLoc img)
+    public MtFont GetFont(FileLoc img)
     {
-      //string low = fn;
-
       MtTexPatch ret = null;
-
-      //Hash32 h = STRHASH(low);
-      //auto f = _mapTexs.find(h);
       _mapTexs.TryGetValue(img.QualifiedPath, out ret);
       if (ret == null)
       {
@@ -624,15 +630,13 @@ namespace PirateCraft
       MtFont ft = ret as MtFont;
       return ft;
     }
-    private static UInt64 genId = 0;
-
-    public MtTexPatch getTex(Img32 tx)
+    public MtTexPatch GetTex(Img32 tx)
     {
       string genName = "|gen-" + genId++;
-      MtTexPatch p = getTex(new FileLoc(genName, FileStorage.Embedded), 1, true);
-      if (p != null && p.getTexs().Count > 0)
+      MtTexPatch p = GetTex(new FileLoc(genName, FileStorage.Embedded), 1, true);
+      if (p != null && p.GetTexs().Count > 0)
       {
-        p.getTexs()[0].setImg(tx);
+        p.GetTexs()[0].setImg(tx);
       }
       else
       {
@@ -644,12 +648,12 @@ namespace PirateCraft
     }
     /**
     *  @fn getTex
-    *  @brief Returns the given texture image by name, separated into patches. Not case sensitive.
+    *  @brief Returns the given texture image by name, separated into patches / slices. Not case sensitive.
     *  @param nPatches - number of patches to expect - this is more of a debug thing to prevent invalid patches
     *  @param bPreloaded - if we already loaded the image (skips validation and texture coords)
     *  @param bLoadNow - Load the image immediately in this function (skips validation of texture coords)
     */
-    public MtTexPatch getTex(FileLoc img, int nPatches = 1, bool bPreloaded = false, bool bLoadNow = false)
+    public MtTexPatch GetTex(FileLoc img, int nPatches = 1, bool bPreloaded = false, bool bLoadNow = false)
     {
       Gu.Assert(nPatches > 0);
 
@@ -662,7 +666,7 @@ namespace PirateCraft
         }
       }
 
-      MtTexPatch ret = null;
+      MtTexPatch? ret = null;
       _mapTexs.TryGetValue(img.QualifiedPath, out ret);
       if (ret == null)
       {
@@ -687,14 +691,14 @@ namespace PirateCraft
         Gu.Log.Error("Could not find MegaTex Texture " + img.QualifiedPath);
         Gu.DebugBreak();
       }
-      else if (ret.getTexs().Count != nPatches)
+      else if (ret.GetTexs().Count != nPatches)
       {
         Gu.Log.Error("Failed to return an appropriate number of texture patches.");
         Gu.DebugBreak();
       }
       return ret;
     }
-    public void loadImages()
+    public void LoadImages()
     {
       Gu.Log.Info("Mega Tex: Loading " + _mapTexs.Count + " images.");
 
@@ -706,7 +710,7 @@ namespace PirateCraft
 
       //_bImagesLoaded = true;
     }
-    public CompiledTextures compile(bool flip_y_texture_coords = false)
+    public CompiledTextures Compile(bool flip_y_texture_coords = false)
     {
       Img32 master_albedo = null, master_normal = null;
 
@@ -719,7 +723,7 @@ namespace PirateCraft
       List<MtTex> vecTexs = new List<MtTex>();
       foreach (var texPair in _mapTexs)
       {
-        foreach (var texx in texPair.Value.getTexs())
+        foreach (var texx in texPair.Value.GetTexs())
         {
           vecTexs.Add(texx);
         }
@@ -870,12 +874,12 @@ namespace PirateCraft
       return output;
     }
 
-    void update()
+    void Update()
     {
       if (_eState == MegaTexCompileState.Dirty || _eState == MegaTexCompileState.NotCompiled)
       {
-        loadImages();
-        compile();
+        LoadImages();
+        Compile();
       }
     }
 

@@ -1,5 +1,30 @@
 ﻿So
 * text / font
+
+UIScreen ** 
+so we're goint o have multiple of them 
+for whatever
+but you can just use the same system
+adn we just give the shader a normal and say that is the oritnetaiton of the thing
+and so the vertes are still in 2d coorintsates
+
+question
+
+orgainzation of woerldobject and uiscreen
+
+one mesh per uiscreen
+
+megatex ? - one per or .. for all ? 
+
+how bouat gameobject ?
+
+uiscreen is really a gameobject so .
+how to do that, idk.
+
+gui - generic class to hold fonts?
+then GUI needs to hold the MegaTex if that's the case. All fonts will be on there. 
+
+
 * gui
 * topo - build on top of World.cs
 * get renderer to alias

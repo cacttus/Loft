@@ -79,7 +79,7 @@ namespace PirateCraft
   {
     #region Members
 
-    private bool DELETE_WORLD_START_FRESH = true; 
+    private bool DELETE_WORLD_START_FRESH = true;
     private Camera3D _camera = null;
     private WorldObject _player_empty = null;
     private WorldObject _boxMeshThing = null;
@@ -88,7 +88,6 @@ namespace PirateCraft
     public InputState InputState = InputState.World;
     private FirstPersonMouseRotator _FPSRotator = new FirstPersonMouseRotator();
     private NativeWindowSettings _ns = NativeWindowSettings.Default;
-    private Gui _gui;
     private WorldObject Sphere_Rotate_Quat_Test;
     private WorldObject Sphere_Rotate_Quat_Test2;
     private WorldObject Sphere_Rotate_Quat_Test3;
@@ -118,9 +117,9 @@ namespace PirateCraft
     , new NativeWindowSettings()
     {
       Profile = ContextProfile.Compatability,
-      Flags = ContextFlags.Default,
+      Flags = ContextFlags.Debug,
       AutoLoadBindings = true,
-      APIVersion = new Version(4, 6),
+      APIVersion = new Version(4, 1),
       Title = "PirateCraft",
       StartFocused = true,
       StartVisible = true,
@@ -447,8 +446,17 @@ namespace PirateCraft
     }
     private void CreateGUI()
     {
-      _gui = new Gui();
-      Gu.World.AddObject(_gui);
+      //Gui Comp
+      var gui = new GuiComponent();
+      gui.LoadFont(GuiComponent.Fancy);
+      var pd = gui.CreatePanel(new vec4(1, 1, 1, 1), new vec2(50, 200), new vec2(202, 90));
+      gui.Screen.AddChild(pd);
+
+      //GuiOBJ
+      var guiobj = Gu.World.CreateObject("guiobj", null, null);
+      guiobj.Position_Local = new vec3(0,0,10);
+      guiobj.Components.Add(gui);
+      _camera.AddChild(guiobj);/*  */
     }
     private void TestSound()
     {

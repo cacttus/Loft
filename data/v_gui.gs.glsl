@@ -1,4 +1,4 @@
-﻿#include "glsl_version.sh"
+﻿#include "v_glsl_version.glsl"
 
 
 layout(points) in;

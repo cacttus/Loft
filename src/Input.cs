@@ -4,13 +4,13 @@ using System.Runtime.InteropServices;
 
 namespace PirateCraft
 {
-  public enum PCButtonState
+  public enum ButtonState
   {
     Up, Press, Hold, Release
   }
   public class PCButton
   {
-    public PCButtonState State = PCButtonState.Up;
+    public ButtonState State = ButtonState.Up;
     //int _lastUpdateFrame = 0;
     public PCButton(bool state)
     {
@@ -20,38 +20,38 @@ namespace PirateCraft
     {
       if (down)
       {
-        if (State == PCButtonState.Up)
+        if (State == ButtonState.Up)
         {
-          State = PCButtonState.Press;
+          State = ButtonState.Press;
         }
-        else if (State == PCButtonState.Press)
+        else if (State == ButtonState.Press)
         {
-          State = PCButtonState.Hold;
+          State = ButtonState.Hold;
         }
-        else if (State == PCButtonState.Hold)
+        else if (State == ButtonState.Hold)
         {
         }
-        else if (State == PCButtonState.Release)
+        else if (State == ButtonState.Release)
         {
-          State = PCButtonState.Press;
+          State = ButtonState.Press;
         }
       }
       else
       {
-        if (State == PCButtonState.Up)
+        if (State == ButtonState.Up)
         {
         }
-        else if (State == PCButtonState.Press)
+        else if (State == ButtonState.Press)
         {
-          State = PCButtonState.Release;
+          State = ButtonState.Release;
         }
-        else if (State == PCButtonState.Hold)
+        else if (State == ButtonState.Hold)
         {
-          State = PCButtonState.Release;
+          State = ButtonState.Release;
         }
-        else if (State == PCButtonState.Release)
+        else if (State == ButtonState.Release)
         {
-          State = PCButtonState.Up;
+          State = ButtonState.Up;
         }
       }
     }
@@ -75,28 +75,28 @@ namespace PirateCraft
     public bool Press(TButtonClass key)
     {
       var state = GetButtonState(key);
-      return state == PCButtonState.Press;
+      return state == ButtonState.Press;
     }
     public bool PressOrDown(TButtonClass key)
     {
       var state = GetButtonState(key);
-      return (state == PCButtonState.Press) || (state == PCButtonState.Hold);
+      return (state == ButtonState.Press) || (state == ButtonState.Hold);
     }
     public bool PressOrDown(List<TButtonClass> keys)
     {
       foreach (var key in keys)
       {
         var state = GetButtonState(key);
-        if ((state == PCButtonState.Press) || (state == PCButtonState.Hold))
+        if ((state == ButtonState.Press) || (state == ButtonState.Hold))
         {
           return true;
         }
       }
       return false;
     }
-    private PCButtonState GetButtonState(TButtonClass key)
+    public ButtonState GetButtonState(TButtonClass key)
     {
-      PCButtonState ret = PCButtonState.Up;
+      ButtonState ret = ButtonState.Up;
       PCButton but = null;
       if (_keys.TryGetValue(key, out but))
       {
@@ -136,6 +136,9 @@ namespace PirateCraft
     private vec2 _pos = new vec2(0, 0);
     public vec2 Last { get { return _last; } }
     public vec2 Pos { get { return _pos; } } //Position relative to Top Left corner of window client area (excluding borders and titlebar)
+    public vec2 PosAbsolute { get { 
+      Gu.BRThrowNotImplementedException();
+      return _pos; } } //Position on screen
     public vec2 Delta { get { return _pos - _last; } }
 
     public bool ShowCursor

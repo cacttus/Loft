@@ -1,13 +1,21 @@
 ﻿namespace PirateCraft
 {
+  public enum ComponentState
+  {
+    Added,
+    Initialized,
+    Destroyed
+  }
   public abstract class Component : Cloneable<Component>
   {
     public Component()
     {
     }
-    public abstract void Update(double dt, WorldObject myObj);
+    public ComponentState ComponentState { get; set; } = ComponentState.Added;
+    public abstract void OnCreate(WorldObject myObj); //called after the object is created
+    public abstract void OnUpdate(double dt, WorldObject myObj); //update
+    public abstract void OnDestroy(WorldObject myObj); //called before the object is destroyed.
   }
-
   public class EventComponent : Component
   {
     public ActionState State { get; private set; } = ActionState.Stop;
@@ -22,7 +30,10 @@
       Action = action;
       Repeat = repeat;
     }
-    public override void Update(double dt, WorldObject myObj)
+    public override void OnCreate(WorldObject myObj)
+    {
+    }
+    public override void OnUpdate(double dt, WorldObject myObj)
     {
       if (State != ActionState.Stop)
       {
@@ -36,6 +47,9 @@
           }
         }
       }
+    }
+    public override void OnDestroy(WorldObject myObj)
+    {
     }
     public override Component Clone(bool shallow = true)
     {
@@ -61,9 +75,15 @@
     public vec3 Velocity = new vec3(0, 0, 0);
     public bool HasGravity = false;
     public bool Collides = false;
-    public override void Update(double dt, WorldObject myObj)
+    public override void OnCreate(WorldObject myObj)
+    {
+    }
+    public override void OnUpdate(double dt, WorldObject myObj)
     {
       myObj.Position_Local += Velocity;
+    }
+    public override void OnDestroy(WorldObject myObj)
+    {
     }
     public override Component Clone(bool shallow = true)
     {
@@ -169,7 +189,10 @@
     }
     public AnimationComponent() { }
     public AnimationComponent(List<Keyframe> keyframes, bool repeat = false) { KeyFrames = keyframes; Repeat = repeat; }
-    public override void Update(double dt, WorldObject myObj)
+    public override void OnCreate(WorldObject myObj)
+    {
+    }
+    public override void OnUpdate(double dt, WorldObject myObj)
     {
       if (AnimationState == ActionState.Run)
       {
@@ -201,6 +224,9 @@
 
       //TODO: put this in the keyframe when modified.
       //NormalizeState();
+    }
+    public override void OnDestroy(WorldObject myObj)
+    {
     }
     private void NormalizeState()
     {
@@ -569,7 +595,7 @@
 
     public Action<WorldObject>? OnUpdate { get; set; } = null;
     public Action<WorldObject>? OnAddedToScene { get; set; } = null;
-    public Action<WorldObject>? OnDestroyed { get; set; } = null;
+    public Action<WorldObject>? OnDestroyed { get; set; } =null;
 
     public bool HasPhysics { get { return _hasPhysics; } set { _hasPhysics = value; } }
     public vec3 Velocity { get { return _velocity; } set { _velocity = value; } }
@@ -813,11 +839,17 @@
       for (int c = Components.Count - 1; c >= 0; c--)
       {
         var cmp = Components[c];
-        cmp.Update(dt, this);
+        if (cmp.ComponentState == ComponentState.Added)
+        {
+          cmp.OnCreate(this);
+          cmp.ComponentState = ComponentState.Initialized;
+        }
+        cmp.OnUpdate(dt, this);
       }
     }
     public T Component<T>() where T : class
     {
+      //Gets the first component of the given template type
       foreach (var c in Components)
       {
         if (c is T)

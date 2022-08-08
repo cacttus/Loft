@@ -227,6 +227,9 @@ namespace PirateCraft
     }
   }
 
+class RenderViewport {
+  
+}
 
   public class Camera3D : WorldObject
   {

@@ -249,15 +249,27 @@ namespace PirateCraft
         {
           if (!String.IsNullOrEmpty(gsSrc))
           {
-            Gu.Log.Info("--VERTEX SOURCE--" + Environment.NewLine + GetReadableShaderSourceCode(vsSrc));
+            Gu.Log.Info(Environment.NewLine +
+              "--------------------------------------------------------------------------------------" + Environment.NewLine +
+            "--VERTEX SOURCE--" + Environment.NewLine +
+            "--------------------------------------------------------------------------------------" + Environment.NewLine +
+            GetReadableShaderSourceCode(vsSrc));
           }
           if (!String.IsNullOrEmpty(gsSrc))
           {
-            Gu.Log.Info("--GEOM SOURCE--" + Environment.NewLine + GetReadableShaderSourceCode(gsSrc));
+            Gu.Log.Info(Environment.NewLine +
+              "--------------------------------------------------------------------------------------" + Environment.NewLine +
+            "--GEOM SOURCE--" + Environment.NewLine +
+            "--------------------------------------------------------------------------------------" + Environment.NewLine +
+            GetReadableShaderSourceCode(gsSrc));
           }
           if (!String.IsNullOrEmpty(psSrc))
           {
-            Gu.Log.Info("--FRAG SOURCE--" + Environment.NewLine + GetReadableShaderSourceCode(psSrc));
+            Gu.Log.Info(Environment.NewLine +
+              "--------------------------------------------------------------------------------------" + Environment.NewLine +
+            "--FRAG SOURCE--" + Environment.NewLine +
+            "--------------------------------------------------------------------------------------" + Environment.NewLine +
+            GetReadableShaderSourceCode(psSrc));
           }
           Gu.Log.Error("Failed to load shader '" + Name + "'." + Environment.NewLine + String.Join(Environment.NewLine, _shaderErrors.ToArray()));
 
@@ -594,7 +606,7 @@ namespace PirateCraft
             dat.shaderData._vFogColor = (1 - blend) * dat.shaderData._vFogColor + (blend) * dat.dnc.SkyColor.ToVec3();
           }
           //}
-          BindUniformBlock(u, new GpuShaderData[]{dat.shaderData});
+          BindUniformBlock(u, new GpuShaderData[] { dat.shaderData });
         }
         else if (dat.customUniformBlocks != null && dat.customUniformBlocks(this, u))
         {

@@ -20,6 +20,11 @@ namespace PirateCraft
     {
       _dict = new SortedDictionary<TKey, List<TValue>>(rhs._dict);
     }
+    public SortedDictionary<TKey, List<TValue>>.KeyCollection Keys
+    {get{
+      return _dict.Keys;
+    }
+    }
     public KeyValuePair<TKey, TValue> First()
     {
       var l = _dict.First();
@@ -271,14 +276,14 @@ namespace PirateCraft
 
   }
 
-  public class Minimax<T> 
-  { 
+  public class Minimax<T>
+  {
     public T Min;
     public T Max;
-    public Minimax(T min, T max) 
+    public Minimax(T min, T max)
     {
-      Min = min; 
-      Max = max; 
+      Min = min;
+      Max = max;
     }
 
   }
