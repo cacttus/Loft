@@ -402,8 +402,9 @@ namespace PirateCraft
     }
     private void CreateFontImages()
     {
-      //BakedCHar is the MAXIMUm size of an glyph, therefore
-      // the image width / height should be automatic.
+      //BakedChar is the MAXIMUM size of a glyph.
+      //Image Width/Height maximum is computed automatically, however
+      //it is almost ALWAYS too much space. So we must trim the image.
       int xchar = (int)Math.Ceiling(Math.Sqrt(_charCount));
       int charsize = Gu.EngineConfig.MaxBakedCharSize;
       int charPadding = _padding;
@@ -418,7 +419,9 @@ namespace PirateCraft
         var charInfo = new StbTrueTypeSharp.StbTrueType.stbtt_packedchar[_charCount];
         byte[] atlasData = ConstructBitmapForSize(imageWidth, imageHeight, charPadding, (float)charsize, charInfo);
 
-        //Trim the atlas, because it's friggin huge
+        //Trim the font atlas, because it's friggin huge
+        //TODO: Given the BitmapUsedHeight routine, we COULD pre-compute the OPTIMAL SQUARE texture size if we wanted to
+        // But that's unnecessary right now. 1500x1500 texture is reasonable for now.
         int usedHeight = GetBitmapUsedHeight(charInfo, imageWidth, imageHeight);
         atlasData = TrimAtlasBitmapToUsedHeight(imageWidth, usedHeight, atlasData);
 
@@ -428,7 +431,7 @@ namespace PirateCraft
           Img32 img = CreateFontImage(atlasData, imageWidth, usedHeight, charInfo);
           if (Gu.EngineConfig.SaveSTBFontImage)
           {
-            Gu.Log.Debug("DEBG:Saving font...");
+            Gu.Log.Debug("Saving font...");
             string nmapname_dbg = System.IO.Path.Combine(Gu.LocalCachePath, "mt_" + GetName() + "_font_" + i + ".png");
             ResourceManager.SaveImage(nmapname_dbg, img);
           }
@@ -521,7 +524,8 @@ namespace PirateCraft
       }
       return maxHeight + 1;
     }
-    public byte[] TrimAtlasBitmapToUsedHeight(int imageWidth, int usedHeight, byte[] atlasData){
+    public byte[] TrimAtlasBitmapToUsedHeight(int imageWidth, int usedHeight, byte[] atlasData)
+    {
       byte[] newatlas = new byte[usedHeight * imageWidth];
       System.Buffer.BlockCopy(atlasData, 0, newatlas, 0, newatlas.Length);
       return newatlas;
@@ -662,17 +666,32 @@ namespace PirateCraft
         //Compute the padding between characters
         //Bearing and Width are in RAW units,
         //we must convert to BakedChar units, THEN into EM units.
-        int advWidth, bearing;
+        int advWidth, leftbearing;
         unsafe
         {
-          StbTrueTypeSharp.StbTrueType.stbtt_GetCodepointHMetrics(_fontInfo, cCode, &advWidth, &bearing);
+          StbTrueTypeSharp.StbTrueType.stbtt_GetCodepointHMetrics(_fontInfo, cCode, &advWidth, &leftbearing);
         }
+
+        float lineHeight = patchInfo.BakedCharSize;
+        float ascent = (float)_ascent * patchInfo.ScaleForPixelHeight;
+        float advance = (float)advWidth * patchInfo.ScaleForPixelHeight;
+        float bearing = (float)leftbearing * patchInfo.ScaleForPixelHeight;
+        float descent = (float)_descent * patchInfo.ScaleForPixelHeight;
+
         ccd.width = (stbQuad.x1 - stbQuad.x0); //the stb x0, x1 seem to be in direct pixel coordinates
-        ccd.height = (stbQuad.y1 - stbQuad.y0);
-        ccd.margin_right = (float)advWidth * patchInfo.ScaleForPixelHeight;// advanceWidth is the offset from the current horizontal position to the next horizontal position
-        ccd.margin_left = (float)bearing * patchInfo.ScaleForPixelHeight;// leftSideBearing is the offset from the current horizontal position to the left edge of the character
-        ccd.margin_bot = (float)_descent * patchInfo.ScaleForPixelHeight;
-        ccd.margin_top = (float)_ascent * patchInfo.ScaleForPixelHeight;
+        ccd.height = (stbQuad.y1 - stbQuad.y0) ;
+        ccd.margin_right = advance-stbQuad.x1; 
+        ccd.margin_left = Math.Abs(stbQuad.x0);
+        ccd.margin_top =  lineHeight-Math.Abs(stbQuad.y0); //lineHeight - Math.Abs(descent);// 
+        ccd.margin_bot = lineHeight - ccd.margin_top;//;
+        // advanceWidth is the offset from the current horizontal position to the next horizontal position
+        // leftSideBearing is the offset from the current horizontal position to the left edge of the character
+        // ascent is the coordinate above the baseline the font extends; descent
+        // is the coordinate below the baseline the font extends (i.e. it is typically negative)
+        // lineGap is the spacing between one row's descent and the next row's ascent...
+        // so you should advance the vertical position by "*ascent - *descent + *lineGap"
+        //   these are expressed in unscaled coordinates, so you must multiply by
+        //   the scale factor for a given size
 
         patchInfo.CachedChars.Add(cCode, ccd);
       }
