@@ -449,7 +449,7 @@ namespace PirateCraft
     {
       //Gui Comp
       var gui = new GuiComponent();
-      var font = gui.LoadFont(GuiComponent.Pixel);
+      var font = gui.LoadFont(GuiComponent.Fancy);
 
       // {
       //   var pd = gui.CreatePanel(new vec4(1, 1, 1, 1), new vec2(50, 200), new vec2(202, 90));

@@ -278,6 +278,9 @@ namespace PirateCraft
     bool _bInitialized = false;
     int _padding = 8;//Via STB - "normally you want 1 for bilinear filtering"
 
+    public int FirstChar {get{return _firstChar;}}
+    public int CharCount {get{return _charCount;}}
+
     public MtFont(MegaTex mt, FileLoc loc, int padding = 8) : base(mt, loc)
     {
       _padding=padding;
@@ -477,6 +480,8 @@ namespace PirateCraft
     {
       //Details / Notes:
       //Our goal is to create a label where all glyphs have the same outer box
+      //       bearing
+      //      <----|--------->advance
       //             y1
       //      |----A------- |
       //      |    A  pad   |
@@ -554,7 +559,7 @@ namespace PirateCraft
       //**Pos
       //Transform quad by scale.  This is new - transorm the local quad only.  Not the whole text line.
       float fScale = fontSizeToFontScale(fontSize);
-      outWidth = (stbQuad.x1 - stbQuad.x0) * fScale;
+      outWidth = (stbQuad.x1 - stbQuad.x0) * fScale;//the stb x0, x1 seem to be in direct pixel coordinates
       outHeight = (stbQuad.y1 - stbQuad.y0) * fScale;
 
       //Position character horizontally
@@ -565,7 +570,7 @@ namespace PirateCraft
       {
         StbTrueTypeSharp.StbTrueType.stbtt_GetCodepointHMetrics(_fontInfo, cCode, &advWidth, &bearing);
       }
-      fAdvWidth = (float)advWidth * _fScaleForPixelHeight;
+      fAdvWidth = (float)advWidth * _fScaleForPixelHeight;//fAdvWidth is seems to usually be the width of the character in pixels. 64 = 64
       fBearing = (float)bearing * _fScaleForPixelHeight;
       fAdvWidth *= fScale;
       fBearing *= fScale;
@@ -573,7 +578,8 @@ namespace PirateCraft
       //Compute the glyph padding values, and spaceing
       //for some reason space has a negative x0
       padLeft = fBearing;               // leftSideBearing is the offset from the current horizontal position to the left edge of the character
-      padRight = fAdvWidth - outWidth;  // advanceWidth is the offset from the current horizontal position to the next horizontal position
+      //so bearing would put characters and be negative padding technically
+      padRight =   fAdvWidth-outWidth;  // advanceWidth is the offset from the current horizontal position to the next horizontal position
 
       //Position character vertically
       //The ascent + descent of the character is wherever the quad is above, or below zero (zero is the baseline, we pass it in with curY)

@@ -109,15 +109,71 @@ namespace PirateCraft
   public class UiElementBase
   {
     //Units are in design-space pixels
-    public float Top { get { return _top; } set { _top = value; } }
-    public float Left { get { return _left; } set { _left = value; } }
-    public float Right { get { return _right; } set { _right = value; } }
-    public float Bottom { get { return _bottom; } set { _bottom = value; } }
+    public float Top
+    {
+      get { return _top; }
+      set
+      {
+        _top = value;
+      }
+    }
+    public float Left
+    {
+      get { return _left; }
+      set
+      {
+        _left = value;
+      }
+    }
+    public float Right
+    {
+      get { return _right; }
+      set
+      {
+        _right = value;
+      }
+    }
+    public float Bottom
+    {
+      get { return _bottom; }
+      set
+      {
+        _bottom = value;
+      }
+    }
 
-    public float PadTop { get { return _padTop; } set { _padTop = value; } }
-    public float PadRight { get { return _padRight; } set { _padRight = value; } }
-    public float PadBot { get { return _padBot; } set { _padBot = value; } }
-    public float PadLeft { get { return _padLeft; } set { _padLeft = value; } }
+    public float PadTop
+    {
+      get { return _padTop; }
+      set
+      {
+        _padTop = value;
+      }
+    }
+    public float PadRight
+    {
+      get { return _padRight; }
+      set
+      {
+        _padRight = value;
+      }
+    }
+    public float PadBot
+    {
+      get { return _padBot; }
+      set
+      {
+        _padBot = value;
+      }
+    }
+    public float PadLeft
+    {
+      get { return _padLeft; }
+      set
+      {
+        _padLeft = value;
+      }
+    }
 
     public float WidthPX { get { return Right - Left; } }
     public float HeightPX { get { return Bottom - Top; } }
@@ -441,8 +497,8 @@ namespace PirateCraft
         v._clip.w = 9999;
       }
 
-//tex = pos uv
-//texsize = size uv i.e for wrapping?
+      //tex = pos uv
+      //texsize = size uv i.e for wrapping?
       // Texs
       //tex z,w arn't used
       v._tex.x = _q2Tex._min.x;  // GL - bottom left
@@ -927,8 +983,10 @@ namespace PirateCraft
       // wpx + pl + pr
 
       //*Padding
-      float pl = 0, pr = 0, pb = 0, pt = 0;
-      ele.ComputePad(this, ref pt, ref pr, ref pb, ref pl);
+      float pt = ComputePad_Unit(HeightPX, ele.PadUnitTop, ele._padTop);
+      float pr = ComputePad_Unit(WidthPX, ele.PadUnitRight, ele._padRight);
+      float pb = ComputePad_Unit(HeightPX, ele.PadUnitBot, ele._padBot);
+      float pl = ComputePad_Unit(WidthPX, ele.PadUnitLeft, ele._padLeft);
 
       float wpx_pad = wpx + pl + pr;
       float hpx_pad = hpx + pb + pt;
@@ -974,13 +1032,6 @@ namespace PirateCraft
 
       line._eles.Add(ele);
     }
-    private void ComputePad(UiElement ele, ref float pt, ref float pr, ref float pb, ref float pl)
-    {
-      pt = ComputePad_Unit(HeightPX, ele.PadUnitTop, ele._padTop);
-      pr = ComputePad_Unit(WidthPX, ele.PadUnitRight, ele._padRight);
-      pb = ComputePad_Unit(HeightPX, ele.PadUnitBot, ele._padBot);
-      pl = ComputePad_Unit(WidthPX, ele.PadUnitLeft, ele._padLeft);
-    }
     private static float ComputePad_Unit(float parentextent, UiDimUnit unit, float ud)
     {
       //Basically we allowed for % paddings. 
@@ -1020,7 +1071,7 @@ namespace PirateCraft
       // Width
       if (WidthUnit == UiDimUnit.Pixel)
       {
-        wpx = WidthPX;
+        wpx = WidthPX;//TODO: widths are fixed
       }
       else if (WidthUnit == UiDimUnit.Percent)
       {
@@ -1068,27 +1119,22 @@ namespace PirateCraft
     }
     private void ApplyMinMax(ref float wpx, ref float hpx)
     {
-      float minw = MinWHPX.x;
-      float minh = MinWHPX.y;
-      float maxw = MaxWHPX.x;
-      float maxh = MaxWHPX.y;
-
       // apply min/max to box (not in parent space)
-      if (wpx > maxw)
+      if (wpx < MinWHPX.x)
       {
-        wpx = maxw;
+        wpx = MinWHPX.x;
       }
-      if (wpx < minw)
+      if (hpx < MinWHPX.y)
       {
-        wpx = minw;
+        hpx = MinWHPX.y;
       }
-      if (hpx > maxh)
+      if (wpx > MaxWHPX.x)
       {
-        hpx = maxh;
+        wpx = MaxWHPX.x;
       }
-      if (hpx < minh)
+      if (hpx > MaxWHPX.y)
       {
-        hpx = minh;
+        hpx = MaxWHPX.y;
       }
     }
     public void ValidateQuad()
@@ -1117,8 +1163,8 @@ namespace PirateCraft
     public UILabel(vec2 pos, Font f, string text)
     {
       _left = pos.x;
-      _top= pos.y;
-      _right = _left + 80;
+      _top = pos.y;
+      _right = _left + 280;
       _bottom = _top + 100;
       _font = f;
       _strText = text;
@@ -1153,11 +1199,11 @@ namespace PirateCraft
           e.Bottom = g.Size.y;
           e.Texture = new MtTex(null, 0);
           //we need to set this for pixAdjust
-          e.Texture.SetWH(this._font.MtFont.GetTexs()[0].getWidth(),this._font.MtFont.GetTexs()[0].getHeight());
+          e.Texture.SetWH(this._font.MtFont.GetTexs()[0].getWidth(), this._font.MtFont.GetTexs()[0].getHeight());
           e.Texture.uv0 = g.Texs._min;
           e.Texture.uv1 = g.Texs._max;
           e.DisplayMode = UiDisplayMode.InlineWrap;
-          e.Color = new vec4(0,0,0,1);
+          e.Color = new vec4(0, 0, 0, 1);
           e.ValidateQuad();
           AddChild(e);
         }
@@ -1288,7 +1334,7 @@ namespace PirateCraft
       int nCh = 0;
 
       //TODO: support other languages.
-      for (int c = 10; c < 255; c++)
+      for (int c = this.MtFont.FirstChar; c < this.MtFont.CharCount; c++)
       {
         //we should use the kerning code when we build the actual string.
         MtFont.getCharQuad(c, (float)fontHeight, ref outW, ref outH, ref outTexs, ref outPadT, ref outPadR, ref outPadB, ref outPadL);
@@ -1329,7 +1375,7 @@ namespace PirateCraft
 
     public UiScreen Screen { get; private set; } = null;
 
-    public static FileLoc Fancy = new FileLoc("Lato-Regular.ttf", FileStorage.Embedded);//Parisienne
+    public static FileLoc Fancy = new FileLoc("RobotoMono-Regular.ttf", FileStorage.Embedded);//Parisienne
     public static FileLoc Pixel = new FileLoc("PressStart2P-Regular.ttf", FileStorage.Embedded);
     public static FileLoc Pixel2 = new FileLoc("kenpixel.ttf", FileStorage.Embedded);
     public static FileLoc Pixel3 = new FileLoc("visitor1.ttf", FileStorage.Embedded);
@@ -1357,7 +1403,7 @@ namespace PirateCraft
       {
 
         //don't filter
-       // tx.Albedo.SetFilter(OpenTK.Graphics.OpenGL4.TextureMinFilter.LinearMipmapNearest,OpenTK.Graphics.OpenGL4.TextureMagFilter.Linear);
+        // tx.Albedo.SetFilter(OpenTK.Graphics.OpenGL4.TextureMinFilter.LinearMipmapNearest,OpenTK.Graphics.OpenGL4.TextureMagFilter.Linear);
 
         _shader = Gu.Resources.LoadShader("v_gui", true, FileStorage.Embedded);
         myObj.Material = new Material("GuiMT", _shader);

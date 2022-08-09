@@ -1,5 +1,11 @@
-﻿So
-* text / font
+﻿
+So
+* right/left etc of uielement are CHANGED while we mess weith them.. this is a problem.
+characters have a fixed width/height - this must be set. - so we must account for this.
+The actual visible quad is getting messed up - teh visible quad must not be altered (left/right/top/bot)
+we might just have Width/Height be not changeable, but we can change left/right.etc
+* also the bearing/adv wiedth in MtFont must be fixed. 
+* We must allow for NEGATIVE paddings because character can be above each otehr.
 
 UIScreen ** 
 so we're goint o have multiple of them 
