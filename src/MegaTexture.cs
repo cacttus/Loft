@@ -5,6 +5,23 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using OpenTK.Graphics.OpenGL4;
+//Chinese Test
+//if (getName().QualifiedPath.Contains("simhei"))
+//{
+//  //https://stackoverflow.com/questions/1366068/whats-the-complete-range-for-chinese-characters-in-unicode
+//  //Han Ideographs: 4E00 - 9FFF   Common
+//  _firstChar = 0x4E00;
+//  _charCount = 0x62FF - 0x4E00;  //0x9FFF is the whole range, that's a lot
+//                                 //Compute size for a 20x20 pixel han character
+//  _iBakedCharSizePixels = 20;
+//  float ch_w = ceilf(sqrtf((float)_charCount));
+//  _atlasWidth = _atlasHeight = (uint)((ch_w) * (_iBakedCharSizePixels + _oversampleX));
+
+//  //Test "huan"
+//  //_firstChar = 0x6B61;// 喜..喜欢 0x559C, 0x6B61.. correct.. seems to work..Note: 欢 prints, 歡.. the traditioanl character
+//  //_charCount = 1;
+//  Gu.DebugBreak();
+//}
 
 namespace PirateCraft
 {
@@ -107,9 +124,10 @@ namespace PirateCraft
     float _fSizeRatio = 0;
     vec2 _uv_p0, _uv_p1;
     FileLoc _strImgName;
-    int _iPatchImg = 0;  //0-8 for 9p, or 0-2 for 3p
+    int _iPatchImg = 0;  //0-8 for 9p, or 0-2 for 3p //Basically this is if we split an image up into "patches". Probably not being used.
 
-    public void SetWH(int w, int h){
+    public void SetWH(int w, int h)
+    {
       _iWidth = w;
       _iHeight = h;
     }
@@ -259,224 +277,251 @@ namespace PirateCraft
   }
   #endregion
   #region MtFont
+  public class FontPatchInfo
+  {
+    public int BakedCharSize { get; set; } = 0; //Pixel height of the characters
+    public StbTrueTypeSharp.StbTrueType.stbtt_packedchar[] CharInfo = null;
+    public float ScaleForPixelHeight = 0;               //return value of stbtt_ScaleForPixelHeight
+    public int TextureWidth = 0;
+    public int TextureHeight = 0;
+    public int TextureIndex = 0; //The patch index in the MtTexPatch
+    public float GetScaleForPixelSize(float ps)
+    {
+      //float f = StbTrueTypeSharp.StbTrueType.stbtt_ScaleForMappingEmToPixels(_fontInfo, .5f);
+      float t = ps / (float)BakedCharSize;
+      return t;
+    }
+  }
   public class MtFont : MtTexPatch
   {
-    int _iBakedCharSizePixels = 40;
-    int _fontTextureWidth = 1024;
-    int _fontTextureHeight = 1024;
-    uint _oversampleX = 2;
-    uint _oversampleY = 2;
-    int _firstChar = ' ';
-    int _charCount = '~' - ' ';
-    float _fAscent = 0;
-    float _fDescent = 0;
-    float _fLineGap = 0;
-    StbTrueTypeSharp.StbTrueType.stbtt_packedchar[] _charInfo;
-    StbTrueTypeSharp.StbTrueType.stbtt_fontinfo _fontInfo;
-    float _fScaleForPixelHeight;               //return value of stbtt_ScaleForPixelHeight
-    byte[] _pFontBuffer = null;  // STB:  "Load" a font file from a memory buffer (you have to keep the buffer loaded)
-    bool _bInitialized = false;
-    int _padding = 8;//Via STB - "normally you want 1 for bilinear filtering"
+    private StbTrueTypeSharp.StbTrueType.stbtt_fontinfo _fontInfo;
+    private uint _oversampleX = 2;
+    private uint _oversampleY = 2;
+    private int _firstChar = ' ';
+    private int _charCount = '~' - ' ';
+    private int _ascent = 0;
+    private int _descent = 0;
+    private int _lineGap = 0;
+    private byte[] _pFontBuffer = null;  // This must stay loaded. STB:"Load" a font file from a memory buffer (you have to keep the buffer loaded)
+    private bool _bInitialized = false;
+    private int _padding = 1; //STB - "normally you want 1 for bilinear filtering"
 
-    public int FirstChar {get{return _firstChar;}}
-    public int CharCount {get{return _charCount;}}
+    List<FontPatchInfo> FontPatchInfos = new List<FontPatchInfo>();
 
-    public MtFont(MegaTex mt, FileLoc loc, int padding = 8) : base(mt, loc)
+    public int FirstChar { get { return _firstChar; } }
+    public int CharCount { get { return _charCount; } }
+
+    public MtFont(MegaTex mt, FileLoc loc, int padding = 1) : base(mt, loc)
     {
-      _padding=padding;
+      _padding = padding;
     }
     public override void loadData()
     {
-      _iBakedCharSizePixels = Gu.EngineConfig.BakedCharSize;// Gu::getConfig().getBakedCharSize();
-      _fontTextureWidth = Gu.EngineConfig.FontBitmapSize;// Gu::getConfig().getFontBitmapSize();
-      _fontTextureHeight = Gu.EngineConfig.FontBitmapSize;
+      Gu.Log.Info("Creating font '" + GetName());
 
-      Gu.Log.Info("Creating font '" + GetName() + "'. size=" + _fontTextureWidth + "x" + _fontTextureHeight + ".  Baked Char Size =" + _iBakedCharSizePixels);
+      CreateSTBFont();
 
-      //_pFontBuffer = std::make_shared<BinaryFile>("<none>");
-      //if (Gu::getPackage().getFile(getName(), _pFontBuffer) == false)
-      //{
-      //  Gu.Log.Error("Failed to get font file '" + getName() + "'");
-      //  Gu.DebugBreak();
-      //  return;
-      //}
+      CreateFontImages();
 
-      //byte[] bytes = null;
-      using (var s = GetName().GetStream())
+      _bInitialized = true;
+    }
+    private void CreateSTBFont()
+    {
+      using (var ss = GetName().GetStream())
       using (var ms = new MemoryStream())
       {
-        s.CopyTo(ms);
+        ss.CopyTo(ms);
         _pFontBuffer = ms.ToArray();
       }
-      //StbTrueTypeSharp.StbTrueType.stbtt_fontinfo inf = null;
       if (_pFontBuffer != null)
       {
         _fontInfo = StbTrueTypeSharp.StbTrueType.CreateFont(_pFontBuffer, 0);
       }
-
-      //The Api seems to recommend CreateFont instead of calling the native
       unsafe
       {
         _fontInfo = new StbTrueTypeSharp.StbTrueType.stbtt_fontinfo();
         fixed (byte* fbdata = _pFontBuffer)
         {
           StbTrueTypeSharp.StbTrueType.stbtt_InitFont(_fontInfo, fbdata, 0);
-
         }
       }
-
       if (_fontInfo == null)
       {
         Gu.BRThrowException("Could not initialize font. stb returned null fontinfo");
       }
-
-      //Chinese Test
-      //if (getName().QualifiedPath.Contains("simhei"))
-      //{
-      //  //https://stackoverflow.com/questions/1366068/whats-the-complete-range-for-chinese-characters-in-unicode
-      //  //Han Ideographs: 4E00 - 9FFF   Common
-      //  _firstChar = 0x4E00;
-      //  _charCount = 0x62FF - 0x4E00;  //0x9FFF is the whole range, that's a lot
-      //                                 //Compute size for a 20x20 pixel han character
-      //  _iBakedCharSizePixels = 20;
-      //  float ch_w = ceilf(sqrtf((float)_charCount));
-      //  _atlasWidth = _atlasHeight = (uint)((ch_w) * (_iBakedCharSizePixels + _oversampleX));
-
-      //  //Test "huan"
-      //  //_firstChar = 0x6B61;// 喜..喜欢 0x559C, 0x6B61.. correct.. seems to work..Note: 欢 prints, 歡.. the traditioanl character
-      //  //_charCount = 1;
-      //  Gu.DebugBreak();
-      //}
-
-      //Get soem font metrics
-      //stbtt_InitFont(&_fontInfo, (const unsigned char*)_pFontBuffer.getData().ptr(), 0);
-      _fScaleForPixelHeight = StbTrueTypeSharp.StbTrueType.stbtt_ScaleForPixelHeight(_fontInfo, (float)_iBakedCharSizePixels);
-
-      int ascent, descent, lineGap;
       unsafe
       {
+        int ascent = 0, descent = 0, lineGap = 0;
         StbTrueTypeSharp.StbTrueType.stbtt_GetFontVMetrics(_fontInfo, &ascent, &descent, &lineGap);
+        _ascent = ascent;
+        _descent = descent;
+        _lineGap = lineGap;
       }
-      _fAscent = (float)ascent * _fScaleForPixelHeight;
-      _fDescent = (float)descent * _fScaleForPixelHeight;
-      _fLineGap = (float)lineGap * _fScaleForPixelHeight;
+    }
+    private void CreateFontImages()
+    {
+      //BakedCHar is the MAXIMUm size of an glyph, therefore
+      // the image width / height should be automatic.
+      int xchar = (int)Math.Ceiling(Math.Sqrt(_charCount));
+      int charsize = Gu.EngineConfig.MaxBakedCharSize;
+      int charPadding = _padding;
 
-      if (false)
+      for (int i = 0; i < 96; i++)//96=arbitrary to prevent inf loop
       {
-        string x = "Hello ";
-        foreach (int c in x)
+        int imageWidth = xchar * (charsize + charPadding * 2);
+        int imageHeight = xchar * (charsize + charPadding * 2);
+        Gu.Assert(imageWidth < Gu.EngineConfig.MaxFontBitmapSize);
+        Gu.Assert(imageHeight < Gu.EngineConfig.MaxFontBitmapSize);
+
+        //        float scaledSize = StbTrueTypeSharp.StbTrueType.stbtt_ScaleForPixelHeight(_fontInfo, (float)charsize);
+
+        var charInfo = new StbTrueTypeSharp.StbTrueType.stbtt_packedchar[_charCount];
+        byte[] atlasData = ConstructBitmapForSize(imageWidth, imageHeight, charPadding, (float)charsize, charInfo);
+
+        if (atlasData != null)
         {
-          int adv, be;
-          unsafe
+          //Set the megatex image.
+          Img32 img = CreateFontImage(atlasData, imageWidth, imageHeight, charInfo);
+          if (Gu.EngineConfig.SaveSTBFontImage)
           {
-            StbTrueTypeSharp.StbTrueType.stbtt_GetGlyphHMetrics(_fontInfo, c, &adv, &be);
+            Gu.Log.Debug("DEBG:Saving font...");
+            string nmapname_dbg = System.IO.Path.Combine(Gu.LocalCachePath, "mt_" + GetName() + "_font_" + i + ".png");
+            ResourceManager.SaveImage(nmapname_dbg, img);
           }
-          float fa = (float)adv * _fScaleForPixelHeight;
-          float fb = (float)be * _fScaleForPixelHeight;
-          int nn = 0;
-          nn++;
+          MtTex mt = new MtTex(GetName(), 0);
+          mt.setImg(img);
+          GetTexs().Add(mt);
+
+          FontPatchInfo f = new FontPatchInfo();
+          f.ScaleForPixelHeight = StbTrueTypeSharp.StbTrueType.stbtt_ScaleForPixelHeight(_fontInfo, (float)charsize);
+          f.BakedCharSize = charsize;
+          f.TextureWidth = imageWidth;
+          f.TextureHeight = imageHeight;
+          f.CharInfo = charInfo;
+          f.TextureIndex = i;
+          FontPatchInfos.Add(f);
+        }
+        else
+        {
+          Gu.Log.Error("Failed to create font " + this.GetName());
+          break;
+        }
+        charsize /= 2;
+
+        if (imageWidth < 64 || imageHeight < 64 || charsize < 8)
+        {
+          break;
         }
       }
 
-      //pack the image into a bitmap **nice version**
-      //std::unique_ptr<uint8_t[]> atlasData = std::make_unique<uint8_t[]>(_atlasWidth * _atlasHeight);
-      //_charInfo = std::make_unique<stbtt_packedchar[]>(_charCount);
-
-      //Img32 atlasData = new Img32(_atlasWidth, _atlasHeight);
-      byte[] atlasData = new byte[_fontTextureWidth * _fontTextureHeight];
-      _charInfo = new StbTrueTypeSharp.StbTrueType.stbtt_packedchar[_charCount];
-
-      StbTrueTypeSharp.StbTrueType.stbtt_pack_context context = new StbTrueTypeSharp.StbTrueType.stbtt_pack_context();
-      int ret = 0;
+    }
+    private byte[] ConstructBitmapForSize(int img_width, int img_height, int img_padding, float charsize, StbTrueTypeSharp.StbTrueType.stbtt_packedchar[] charInfo)
+    {
+      byte[] atlasData = new byte[img_width * img_height];
       unsafe
       {
+        StbTrueTypeSharp.StbTrueType.stbtt_pack_context context = new StbTrueTypeSharp.StbTrueType.stbtt_pack_context();
+
         fixed (byte* atlasData_pinned = atlasData)
         {
           StbTrueTypeSharp.StbTrueType.stbtt_PackSetOversampling(context, _oversampleX, _oversampleY);
-          ret = StbTrueTypeSharp.StbTrueType.stbtt_PackBegin(context, atlasData_pinned, _fontTextureWidth, _fontTextureHeight, _fontTextureWidth, _padding, null);
+          int ret = StbTrueTypeSharp.StbTrueType.stbtt_PackBegin(context, atlasData_pinned, img_width, img_height, img_width, img_padding, null);
 
           if (ret == 0)
           {
-            Gu.Log.Error("Failed to initialize font");
+            Gu.Log.Error("Failed to begin font pack.");
             Gu.DebugBreak();
-            return;
+            atlasData = null;
           }
-
-          fixed (StbTrueTypeSharp.StbTrueType.stbtt_packedchar* _charInfo_pinned = _charInfo)
+          else
           {
-            fixed (byte* _pFontBuffer_pinned = _pFontBuffer)
+            fixed (StbTrueTypeSharp.StbTrueType.stbtt_packedchar* charInfo_pinned = charInfo)
             {
-              ret = StbTrueTypeSharp.StbTrueType.stbtt_PackFontRange(context, _pFontBuffer_pinned, 0,
-                (float)_iBakedCharSizePixels, _firstChar, _charCount, _charInfo_pinned);
+              fixed (byte* _pFontBuffer_pinned = _pFontBuffer)
+              {
+                ret = StbTrueTypeSharp.StbTrueType.stbtt_PackFontRange(context, _pFontBuffer_pinned, 0, charsize, _firstChar, _charCount, charInfo_pinned);
+              }
             }
+            if (ret == 0)
+            {
+              Gu.Log.Error("Failed to pack font size:" + charsize);
+              Gu.DebugBreak();
+              atlasData = null;
+            }
+            StbTrueTypeSharp.StbTrueType.stbtt_PackEnd(context);
           }
-          if (ret == 0)
-          {
-            Gu.Log.Error("Failed to pack font");
-            Gu.DebugBreak();
-            return;
-          }
-
-          StbTrueTypeSharp.StbTrueType.stbtt_PackEnd(context);
         }
       }
-
-      //Set the megatex image.
-      Img32 img = createFontImage(atlasData);
-      #if DEBUG
-        Gu.Log.Debug("DEBG:Saving font...");
-        string nmapname_dbg = System.IO.Path.Combine(Gu.LocalCachePath, "mt_" + GetName() + "_font.png");
-        ResourceManager.SaveImage(nmapname_dbg, img);
-      #endif
-      MtTex mt = new MtTex(GetName(), 0);
-      mt.setImg(img);
-      GetTexs().Add(mt);
-
-      _bInitialized = true;
+      return atlasData;
     }
-    public Img32 createFontImage(byte[] pData)
+    public Img32 CreateFontImage(byte[] pData, int image_width, int image_height, StbTrueTypeSharp.StbTrueType.stbtt_packedchar[] charInfo)
     {
       //Copied from fontspec
-      byte[] imgData = new byte[_fontTextureWidth * _fontTextureHeight * 4];
-      if (_charInfo == null)
+      byte[] imgData = new byte[image_width * image_height * 4];
+      if (charInfo == null)
       {
         Gu.DebugBreak();
       }
 
-      for (int iPix = 0; iPix < _fontTextureWidth * _fontTextureHeight * 4; iPix += 4)
+      for (int iPix = 0; iPix < image_width * image_height * 4; iPix += 4)
       {
         byte dat = pData[iPix / 4];
         imgData[iPix + 0] = 255;  //r
         imgData[iPix + 1] = 255;  //g
         imgData[iPix + 2] = 255;  //b
         imgData[iPix + 3] = dat;  //a
-      } 
+      }
 
       Img32 img = new Img32();
-      img.init(_fontTextureWidth, _fontTextureHeight, imgData, Img32.PixelFormat.RGBA);
-
-      //Stb creates the image upside-down for OpenGL, h owever in our GUi
-      //we create it right-side up, then store it upside down, so we need to flip it rightise up first.
-      //this also helps us see it when we cache it
-      //img.flipV();
+      img.init(image_width, image_height, imgData, Img32.PixelFormat.RGBA);
 
       return img;
     }
+    public FontPatchInfo SelectFontPatchInfo(float fontSize)
+    {
+      //Gets the closest font patch given the input size.
+      //This is similar to mipmapping, but it works in case we can't filter the texture.
+      Gu.Assert(FontPatchInfos != null);
+      if (_bInitialized == false)
+      {
+        Gu.Log.Error("Font was not initialized.");
+        Gu.DebugBreak();
+        return null;
+      }
+      //Given the pixel
+      if (FontPatchInfos.Count == 0)
+      {
+        return null;
+      }
+      FontPatchInfo last = FontPatchInfos[0];
+      if (fontSize >= last.BakedCharSize)
+      {
+        return last;
+      }
+      foreach (var inf in FontPatchInfos)
+      {
+        if (fontSize <= last.BakedCharSize && fontSize >= inf.BakedCharSize)
+        {
+          return inf;
+        }
+      }
+      return FontPatchInfos[FontPatchInfos.Count - 1];
+    }
 
-    public float GetKernAdvanceWidth(float fontSize, int cCodePrev, int cCode)
+    public float GetKernAdvanceWidth(FontPatchInfo patchInfo, float fontSize, int cCodePrev, int cCode)
     {
       //Get an additional width to add or subtract for kerning.
       float fKern = 0.0f;
       if (cCodePrev >= 0)
       {
         int kern = StbTrueTypeSharp.StbTrueType.stbtt_GetCodepointKernAdvance(_fontInfo, cCode, cCodePrev);
-        fKern = (float)kern * _fScaleForPixelHeight;
-        fKern *= fontSizeToFontScale(fontSize);
+        fKern = (float)kern * patchInfo.ScaleForPixelHeight;
+        fKern *= patchInfo.GetScaleForPixelSize(fontSize);
       }
       return fKern;
     }
-    public void getCharQuad(int cCode, float fontSize, ref float outWidth, ref float outHeight, ref Box2f texs,
-                             ref float padTop, ref float padRight, ref float padBot, ref float padLeft)
+    public void GetCharQuad(FontPatchInfo patchInfo, int cCode, float fontSize, ref float outWidth, ref float outHeight, ref Box2f texs,
+                             ref float top, ref float right, ref float bot, ref float left)
     {
       //Details / Notes:
       //Our goal is to create a label where all glyphs have the same outer box
@@ -497,14 +542,10 @@ namespace PirateCraft
       //Ideally, we'd use the maximum ascent or descent of a given STRING and not the WHOLE FONT, however
       //this is easier for now.
 
+
       StbTrueTypeSharp.StbTrueType.stbtt_aligned_quad stbQuad;
-      if (_bInitialized == false)
-      {
-        Gu.Log.Error("Font was not initialized.");
-        Gu.DebugBreak();
-        return;
-      }
-      if (_charInfo == null)
+
+      if (patchInfo.CharInfo == null)
       {
         return;
       }
@@ -518,12 +559,12 @@ namespace PirateCraft
       float curX = 0, curY = 0;  //Dummies
       unsafe
       {
-        fixed (StbTrueTypeSharp.StbTrueType.stbtt_packedchar* charinfo_pt = _charInfo)
+        fixed (StbTrueTypeSharp.StbTrueType.stbtt_packedchar* charinfo_pt = patchInfo.CharInfo)
         {
-          StbTrueTypeSharp.StbTrueType.stbtt_GetPackedQuad(charinfo_pt, _fontTextureWidth, _fontTextureHeight, cCode - _firstChar, &curX, &curY, &stbQuad, 0);
+          StbTrueTypeSharp.StbTrueType.stbtt_GetPackedQuad(charinfo_pt, patchInfo.TextureWidth, patchInfo.TextureHeight, cCode - _firstChar, &curX, &curY, &stbQuad, 0);
         }
       }
-      if (GetTexs().Count == 0)
+      if (GetTexs().Count == 0 || GetTexs().Count <= patchInfo.TextureIndex)
       {
         //You didn't save the image
         Gu.Log.Error("Failure to save font image somewhere.");
@@ -531,69 +572,42 @@ namespace PirateCraft
         return;
       }
 
-      //**TExs
-      //Scale hte returned texcoodrs from [0,1] to the width of the baked texture
-      float tw = GetTexs()[0].uv1.x - GetTexs()[0].uv0.x;  //top left, origin
-      float th = GetTexs()[0].uv1.y - GetTexs()[0].uv0.y;  //This is flipped; We are in OpenGL tcoords, however our origin is at the top left
+      var imagePatch = GetTexs()[patchInfo.TextureIndex];
+
+      //Scale the returned texcoodrs from [0,1] to the width of the baked texture
+      float tw = imagePatch.uv1.x - imagePatch.uv0.x;  //top left, origin
+      float th = imagePatch.uv1.y - imagePatch.uv0.y;  //This is flipped; We are in OpenGL tcoords, however our origin is at the top left
 
       //Scale
       float dv = stbQuad.t1 - stbQuad.t0;
       float du = stbQuad.s1 - stbQuad.s0;
       vec2 uv0, uv1;
-      uv0.x = GetTexs()[0].uv0.x + (stbQuad.s0) * tw;
-      uv0.y = GetTexs()[0].uv0.y + (stbQuad.t0) * th;  //Bottom-left = uv1
-      uv1.x = GetTexs()[0].uv0.x + (stbQuad.s1) * tw;
-      uv1.y = GetTexs()[0].uv0.y + (stbQuad.t1) * th;
+      uv0.x = imagePatch.uv0.x + (stbQuad.s0) * tw;
+      uv0.y = imagePatch.uv0.y + (stbQuad.t0) * th;  //Bottom-left = uv1
+      uv1.x = imagePatch.uv0.x + (stbQuad.s1) * tw;
+      uv1.y = imagePatch.uv0.y + (stbQuad.t1) * th;
 
-      //Don't flip Y - we will do that in the regenmesh
       texs = new Box2f(uv0, uv1);
-      //**End TExs
 
-      //Debug - Save texture
-      if (false)
-      {
-        //TODO: this is just some debug, but we can fix this in the future.
-        //RenderUtils::saveTexture("./data/cache/saved_TEST.png", Gu::getActiveWindow().getGui().getTex().getGlId(), GL_TEXTURE_2D);
-      }
-
-      //**Pos
-      //Transform quad by scale.  This is new - transorm the local quad only.  Not the whole text line.
-      float fScale = fontSizeToFontScale(fontSize);
+      //Transform quad by STB scale.
+      //The STB quad is in STB scaled units to the given BakedChar size, i.e. it is not in "raw" units
+      //We must then transform it into EM 
+      float fScale = patchInfo.GetScaleForPixelSize(fontSize);
       outWidth = (stbQuad.x1 - stbQuad.x0) * fScale;//the stb x0, x1 seem to be in direct pixel coordinates
       outHeight = (stbQuad.y1 - stbQuad.y0) * fScale;
 
-      //Position character horizontally
       //Compute the padding between characters
+      //Bearing and Width are in RAW units,
+      //we must convert to BakedChar units, THEN into EM units.
       int advWidth, bearing;
-      float fAdvWidth, fBearing;
       unsafe
       {
         StbTrueTypeSharp.StbTrueType.stbtt_GetCodepointHMetrics(_fontInfo, cCode, &advWidth, &bearing);
       }
-      fAdvWidth = (float)advWidth * _fScaleForPixelHeight;//fAdvWidth is seems to usually be the width of the character in pixels. 64 = 64
-      fBearing = (float)bearing * _fScaleForPixelHeight;
-      fAdvWidth *= fScale;
-      fBearing *= fScale;
-
-      //Compute the glyph padding values, and spaceing
-      //for some reason space has a negative x0
-      padLeft = fBearing;               // leftSideBearing is the offset from the current horizontal position to the left edge of the character
-      //so bearing would put characters and be negative padding technically
-      padRight =   fAdvWidth-outWidth;  // advanceWidth is the offset from the current horizontal position to the next horizontal position
-
-      //Position character vertically
-      //The ascent + descent of the character is wherever the quad is above, or below zero (zero is the baseline, we pass it in with curY)
-      //_fAscent adn _fDescent are the scaled MAXIMUM ascent + descent of the font.  So the math here is correct
-      padBot = (Math.Abs(_fDescent) - Math.Abs(stbQuad.y1));  // usually negative
-      padTop = (Math.Abs(_fAscent) - Math.Abs(stbQuad.y0));   //
-      padBot *= fScale;
-      padTop *= fScale;
-    }
-    public float fontSizeToFontScale(float fs)
-    {
-      //Incorrect but I'm just,, o
-      //Dividing by _ascent gives us a larger font than the actual extent.
-      return fs / (float)_iBakedCharSizePixels;
+      right = (float)advWidth * patchInfo.ScaleForPixelHeight * fScale;// advanceWidth is the offset from the current horizontal position to the next horizontal position
+      left = (float)bearing * patchInfo.ScaleForPixelHeight * fScale;// leftSideBearing is the offset from the current horizontal position to the left edge of the character
+      bot = (float)_descent * patchInfo.ScaleForPixelHeight * fScale;
+      top = (float)_ascent * patchInfo.ScaleForPixelHeight * fScale;
     }
   }
   #endregion
@@ -631,16 +645,14 @@ namespace PirateCraft
     public MtTex DefaultPixel = null;
     public string Name { get; private set; } = "";
 
-    public MegaTex(string name, bool bCache, bool bAddDefaultPixel) //: Texture2D(name, TextureFormat::Image4ub, ctx)
+    public MegaTex(string name, bool bCache, int defaultRegionSize = 0) //: Texture2D(name, TextureFormat::Image4ub, ctx)
     {
-      //bAddDefaultPixel - add a 1x1 white pixel texture to this image.
+      //@param defaultRegionSize - Add a default white region for rendering solid colors. 0=disable.
       _bCache = bCache;
-      if (bAddDefaultPixel)
+      if (defaultRegionSize > 0)
       {
-        //Add a "default white pixel" for coloring, or other things
-        //Note: Default pixel size will get skewed if texture filtering is enabled.
-        int defsiz = 4;
-        var tp = GetTex(new Img32(defsiz, defsiz, Enumerable.Repeat((byte)255, defsiz * defsiz * 4).ToArray(), Img32.PixelFormat.RGBA));
+        //Note: Default region will get skewed if texture filtering is enabled.
+        var tp = GetTex(new Img32(defaultRegionSize, defaultRegionSize, Enumerable.Repeat((byte)255, defaultRegionSize * defaultRegionSize * 4).ToArray(), Img32.PixelFormat.RGBA));
         DefaultPixel = tp.GetTexs()[0];
       }
       Name = name;
@@ -742,7 +754,7 @@ namespace PirateCraft
 
       //_bImagesLoaded = true;
     }
-    public CompiledTextures Compile(MtClearColor clearColor = MtClearColor.BlackNoAlpha)
+    public CompiledTextures Compile(MtClearColor clearColor = MtClearColor.BlackNoAlpha, bool mipmaps = false, TexFilter filter = TexFilter.Nearest)
     {
       Img32 master_albedo = null, master_normal = null;
 
@@ -922,13 +934,13 @@ namespace PirateCraft
       if (master_albedo != null)
       {
         Gu.Log.Debug("MegaTex - Creating Albedo Map.");
-        output.Albedo = new Texture2D(master_albedo, true, TexFilter.Nearest);
+        output.Albedo = new Texture2D(master_albedo, mipmaps, filter);
 
         Gu.Log.Debug("MegaTex - Creating Normal Map.");
         master_normal = master_albedo.createNormalMap();
         string nmapname_dbg = System.IO.Path.Combine(Gu.LocalCachePath, "mt_" + Name + "_normal.png");
         ResourceManager.SaveImage(nmapname_dbg, master_normal);
-        output.Normal = new Texture2D(master_normal, true, TexFilter.Nearest);
+        output.Normal = new Texture2D(master_normal, mipmaps, filter);
       }
 
       _eState = MegaTexCompileState.Compiled;

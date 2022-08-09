@@ -5,8 +5,8 @@ namespace PirateCraft
   {
     public bool LogErrors = true;
     public bool BreakOnOpenGLError = true;
-    public int BakedCharSize = 64;
-    public int FontBitmapSize = 1024;
+    public int MaxBakedCharSize = 64;
+    public int MaxFontBitmapSize = 1024;
     public bool MSAA = false;
     public int MSAASamples = 4;
     public int ShadowMapResolution = 1024;
@@ -14,6 +14,7 @@ namespace PirateCraft
     public bool EnableRuntimeErrorChecking = true;
     public bool BreakOnGraphicsError = true;
     public bool ShowGuiBoxesAndDisableClipping = false;
+    public bool SaveSTBFontImage = true; //saves raw generated font images
     public EngineConfig()
     {
     }

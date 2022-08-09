@@ -275,8 +275,6 @@ namespace PirateCraft
         }
       }
 
-    
-
       //Note: data buffer must be the same size as SampleRate
       AL.BufferData(_buffers[_iCurrentBuffer], ALFormat.Stereo16, data, _vorbisStream.SampleRate);
       AudioManager.CheckALErrors();

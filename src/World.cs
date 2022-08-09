@@ -2156,7 +2156,7 @@ namespace PirateCraft
     }
     private Material _worldMaterial_Op = null;
     private Material _worldMaterial_Tp = null;
-    private MegaTex _worldMegatex = new MegaTex("tex", true, false);
+    private MegaTex _worldMegatex = new MegaTex("tex", true, 0);
     private const string SaveWorldVersion = "0.01";
     private const string SaveWorldHeader = "WorldFilev" + SaveWorldVersion;
     private const int DromeFileVersion = 1;
@@ -3055,7 +3055,7 @@ namespace PirateCraft
       _worldMegatex.GetFont(new FileLoc("EmilysCandy-Regular.ttf", FileStorage.Embedded));
 
       _worldMegatex.LoadImages();
-      var cmp = _worldMegatex.Compile();
+      var cmp = _worldMegatex.Compile(MegaTex.MtClearColor.BlackNoAlpha, true, TexFilter.Nearest);
 
       cmp.Albedo.SetFilter(TextureMinFilter.NearestMipmapLinear, TextureMagFilter.Nearest);
 

@@ -21,8 +21,10 @@ namespace PirateCraft
   }
   public enum UiPositionMode
   {
-    Static,
-    Relative
+    //Note: the position terminology here mirrors that of CSS. 
+    Static, // elements flow within the page.
+    Relative // elements are relative to the container.
+    //absolute: relative to the whole document.
   }
   public enum UiEventId
   {
@@ -108,81 +110,28 @@ namespace PirateCraft
   }
   public class UiElementBase
   {
-    //Units are in design-space pixels
-    public float Top
-    {
-      get { return _top; }
-      set
-      {
-        _top = value;
-      }
-    }
-    public float Left
-    {
-      get { return _left; }
-      set
-      {
-        _left = value;
-      }
-    }
-    public float Right
-    {
-      get { return _right; }
-      set
-      {
-        _right = value;
-      }
-    }
-    public float Bottom
-    {
-      get { return _bottom; }
-      set
-      {
-        _bottom = value;
-      }
-    }
+    //We separate this from Uielement because of Child elements / Glyphs.
+    // There are a ton of them, and they don't need all the extra information.
+    // Glyphs need margin, but no padding. 
+    // We MAY put color in the glyph.
+    public float Top { get { return _top; } set { _top = value; } }
+    public float Left { get { return _left; } set { _left = value; } }
+    public float Right { get { return _right; } set { _right = value; } }
+    public float Bottom { get { return _bottom; } set { _bottom = value; } }
 
-    public float PadTop
-    {
-      get { return _padTop; }
-      set
-      {
-        _padTop = value;
-      }
-    }
-    public float PadRight
-    {
-      get { return _padRight; }
-      set
-      {
-        _padRight = value;
-      }
-    }
-    public float PadBot
-    {
-      get { return _padBot; }
-      set
-      {
-        _padBot = value;
-      }
-    }
-    public float PadLeft
-    {
-      get { return _padLeft; }
-      set
-      {
-        _padLeft = value;
-      }
-    }
+    public float MarginTop { get { return _marTop; } set { _marTop = value; } }
+    public float MarginRight { get { return _marRight; } set { _marRight = value; } }
+    public float MarginBot { get { return _marBot; } set { _marBot = value; } }
+    public float MarginLeft { get { return _marLeft; } set { _marLeft = value; } }
 
     public float WidthPX { get { return Right - Left; } }
     public float HeightPX { get { return Bottom - Top; } }
     public vec4 Color { get; set; } = new vec4(1, 1, 1, 1);
 
-    protected float _padTop = 0;
-    protected float _padRight = 0;
-    protected float _padBot = 0;
-    protected float _padLeft = 0;
+    protected float _marTop = 0;
+    protected float _marRight = 0;
+    protected float _marBot = 0;
+    protected float _marLeft = 0;
     protected float _top = 0;
     protected float _right = 0;
     protected float _bottom = 0;
@@ -231,50 +180,15 @@ namespace PirateCraft
     public UiDisplayMode DisplayMode { get; set; } = UiDisplayMode.Block;
     public UiImageSizeMode SizeModeX { get; set; } = UiImageSizeMode.Expand;  // tile = GL_REPEAT, Clamp = GL_CLAMP, Expand - expand tex coords.
     public UiImageSizeMode SizeModeY { get; set; } = UiImageSizeMode.Expand;  // tile = GL_REPEAT, Clamp = GL_CLAMP, Expand - expand tex coords.
-    public UiDimUnit PadUnitTop { get; set; } = UiDimUnit.Pixel;
-    public UiDimUnit PadUnitRight { get; set; } = UiDimUnit.Pixel;
-    public UiDimUnit PadUnitBot { get; set; } = UiDimUnit.Pixel;
-    public UiDimUnit PadUnitLeft { get; set; } = UiDimUnit.Pixel;
-
-    protected void SetLayoutChanged()
-    {
-      if (LayoutChanged == false)
-      {
-        LayoutChanged = true;
-        // if (bChildren)
-        // {
-        //   // if bChildren is true, we go in reverse **this is expensive and should only be used by gui2d
-        //   if (Children != null)
-        //   {
-        //     foreach (var c in Children)
-        //     {
-        //       c.Value.SetLayoutChanged();
-        //     }
-        //   }
-        // }
-        // else
-        //{
-        if (_parent != null)
-        {
-          if (_parent.TryGetTarget(out var par))
-          {
-            par.SetLayoutChanged();
-          }
-        }
-
-        // }
-      }
-    }
+    public UiDimUnit MarginUnitTop { get; set; } = UiDimUnit.Pixel;
+    public UiDimUnit MarginUnitRight { get; set; } = UiDimUnit.Pixel;
+    public UiDimUnit MarginUnitBot { get; set; } = UiDimUnit.Pixel;
+    public UiDimUnit MarginUnitLeft { get; set; } = UiDimUnit.Pixel;
 
     //Texture
     public MtTex Texture = null;
     private Box2f _q2Tex = new Box2f(0, 0, 1, 1);//0,1
     private vec2 _tileScale = new vec2(1, 1); //Scale if UiImageSizeMode is Tile
-
-    // public float PadTop { get; set; }
-    // public float PadBottom { get; set; }
-    // public float PadLeft { get; set; }
-    // public float PadRight { get; set; }
 
     public virtual void Update(WorldObject wo, WindowContext wc)
     {
@@ -332,6 +246,20 @@ namespace PirateCraft
       }
       //could not remove.
       return false;
+    }
+    protected void SetLayoutChanged()
+    {
+      if (LayoutChanged == false)
+      {
+        LayoutChanged = true;
+        if (_parent != null)
+        {
+          if (_parent.TryGetTarget(out var par))
+          {
+            par.SetLayoutChanged();
+          }
+        }
+      }
     }
     private bool IsFullyClipped(Box2f b2ClipRect)
     {
@@ -788,11 +716,11 @@ namespace PirateCraft
             float effT = ele.Bottom;
             if (ele.Position == UiPositionMode.Static)
             {
-              effR -= (ele.PadLeft + ele.PadRight);
+              effR -= (ele.MarginLeft + ele.MarginRight);
             }
             if (ele.Position == UiPositionMode.Static)
             {
-              effT -= (ele.PadTop + ele.PadBot);
+              effT -= (ele.MarginTop + ele.MarginBot);
             }
 
             // w/h adjust
@@ -870,9 +798,10 @@ namespace PirateCraft
             }
             else if (ele.Position == UiPositionMode.Relative)
             {
-              // Calc positioned elements (does not follow flow), static position
+              // Fixed elements relative to container
               ComputePositionalElement(ele);
             }
+            //Absolute - relative to entire document.
           }
         }
         if (bucket.Count > 0)
@@ -976,20 +905,14 @@ namespace PirateCraft
       // }
       ele.ApplyMinMax(ref wpx, ref hpx);
 
-      // Remove unnecessary padding to prevent auto and % widths from growing
-      // float parent_w = getParent()->right().px() - getParent()->left().px();
-      // float parent_h = getParent()->bottom().px() - getParent()->top().px();
-      //
-      // wpx + pl + pr
-
       //*Padding
-      float pt = ComputePad_Unit(HeightPX, ele.PadUnitTop, ele._padTop);
-      float pr = ComputePad_Unit(WidthPX, ele.PadUnitRight, ele._padRight);
-      float pb = ComputePad_Unit(HeightPX, ele.PadUnitBot, ele._padBot);
-      float pl = ComputePad_Unit(WidthPX, ele.PadUnitLeft, ele._padLeft);
+      float mt = ComputeMargin_Unit(HeightPX, ele.MarginUnitTop, ele._marTop);
+      float mr = ComputeMargin_Unit(WidthPX, ele.MarginUnitRight, ele._marRight);
+      float mb = ComputeMargin_Unit(HeightPX, ele.MarginUnitBot, ele._marBot);
+      float ml = ComputeMargin_Unit(WidthPX, ele.MarginUnitLeft, ele._marLeft);
 
-      float wpx_pad = wpx + pl + pr;
-      float hpx_pad = hpx + pb + pt;
+      float wpx_pad = wpx + ml + mr;
+      float hpx_pad = hpx + mb + mt;
 
       //**Line break
       bool bLineBreak = false;
@@ -1018,9 +941,9 @@ namespace PirateCraft
         line = vecLines[vecLines.Count - 1];
       }
 
-      ele._left = line._left + line._width + pl; // ele->left() = line->_left + line->_width + pl;
+      ele._left = line._left + line._width + ml; // ele->left() = line->_left + line->_width + pl;
       ele._right = ele._left + wpx; // ele->right() = ele->left().px() + wpx;  // wpx, not wpx_pad
-      ele._top = line._top + pt; //ele->top() = line->_top + pt;
+      ele._top = line._top + mt; //ele->top() = line->_top + pt;
       ele._bottom = ele._top + hpx; //ele->bottom() = ele->top().px() + hpx;  // hpx, not hpx_pad
 
       line._width += wpx_pad;
@@ -1032,9 +955,9 @@ namespace PirateCraft
 
       line._eles.Add(ele);
     }
-    private static float ComputePad_Unit(float parentextent, UiDimUnit unit, float ud)
+    private static float ComputeMargin_Unit(float parentextent, UiDimUnit unit, float ud)
     {
-      //Basically we allowed for % paddings. 
+      //You can't compute a % of a non-fixed size element UNTIL it has been computed.
       if (unit == UiDimUnit.Pixel)
       {
         return ud;
@@ -1045,7 +968,7 @@ namespace PirateCraft
       }
       else
       {
-        Gu.Log.Error("Invalid value for pad");
+        Gu.Log.Error("Invalid value for margin unit");
         return 0;
       }
     }
@@ -1053,9 +976,6 @@ namespace PirateCraft
     {
       //*No padding
       //*No auto sizing
-      // Needs to be separate becasue cursor/windwos needs special updating.
-      // Comp static wh.
-      //**PADDING IS NOT APLIED TO POSITIONAL ELEMENTS**
       float wpx = 0, hpx = 0;
       ele.ComputeWH(ref wpx, ref hpx);  // Cannot be auto
       ele.ApplyMinMax(ref wpx, ref hpx);
@@ -1157,6 +1077,7 @@ namespace PirateCraft
     private string _strText = "";
     private bool _bChanged = false;
     private Font _font;
+    private FontPatchInfo _patch;
 
     public string Text { get { return _strText; } set { SetLayoutChanged(); _strText = value; } }
 
@@ -1183,16 +1104,15 @@ namespace PirateCraft
       {
         var g = _font.GetGlyph(cc, 20);
 
-
         if (g != null)
         {
-          float advW = this._font.MtFont.GetKernAdvanceWidth(20, last, cc);
+          float advW = 0;//this._font.MtFont.GetKernAdvanceWidth(20, last, cc);
 
           UiElement e = new UiElement();
-          e.PadBot = g.PadBot;
-          e.PadRight = g.PadRight;
-          e.PadLeft = g.PadLeft + advW;
-          e.PadTop = g.PadTop;
+          e.MarginBot = g.MarginBot;
+          e.MarginRight = g.MarginRight;
+          e.MarginLeft = g.MarginLeft + advW;
+          e.MarginTop = g.MarginTop;
           e.Left = 0;
           e.Right = g.Size.x;
           e.Top = 0;
@@ -1330,14 +1250,20 @@ namespace PirateCraft
     {
       //FontHeight must be an int to prevent floating point error 
       Box2f outTexs = new Box2f();
-      float outW = 0, outH = 0, outPadT = 0, outPadR = 0, outPadB = 0, outPadL = 0;
+      float outW = 0, outH = 0, outMarT = 0, outMarR = 0, outMarB = 0, outMarL = 0;
       int nCh = 0;
+
+      var patch = MtFont.SelectFontPatchInfo(fontHeight);
+      if (patch == null)
+      {
+        return;
+      }
 
       //TODO: support other languages.
       for (int c = this.MtFont.FirstChar; c < this.MtFont.CharCount; c++)
       {
         //we should use the kerning code when we build the actual string.
-        MtFont.getCharQuad(c, (float)fontHeight, ref outW, ref outH, ref outTexs, ref outPadT, ref outPadR, ref outPadB, ref outPadL);
+        MtFont.GetCharQuad(patch, c, (float)fontHeight, ref outW, ref outH, ref outTexs, ref outMarT, ref outMarR, ref outMarB, ref outMarL);
 
         UIGlyph g = new UIGlyph();
 
@@ -1354,10 +1280,10 @@ namespace PirateCraft
         g.Texs = outTexs;
         g.Color = Color;  // Copy color over Note: font color? I do't know I think we should use gui color
 
-        g.PadTop = outPadT;     // fontHeight - outH;    //this should never be greater
-        g.PadRight = outPadR;   // fontHeight - outH;    //this should never be greater
-        g.PadBot = outPadB;  // fontHeight - outH;    //this should never be greater
-        g.PadLeft = outPadL;    // fontHeight - outH;    //this should never be greater
+        g.MarginTop = outMarT;     // fontHeight - outH;    //this should never be greater
+        g.MarginRight = outMarR;   // fontHeight - outH;    //this should never be greater
+        g.MarginBot = outMarB;  // fontHeight - outH;    //this should never be greater
+        g.MarginLeft = outMarL;    // fontHeight - outH;    //this should never be greater
 
         nCh++;
       }
@@ -1385,7 +1311,7 @@ namespace PirateCraft
 
     public GuiComponent()
     {
-      _megaTex = new MegaTex("gui_megatex", true, true);
+      _megaTex = new MegaTex("gui_megatex", true, 128);
 
       Screen = new UiScreen();
     }
@@ -1398,7 +1324,7 @@ namespace PirateCraft
     public override void OnCreate(WorldObject myObj)
     {
       _megaTex.LoadImages();
-      MegaTex.CompiledTextures tx = _megaTex.Compile(MegaTex.MtClearColor.DebugRainbow);
+      MegaTex.CompiledTextures tx = _megaTex.Compile(MegaTex.MtClearColor.DebugRainbow, false, TexFilter.Linear);
       if (tx != null)
       {
 
