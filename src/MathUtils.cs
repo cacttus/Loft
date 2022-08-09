@@ -1586,6 +1586,8 @@ namespace PirateCraft
     public vec4(vec4 dxy) { x = dxy.x; y = dxy.y; z = dxy.z; w = dxy.w; }
     public vec4(float dx, float dy, float dz, float dw) { x = dx; y = dy; z = dz; w = dw; }
     public vec4(OpenTK.Mathematics.Vector4 v) { x = v.X; y = v.Y; z = v.Z; w = v.W; }//From XNA's Vector2
+    public static vec4 One { get { return new vec4(1, 1, 1, 1); } }
+    public static vec4 Zero { get { return new vec4(0, 0, 0, 0); } }
     public static vec4 FromHex(string hex)
     {
       if (hex.Length < 4 * 2 + 1)

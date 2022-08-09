@@ -395,7 +395,7 @@ namespace PirateCraft
         // proportion the Y to the X
         _q2Tex._min.y = Texture.uv1.y;
         float fw = _q2Tex._max.x - _q2Tex._min.x;
-        float fr = Texture.getSizeRatio();
+        float fr = Texture.GetSizeRatio();
         float fh = fw * fr;
         _q2Tex._max.y = _q2Tex._min.y + fh;
       }
@@ -444,15 +444,15 @@ namespace PirateCraft
       float w1px = 0;                  // 1 pixel subtract from the u/v to prevent creases during texture modulation
       float h1px = 0;
 
-      if (Texture.getWidth() > 0 && v._texsiz.x > 0)
+      if (Texture.GetWidth() > 0 && v._texsiz.x > 0)
       {
-        w1px = 1.0f / Texture.getWidth();
+        w1px = 1.0f / Texture.GetWidth();
         w1px *= v._texsiz.x;
         w1px *= pixAdjust;
       }
-      if (Texture.getHeight() > 0 && v._texsiz.y > 0)
+      if (Texture.GetHeight() > 0 && v._texsiz.y > 0)
       {
-        h1px = 1.0f / Texture.getHeight();
+        h1px = 1.0f / Texture.GetHeight();
         h1px *= v._texsiz.y;
         h1px *= pixAdjust;
       }
@@ -941,10 +941,10 @@ namespace PirateCraft
         line = vecLines[vecLines.Count - 1];
       }
 
-      ele._left = line._left + line._width + ml; // ele->left() = line->_left + line->_width + pl;
-      ele._right = ele._left + wpx; // ele->right() = ele->left().px() + wpx;  // wpx, not wpx_pad
-      ele._top = line._top + mt; //ele->top() = line->_top + pt;
-      ele._bottom = ele._top + hpx; //ele->bottom() = ele->top().px() + hpx;  // hpx, not hpx_pad
+      ele._left = line._left + line._width + ml;
+      ele._right = ele._left + wpx;
+      ele._top = line._top + mt;
+      ele._bottom = ele._top + hpx;
 
       line._width += wpx_pad;
 
@@ -1076,17 +1076,17 @@ namespace PirateCraft
   {
     private string _strText = "";
     private bool _bChanged = false;
-    private Font _font;
+    private FontAttributes _font;
     private FontPatchInfo _patch;
 
     public string Text { get { return _strText; } set { SetLayoutChanged(); _strText = value; } }
 
-    public UILabel(vec2 pos, Font f, string text)
+    public UILabel(vec2 pos, FontAttributes f, string text)
     {
       _left = pos.x;
       _top = pos.y;
-      _right = _left + 280;
-      _bottom = _top + 100;
+      _right = _left + 400;
+      _bottom = _top + 400;
       _font = f;
       _strText = text;
     }
@@ -1100,34 +1100,42 @@ namespace PirateCraft
       Children = new MultiMap<int, UiElement>();
       float width = 0;
       int last = 0;
+
+      float fontHeight = 20;
+      var patch = this._font.MtFont.SelectFontPatchInfo(fontHeight);
+      if (patch == null)
+      {
+        return;
+      }
+      CachedCharData ccd = new CachedCharData();
+
+      int index = 0;
       foreach (int cc in _strText)
       {
-        var g = _font.GetGlyph(cc, 20);
+        float advW = 0;//this._font.MtFont.GetKernAdvanceWidth(20, last, cc);
 
-        if (g != null)
-        {
-          float advW = 0;//this._font.MtFont.GetKernAdvanceWidth(20, last, cc);
+        UiElement e = new UiElement();
+        e.Texture = new MtTex(null, 0);
+        e.Texture.SetWH(patch.TextureWidth, patch.TextureHeight);
 
-          UiElement e = new UiElement();
-          e.MarginBot = g.MarginBot;
-          e.MarginRight = g.MarginRight;
-          e.MarginLeft = g.MarginLeft + advW;
-          e.MarginTop = g.MarginTop;
-          e.Left = 0;
-          e.Right = g.Size.x;
-          e.Top = 0;
-          e.Bottom = g.Size.y;
-          e.Texture = new MtTex(null, 0);
-          //we need to set this for pixAdjust
-          e.Texture.SetWH(this._font.MtFont.GetTexs()[0].getWidth(), this._font.MtFont.GetTexs()[0].getHeight());
-          e.Texture.uv0 = g.Texs._min;
-          e.Texture.uv1 = g.Texs._max;
-          e.DisplayMode = UiDisplayMode.InlineWrap;
-          e.Color = new vec4(0, 0, 0, 1);
-          e.ValidateQuad();
-          AddChild(e);
-        }
+        patch.GetChar(cc, fontHeight, out ccd);
+
+        e.MarginBot = ccd.margin_bot;
+        e.MarginTop = ccd.margin_top;
+        e.MarginLeft = ccd.margin_left + advW;
+        e.MarginRight = ccd.margin_right;
+        e.Texture.uv0 = ccd.uv0;
+        e.Texture.uv1 = ccd.uv1;
+        e.Left = 0;
+        e.Right = ccd.width;
+        e.Top = 0;
+        e.Bottom = ccd.height;
+        e.DisplayMode = UiDisplayMode.InlineWrap;
+        e.Color = new vec4(0, 0, 0, 1);
+        e.ValidateQuad();
+        AddChild(e);
         last = cc;
+        index++;
       }
     }
   }
@@ -1210,92 +1218,28 @@ namespace PirateCraft
       wo.Mesh.DrawOrder = DrawOrder.Last;
     }
   }
-  public class Font
+  public class FontAttributes
   {
-    public FileLoc FileLoc { get; private set; }
-    //font size -> list of glyphs based on char code.
+    public enum FontStyle
+    {
+      Normal,
+      Bold,
+      Italic
+    }
     public MtFont MtFont { get; } = null;
     public vec4 Color { get; set; } = new vec4(1, 1, 1, 1);
-    //font size -> char code -> gUiElement
-    private Dictionary<int, Dictionary<int, UIGlyph>> _glyphs = new Dictionary<int, Dictionary<int, UIGlyph>>();
-    private bool _glyphsCreated = false;
+    public FontStyle Style { get; set; } = FontStyle.Normal;
 
-    public UIGlyph GetGlyph(int cc, int height)
+    public FontAttributes(MtFont f, vec4? color = null, FontStyle style = FontStyle.Normal)
     {
-      if (_glyphsCreated == false)
-      {
-        _glyphsCreated = true;
-        //**TEST
-        //**TEST
-        //**TEST
-        CreateGlyphsForHeight(20);
-      }
-      if (_glyphs.TryGetValue(height, out var chars))
-      {
-        if (chars.TryGetValue(cc, out var theglyph))
-        {
-          return theglyph;
-        }
-      }
-      return null;
-    }
-
-    public Font(FileLoc loc, MtFont f)
-    {
-      FileLoc = loc;
       MtFont = f;
-
-    }
-    void CreateGlyphsForHeight(int fontHeight)
-    {
-      //FontHeight must be an int to prevent floating point error 
-      Box2f outTexs = new Box2f();
-      float outW = 0, outH = 0, outMarT = 0, outMarR = 0, outMarB = 0, outMarL = 0;
-      int nCh = 0;
-
-      var patch = MtFont.SelectFontPatchInfo(fontHeight);
-      if (patch == null)
-      {
-        return;
-      }
-
-      //TODO: support other languages.
-      for (int c = this.MtFont.FirstChar; c < this.MtFont.CharCount; c++)
-      {
-        //we should use the kerning code when we build the actual string.
-        MtFont.GetCharQuad(patch, c, (float)fontHeight, ref outW, ref outH, ref outTexs, ref outMarT, ref outMarR, ref outMarB, ref outMarL);
-
-        UIGlyph g = new UIGlyph();
-
-        Dictionary<int, UIGlyph> val = null;
-        if (!_glyphs.TryGetValue(fontHeight, out val))
-        {
-          val = new Dictionary<int, UIGlyph>();
-          _glyphs.Add(fontHeight, val);
-        }
-        val.Add(c, g);
-
-        g.Size = new vec2(outW, outH);
-
-        g.Texs = outTexs;
-        g.Color = Color;  // Copy color over Note: font color? I do't know I think we should use gui color
-
-        g.MarginTop = outMarT;     // fontHeight - outH;    //this should never be greater
-        g.MarginRight = outMarR;   // fontHeight - outH;    //this should never be greater
-        g.MarginBot = outMarB;  // fontHeight - outH;    //this should never be greater
-        g.MarginLeft = outMarL;    // fontHeight - outH;    //this should never be greater
-
-        nCh++;
-      }
-
+      Style = style;
+      Color = color == null ? new vec4(1, 1, 1, 1) : color.Value;
     }
   }
   public class GuiComponent : Component
   {
-    //private const int MaxGuiVerts = 2048;
-    //private v_v4v4v4v2u2[] _verts = new v_v4v4v4v2u2[MaxGuiVerts];
-    //private int _numVerts = 0;
-    private List<Font> _fonts = new List<Font>();
+    private List<FontAttributes> _fonts = new List<FontAttributes>();
     private Shader _shader = null;
     private MegaTex _megaTex = null;
 
@@ -1315,22 +1259,20 @@ namespace PirateCraft
 
       Screen = new UiScreen();
     }
-    public Font LoadFont(FileLoc loc)
+    public FontAttributes LoadFont(FileLoc loc)
     {
-      var ret = new Font(loc, _megaTex.GetFont(loc));
+      var ret = new FontAttributes(_megaTex.GetFont(loc));
       _fonts.Add(ret);
       return ret;
     }
     public override void OnCreate(WorldObject myObj)
     {
       _megaTex.LoadImages();
+      //Linear filtering makes text look very smooth. 
+      //Do not use mipmaps in the UI, it messes up the fonts. Or, we must use a separate font texture if we choose to use mipmaps (or custom mipmaps).
       MegaTex.CompiledTextures tx = _megaTex.Compile(MegaTex.MtClearColor.DebugRainbow, false, TexFilter.Linear);
       if (tx != null)
       {
-
-        //don't filter
-        // tx.Albedo.SetFilter(OpenTK.Graphics.OpenGL4.TextureMinFilter.LinearMipmapNearest,OpenTK.Graphics.OpenGL4.TextureMagFilter.Linear);
-
         _shader = Gu.Resources.LoadShader("v_gui", true, FileStorage.Embedded);
         myObj.Material = new Material("GuiMT", _shader);
         myObj.Material.GpuRenderState.DepthTest = false;
@@ -1349,34 +1291,12 @@ namespace PirateCraft
     public override Component Clone(bool shallow = true)
     {
       GuiComponent other = new GuiComponent();
-      other._fonts = new List<Font>(_fonts);
+      other._fonts = new List<FontAttributes>(_fonts);
       other._shader = _shader;
       other._megaTex = _megaTex;
       other.Screen = Screen;
       return other;
     }
-    public void DrawText(vec2 pos, string text)
-    {
-      // Gu.Assert(DefaultFont != null);
-      // Gu.Assert(DefaultFont.MtFont != null);
-      // float w, h;
-      // foreach (char c in text)
-      // {
-      //   //    _activeFont.MtFont.getCharQuad(c);
-      //   //Glyph g = GetGlyphByChar(c) // glyphs cached by by getCharQuad
-      //   //    g.x += w;
-      //   //w += g.width;
-      //   //if (_cur_vert >= MaxGuiVerts)
-      //   //{
-      //   //  Gu.Log.Error("Used up all our verts.");
-      //   //}
-      //   //else
-      //   //{
-      //   //  Verts[_numVerts] = g.GetVert();
-      //   //}
-      // }
-    }
-
     public MtTex DefaultPixel()
     {
       return _megaTex.DefaultPixel;

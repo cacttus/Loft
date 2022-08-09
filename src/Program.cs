@@ -466,9 +466,9 @@ namespace PirateCraft
       }
       {
         _fpsLabel = new UILabel(new vec2(20, 20), font, "!!!");
-       _fpsLabel.Position = UiPositionMode.Relative;
-      _fpsLabel.Color = new vec4(.8f,.8f,.8f,1);
-      _fpsLabel.Texture = gui.DefaultPixel();
+        _fpsLabel.Position = UiPositionMode.Relative;
+        _fpsLabel.Color = new vec4(.8f, .8f, .8f, 1);
+        _fpsLabel.Texture = gui.DefaultPixel();
 
         gui.Screen.AddChild(_fpsLabel);
       }
@@ -517,7 +517,8 @@ namespace PirateCraft
          $"Cap Hit:{CapsuleHit} "
          ;
 
-      _fpsLabel.Text = "!FPS: "+(int)Gu.Context.Fps;
+      var ipsum = "At vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis praesentium voluptatum deleniti atque corrupti quos dolores et quas molestias excepturi sint occaecati cupiditate non provident, similique sunt in culpa qui officia deserunt mollitia animi, id est laborum et dolorum fuga. Et harum quidem rerum facilis est et expedita distinctio. Nam libero tempore, cum soluta nobis est eligendi optio cumque nihil impedit quo minus id quod maxime placeat facere possimus, omnis voluptas assumenda est, omnis dolor repellendus. Temporibus autem quibusdam et aut officiis debitis aut rerum necessitatibus saepe eveniet ut et voluptates repudiandae sint et molestiae non recusandae. Itaque earum rerum hic tenetur a sapiente delectus, ut aut reiciendis voluptatibus maiores alias consequatur aut perferendis doloribus asperiores repellat.";
+      _fpsLabel.Text = "!FPS: " + (int)Gu.Context.Fps + ipsum;
 
       Gu.Context.DebugDraw.BeginFrame();
 

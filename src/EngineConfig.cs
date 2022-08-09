@@ -6,7 +6,7 @@ namespace PirateCraft
     public bool LogErrors = true;
     public bool BreakOnOpenGLError = true;
     public int MaxBakedCharSize = 64;
-    public int MaxFontBitmapSize = 1024;
+    public int MaxFontBitmapSize = 4096;
     public bool MSAA = false;
     public int MSAASamples = 4;
     public int ShadowMapResolution = 1024;
