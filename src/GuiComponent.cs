@@ -109,15 +109,28 @@ namespace PirateCraft
   public class UiElementBase
   {
     //Units are in design-space pixels
-    public float Top { get; set; } = 0;
-    public float Left { get; set; } = 0;  //These are all in pixels.
-    public float Right { get; set; } = 0;
-    public float Bottom { get; set; } = 0;
-    public Box2f Texs { get; set; }
-    public vec4 Color { get; set; }
+    public float Top { get { return _top; } set { _top = value; } }
+    public float Left { get { return _left; } set { _left = value; } }
+    public float Right { get { return _right; } set { _right = value; } }
+    public float Bottom { get { return _bottom; } set { _bottom = value; } }
+
+    public float PadTop { get { return _padTop; } set { _padTop = value; } }
+    public float PadRight { get { return _padRight; } set { _padRight = value; } }
+    public float PadBot { get { return _padBot; } set { _padBot = value; } }
+    public float PadLeft { get { return _padLeft; } set { _padLeft = value; } }
 
     public float WidthPX { get { return Right - Left; } }
     public float HeightPX { get { return Bottom - Top; } }
+    public vec4 Color { get; set; } = new vec4(1, 1, 1, 1);
+
+    protected float _padTop = 0;
+    protected float _padRight = 0;
+    protected float _padBot = 0;
+    protected float _padLeft = 0;
+    protected float _top = 0;
+    protected float _right = 0;
+    protected float _bottom = 0;
+    protected float _left = 0;
   }
   public class UiElement : UiElementBase
   {
@@ -132,7 +145,7 @@ namespace PirateCraft
     //Separate UiElement from container because Dictionary footprint is massive and, the glyphs have no children
     private WeakReference<UiElement> _parent = null;
     protected const int BaseLayerSort = 1000;
-    protected MultiMap<int, UiElement> Children { get; private set; } = null;
+    public MultiMap<int, UiElement> Children { get; set; } = null;
     private Box2f _b2ComputedQuad = new Box2f();      // Base quad that is calculated from _right/_left.., parent, padding, etc
     private Box2f _b2ComputedQuadLast = new Box2f();
     private Box2f _b2ContentQuad = new Box2f();       // Encompassess ALL of the child quads, plus overflow.
@@ -145,7 +158,6 @@ namespace PirateCraft
     private long _iPickedFrameId = 0;
     private Dictionary<UiEventId, List<Action<UiEventId, UiElement, PCMouse>>> _events = null;//EventId, list of action (EventId, Object)
 
-    public vec4 Color { get; set; } = new vec4(1, 1, 1, 1);
     public UiPositionMode Position { get; set; } = UiPositionMode.Static;
     public UiOverflowMode Overflow { get; set; } = UiOverflowMode.Hide;
     public UiDimUnit WidthUnit { get; set; } = UiDimUnit.Pixel;
@@ -154,7 +166,7 @@ namespace PirateCraft
     public float HeightPct { get; set; } = 100;// this is only set if th DimUnit is set to percent
     public vec2 MinWHPX { get; set; } = new vec2(0, 0);
     public vec2 MaxWHPX { get; set; } = new vec2(9999999, 9999999);
-    public bool LayoutChanged { get; set; } = true;
+    public bool LayoutChanged { get; private set; } = true;
     public bool LayoutVisible { get; set; } = true;
     public bool RenderVisible { get; set; } = true;
     public bool PickEnabled { get; set; } = true;
@@ -167,15 +179,36 @@ namespace PirateCraft
     public UiDimUnit PadUnitRight { get; set; } = UiDimUnit.Pixel;
     public UiDimUnit PadUnitBot { get; set; } = UiDimUnit.Pixel;
     public UiDimUnit PadUnitLeft { get; set; } = UiDimUnit.Pixel;
-    public float PadTop { get { return _padTop; } set { _padTop = value; } }
-    public float PadRight { get { return _padRight; } set { _padRight = value; } }
-    public float PadBot { get { return _padBot; } set { _padBot = value; } }
-    public float PadLeft { get { return _padLeft; } set { _padLeft = value; } }
 
-    public float _padTop = 0;
-    public float _padRight = 0;
-    public float _padBot = 0;
-    public float _padLeft = 0;
+    protected void SetLayoutChanged()
+    {
+      if (LayoutChanged == false)
+      {
+        LayoutChanged = true;
+        // if (bChildren)
+        // {
+        //   // if bChildren is true, we go in reverse **this is expensive and should only be used by gui2d
+        //   if (Children != null)
+        //   {
+        //     foreach (var c in Children)
+        //     {
+        //       c.Value.SetLayoutChanged();
+        //     }
+        //   }
+        // }
+        // else
+        //{
+        if (_parent != null)
+        {
+          if (_parent.TryGetTarget(out var par))
+          {
+            par.SetLayoutChanged();
+          }
+        }
+
+        // }
+      }
+    }
 
     //Texture
     public MtTex Texture = null;
@@ -266,7 +299,7 @@ namespace PirateCraft
       }
       return false;
     }
-    protected void RegenMesh(List<v_v4v4v4v2u2> verts, Box2f b2ClipRect)
+    protected virtual void RegenMesh(List<v_v4v4v4v2u2> verts, Box2f b2ClipRect)
     {
       if (LayoutVisible)
       {
@@ -408,7 +441,10 @@ namespace PirateCraft
         v._clip.w = 9999;
       }
 
+//tex = pos uv
+//texsize = size uv i.e for wrapping?
       // Texs
+      //tex z,w arn't used
       v._tex.x = _q2Tex._min.x;  // GL - bottom left
       v._tex.y = _q2Tex._min.y;
       v._tex.z = _q2Tex._max.x;  // GL - top right *this essentially flips it upside down
@@ -640,25 +676,38 @@ namespace PirateCraft
       pq._max.x = pq._max.x / w2;
       pq._max.y = (h2 - pq._max.y - 1) / h2;
     }
-    protected void PerformLayout(vec2 viewport_wh, bool bForce)
+    protected virtual void PerformLayout(vec2 viewport_wh, bool bForce)
     {
-      PositionChildren(bForce);
-      PerformLayoutChildren(viewport_wh, bForce);
-
-      // finalize Child Quad
-      if (Children != null)
+      //Build the UI depth-first. Children elements are built, then we add those
+      //positions to the parent to build the elements.
+      if (LayoutChanged)
       {
-        foreach (var p in Children)
+        if (Children != null)
         {
-          var ele = p.Value;
-          if (ele.LayoutVisible)
+          //PerformLayoutChildren
+          foreach (var p in Children)
           {
-            LayoutEleQuad(viewport_wh, ele);
+            UiElement ele = p.Value;
+            if (ele.LayoutVisible)
+            {
+              ele.PerformLayout(viewport_wh, bForce);
+            }
+          }
+          PositionChildren(bForce);
+          foreach (var p in Children)
+          {
+            UiElement ele = p.Value;
+            if (ele.LayoutVisible)
+            {
+              LayoutEleQuad(viewport_wh, ele);
+            }
           }
         }
-      }
 
-      ComputeContentQuad();
+        ComputeContentQuad();
+
+        LayoutChanged = false;
+      }
     }
     private void ComputeContentQuad()
     {
@@ -731,31 +780,12 @@ namespace PirateCraft
 
       ele.ComputeQuads(viewport_wh, ft, fr, fb, fl);
     }
-    private void PerformLayoutChildren(vec2 viewport_wh, bool bForce)
-    {
-      if (Children != null)
-      {
-        foreach (var p in Children)
-        {
-          UiElement ele = p.Value;
-
-          if (ele.LayoutVisible)
-          {
-            ele.PerformLayout(viewport_wh, bForce);
-            LayoutEleQuad(viewport_wh, ele);
-          }
-        }
-      }
-    }
     protected void PositionChildren(bool bForce)
     {
-      // W/h has changed.  We need to update everything.
-      // Sort elements into layers by sort ID, and process each layer
-
-      //^^^
-      //**NOTE: we removed the cache code from this.
-      // VVV
-
+      //Layout each layer specified by the key in the Children multimap.
+      //Each new layer will be a new layout set (bucket).
+      //Layout static elements sequentially left to right,
+      //or, layout relative elements for absolute position.
       if (Children != null)
       {
         int uiLast = int.MaxValue;
@@ -808,63 +838,64 @@ namespace PirateCraft
         fTotalHeight += vecLines[vecLines.Count - 1]._height;
       }
 
-      // auto heights are confusing.  So the problem is that the height of a line is indeterminate.  We build the form by widths of elements and
-      // wrap when we reach the end.   What's the actual height of the line?  What we say is *Any line that has at least one
-      //*auto height is an auto height line, thus the whole line's height gets auto*
-      // 3/4 technically auto height should always shrink whether we are inline, or block element
-      int nAutoHLines = 0;
-      for (int iLine = 0; iLine < vecLines.Count; iLine++)
-      {
-        var line = vecLines[iLine];
-        foreach (var ele in line._eles)
-        {
-          if (ele.HeightUnit == UiDimUnit.Auto)
-          {
-            nAutoHLines++;
-            break;  // Line height is auto for this line
-          }
-        }
-      }
+      // // auto heights are confusing.  So the problem is that the height of a line is indeterminate.  We build the form by widths of elements and
+      // // wrap when we reach the end.   What's the actual height of the line?  What we say is *Any line that has at least one
+      // //*auto height is an auto height line, thus the whole line's height gets auto*
+      // // 3/4 technically auto height should always shrink whether we are inline, or block element
+      // int nAutoHLines = 0;
+      // for (int iLine = 0; iLine < vecLines.Count; iLine++)
+      // {
+      //   var line = vecLines[iLine];
+      //   foreach (var ele in line._eles)
+      //   {
+      //     if (ele.HeightUnit == UiDimUnit.Auto)
+      //     {
+      //       nAutoHLines++;
+      //       break;  // Line height is auto for this line
+      //     }
+      //   }
+      // }
 
-      // Expand Autos
-      // in css block elements expand "grow" to 100% of parent
-      // inline elements shrink to smallest size.  our auto is somewhat broken
-      // Hmm..Auto size = grow would cause autos to expand to be the size of the max width..which defaults to 99999
-      List<UiLine> vecLines2 = new List<UiLine>();  // Technically this dummy variable should be '1'
-      vecLines2.Add(new UiLine());
-      for (var iLine = 0; iLine < vecLines.Count; iLine++)
-      {
-        var line = vecLines[iLine];
+      // // Expand Autos
+      // // in css block elements expand "grow" to 100% of parent
+      // // inline elements shrink to smallest size.  our auto is somewhat broken
+      // // Hmm..Auto size = grow would cause autos to expand to be the size of the max width..which defaults to 99999
+      // List<UiLine> vecLines2 = new List<UiLine>();  // Technically this dummy variable should be '1'
+      // vecLines2.Add(new UiLine());
+      // for (var iLine = 0; iLine < vecLines.Count; iLine++)
+      // {
+      //   var line = vecLines[iLine];
 
-        // Sum Autos and average widths
-        int nAutoWsLine = 0;
-        foreach (var ele in line._eles)
-        {
-          if (ele.WidthUnit == UiDimUnit.Auto)
-          {
-            nAutoWsLine++;
-          }
-        }
-        float auto_width = 0;
-        float auto_height = 0;
-        if (nAutoWsLine > 0)
-        {
-          auto_width = Math.Max(WidthPX - line._width, 0.0f) / (float)nAutoWsLine;
-          // So we're going to "sprinkle the width" across other autos
-          //  for each element whose min width > the computed auto
-          // subtract from the computed_auto the remaining width minus the auto  (min_width - computed_auto) / remaining_autos4
-        }
-        if (nAutoHLines > 0)
-        {
-          auto_height = Math.Max(HeightPX - fTotalHeight, 0.0f) / (float)nAutoHLines;
-        }
+      //   // Sum Autos and average widths
+      //   int nAutoWsLine = 0;
+      //   foreach (var ele in line._eles)
+      //   {
+      //     if (ele.WidthUnit == UiDimUnit.Auto)
+      //     {
+      //       nAutoWsLine++;
+      //     }
+      //   }
+      //   float auto_width = 0;
+      //   float auto_height = 0;
+      //   if (nAutoWsLine > 0)
+      //   {
+      //     auto_width = Math.Max(WidthPX - line._width, 0.0f) / (float)nAutoWsLine;
+      //     // So we're going to "sprinkle the width" across other autos
+      //     //  for each element whose min width > the computed auto
+      //     // subtract from the computed_auto the remaining width minus the auto  (min_width - computed_auto) / remaining_autos4
+      //   }
+      //   if (nAutoHLines > 0)
+      //   {
+      //     auto_height = Math.Max(HeightPX - fTotalHeight, 0.0f) / (float)nAutoHLines;
+      //   }
 
-        // run calculation again, this time with autos
-        foreach (var ele in line._eles)
-        {
-          CalcStaticElement(ele, vecLines2, auto_width, auto_height);
-        }
-      }
+      //   // run calculation again, this time with autos
+      //   foreach (var ele in line._eles)
+      //   {
+      //     CalcStaticElement(ele, vecLines2, auto_width, auto_height);
+      //   }
+      // }
+
     }
     private void CalcStaticElement(UiElement ele, List<UiLine> vecLines, float fAutoWidth, float fAutoHeight)
     {
@@ -872,7 +903,6 @@ namespace PirateCraft
       {
         Gu.BRThrowException("GUI error - tried to run calc algorithm without any UILines created");
       }
-      float myWidth = Right - Left;
       UiLine line = vecLines[vecLines.Count - 1];
 
       // Autos get zero first so we an compute the fixed
@@ -880,14 +910,14 @@ namespace PirateCraft
 
       float wpx = 0, hpx = 0;
       ele.ComputeWH(ref wpx, ref hpx);  // also applies min/max
-      if (ele.WidthUnit == UiDimUnit.Auto)
-      {
-        wpx = fAutoWidth;
-      }
-      if (ele.HeightUnit == UiDimUnit.Auto)
-      {
-        hpx = fAutoHeight;
-      }
+      // if (ele.WidthUnit == UiDimUnit.Auto)
+      // {
+      //   wpx = fAutoWidth;
+      // }
+      // if (ele.HeightUnit == UiDimUnit.Auto)
+      // {
+      //   hpx = fAutoHeight;
+      // }
       ele.ApplyMinMax(ref wpx, ref hpx);
 
       // Remove unnecessary padding to prevent auto and % widths from growing
@@ -898,17 +928,16 @@ namespace PirateCraft
 
       //*Padding
       float pl = 0, pr = 0, pb = 0, pt = 0;
-      ele.ComputePad(ref pt, ref pr, ref pb, ref pl);
+      ele.ComputePad(this, ref pt, ref pr, ref pb, ref pl);
 
-      float wpx_pad, hpx_pad;
-      wpx_pad = wpx + pl + pr;
-      hpx_pad = hpx + pb + pt;
+      float wpx_pad = wpx + pl + pr;
+      float hpx_pad = hpx + pb + pt;
 
       //**Line break
       bool bLineBreak = false;
       if (ele.DisplayMode == UiDisplayMode.InlineWrap)
       {
-        if (wpx_pad + line._width > myWidth)
+        if (wpx_pad + line._width > WidthPX) //For label - auto width + expand. ?? 
         {
           bLineBreak = true;
         }
@@ -931,11 +960,12 @@ namespace PirateCraft
         line = vecLines[vecLines.Count - 1];
       }
 
-      ele.Left = line._left + line._width + pl; // ele->left() = line->_left + line->_width + pl;
-      ele.Right = line._left + wpx; // ele->right() = ele->left().px() + wpx;  // wpx, not wpx_pad
+      ele._left = line._left + line._width + pl; // ele->left() = line->_left + line->_width + pl;
+      ele._right = ele._left + wpx; // ele->right() = ele->left().px() + wpx;  // wpx, not wpx_pad
+      ele._top = line._top + pt; //ele->top() = line->_top + pt;
+      ele._bottom = ele._top + hpx; //ele->bottom() = ele->top().px() + hpx;  // hpx, not hpx_pad
+
       line._width += wpx_pad;
-      ele.Top = line._top + pt; //ele->top() = line->_top + pt;
-      ele.Bottom = line._top + hpx; //ele->bottom() = ele->top().px() + hpx;  // hpx, not hpx_pad
 
       ele.ValidateQuad();
 
@@ -944,33 +974,28 @@ namespace PirateCraft
 
       line._eles.Add(ele);
     }
-    private void ComputePad(ref float pt, ref float pr, ref float pb, ref float pl)
+    private void ComputePad(UiElement ele, ref float pt, ref float pr, ref float pb, ref float pl)
     {
-      if (_parent != null && _parent.TryGetTarget(out var p))
-      {
-        ComputePad_Unit(ref pt, p.HeightPX, PadUnitTop, ref _padTop, p);
-        ComputePad_Unit(ref pb, p.HeightPX, PadUnitBot, ref _padBot, p);
-        ComputePad_Unit(ref pr, p.WidthPX, PadUnitRight, ref _padRight, p);
-        ComputePad_Unit(ref pl, p.WidthPX, PadUnitLeft, ref _padLeft, p);
-      }
+      pt = ComputePad_Unit(HeightPX, ele.PadUnitTop, ele._padTop);
+      pr = ComputePad_Unit(WidthPX, ele.PadUnitRight, ele._padRight);
+      pb = ComputePad_Unit(HeightPX, ele.PadUnitBot, ele._padBot);
+      pl = ComputePad_Unit(WidthPX, ele.PadUnitLeft, ele._padLeft);
     }
-    private void ComputePad_Unit(ref float pt, float parentextent, UiDimUnit unit, ref float ud, UiElement parent)
+    private static float ComputePad_Unit(float parentextent, UiDimUnit unit, float ud)
     {
-      Gu.Assert(parent != null);
-
       //Basically we allowed for % paddings. 
       if (unit == UiDimUnit.Pixel)
       {
-        pt = ud;
+        return ud;
       }
       else if (unit == UiDimUnit.Percent)
       {
-        pt = ud * 0.01f * parentextent;
+        return ud * 0.01f * parentextent;
       }
       else
       {
         Gu.Log.Error("Invalid value for pad");
-        pt = 0;
+        return 0;
       }
     }
     private void ComputePositionalElement(UiElement ele)
@@ -1066,28 +1091,79 @@ namespace PirateCraft
         hpx = minh;
       }
     }
-    private void ValidateQuad()
+    public void ValidateQuad()
     {
       if ((Right < Left) || (Bottom < Top))
       {
         Gu.Log.Error("Computed Quad is invalid, rtbl= " + Right + "," + Left + "," + Bottom + "," + Top + ".");
+        Gu.DebugBreak();
       }
     }
 
   }//UiElement
   public class UIGlyph : UiElementBase
   {
+    public Box2f Texs;
+    public vec2 Size;
   }
   public class UILabel : UiElement
   {
+    private string _strText = "";
+    private bool _bChanged = false;
+    private Font _font;
+
+    public string Text { get { return _strText; } set { SetLayoutChanged(); _strText = value; } }
+
     public UILabel(vec2 pos, Font f, string text)
     {
+      _left = pos.x;
+      _top= pos.y;
+      _right = _left + 80;
+      _bottom = _top + 100;
       _font = f;
-      _text = text;
+      _strText = text;
     }
+    protected override void PerformLayout(vec2 viewport_wh, bool bForce)
+    {
+      CreateGlyphs();
+      base.PerformLayout(viewport_wh, bForce);
+    }
+    private void CreateGlyphs()
+    {
+      Children = new MultiMap<int, UiElement>();
+      float width = 0;
+      int last = 0;
+      foreach (int cc in _strText)
+      {
+        var g = _font.GetGlyph(cc, 20);
 
-    private Font _font;
-    private string _text = "helo";
+
+        if (g != null)
+        {
+          float advW = this._font.MtFont.GetKernAdvanceWidth(20, last, cc);
+
+          UiElement e = new UiElement();
+          e.PadBot = g.PadBot;
+          e.PadRight = g.PadRight;
+          e.PadLeft = g.PadLeft + advW;
+          e.PadTop = g.PadTop;
+          e.Left = 0;
+          e.Right = g.Size.x;
+          e.Top = 0;
+          e.Bottom = g.Size.y;
+          e.Texture = new MtTex(null, 0);
+          //we need to set this for pixAdjust
+          e.Texture.SetWH(this._font.MtFont.GetTexs()[0].getWidth(),this._font.MtFont.GetTexs()[0].getHeight());
+          e.Texture.uv0 = g.Texs._min;
+          e.Texture.uv1 = g.Texs._max;
+          e.DisplayMode = UiDisplayMode.InlineWrap;
+          e.Color = new vec4(0,0,0,1);
+          e.ValidateQuad();
+          AddChild(e);
+        }
+        last = cc;
+      }
+    }
   }
   public class UiScreen : UiElement
   {
@@ -1176,54 +1252,71 @@ namespace PirateCraft
     public vec4 Color { get; set; } = new vec4(1, 1, 1, 1);
     //font size -> char code -> gUiElement
     private Dictionary<int, Dictionary<int, UIGlyph>> _glyphs = new Dictionary<int, Dictionary<int, UIGlyph>>();
+    private bool _glyphsCreated = false;
+
+    public UIGlyph GetGlyph(int cc, int height)
+    {
+      if (_glyphsCreated == false)
+      {
+        _glyphsCreated = true;
+        //**TEST
+        //**TEST
+        //**TEST
+        CreateGlyphsForHeight(20);
+      }
+      if (_glyphs.TryGetValue(height, out var chars))
+      {
+        if (chars.TryGetValue(cc, out var theglyph))
+        {
+          return theglyph;
+        }
+      }
+      return null;
+    }
+
     public Font(FileLoc loc, MtFont f)
     {
       FileLoc = loc;
       MtFont = f;
 
-      // createGlyphsForHeight(12);//test
     }
-    // void createGlyphsForHeight(int fontHeight)
-    // {
-    //   //FontHeight must be an int to prevent floating point error 
-    //   Box2f outTexs = new Box2f();
-    //   float outW = 0, outH = 0, outPadT = 0, outPadR = 0, outPadB = 0, outPadL = 0;
-    //   int nCh = 0;
-    //   float labelWidth = 0;
+    void CreateGlyphsForHeight(int fontHeight)
+    {
+      //FontHeight must be an int to prevent floating point error 
+      Box2f outTexs = new Box2f();
+      float outW = 0, outH = 0, outPadT = 0, outPadR = 0, outPadB = 0, outPadL = 0;
+      int nCh = 0;
 
-    //   for (int c = 10; c < 255; c++)
-    //   {
-    //     //we should use the kerning code when we build the actual string.
-    //     MtFont.getCharQuad(c, (float)fontHeight, ref outW, ref outH, ref outTexs, ref outPadT, ref outPadR, ref outPadB, ref outPadL);
+      //TODO: support other languages.
+      for (int c = 10; c < 255; c++)
+      {
+        //we should use the kerning code when we build the actual string.
+        MtFont.getCharQuad(c, (float)fontHeight, ref outW, ref outH, ref outTexs, ref outPadT, ref outPadR, ref outPadB, ref outPadL);
 
-    //     UIGlyph g = new UIGlyph();
+        UIGlyph g = new UIGlyph();
 
-    //     Dictionary<int, UIGlyph> val = null;
-    //     if (!_glyphs.TryGetValue(fontHeight, out val))
-    //     {
-    //       val = new Dictionary<int, UIGlyph>();
-    //       _glyphs.Add(fontHeight, val);
-    //     }
-    //     val.Add(c, g);
+        Dictionary<int, UIGlyph> val = null;
+        if (!_glyphs.TryGetValue(fontHeight, out val))
+        {
+          val = new Dictionary<int, UIGlyph>();
+          _glyphs.Add(fontHeight, val);
+        }
+        val.Add(c, g);
 
-    //     g.Size = new vec2(outW, outH);
+        g.Size = new vec2(outW, outH);
 
-    //     g.Texs = outTexs;
-    //     g.Color = Color;  // Copy color over Note: font color? I do't know I think we should use gui color
+        g.Texs = outTexs;
+        g.Color = Color;  // Copy color over Note: font color? I do't know I think we should use gui color
 
-    //     g._padTop = outPadT;     // fontHeight - outH;    //this should never be greater
-    //     g._padRight = outPadR;   // fontHeight - outH;    //this should never be greater
-    //     g._padBot = outPadB;  // fontHeight - outH;    //this should never be greater
-    //     g._padLeft = outPadL;    // fontHeight - outH;    //this should never be greater
+        g.PadTop = outPadT;     // fontHeight - outH;    //this should never be greater
+        g.PadRight = outPadR;   // fontHeight - outH;    //this should never be greater
+        g.PadBot = outPadB;  // fontHeight - outH;    //this should never be greater
+        g.PadLeft = outPadL;    // fontHeight - outH;    //this should never be greater
 
-    //     nCh++;
-    //   }
+        nCh++;
+      }
 
-    //   if (labelWidth < 0.0f)
-    //   {
-    //     labelWidth = 0.0f;  // hasn't happened yet
-    //   }
-    // }
+    }
   }
   public class GuiComponent : Component
   {
@@ -1236,7 +1329,7 @@ namespace PirateCraft
 
     public UiScreen Screen { get; private set; } = null;
 
-    public static FileLoc Fancy = new FileLoc("Parisienne-Regular.ttf", FileStorage.Embedded);
+    public static FileLoc Fancy = new FileLoc("Lato-Regular.ttf", FileStorage.Embedded);//Parisienne
     public static FileLoc Pixel = new FileLoc("PressStart2P-Regular.ttf", FileStorage.Embedded);
     public static FileLoc Pixel2 = new FileLoc("kenpixel.ttf", FileStorage.Embedded);
     public static FileLoc Pixel3 = new FileLoc("visitor1.ttf", FileStorage.Embedded);
@@ -1259,12 +1352,17 @@ namespace PirateCraft
     public override void OnCreate(WorldObject myObj)
     {
       _megaTex.LoadImages();
-      MegaTex.CompiledTextures tx = _megaTex.Compile(true, MegaTex.MtClearColor.DebugRainbow);
+      MegaTex.CompiledTextures tx = _megaTex.Compile(MegaTex.MtClearColor.DebugRainbow);
       if (tx != null)
       {
+
+        //don't filter
+       // tx.Albedo.SetFilter(OpenTK.Graphics.OpenGL4.TextureMinFilter.LinearMipmapNearest,OpenTK.Graphics.OpenGL4.TextureMagFilter.Linear);
+
         _shader = Gu.Resources.LoadShader("v_gui", true, FileStorage.Embedded);
         myObj.Material = new Material("GuiMT", _shader);
         myObj.Material.GpuRenderState.DepthTest = false;
+        myObj.Material.GpuRenderState.Blend = true;
         myObj.Material.Textures[Shader.TextureInput.Albedo] = tx.Albedo;
       }
     }
@@ -1307,6 +1405,10 @@ namespace PirateCraft
       // }
     }
 
+    public MtTex DefaultPixel()
+    {
+      return _megaTex.DefaultPixel;
+    }
     public UiElement CreatePanel(vec4 color, vec2 pos, vec2 wh)
     {
       UiElement e = new UiElement();

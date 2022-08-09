@@ -185,7 +185,7 @@ namespace PirateCraft
       for (int iScanLine = 0; iScanLine < nLines; ++iScanLine)
       {
         int dstff = vofftos(scanPos.x, scanPos.y + iScanLine, Width) * BytesPerPixel;
-        int srcff = vofftos(otherOff.x, otherOff.y + (nLines - iScanLine - 1), pOtherImage.Width) * pOtherImage.BytesPerPixel;
+        int srcff = vofftos(otherOff.x, otherOff.y + iScanLine, pOtherImage.Width) * pOtherImage.BytesPerPixel;
 
         //BlockCopy: src,srcoff, dst, dstoff, count
         Buffer.BlockCopy(pOtherImage.Data, srcff, Data, dstff, scanLineByteSize);

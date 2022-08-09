@@ -21,9 +21,11 @@ namespace PirateCraft
       _dict = new SortedDictionary<TKey, List<TValue>>(rhs._dict);
     }
     public SortedDictionary<TKey, List<TValue>>.KeyCollection Keys
-    {get{
-      return _dict.Keys;
-    }
+    {
+      get
+      {
+        return _dict.Keys;
+      }
     }
     public KeyValuePair<TKey, TValue> First()
     {
@@ -288,6 +290,13 @@ namespace PirateCraft
 
   }
 
+  public class StringUtil
+  {
+    public static bool Equals(string a, string b)
+    {
+      return a.CompareTo(b) == 0;
+    }
+  }
 
 
 }

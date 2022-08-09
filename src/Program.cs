@@ -280,7 +280,7 @@ namespace PirateCraft
       Crosshair.Mesh = new MeshData("crosshair_mesh", PrimitiveType.Lines, Gpu.CreateVertexBuffer(verts.ToArray()));
       Crosshair.Mesh.DrawOrder = DrawOrder.Last;
       Crosshair.Position_Local = new vec3(0, 0, 3);
-      Material crosshair_mat = new Material("crosshair",Shader.DefaultFlatColorShader());
+      Material crosshair_mat = new Material("crosshair", Shader.DefaultFlatColorShader());
       crosshair_mat.GpuRenderState.DepthTest = false;//Disable depth test.
       crosshair_mat.GpuRenderState.Blend = true;
       Crosshair.Material = crosshair_mat;
@@ -295,7 +295,7 @@ namespace PirateCraft
       Texture2D tx_bloom = Gu.Resources.LoadTexture(new FileLoc("bloom.png", FileStorage.Embedded), true, TexFilter.Trilinear);
 
       //Sky
-      Material sky_mat = new Material("sky",Gu.Resources.LoadShader("v_sky", false, FileStorage.Embedded));
+      Material sky_mat = new Material("sky", Gu.Resources.LoadShader("v_sky", false, FileStorage.Embedded));
       sky_mat.Textures.Add(Shader.TextureInput.Albedo, tx_sky);
       sky_mat.Textures.Add(Shader.TextureInput.Albedo2, tx_sky_stars);
       sky_mat.GpuRenderState.DepthTest = false;//Disable depth test.
@@ -332,7 +332,7 @@ namespace PirateCraft
       };
       Gu.World.AddObject(sun_moon_empty);
 
-      Material sun_moon_mat = new Material("sunmoon",Gu.Resources.LoadShader("v_sun_moon", false, FileStorage.Embedded));
+      Material sun_moon_mat = new Material("sunmoon", Gu.Resources.LoadShader("v_sun_moon", false, FileStorage.Embedded));
       sun_moon_mat.GpuRenderState.DepthTest = false;//Disable depth test.
       sun_moon_mat.GpuRenderState.CullFace = false;//Disable depth test.
       sun_moon_mat.GpuRenderState.Blend = true;
@@ -421,14 +421,14 @@ namespace PirateCraft
       //{
       //  Gu.World.RemoveObject("BoxMesh-" + i.ToString());
       //}
-      Gu.World.CreateAndAddObject("TextureFront", MeshData.GenTextureFront(_camera, 0, 0, this.Size.X, this.Size.Y), new Material("texturefront",Shader.DefaultDiffuse(), tx_peron));
-      Gu.World.CreateAndAddObject("Plane.", MeshData.GenPlane(10, 10), new Material("plane",Shader.DefaultDiffuse(), tx_grass));
+      Gu.World.CreateAndAddObject("TextureFront", MeshData.GenTextureFront(_camera, 0, 0, this.Size.X, this.Size.Y), new Material("texturefront", Shader.DefaultDiffuse(), tx_peron));
+      Gu.World.CreateAndAddObject("Plane.", MeshData.GenPlane(10, 10), new Material("plane", Shader.DefaultDiffuse(), tx_grass));
       //  _boxMeshThing = Gu.World.FindObject("BoxMesh");
       //_boxMeshThing.Position = new vec3(0, _boxMeshThing.BoundBoxMeshBind.Height() * 0.5f, 0);
 
-      Sphere_Rotate_Quat_Test = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test", MeshData.GenSphere(1), new Material("sphere_rot",Shader.DefaultDiffuse(), tx_mclovin));
-      Sphere_Rotate_Quat_Test2 = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test2", MeshData.GenEllipsoid(new vec3(1.9f, 1, 1.5f)), new Material("sphere_rot2",Shader.DefaultDiffuse(), tx_usopp));
-      Sphere_Rotate_Quat_Test3 = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test3", MeshData.GenEllipsoid(new vec3(1, 4, 4)), new Material("sphere_rot3",Shader.DefaultDiffuse(), tx_hogback));
+      Sphere_Rotate_Quat_Test = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test", MeshData.GenSphere(1), new Material("sphere_rot", Shader.DefaultDiffuse(), tx_mclovin));
+      Sphere_Rotate_Quat_Test2 = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test2", MeshData.GenEllipsoid(new vec3(1.9f, 1, 1.5f)), new Material("sphere_rot2", Shader.DefaultDiffuse(), tx_usopp));
+      Sphere_Rotate_Quat_Test3 = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test3", MeshData.GenEllipsoid(new vec3(1, 4, 4)), new Material("sphere_rot3", Shader.DefaultDiffuse(), tx_hogback));
 
       //Animation test
       var cmp = new AnimationComponent();
@@ -444,20 +444,39 @@ namespace PirateCraft
       //Some fun parenting stuff.
       //  Sphere_Rotate_Quat_Test.AddChild(Sphere_Rotate_Quat_Test2.AddChild(Sphere_Rotate_Quat_Test3.AddChild(_boxMeshThing)));
     }
+    UILabel _fpsLabel = null;
     private void CreateGUI()
     {
       //Gui Comp
       var gui = new GuiComponent();
-      var pd = gui.CreatePanel(new vec4(1, 1, 1, 1), new vec2(50, 200), new vec2(202, 90));
-      pd.Position = UiPositionMode.Relative;
-      pd.Color = new vec4(1,1,1,1);
-      gui.Screen.AddChild(pd);
+      var font = gui.LoadFont(GuiComponent.Pixel);
 
-      //GuiOBJ
+      // {
+      //   var pd = gui.CreatePanel(new vec4(1, 1, 1, 1), new vec2(50, 200), new vec2(202, 90));
+      //   pd.Position = UiPositionMode.Relative;
+      //   pd.Color = new vec4(1, 1, 1, 1);
+      //   gui.Screen.AddChild(pd);
+      // }
+
+      {
+        var pd = gui.CreatePanel(new vec4(1, 1, 1, 1), new vec2(250, 700), new vec2(120, 40));
+        pd.Position = UiPositionMode.Relative;
+        pd.Color = new vec4(1, 1, 1, 1);
+        gui.Screen.AddChild(pd);
+      }
+      {
+        _fpsLabel = new UILabel(new vec2(20, 20), font, "!!!");
+       _fpsLabel.Position = UiPositionMode.Relative;
+      _fpsLabel.Color = new vec4(.8f,.8f,.8f,1);
+      _fpsLabel.Texture = gui.DefaultPixel();
+
+        gui.Screen.AddChild(_fpsLabel);
+      }
+
       var guiobj = Gu.World.CreateObject("guiobj", null, null);
-      guiobj.Position_Local = new vec3(0,0,10);
+      guiobj.Position_Local = new vec3(0, 0, 10);
       guiobj.Components.Add(gui);
-      _camera.AddChild(guiobj);/*  */
+      _camera.AddChild(guiobj);
     }
     private void TestSound()
     {
@@ -497,6 +516,8 @@ namespace PirateCraft
          $"Mouse:{Gu.Mouse.Pos.x},{Gu.Mouse.Pos.y} " +
          $"Cap Hit:{CapsuleHit} "
          ;
+
+      _fpsLabel.Text = "!FPS: "+(int)Gu.Context.Fps;
 
       Gu.Context.DebugDraw.BeginFrame();
 
