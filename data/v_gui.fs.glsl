@@ -32,8 +32,9 @@ void main(){
   float r = float((_pick_color.y>>24) & 0xFF) / 255.0;
   float g = float((_pick_color.y>>16) & 0xFF) / 255.0;
   float b = float((_pick_color.y>>8) & 0xFF) / 255.0;
+  float a = float((_pick_color.y>>0) & 0xFF) / 255.0;
   
-  setColorOutput(tx * vec4(r, g, b, 1.0));
+  setColorOutput(tx * vec4(r, g, b, a));
   setPickOutput(_pick_color.x);
 
 }

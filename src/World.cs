@@ -3055,7 +3055,7 @@ namespace PirateCraft
       _worldMegatex.GetFont(new FileLoc("EmilysCandy-Regular.ttf", FileStorage.Embedded));
 
       _worldMegatex.LoadImages();
-      var cmp = _worldMegatex.Compile(MegaTex.MtClearColor.BlackNoAlpha, true, TexFilter.Nearest);
+      var cmp = _worldMegatex.Compile(MegaTex.MtClearColor.BlackNoAlpha, true, TexFilter.Nearest, true);
 
       cmp.Albedo.SetFilter(TextureMinFilter.NearestMipmapLinear, TextureMagFilter.Nearest);
 

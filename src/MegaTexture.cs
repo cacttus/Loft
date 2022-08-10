@@ -286,10 +286,10 @@ namespace PirateCraft
     public vec2 uv1;
     public float width;
     public float height;
-    public float margin_top;
-    public float margin_bot;
-    public float margin_left;
-    public float margin_right;
+    public float top;
+    public float bot;
+    public float left;
+    public float right;
   }
   public class FontPatchInfo
   {
@@ -318,10 +318,10 @@ namespace PirateCraft
       float fScale = GetScaleForPixelSize(fontSize);
       if (CachedChars.TryGetValue(unicode_point, out ccd))
       {
-        ccd.margin_top *= fScale;
-        ccd.margin_right *= fScale;
-        ccd.margin_bot *= fScale;
-        ccd.margin_left *= fScale;
+        ccd.top *= fScale;
+        ccd.right *= fScale;
+        ccd.bot *= fScale;
+        ccd.left *= fScale;
         ccd.width *= fScale;
         ccd.height *= fScale;
         return true;
@@ -360,12 +360,18 @@ namespace PirateCraft
     public override void LoadData()
     {
       Gu.Log.Info("Creating font '" + GetName());
+      try
+      {
+        CreateSTBFont();
 
-      CreateSTBFont();
+        CreateFontImages();
 
-      CreateFontImages();
-
-      _bInitialized = true;
+        _bInitialized = true;
+      }
+      catch (System.Exception ex)
+      {
+        Gu.Log.Error(ex.ToString());
+      }
     }
     private void CreateSTBFont()
     {
@@ -595,7 +601,6 @@ namespace PirateCraft
       }
       return fKern;
     }
-
     public void CachePatchChars(FontPatchInfo patchInfo)
     {
       //This routine caches this, basically avoiding unsafe{} calls to STB functions.
@@ -606,13 +611,13 @@ namespace PirateCraft
       //       bearing
       //      <----|--------->advance
       //             y1
-      //      |----A------- |
-      //      |    A  pad   |
-      //      |   -A---     |  
-      //  x0  |   | C |pad  | x1
-      //      |   ---D-     |  
-      //      |      D  pad |
-      //      |------D-------y0
+      //      |----A------- |                  +y
+      //      |    A  pad   |                  | ascent
+      //      |   -A---     |                  |
+      //  x0  |   | C |pad  | x1    -x-------------------- +x
+      //      |   ---D-     |                  |
+      //      |      D  pad |                  |descent
+      //      |------D-------y0                -y
       //             y0
       //Taking the MAXIMUM ascent and descent (A, D) of the font (getfontVmetrics).
       //C is the center of the character. The origin of a character is the very center.
@@ -672,18 +677,33 @@ namespace PirateCraft
           StbTrueTypeSharp.StbTrueType.stbtt_GetCodepointHMetrics(_fontInfo, cCode, &advWidth, &leftbearing);
         }
 
-        float lineHeight = patchInfo.BakedCharSize;
         float ascent = (float)_ascent * patchInfo.ScaleForPixelHeight;
         float advance = (float)advWidth * patchInfo.ScaleForPixelHeight;
         float bearing = (float)leftbearing * patchInfo.ScaleForPixelHeight;
         float descent = (float)_descent * patchInfo.ScaleForPixelHeight;
+        float lineHeight = patchInfo.BakedCharSize + Math.Abs(ascent);
 
-        ccd.width = (stbQuad.x1 - stbQuad.x0); //the stb x0, x1 seem to be in direct pixel coordinates
-        ccd.height = (stbQuad.y1 - stbQuad.y0) ;
-        ccd.margin_right = advance-stbQuad.x1; 
-        ccd.margin_left = Math.Abs(stbQuad.x0);
-        ccd.margin_top =  lineHeight-Math.Abs(stbQuad.y0); //lineHeight - Math.Abs(descent);// 
-        ccd.margin_bot = lineHeight - ccd.margin_top;//;
+        float maxHeight = Math.Abs(ascent) + Math.Abs(descent); // for some reason some chars seem to go below max height
+
+        //height should be line height  
+        //the ascent / descent should actually draw over the other quads.
+        //solution: separate w/h
+
+        //top+bot+height must equal line height for text to not stutter
+        ccd.height = lineHeight;
+        ccd.width = advance; //(stbQuad.y1 - stbQuad.y0);
+        ccd.left = stbQuad.x0;
+        ccd.top = stbQuad.y0;
+        ccd.right = stbQuad.x1;
+        ccd.bot = stbQuad.y1;
+
+        //ccd.width = (stbQuad.x1 - stbQuad.x0); //the stb x0, x1 seem to be in direct pixel coordinates
+        //ccd.height = (stbQuad.y1 - stbQuad.y0);
+        //ccd.margin_right = advance - stbQuad.x1;
+        //ccd.margin_left = Math.Abs(stbQuad.x0);
+        //ccd.margin_top = lineHeight - Math.Abs(stbQuad.y0); //lineHeight - Math.Abs(descent);// 
+        //ccd.margin_bot = Math.Max(0, lineHeight - (ccd.margin_top + ccd.height));//lineHeight - ccd.margin_top;//;
+
         // advanceWidth is the offset from the current horizontal position to the next horizontal position
         // leftSideBearing is the offset from the current horizontal position to the left edge of the character
         // ascent is the coordinate above the baseline the font extends; descent
@@ -842,7 +862,7 @@ namespace PirateCraft
 
       //_bImagesLoaded = true;
     }
-    public CompiledTextures Compile(MtClearColor clearColor = MtClearColor.BlackNoAlpha, bool mipmaps = false, TexFilter filter = TexFilter.Nearest)
+    public CompiledTextures Compile(MtClearColor clearColor = MtClearColor.BlackNoAlpha, bool mipmaps = false, TexFilter filter = TexFilter.Nearest, bool createNormalMap = false)
     {
       Img32 master_albedo = null, master_normal = null;
 
@@ -851,7 +871,7 @@ namespace PirateCraft
       _eState = MegaTexCompileState.Compiling;
 
       //Flatten Patches into individual images
-      Gu.Log.Debug("Mega Tex: Flattening " + _mapTexs.Count + " images.");
+      Gu.Log.Debug("Compiling Mega Tex '" + this.Name + "', " + _mapTexs.Count + " images.");
       List<MtTex> vecTexs = new List<MtTex>();
       foreach (var texPair in _mapTexs)
       {
@@ -862,17 +882,6 @@ namespace PirateCraft
       }
 
       //Sort by wh - speeds up + saves room
-      Gu.Log.Debug("MegaTex - Mega Tex: Sorting " + vecTexs.Count + ".");
-      //struct {
-      //  bool operator()(MtTex a, MtTex b) const {
-      //    float f1 = a.getWidth() * a.getHeight();
-      //       float f2 = b.getWidth() * b.getHeight();
-      //    return f1 > f2;
-      //  }
-      // }
-      // customLess;
-
-      //replaces std::sort(vecTexs.begin(), vecTexs.end(), customLess);
       vecTexs.Sort((a, b) =>
       {
         float f1 = a.GetWidth() * a.GetHeight();
@@ -881,7 +890,6 @@ namespace PirateCraft
       });
 
       //Tex size
-
       GL.GetInteger(GetPName.MaxTextureSize, out _iMaxTexSize);// glGetIntegerv(GL_MAX_TEXTURE_SIZE, (GLint*)&_iMaxTexSize);
       Gpu.CheckGpuErrorsRt();
 
@@ -890,7 +898,6 @@ namespace PirateCraft
 
       //Expand rect and grow by 128 if we fail,  this is a pretty quick procedure, so we
       //don't have to worry about sizes.
-      Gu.Log.Debug("MegaTex - Making space for " + vecTexs.Count + " texs.");
       while (iImageSize <= _iMaxTexSize)
       {
         //Root
@@ -936,11 +943,11 @@ namespace PirateCraft
       if (iImageSize > _iMaxTexSize)
       {
         //Failure
-        Gu.Log.Error("MegaTex - Failed to compose mega texture, too many textures and not enough texture space.");
+        Gu.Log.Error("..Failed to compose mega texture, too many textures and not enough texture space.");
       }
       else
       {
-        Gu.Log.Debug("MegaTex - Successful. Tex size=" + iImageSize + ".. Creating Bitmap..");
+        Gu.Log.Debug("..Successful. Tex size=" + iImageSize + ".. Creating Bitmap..");
 
         //Compose Master Image
         master_albedo = new Img32();
@@ -991,7 +998,7 @@ namespace PirateCraft
         float imgW = (float)iImageSize;
         float imgH = (float)iImageSize;
 
-        Gu.Log.Debug("MegaTex - Copying Sub-Images..and calculating tex coords");
+        Gu.Log.Debug("..Copying Sub-Images..and calculating tex coords");
         foreach (MtTex texx in vecTexs)
         {
           master_albedo.copySubImageFrom(texx.Node()._b2Rect._min, new ivec2(0, 0), new ivec2(texx.GetWidth(), texx.GetHeight()), texx.Img());
@@ -1014,21 +1021,28 @@ namespace PirateCraft
         }
         else
         {
-          Gu.Log.Debug("MegaTex caching is disabled for this texture '" + "no name bo9y" + "'.");
+          Gu.Log.Debug("..caching is disabled for this texture '" + "no name bo9y" + "'.");
         }
       }
 
       CompiledTextures output = new CompiledTextures();
       if (master_albedo != null)
       {
-        Gu.Log.Debug("MegaTex - Creating Albedo Map.");
+        Gu.Log.Debug("..Creating Albedo Map.");
         output.Albedo = new Texture2D(master_albedo, mipmaps, filter);
 
-        Gu.Log.Debug("MegaTex - Creating Normal Map.");
-        master_normal = master_albedo.createNormalMap();
-        string nmapname_dbg = System.IO.Path.Combine(Gu.LocalCachePath, "mt_" + Name + "_normal.png");
-        ResourceManager.SaveImage(nmapname_dbg, master_normal);
-        output.Normal = new Texture2D(master_normal, mipmaps, filter);
+        if (createNormalMap)
+        {
+          Gu.Log.Debug("..Creating Normal Map.");
+          master_normal = master_albedo.createNormalMap();
+          string nmapname_dbg = System.IO.Path.Combine(Gu.LocalCachePath, "mt_" + Name + "_normal.png");
+          ResourceManager.SaveImage(nmapname_dbg, master_normal);
+          output.Normal = new Texture2D(master_normal, mipmaps, filter);
+        }
+        else
+        {
+          output.Normal = null;
+        }
       }
 
       _eState = MegaTexCompileState.Compiled;

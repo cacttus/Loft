@@ -455,7 +455,7 @@ namespace PirateCraft
       return ret;
     }
     public override string ToString() { return "(" + x + "," + y + ")"; }
-
+    public string ToString(int prec) { return "(" + StringUtil.FormatPrec(x, prec) + "," + StringUtil.FormatPrec(y, prec) + ")"; }
   }
   [StructLayout(LayoutKind.Sequential)]
   public struct dvec3
@@ -604,6 +604,10 @@ namespace PirateCraft
     public override string ToString()
     {
       return "(" + x + "," + y + "," + z + ")";
+    }
+    public string ToString(int prec)
+    {
+      return "(" + StringUtil.FormatPrec(x, prec) + "," + StringUtil.FormatPrec(y, prec) + "," + StringUtil.FormatPrec(z, prec) + ")";
     }
     //public dvec4 toVec4(double w)
     //{
@@ -1026,8 +1030,6 @@ namespace PirateCraft
     {
       return new dvec3(x, y, z);
     }
-
-
     public static vec3 CosineInterpolate(vec3 a, vec3 b, float time)
     {
       float ft = time * (float)Math.PI;
@@ -1166,6 +1168,10 @@ namespace PirateCraft
     public override string ToString()
     {
       return "(" + x + "," + y + "," + z + ")";
+    }
+    public string ToString(int prec)
+    {
+      return "(" + StringUtil.FormatPrec(x, prec) + "," + StringUtil.FormatPrec(y, prec) + "," + StringUtil.FormatPrec(z, prec) + ")";
     }
     public vec4 toVec4(float w)
     {
@@ -1406,23 +1412,6 @@ namespace PirateCraft
     {
       return (v1.x <= v2.x && v1.y <= v2.y && v1.z <= v2.z);
     }
-
-    //uint32_t toUint() {
-    //  uint32_t ret = (uint32_t)(
-    //      ((uint32_t)0 << 16) |
-    //      ((uint32_t)r() << 16) |
-    //      ((uint32_t)g() << 8) |
-    //      ((uint32_t)b()));
-    //  return ret;
-    //}
-
-    //void fromUint(const uint32_t& i)
-    //{
-    //    r() = (i >> 16) & 0xFF;
-    //    g() = (i >> 8) & 0xFF;
-    //    b() = (i) & 0xFF;
-    //}
-
     bool compareTo(in vec3 rhs)
     {
       vec3 lhs = this;
@@ -1710,7 +1699,6 @@ namespace PirateCraft
       x = dx; y = dy; z = dz; w = dw;
       return this;
     }
-
     public static vec4 Clamp(vec4 v, float a, float b)
     {
       vec4 ret = new vec4();
@@ -1792,7 +1780,8 @@ namespace PirateCraft
     {
       return new vec3(x, y, z);
     }
-    public override string ToString() { return "(" + x + "," + y + "," + z + "," + w + ")"; }
+    public override string ToString() { return "(" + x.ToString() + "," + y + "," + z + "," + w + ")"; }
+    public string ToString(int prec) { return "(" + StringUtil.FormatPrec(x, prec) + "," + StringUtil.FormatPrec(y, prec) + "," + StringUtil.FormatPrec(z, prec) + "," + StringUtil.FormatPrec(w, prec) + ")"; }
   }
   [StructLayout(LayoutKind.Sequential)]
   public struct ivec2
@@ -2027,6 +2016,7 @@ namespace PirateCraft
     }
     public vec3 toVec3() { return new vec3((float)x, (float)y, (float)z); }
     public override string ToString() { return "(" + x + "," + y + "," + z + ")"; }
+    public string ToString(int prec) { return "(" + StringUtil.FormatPrec(x, prec) + "," + StringUtil.FormatPrec(y, prec) + "," + StringUtil.FormatPrec(z, prec) + ")"; }
   }
   [StructLayout(LayoutKind.Sequential)]
   public struct ivec4

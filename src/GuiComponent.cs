@@ -114,28 +114,23 @@ namespace PirateCraft
     // There are a ton of them, and they don't need all the extra information.
     // Glyphs need margin, but no padding. 
     // We MAY put color in the glyph.
+
     public float Top { get { return _top; } set { _top = value; } }
     public float Left { get { return _left; } set { _left = value; } }
-    public float Right { get { return _right; } set { _right = value; } }
-    public float Bottom { get { return _bottom; } set { _bottom = value; } }
-
-    public float MarginTop { get { return _marTop; } set { _marTop = value; } }
-    public float MarginRight { get { return _marRight; } set { _marRight = value; } }
-    public float MarginBot { get { return _marBot; } set { _marBot = value; } }
-    public float MarginLeft { get { return _marLeft; } set { _marLeft = value; } }
-
-    public float WidthPX { get { return Right - Left; } }
-    public float HeightPX { get { return Bottom - Top; } }
+    public float Right { get { return _left + _width; } }
+    public float Bottom { get { return _top + _height; } }
+    public float WidthPX { get { return _width; } set { _width = value; } }
+    public float HeightPX { get { return _height; } set { _height = value; } }
     public vec4 Color { get; set; } = new vec4(1, 1, 1, 1);
 
-    protected float _marTop = 0;
-    protected float _marRight = 0;
-    protected float _marBot = 0;
-    protected float _marLeft = 0;
     protected float _top = 0;
-    protected float _right = 0;
-    protected float _bottom = 0;
     protected float _left = 0;
+    protected float _width = 0;
+    protected float _height = 0;
+    // Optional render area, relative to the CENTER of the layed out quad. so left + (right-left)/2, top + (bot-top)/2, 
+    // if Null, the quad is rendered at the exact top/left + width/height. 
+    // This is specifically for text glyphs, but can be used for anything .
+    public Box2f? _renderOffset = null;
   }
   public class UiElement : UiElementBase
   {
@@ -184,6 +179,14 @@ namespace PirateCraft
     public UiDimUnit MarginUnitRight { get; set; } = UiDimUnit.Pixel;
     public UiDimUnit MarginUnitBot { get; set; } = UiDimUnit.Pixel;
     public UiDimUnit MarginUnitLeft { get; set; } = UiDimUnit.Pixel;
+    public float MarginTop { get { return _marTop; } set { _marTop = value; } }
+    public float MarginRight { get { return _marRight; } set { _marRight = value; } }
+    public float MarginBot { get { return _marBot; } set { _marBot = value; } }
+    public float MarginLeft { get { return _marLeft; } set { _marLeft = value; } }
+    protected float _marTop = 0;
+    protected float _marRight = 0;
+    protected float _marBot = 0;
+    protected float _marLeft = 0;
 
     //Texture
     public MtTex Texture = null;
@@ -289,7 +292,7 @@ namespace PirateCraft
       {
         if (RenderVisible)
         {
-          GetQuadVerts(verts, b2ClipRect);
+          GetOpenGLQuadVerts(verts, b2ClipRect);
           if (Children != null)
           {
             foreach (var p in Children)
@@ -343,7 +346,7 @@ namespace PirateCraft
       }
       return ret;
     }
-    private protected void GetQuadVerts(List<v_v4v4v4v2u2> verts, Box2f b2ClipRect)
+    private protected void GetOpenGLQuadVerts(List<v_v4v4v4v2u2> verts, Box2f b2ClipRect)
     {
       if (LayoutVisible == false)
       {
@@ -619,46 +622,43 @@ namespace PirateCraft
       _b2ComputedQuad._max.y = bot;
       _b2ComputedQuad._min.x = left;
 
+      if (_renderOffset != null)
+      {
+        //For glyphs, and other elements that go outside their physical regions
+        var origin = _b2ComputedQuad.Center();
+        var ro = this._renderOffset.Value;
+        _b2ComputedQuad._min.x = origin.x + ro.Left;
+        _b2ComputedQuad._min.y = origin.y + ro.Top;
+        _b2ComputedQuad._max.x = origin.x + ro.Right;
+        _b2ComputedQuad._max.y = origin.y + ro.Bottom;
+      }
+
       // Set to false if we're controllig coordinates of this element (cursor, or window position)
-      //  if (getShouldScalePositionToDesign() == true) {
       _b2LayoutQuad._min.x = _b2ComputedQuad._min.x * w1;
       _b2LayoutQuad._min.y = _b2ComputedQuad._min.y * h1;
       _b2LayoutQuad._max.x = _b2ComputedQuad._max.x * w1;
       _b2LayoutQuad._max.y = _b2ComputedQuad._max.y * h1;
-      // }
-      // else {
-      //   // We are an absolute position (cursor)
-      //   _b2LayoutQuad._min.x = final_l;  // These are alerady set
-      //   _b2LayoutQuad._min.y = final_t;
-      //   _b2LayoutQuad._max.x = final_l + (final_r - final_l) * w1;  // Still Scale the width / height
-      //   _b2LayoutQuad._max.y = final_t + (final_b - final_t) * h1;
-      // }
-
-      // Raster Quad (for drawing)
-      _b2RasterQuad = _b2LayoutQuad;
-      GuiQuad2d(ref _b2RasterQuad, viewport_wh);
-    }
-    protected void GuiQuad2d(ref Box2f pq, vec2 viewport_wh)
-    {
-      // Transforms a quad for the matrix-less Gui projection.
 
       // The resulting coordinates for the GPU are -0.5 +0.5 in both axes with the center being in the center of the screen
       // Translate a 2D screen quad to be rendered in a shader.
       // So* our quad is from TOP Left - OpenGL is Bottom Left - this fixes this.
+
+      _b2RasterQuad = _b2LayoutQuad;
+
       float w = (float)viewport_wh.x;
       float w2 = w * 0.5f;
       float h = (float)viewport_wh.y;
       float h2 = h * 0.5f;
 
       // Subtract from viewport center
-      pq._min.x -= w2;
-      pq._max.x -= w2;
+      _b2RasterQuad._min.x -= w2;
+      _b2RasterQuad._max.x -= w2;
 
       // Invert text to show rightsize up and divide by perspective
-      pq._min.x = pq._min.x / w2;
-      pq._min.y = (h2 - pq._min.y - 1) / h2;
-      pq._max.x = pq._max.x / w2;
-      pq._max.y = (h2 - pq._max.y - 1) / h2;
+      _b2RasterQuad._min.x = _b2RasterQuad._min.x / w2;
+      _b2RasterQuad._min.y = (h2 - _b2RasterQuad._min.y - 1) / h2;
+      _b2RasterQuad._max.x = _b2RasterQuad._max.x / w2;
+      _b2RasterQuad._max.y = (h2 - _b2RasterQuad._max.y - 1) / h2;
     }
     protected virtual void PerformLayout(vec2 viewport_wh, bool bForce)
     {
@@ -942,9 +942,9 @@ namespace PirateCraft
       }
 
       ele._left = line._left + line._width + ml;
-      ele._right = ele._left + wpx;
+      //ele._ = ele._left + wpx;
       ele._top = line._top + mt;
-      ele._bottom = ele._top + hpx;
+      //ele._bottom = ele._top + hpx;
 
       line._width += wpx_pad;
 
@@ -976,11 +976,15 @@ namespace PirateCraft
     {
       //*No padding
       //*No auto sizing
-      float wpx = 0, hpx = 0;
-      ele.ComputeWH(ref wpx, ref hpx);  // Cannot be auto
-      ele.ApplyMinMax(ref wpx, ref hpx);
-      ele.Right = ele.Left + wpx;
-      ele.Bottom = ele.Top + hpx;
+      //float wpx = 0, hpx = 0;
+      //ele.ComputeWH(ref wpx, ref hpx);  // Cannot be auto
+      //ele.ApplyMinMax(ref wpx, ref hpx);
+      //ele.Right = ele.Left + wpx;
+      //ele.Bottom = ele.Top + hpx;
+
+      //this is nothing now, there is no right/bottom, 
+      //it was nothing before, because left +wpx equals right anyway... so what?
+
       ValidateQuad();
     }
     private void ComputeWH(ref float wpx, ref float hpx)
@@ -1085,8 +1089,9 @@ namespace PirateCraft
     {
       _left = pos.x;
       _top = pos.y;
-      _right = _left + 400;
-      _bottom = _top + 400;
+
+      _width = 250;
+      _height = 500;
       _font = f;
       _strText = text;
     }
@@ -1101,7 +1106,7 @@ namespace PirateCraft
       float width = 0;
       int last = 0;
 
-      float fontHeight = 20;
+      float fontHeight = _font.Size;
       var patch = this._font.MtFont.SelectFontPatchInfo(fontHeight);
       if (patch == null)
       {
@@ -1120,18 +1125,22 @@ namespace PirateCraft
 
         patch.GetChar(cc, fontHeight, out ccd);
 
-        e.MarginBot = ccd.margin_bot;
-        e.MarginTop = ccd.margin_top;
-        e.MarginLeft = ccd.margin_left + advW;
-        e.MarginRight = ccd.margin_right;
+        e._renderOffset = new Box2f(new vec2(ccd.left, ccd.top), new vec2(ccd.right, ccd.bot));
         e.Texture.uv0 = ccd.uv0;
         e.Texture.uv1 = ccd.uv1;
         e.Left = 0;
-        e.Right = ccd.width;
         e.Top = 0;
-        e.Bottom = ccd.height;
-        e.DisplayMode = UiDisplayMode.InlineWrap;
-        e.Color = new vec4(0, 0, 0, 1);
+        e.WidthPX = ccd.width;
+        e.HeightPX = ccd.height * _font.LineHeightPercent;
+        if (cc == '\n' || cc == '\r')
+        {
+          e.DisplayMode = UiDisplayMode.Block;
+        }
+        else
+        {
+          e.DisplayMode = UiDisplayMode.InlineWrap;
+        }
+        e.Color = _font.Color;
         e.ValidateQuad();
         AddChild(e);
         last = cc;
@@ -1146,8 +1155,8 @@ namespace PirateCraft
       int designWidth = 1920;
       int designHeight = 1080;
 
-      Right = designWidth - 1;    // Gu::getViewport()->getWidth();
-      Bottom = designHeight - 1;  // Gu::getViewport()->getHeight();
+      WidthPX = designWidth - 1;    // Gu::getViewport()->getWidth();
+      HeightPX = designHeight - 1;  // Gu::getViewport()->getHeight();
       Top = 0;
       Left = 0;
 
@@ -1227,50 +1236,55 @@ namespace PirateCraft
       Italic
     }
     public MtFont MtFont { get; } = null;
-    public vec4 Color { get; set; } = new vec4(1, 1, 1, 1);
+    public vec4 Color { get; set; } = new vec4(0, 0, 0, 1);
     public FontStyle Style { get; set; } = FontStyle.Normal;
+    public float Size { get; set; } = 12;
+    public float LineHeightPercent { get; set; } = 1.0f; // % of line height (for tall fonts)
 
-    public FontAttributes(MtFont f, vec4? color = null, FontStyle style = FontStyle.Normal)
+    public FontAttributes(MtFont f, float size, vec4? color = null, FontStyle style = FontStyle.Normal, float lineHeightPercent = 1.0f)
     {
       MtFont = f;
       Style = style;
-      Color = color == null ? new vec4(1, 1, 1, 1) : color.Value;
+      Size = size;
+      Color = color == null ? new vec4(0, 0, 0, 1) : color.Value;
+      LineHeightPercent = lineHeightPercent;
     }
+  }
+  public class Fonts
+  {
+    public static FileLoc Fancy = new FileLoc("Parisienne-Regular.ttf", FileStorage.Embedded);//Parisienne
+    public static FileLoc Mono = new FileLoc("RobotoMono-Regular.ttf", FileStorage.Embedded);
+    public static FileLoc Pixel = new FileLoc("PressStart2P-Regular.ttf", FileStorage.Embedded);
+    public static FileLoc Entypo = new FileLoc("Entypo.ttf", FileStorage.Embedded);
   }
   public class GuiComponent : Component
   {
-    private List<FontAttributes> _fonts = new List<FontAttributes>();
     private Shader _shader = null;
     private MegaTex _megaTex = null;
 
     public UiScreen Screen { get; private set; } = null;
 
-    public static FileLoc Fancy = new FileLoc("RobotoMono-Regular.ttf", FileStorage.Embedded);//Parisienne
-    public static FileLoc Pixel = new FileLoc("PressStart2P-Regular.ttf", FileStorage.Embedded);
-    public static FileLoc Pixel2 = new FileLoc("kenpixel.ttf", FileStorage.Embedded);
-    public static FileLoc Pixel3 = new FileLoc("visitor1.ttf", FileStorage.Embedded);
-    public static FileLoc Minecraft = new FileLoc("Minecraftia-Regular.ttf", FileStorage.Embedded);
-    public static FileLoc Entypo_Symbols = new FileLoc("Entypo.ttf", FileStorage.Embedded);
-    public static FileLoc FontAwesome_Symbols = new FileLoc("fontawesome.ttf", FileStorage.Embedded);
-
+    public MtFont GetFont(FileLoc loc)
+    {
+      return _megaTex.GetFont(loc);
+    }
     public GuiComponent()
     {
       _megaTex = new MegaTex("gui_megatex", true, 128);
 
+      GetFont(Fonts.Fancy);
+      GetFont(Fonts.Mono);
+      GetFont(Fonts.Pixel);
+      GetFont(Fonts.Entypo);
+
       Screen = new UiScreen();
-    }
-    public FontAttributes LoadFont(FileLoc loc)
-    {
-      var ret = new FontAttributes(_megaTex.GetFont(loc));
-      _fonts.Add(ret);
-      return ret;
     }
     public override void OnCreate(WorldObject myObj)
     {
       _megaTex.LoadImages();
       //Linear filtering makes text look very smooth. 
       //Do not use mipmaps in the UI, it messes up the fonts. Or, we must use a separate font texture if we choose to use mipmaps (or custom mipmaps).
-      MegaTex.CompiledTextures tx = _megaTex.Compile(MegaTex.MtClearColor.DebugRainbow, false, TexFilter.Linear);
+      MegaTex.CompiledTextures tx = _megaTex.Compile(MegaTex.MtClearColor.DebugRainbow, false, TexFilter.Linear, false);
       if (tx != null)
       {
         _shader = Gu.Resources.LoadShader("v_gui", true, FileStorage.Embedded);
@@ -1291,7 +1305,6 @@ namespace PirateCraft
     public override Component Clone(bool shallow = true)
     {
       GuiComponent other = new GuiComponent();
-      other._fonts = new List<FontAttributes>(_fonts);
       other._shader = _shader;
       other._megaTex = _megaTex;
       other.Screen = Screen;
@@ -1306,10 +1319,10 @@ namespace PirateCraft
       UiElement e = new UiElement();
       e.Color = color;
       e.Texture = _megaTex.DefaultPixel;
-      e.Left = pos.x;
-      e.Right = pos.x + wh.x;
       e.Top = pos.y;
-      e.Bottom = pos.y + wh.y;
+      e.Left = pos.x;
+      e.WidthPX = wh.x;
+      e.HeightPX = wh.y;
       return e;
     }
 

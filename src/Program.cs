@@ -444,12 +444,13 @@ namespace PirateCraft
       //Some fun parenting stuff.
       //  Sphere_Rotate_Quat_Test.AddChild(Sphere_Rotate_Quat_Test2.AddChild(Sphere_Rotate_Quat_Test3.AddChild(_boxMeshThing)));
     }
-    UILabel _fpsLabel = null;
+    UILabel _fpsLabel1 = null;
+    UILabel _fpsLabel2 = null;
+    UILabel _fpsLabel3 = null;
     private void CreateGUI()
     {
       //Gui Comp
       var gui = new GuiComponent();
-      var font = gui.LoadFont(GuiComponent.Fancy);
 
       // {
       //   var pd = gui.CreatePanel(new vec4(1, 1, 1, 1), new vec2(50, 200), new vec2(202, 90));
@@ -465,12 +466,30 @@ namespace PirateCraft
         gui.Screen.AddChild(pd);
       }
       {
-        _fpsLabel = new UILabel(new vec2(20, 20), font, "!!!");
-        _fpsLabel.Position = UiPositionMode.Relative;
-        _fpsLabel.Color = new vec4(.8f, .8f, .8f, 1);
-        _fpsLabel.Texture = gui.DefaultPixel();
+        var fa = new FontAttributes(gui.GetFont(Fonts.Fancy), 35, new vec4(.2f,.1f,.0f,1), FontAttributes.FontStyle.Normal, 0.5f);
+        _fpsLabel1 = new UILabel(new vec2(20, 20), fa, "");
+        _fpsLabel1.Position = UiPositionMode.Relative;
+        _fpsLabel1.Color = new vec4(.8f, .8f, .8f, .4f);
+        _fpsLabel1.Texture = gui.DefaultPixel();
+        gui.Screen.AddChild(_fpsLabel1);
+      }
 
-        gui.Screen.AddChild(_fpsLabel);
+      {
+        var fa = new FontAttributes(gui.GetFont(Fonts.Pixel), 12, new vec4(.0f,.0f,.0f,1), FontAttributes.FontStyle.Normal);
+        _fpsLabel2 = new UILabel(new vec2(320, 20), fa, "!!!");
+        _fpsLabel2.Position = UiPositionMode.Relative;
+        _fpsLabel2.Color = new vec4(.8f, .8f, .8f, .4f);
+        _fpsLabel2.Texture = gui.DefaultPixel();
+        gui.Screen.AddChild(_fpsLabel2);
+      }
+
+      {
+        var fa = new FontAttributes(gui.GetFont(Fonts.Mono), 20, new vec4(.1f,.3f,.7f,1), FontAttributes.FontStyle.Normal);
+        _fpsLabel3 = new UILabel(new vec2(620, 20), fa, "!!!");
+        _fpsLabel3.Position = UiPositionMode.Relative;
+        _fpsLabel3.Color = new vec4(.8f, .8f, .8f, .4f);
+        _fpsLabel3.Texture = gui.DefaultPixel();
+        gui.Screen.AddChild(_fpsLabel3);
       }
 
       var guiobj = Gu.World.CreateObject("guiobj", null, null);
@@ -506,19 +525,25 @@ namespace PirateCraft
     private void UpdateFrame(FrameEventArgs e)
     {
       float chary = this._player_empty.Position_World.y;
-      Title = $"(Cam = {_player_empty.Position_World.ToString()}) FPS: {(int)Gu.Context.Fps}  " +
-         $"nyugs b: {Box3f.nugs} " +
-         $"Visible Glob: {Gu.World.NumVisibleRenderGlobs} " +
-         $"Gen Glob: {Gu.World.NumGenGlobs} " +
-         $"Gen Drome: {Gu.World.NumGenDromes} " +
-         $"DrawElements_Frame:{MeshData.dbg_numDrawElements_Frame} Arrays_Frame: {MeshData.dbg_numDrawArrays_Frame} " +
-         $"OBs culled:{Gu.World.Dbg_N_OB_Culled} " +
-         $"Mouse:{Gu.Mouse.Pos.x},{Gu.Mouse.Pos.y} " +
-         $"Cap Hit:{CapsuleHit} "
-         ;
+      var info = $"(Cam = {_player_empty.Position_World.ToString(2)}) \n" +
+          $"FPS: {(int)Gu.Context.Fps} \n" +
+          $"nyugs b: {Box3f.nugs} \n" +
+          $"Visible Glob: {Gu.World.NumVisibleRenderGlobs} \n" +
+          $"Gen Glob: {Gu.World.NumGenGlobs} \n" +
+          $"Gen Drome: {Gu.World.NumGenDromes} \n" +
+          $"DrawElements_Frame:{MeshData.dbg_numDrawElements_Frame}\n" +
+          $"Arrays_Frame: {MeshData.dbg_numDrawArrays_Frame} \n" +
+          $"OBs culled:{Gu.World.Dbg_N_OB_Culled} \n" +
+          $"Mouse:{Gu.Mouse.Pos.x},{Gu.Mouse.Pos.y} \n" +
+          $"Cap Hit:{CapsuleHit} \n"
+          ;
 
-      var ipsum = "At vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis praesentium voluptatum deleniti atque corrupti quos dolores et quas molestias excepturi sint occaecati cupiditate non provident, similique sunt in culpa qui officia deserunt mollitia animi, id est laborum et dolorum fuga. Et harum quidem rerum facilis est et expedita distinctio. Nam libero tempore, cum soluta nobis est eligendi optio cumque nihil impedit quo minus id quod maxime placeat facere possimus, omnis voluptas assumenda est, omnis dolor repellendus. Temporibus autem quibusdam et aut officiis debitis aut rerum necessitatibus saepe eveniet ut et voluptates repudiandae sint et molestiae non recusandae. Itaque earum rerum hic tenetur a sapiente delectus, ut aut reiciendis voluptatibus maiores alias consequatur aut perferendis doloribus asperiores repellat.";
-      _fpsLabel.Text = "!FPS: " + (int)Gu.Context.Fps + ipsum;
+      Title = info;
+
+      //UI Test
+      _fpsLabel1.Text =
+      _fpsLabel2.Text =
+      _fpsLabel3.Text = info;
 
       Gu.Context.DebugDraw.BeginFrame();
 

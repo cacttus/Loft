@@ -296,6 +296,15 @@ namespace PirateCraft
     {
       return a.CompareTo(b) == 0;
     }
+    public static string FormatPrec(float x, int prec)
+    {
+      return String.Format("{0:0." + new string('0', prec) + "}", x);
+    }
+    public static string FormatPrec(double x, int prec)
+    {
+      return String.Format("{0:0." + new string('0', prec) + "}", x);
+    }
+
   }
 
 
