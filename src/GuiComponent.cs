@@ -182,7 +182,7 @@ namespace PirateCraft
     public UiDimUnit HeightUnit { get; set; } = UiDimUnit.Pixel;
     public float WidthPct { get; set; } = 100;// this is only set if th DimUnit is set to percent
     public float HeightPct { get; set; } = 100;// this is only set if th DimUnit is set to percent
-    public vec2 MinWHPX { get; set; } = new vec2(0, 0);
+    public vec2 MinWHPX { get; set; } = new vec2(10, 10);//sanity
     public vec2 MaxWHPX { get; set; } = new vec2(9999999, 9999999);
     public bool LayoutChanged { get; private set; } = true;
     public bool LayoutVisible { get; set; } = true;
@@ -823,61 +823,18 @@ namespace PirateCraft
         _b2ContentQuad._min = new vec2(Left, Top);
         _b2ContentQuad._max = _b2ContentQuad._min + contentWH;
 
-        if (_bShrinkToContents)//not- this is only for uiscreen
+        if (_bShrinkToContents)
         {
-          contentWH.x = Math.Min(maxWH.x, contentWH.x);
-          contentWH.y = Math.Min(maxWH.y, contentWH.y);
-
-          WidthPX = Math.Min(Math.Max(MinWHPX.x, contentWH.x), MaxWHPX.x);
-          HeightPX = Math.Min(Math.Max(MinWHPX.y, contentWH.y), MaxWHPX.y);
+          //Shrink the element (if not UiScreen)
+          //This is how HTML works by default.
+          //Also apply min/max to the element. This is specifically how you would fix an element's size.
+          WidthPX  = Math.Min( Math.Max(MinWHPX.x,  Math.Min(maxWH.x, contentWH.x)), MaxWHPX.x);
+          HeightPX = Math.Min( Math.Max(MinWHPX.y,  Math.Min(maxWH.y, contentWH.y)), MaxWHPX.y);
         }
 
         LayoutChanged = false;
       }
     }
-    // private void ComputeContentQuad(vec2 contentWH)
-    // {
-    //   // Reset content quad to 0,0
-    //   _b2ContentQuad._min = _b2ContentQuad._max = new vec2(Left, Top);
-
-    //   float dbgwidth = WidthPX;
-    //   float dbgheight = HeightPX;
-    //   // Recur and compute bounds for all children
-    //   float fright = -float.MaxValue;
-    //   float fbottom = -float.MaxValue;
-    //   if (Children != null)
-    //   {
-    //     foreach (var p in Children)
-    //     {
-    //       var ele = p.Value;
-
-    //       if (ele.LayoutVisible)
-    //       {
-    //         // Add padding for static elements
-    //         float effR = ele.Right;
-    //         float effT = ele.Bottom;
-    //         if (ele.PositionMode == UiPositionMode.Static)
-    //         {
-    //           effR -= (ele.MarginLeft + ele.MarginRight);
-    //         }
-    //         if (ele.PositionMode == UiPositionMode.Static)
-    //         {
-    //           effT -= (ele.MarginTop + ele.MarginBot);
-    //         }
-
-    //         // w/h adjust
-    //         effR -= 1;
-    //         effT -= 1;
-
-    //         fright = Math.Max(fright, Left + effR);
-    //         fbottom = Math.Max(fbottom, Top + effT);
-
-    //         // expand contenet quad
-    //         _b2ContentQuad.ExpandByPoint(new vec2(fright, fbottom));
-    //       }
-    //     }
-    //   }
-    // }
     private void LayoutEleQuad(vec2 viewport_wh, UiElement ele)
     {
       //Add the child to the parent.
@@ -962,74 +919,13 @@ namespace PirateCraft
       {
         CalcStaticElement(ele, vecLines, 0.0f, 0.0f, maxWH);
       }
-      float totalHeight = _padBot + _padTop;
+      float totalHeight = _padTop + _padBot;
       foreach (var line in vecLines)
       {
         totalHeight += line._height;
         contentWH.x = Math.Max(contentWH.x, line._width + _padLeft + _padRight);
       }
       contentWH.y = Math.Max(contentWH.y, totalHeight);
-
-      //contentWH.y = Math.Max(fTotalHeight, contentWH.y);
-
-      // // auto heights are confusing.  So the problem is that the height of a line is indeterminate.  We build the form by widths of elements and
-      // // wrap when we reach the end.   What's the actual height of the line?  What we say is *Any line that has at least one
-      // //*auto height is an auto height line, thus the whole line's height gets auto*
-      // // 3/4 technically auto height should always shrink whether we are inline, or block element
-      // int nAutoHLines = 0;
-      // for (int iLine = 0; iLine < vecLines.Count; iLine++)
-      // {
-      //   var line = vecLines[iLine];
-      //   foreach (var ele in line._eles)
-      //   {
-      //     if (ele.HeightUnit == UiDimUnit.Auto)
-      //     {
-      //       nAutoHLines++;
-      //       break;  // Line height is auto for this line
-      //     }
-      //   }
-      // }
-
-      // // Expand Autos
-      // // in css block elements expand "grow" to 100% of parent
-      // // inline elements shrink to smallest size.  our auto is somewhat broken
-      // // Hmm..Auto size = grow would cause autos to expand to be the size of the max width..which defaults to 99999
-      // List<UiLine> vecLines2 = new List<UiLine>();  // Technically this dummy variable should be '1'
-      // vecLines2.Add(new UiLine());
-      // for (var iLine = 0; iLine < vecLines.Count; iLine++)
-      // {
-      //   var line = vecLines[iLine];
-
-      //   // Sum Autos and average widths
-      //   int nAutoWsLine = 0;
-      //   foreach (var ele in line._eles)
-      //   {
-      //     if (ele.WidthUnit == UiDimUnit.Auto)
-      //     {
-      //       nAutoWsLine++;
-      //     }
-      //   }
-      //   float auto_width = 0;
-      //   float auto_height = 0;
-      //   if (nAutoWsLine > 0)
-      //   {
-      //     auto_width = Math.Max(WidthPX - line._width, 0.0f) / (float)nAutoWsLine;
-      //     // So we're going to "sprinkle the width" across other autos
-      //     //  for each element whose min width > the computed auto
-      //     // subtract from the computed_auto the remaining width minus the auto  (min_width - computed_auto) / remaining_autos4
-      //   }
-      //   if (nAutoHLines > 0)
-      //   {
-      //     auto_height = Math.Max(HeightPX - fTotalHeight, 0.0f) / (float)nAutoHLines;
-      //   }
-
-      //   // run calculation again, this time with autos
-      //   foreach (var ele in line._eles)
-      //   {
-      //     CalcStaticElement(ele, vecLines2, auto_width, auto_height);
-      //   }
-      // }
-
     }
     private void CalcStaticElement(UiElement ele, List<UiLine> vecLines, float fAutoWidth, float fAutoHeight, vec2 parentMaxWH)
     {
@@ -1039,21 +935,6 @@ namespace PirateCraft
       }
       UiLine line = vecLines[vecLines.Count - 1];
 
-      // Autos get zero first so we an compute the fixed
-      // statics then we go throguh here again and assign them computed values
-
-      //float wpx = 0, hpx = 0;
-      //ele.ComputeWH(ref wpx, ref hpx);  // also applies min/max
-      // if (ele.WidthUnit == UiDimUnit.Auto)
-      // {
-      //   wpx = fAutoWidth;
-      // }
-      // if (ele.HeightUnit == UiDimUnit.Auto)
-      // {
-      //   hpx = fAutoHeight;
-      // }
-      //ele.ApplyMinMax(ref wpx, ref hpx); //minimax for element only.
-
       float parent_contentarea_width = parentMaxWH.x - _padLeft - _padRight;
 
       //*Padding
@@ -1062,14 +943,13 @@ namespace PirateCraft
       float mb = ComputeMarginPad_Unit(HeightPX, ele.MarginUnitBot, ele._marBot);
       float ml = ComputeMarginPad_Unit(WidthPX, ele.MarginUnitLeft, ele._marLeft);
 
-      float wpx_mar = ml + mr;
-      float hpx_mar = mb + mt;
+      float ele_width = Math.Max(ele._width, ele.MinWHPX.x);
 
       //**Line break
       bool bLineBreak = false;
       if (ele.DisplayMode == UiDisplayMode.InlineWrap)
       {
-        if (wpx_mar + line._width > parent_contentarea_width) //For label - auto width + expand. ?? 
+        if (ml + mr + ele_width + line._width > parent_contentarea_width) //For label - auto width + expand. ?? 
         {
           bLineBreak = true;
         }
@@ -1087,7 +967,7 @@ namespace PirateCraft
       if (bLineBreak)
       {
         // new line
-        UiLine line2 = new UiLine(_padLeft, _padTop);
+        UiLine line2 = new UiLine(_padLeft, 0/*pad top, only for the top uiline*/);
         line2._top = line._top + line._height;
         vecLines.Add(line2);
         line = vecLines[vecLines.Count - 1];
@@ -1096,7 +976,7 @@ namespace PirateCraft
       line._width += ml;
       ele._left = line._left + line._width;
       ele._top = line._top + mt;
-      line._width += Math.Max(ele._width, ele.MinWHPX.x);
+      line._width += ele_width;
       line._width += mr;
 
       ele.ValidateQuad();
@@ -1125,93 +1005,8 @@ namespace PirateCraft
     }
     private void ComputePositionalElement(UiElement ele)
     {
-      //*No padding
-      //*No auto sizing
-      //float wpx = 0, hpx = 0;
-      //ele.ComputeWH(ref wpx, ref hpx);  // Cannot be auto
-      //ele.ApplyMinMax(ref wpx, ref hpx);
-      //ele.Right = ele.Left + wpx;
-      //ele.Bottom = ele.Top + hpx;
-
-      //this is nothing now, there is no right/bottom, 
-      //it was nothing before, because left +wpx equals right anyway... so what?
-
       ValidateQuad();
     }
-    // private void ComputeWH(ref float wpx, ref float hpx)
-    // {
-    //   wpx = 0;
-    //   hpx = 0;
-
-    //   // Width
-    //   if (WidthUnit == UiDimUnit.Pixel)
-    //   {
-    //     wpx = WidthPX;//TODO: widths are fixed
-    //   }
-    //   else if (WidthUnit == UiDimUnit.Percent)
-    //   {
-    //     if (_parent != null && _parent.TryGetTarget(out var par))
-    //     {
-    //       wpx = par.WidthPX * WidthPct * 0.01f;
-    //     }
-    //   }
-    //   else if (WidthUnit == UiDimUnit.Auto)
-    //   {
-    //   }
-    //   else
-    //   {
-    //     Gu.Log.Error("Invalid enum");
-    //   }
-
-    //   // Height
-    //   if (HeightUnit == UiDimUnit.Pixel)
-    //   {
-    //     hpx = HeightPX;
-    //   }
-    //   else if (HeightUnit == UiDimUnit.Percent)
-    //   {
-    //     if (_parent != null && _parent.TryGetTarget(out var par))
-    //     {
-    //       hpx = par.HeightPX * HeightPct * 0.01f;
-    //     }
-    //   }
-    //   else if (HeightUnit == UiDimUnit.Auto)
-    //   {
-    //   }
-    //   else
-    //   {
-    //     Gu.Log.Error("Invalid enum");
-    //   }
-    //   // Make sure it's an actual heght
-    //   if (hpx < 0.0f)
-    //   {
-    //     hpx = 0.0f;
-    //   }
-    //   if (wpx < 0.0f)
-    //   {
-    //     wpx = 0.0f;
-    //   }
-    // }
-    // private void ApplyMinMax(ref float wpx, ref float hpx)
-    // {
-    //   // apply min/max to box (not in parent space)
-    //   if (wpx < MinWHPX.x)
-    //   {
-    //     wpx = MinWHPX.x;
-    //   }
-    //   if (hpx < MinWHPX.y)
-    //   {
-    //     hpx = MinWHPX.y;
-    //   }
-    //   if (wpx > MaxWHPX.x)
-    //   {
-    //     wpx = MaxWHPX.x;
-    //   }
-    //   if (hpx > MaxWHPX.y)
-    //   {
-    //     hpx = MaxWHPX.y;
-    //   }
-    // }
     private void CreateGlyphs(MegaTex mt)
     {
       if (Children == null)
@@ -1592,6 +1387,10 @@ namespace PirateCraft
       e.FontStyle = fontstyle;
       e.LineHeight = lineheight;
       e.PadBot = e.PadLeft = e.PadTop = e.PadRight = 15;// Fonts are messed up right now 
+      e.PadBot=10;
+      e.PadTop=10;
+      e.PadLeft=10;
+      e.PadRight=10;
       e.PositionMode = UiPositionMode.Relative;
       e.IsPickRoot = true;
       return e;
