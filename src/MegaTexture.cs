@@ -281,10 +281,12 @@ namespace PirateCraft
 
   public struct CachedCharData
   {
+    //This is a cached char that has all its information pre-computed from stb
     public int code;
     public vec2 uv0;
     public vec2 uv1;
     public float width;
+    public float marginRight;
     public float height;
     public float top;
     public float bot;
@@ -293,6 +295,8 @@ namespace PirateCraft
   }
   public class FontPatchInfo
   {
+    //A font patch is a mipmap of a given font (maximum BakedCharSize)
+    //This is needed because automatic mipmapping does not work correctly for the UI. (scaling a single MaxBakedChar also causes artifacts)
     public int BakedCharSize { get; set; } = 0; //Pixel height of the characters
     public StbTrueTypeSharp.StbTrueType.stbtt_packedchar[] CharInfo = null;
     public float ScaleForPixelHeight = 0;               //return value of stbtt_ScaleForPixelHeight
@@ -352,6 +356,8 @@ namespace PirateCraft
     private bool _bInitialized = false;
     private int _padding = 1; //STB - "normally you want 1 for bilinear filtering"
     private List<FontPatchInfo> _fontPatchInfos = new List<FontPatchInfo>();
+
+   
 
     public MtFont(MegaTex mt, FileLoc loc, int padding = 1) : base(mt, loc)
     {
@@ -589,15 +595,14 @@ namespace PirateCraft
       }
       return _fontPatchInfos[_fontPatchInfos.Count - 1];
     }
-    public float GetKernAdvanceWidth(FontPatchInfo patchInfo, float fontSize, int cCodePrev, int cCode)
+    public float GetKernAdvanceWidth(FontPatchInfo patchInfo, float fontSize, int cCode, int cCodeNext)
     {
       //Get an additional width to add or subtract for kerning.
       float fKern = 0.0f;
-      if (cCodePrev >= 0)
+      if (cCodeNext >= 0)
       {
-        int kern = StbTrueTypeSharp.StbTrueType.stbtt_GetCodepointKernAdvance(_fontInfo, cCode, cCodePrev);
+        int kern = StbTrueTypeSharp.StbTrueType.stbtt_GetCodepointKernAdvance(_fontInfo, cCode, cCodeNext);
         fKern = (float)kern * patchInfo.ScaleForPixelHeight;
-        fKern *= patchInfo.GetScaleForPixelSize(fontSize);
       }
       return fKern;
     }
@@ -677,33 +682,11 @@ namespace PirateCraft
           StbTrueTypeSharp.StbTrueType.stbtt_GetCodepointHMetrics(_fontInfo, cCode, &advWidth, &leftbearing);
         }
 
-        float ascent = (float)_ascent * patchInfo.ScaleForPixelHeight;
         float advance = (float)advWidth * patchInfo.ScaleForPixelHeight;
         float bearing = (float)leftbearing * patchInfo.ScaleForPixelHeight;
+        float ascent = (float)_ascent * patchInfo.ScaleForPixelHeight;
         float descent = (float)_descent * patchInfo.ScaleForPixelHeight;
-        float lineHeight = patchInfo.BakedCharSize + Math.Abs(ascent);
-
-        float maxHeight = Math.Abs(ascent) + Math.Abs(descent); // for some reason some chars seem to go below max height
-
-        //height should be line height  
-        //the ascent / descent should actually draw over the other quads.
-        //solution: separate w/h
-
-        //top+bot+height must equal line height for text to not stutter
-        ccd.height = lineHeight;
-        ccd.width = advance; //(stbQuad.y1 - stbQuad.y0);
-        ccd.left = stbQuad.x0;
-        ccd.top = stbQuad.y0;
-        ccd.right = stbQuad.x1;
-        ccd.bot = stbQuad.y1;
-
-        //ccd.width = (stbQuad.x1 - stbQuad.x0); //the stb x0, x1 seem to be in direct pixel coordinates
-        //ccd.height = (stbQuad.y1 - stbQuad.y0);
-        //ccd.margin_right = advance - stbQuad.x1;
-        //ccd.margin_left = Math.Abs(stbQuad.x0);
-        //ccd.margin_top = lineHeight - Math.Abs(stbQuad.y0); //lineHeight - Math.Abs(descent);// 
-        //ccd.margin_bot = Math.Max(0, lineHeight - (ccd.margin_top + ccd.height));//lineHeight - ccd.margin_top;//;
-
+        float lineHeight = Math.Abs(ascent) + Math.Abs(descent) + (float)_lineGap *  patchInfo.ScaleForPixelHeight;
         // advanceWidth is the offset from the current horizontal position to the next horizontal position
         // leftSideBearing is the offset from the current horizontal position to the left edge of the character
         // ascent is the coordinate above the baseline the font extends; descent
@@ -712,6 +695,14 @@ namespace PirateCraft
         // so you should advance the vertical position by "*ascent - *descent + *lineGap"
         //   these are expressed in unscaled coordinates, so you must multiply by
         //   the scale factor for a given size
+
+        ccd.height = lineHeight;
+        ccd.width = (stbQuad.x1 - stbQuad.x0);
+        ccd.marginRight =  Math.Abs(advance) - ccd.width; 
+        ccd.left = stbQuad.x0;
+        ccd.top = stbQuad.y0;
+        ccd.right = stbQuad.x1;
+        ccd.bot = stbQuad.y1;
 
         patchInfo.CachedChars.Add(cCode, ccd);
       }

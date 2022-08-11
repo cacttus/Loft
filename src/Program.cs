@@ -444,54 +444,22 @@ namespace PirateCraft
       //Some fun parenting stuff.
       //  Sphere_Rotate_Quat_Test.AddChild(Sphere_Rotate_Quat_Test2.AddChild(Sphere_Rotate_Quat_Test3.AddChild(_boxMeshThing)));
     }
-    UILabel _fpsLabel1 = null;
-    UILabel _fpsLabel2 = null;
-    UILabel _fpsLabel3 = null;
+    UiElement _fpsLabel1 = null;
+    UiElement _fpsLabel2 = null;
+    UiElement _fpsLabel3 = null;
+    UiElement _buttonTest = null;
+    UiElement _panelTest = null;
     private void CreateGUI()
     {
       //Gui Comp
       var gui = new GuiComponent();
+      gui.Screen.AddChild(_panelTest = gui.CreatePanel(new vec2(50, 50), new vec2(50, 50)));
+      gui.Screen.AddChild(_buttonTest = gui.CreateButton(new vec2(100, 50), "hello", (i, e, m) => { e.Text = "hi"; }));
+      gui.Screen.AddChild(_fpsLabel1 = gui.CreateLabel(new vec2(250, 50), "test", FontFace.Fancy));
+      gui.Screen.AddChild(_fpsLabel2 = gui.CreateLabel(new vec2(400, 100), "test", FontFace.Pixel));
+      gui.Screen.AddChild(_fpsLabel3 = gui.CreateLabel(new vec2(650, 200), "test", FontFace.Mono));
 
-      // {
-      //   var pd = gui.CreatePanel(new vec4(1, 1, 1, 1), new vec2(50, 200), new vec2(202, 90));
-      //   pd.Position = UiPositionMode.Relative;
-      //   pd.Color = new vec4(1, 1, 1, 1);
-      //   gui.Screen.AddChild(pd);
-      // }
-
-      {
-        var pd = gui.CreatePanel(new vec4(1, 1, 1, 1), new vec2(250, 700), new vec2(120, 40));
-        pd.Position = UiPositionMode.Relative;
-        pd.Color = new vec4(1, 1, 1, 1);
-        gui.Screen.AddChild(pd);
-      }
-      {
-        var fa = new FontAttributes(gui.GetFont(Fonts.Fancy), 35, new vec4(.2f,.1f,.0f,1), FontAttributes.FontStyle.Normal, 0.5f);
-        _fpsLabel1 = new UILabel(new vec2(20, 20), fa, "");
-        _fpsLabel1.Position = UiPositionMode.Relative;
-        _fpsLabel1.Color = new vec4(.8f, .8f, .8f, .4f);
-        _fpsLabel1.Texture = gui.DefaultPixel();
-        gui.Screen.AddChild(_fpsLabel1);
-      }
-
-      {
-        var fa = new FontAttributes(gui.GetFont(Fonts.Pixel), 12, new vec4(.0f,.0f,.0f,1), FontAttributes.FontStyle.Normal);
-        _fpsLabel2 = new UILabel(new vec2(320, 20), fa, "!!!");
-        _fpsLabel2.Position = UiPositionMode.Relative;
-        _fpsLabel2.Color = new vec4(.8f, .8f, .8f, .4f);
-        _fpsLabel2.Texture = gui.DefaultPixel();
-        gui.Screen.AddChild(_fpsLabel2);
-      }
-
-      {
-        var fa = new FontAttributes(gui.GetFont(Fonts.Mono), 20, new vec4(.1f,.3f,.7f,1), FontAttributes.FontStyle.Normal);
-        _fpsLabel3 = new UILabel(new vec2(620, 20), fa, "!!!");
-        _fpsLabel3.Position = UiPositionMode.Relative;
-        _fpsLabel3.Color = new vec4(.8f, .8f, .8f, .4f);
-        _fpsLabel3.Texture = gui.DefaultPixel();
-        gui.Screen.AddChild(_fpsLabel3);
-      }
-
+      //Create the gui "object" and put it in front of the player so it doesn't get culled.
       var guiobj = Gu.World.CreateObject("guiobj", null, null);
       guiobj.Position_Local = new vec3(0, 0, 10);
       guiobj.Components.Add(gui);
@@ -526,7 +494,7 @@ namespace PirateCraft
     {
       float chary = this._player_empty.Position_World.y;
       var info = $"(Cam = {_player_empty.Position_World.ToString(2)}) \n" +
-          $"FPS: {(int)Gu.Context.Fps} \n" +
+          $"FPS: {(int)Gu.Context.Fps}\n" +
           $"nyugs b: {Box3f.nugs} \n" +
           $"Visible Glob: {Gu.World.NumVisibleRenderGlobs} \n" +
           $"Gen Glob: {Gu.World.NumGenGlobs} \n" +

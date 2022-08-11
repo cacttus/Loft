@@ -1571,9 +1571,19 @@ namespace PirateCraft
   {
     public float x, y, z, w;
 
+    public static vec4 rgba_ub(byte r, byte g, byte b, byte a)
+    {
+      return new vec4(
+        Math.Clamp((float)r / 255.0f, 0, 1),
+        Math.Clamp((float)g / 255.0f, 0, 1),
+        Math.Clamp((float)b / 255.0f, 0, 1),
+        Math.Clamp((float)a / 255.0f, 0, 1)
+        );
+    }
     public vec4(vec3 d, float dw) { x = d.x; y = d.y; z = d.z; w = dw; }
     public vec4(vec4 dxy) { x = dxy.x; y = dxy.y; z = dxy.z; w = dxy.w; }
     public vec4(float dx, float dy, float dz, float dw) { x = dx; y = dy; z = dz; w = dw; }
+    public vec4(double dx, double dy, double dz, double dw) { x = (float)dx; y = (float)dy; z = (float)dz; w = (float)dw; }
     public vec4(OpenTK.Mathematics.Vector4 v) { x = v.X; y = v.Y; z = v.Z; w = v.W; }//From XNA's Vector2
     public static vec4 One { get { return new vec4(1, 1, 1, 1); } }
     public static vec4 Zero { get { return new vec4(0, 0, 0, 0); } }

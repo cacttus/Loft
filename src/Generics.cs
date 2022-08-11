@@ -50,6 +50,10 @@ namespace PirateCraft
     {
       return Remove(val.Key, val.Value);
     }
+    public bool Remove(TKey key)
+    {
+      return _dict.Remove(key);
+    }
     public bool Remove(TKey x, TValue y)
     {
       List<TValue> ret = null;
@@ -292,6 +296,14 @@ namespace PirateCraft
 
   public class StringUtil
   {
+    public static bool IsNotEmpty(string s)
+    {
+      return !IsEmpty(s);
+    }
+    public static bool IsEmpty(string s)
+    {
+      return String.IsNullOrEmpty(s);
+    }
     public static bool Equals(string a, string b)
     {
       return a.CompareTo(b) == 0;
