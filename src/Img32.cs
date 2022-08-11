@@ -131,7 +131,7 @@ namespace PirateCraft
       {
         data = new byte[w * h * BytesPerPixel];
       }
-        
+
       Gu.Assert(data.Length == BytesPerPixel * w * h);
 
       Data = data;
@@ -230,19 +230,31 @@ namespace PirateCraft
 
       return pix;
     }
-    public void flipV()
+    public void flip(bool fliph, bool flipv)
     {
       byte[] st = new byte[this.Data.Length];
 
       int rowsize = this.BytesPerPixel * this.Width;
       int h = this.Height;
 
-      // Swap the scanlines
-      for (int v = 0; v < this.Height; ++v)
+      for (int yi = 0; yi < this.Height; ++yi)
       {
-        //ptroff is just an offset into byte[]
-        //    memcpy(st->ptr() + v * rowsize, _pData->ptrOff((h - v - 1) * rowsize), rowsize);
-        Buffer.BlockCopy(Data, (h - v - 1) * rowsize, st, v * rowsize, rowsize);
+        for (int xi = 0; xi < this.Width; xi++)
+        {
+          int yoff = yi;
+          if (flipv)
+          {
+            // Swap the scanlines
+            yoff = (Height - yi - 1);
+          }
+          int xoff = xi;
+          if (fliph)
+          {
+            xoff = (Width - xi - 1);
+          }
+
+          Buffer.BlockCopy(Data, (yi * Width + xi) * BytesPerPixel, st, (yoff * Width + xoff) * BytesPerPixel, BytesPerPixel);
+        }
       }
 
       this.Data = st;

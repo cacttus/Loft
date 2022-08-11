@@ -454,10 +454,38 @@ namespace PirateCraft
       //Gui Comp
       var gui = new GuiComponent();
       gui.Screen.AddChild(_panelTest = gui.CreatePanel(new vec2(50, 50), new vec2(50, 50)));
-      gui.Screen.AddChild(_buttonTest = gui.CreateButton(new vec2(100, 50), "helloxx", (i, e, m) => { e.Text = "hi"; }));
-      gui.Screen.AddChild(_fpsLabel1 = gui.CreateLabel(new vec2(250, 50), "testxx",true, FontFace.Fancy));
-      gui.Screen.AddChild(_fpsLabel2 = gui.CreateLabel(new vec2(400, 100), "testxx",true, FontFace.Pixel));
-      gui.Screen.AddChild(_lblDebugInfo = gui.CreateLabel(new vec2(0, 0), "testxx",false, FontFace.Mono, 25));
+            gui.Screen.AddChild(_fpsLabel1 = gui.CreateLabel(new vec2(250, 50), "testxx", true, FontFace.Fancy));
+      gui.Screen.AddChild(_fpsLabel2 = gui.CreateLabel(new vec2(400, 100), "testxx", true, FontFace.Pixel));
+
+      int testx = 0;
+      gui.Screen.AddChild(_buttonTest = gui.CreateButton(new vec2(100, 50), "cLICK mE", (i, e, m) =>
+      {
+        if (testx == 0)
+        {
+          e.Text = "hi";
+        }
+        else if (testx == 1)
+        {
+          e.Text = "hiasdfasgadsfadfhdfhadfh";
+          e.Color = vec4.rgba_ub(255,255,255,255);
+        }
+        else if (testx == 2)
+        {
+          e.Text = "booogasodfjsadoifkjasodifjsado";
+          e.FontColor = vec4.rgba_ub(255,20,255,255);
+          e.Color = vec4.rgba_ub(30,5,10,255);
+          e.FontFace = FontFace.Fancy;
+        }
+        else if (testx == 3)
+        {
+          e.Text = "asdfajwoi4eur209384fj 043jfoiesdjflksad jf098a3w4jt09823jt0j awefim2a0w349qr jta08wj ad80ifj a0w9fej aasdfajwoi4eur209384fj 043jfoiesdjflksad jf098a3w4jt09823jt0j awefim2a0w349qr jta08wj ad80ifj a0w9fej aasdfajwoi4eur209384fj 043jfoiesdjflksad jf098a3w4jt09823jt0j awefim2a0w349qr jta08wj ad80ifj a0w9fej aasdfajwoi4eur209384fj 043jfoiesdjflksad jf098a3w4jt09823jt0j awefim2a0w349qr jta08wj ad80ifj a0w9fej aasdfajwoi4eur209384fj 043jfoiesdjflksad jf098a3w4jt09823jt0j awefim2a0w349qr jta08wj ad80ifj a0w9fej a";
+                    e.FontColor = vec4.rgba_ub(0,255,0,255);
+          e.Color = vec4.rgba_ub(255,255,140,255);
+        }
+        testx=(testx+1) %4;
+      }));
+
+      gui.Screen.AddChild(_lblDebugInfo = gui.CreateLabel(new vec2(0, 0), "testxx", false, FontFace.Mono, 25));
 
       //Create the gui "object" and put it in front of the player so it doesn't get culled.
       var guiobj = Gu.World.CreateObject("guiobj", null, null);

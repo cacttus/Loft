@@ -256,18 +256,6 @@ namespace PirateCraft
         Gu.Log.Error("Error parsing image patch for file " + file);
       }
 
-      //bool b = false;
-      //if (b)
-      //{
-      //   //save images (and master
-      //   Gu::saveImage("./data/cache/saved_9P_master.png", master);
-      //   for (int n = 0; n < ret.size(); ++n)
-      //   {
-      //      std::shared_ptr<Texture2D> tex = std::make_shared<Texture2D>(getName(), TextureFormat::Image4ub, ret[n], _pMegaTex.getContext(), TexFilter::Nearest);
-      //      _pMegaTex.getContext().getRenderUtils().saveTexture(std::move(Stz "./data/cache/saved_9P_" + n + ".png"), tex.getGlId(), GL_TEXTURE_2D);
-      //   }
-      //}
-
       return ret;
     }
     public virtual void AfterCompile()
@@ -356,8 +344,6 @@ namespace PirateCraft
     private bool _bInitialized = false;
     private int _padding = 1; //STB - "normally you want 1 for bilinear filtering"
     private List<FontPatchInfo> _fontPatchInfos = new List<FontPatchInfo>();
-
-   
 
     public MtFont(MegaTex mt, FileLoc loc, int padding = 1) : base(mt, loc)
     {
@@ -601,6 +587,7 @@ namespace PirateCraft
       float fKern = 0.0f;
       if (cCodeNext >= 0)
       {
+        //issue with audio somewhere
         int kern = StbTrueTypeSharp.StbTrueType.stbtt_GetCodepointKernAdvance(_fontInfo, cCode, cCodeNext);
         fKern = (float)kern * patchInfo.ScaleForPixelHeight;
       }

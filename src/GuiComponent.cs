@@ -187,8 +187,8 @@ namespace PirateCraft
     public bool LayoutChanged { get; private set; } = true;
     public bool LayoutVisible { get; set; } = true;
     public bool RenderVisible { get; set; } = true;
-    public bool PickEnabled { get; set; } = true;
     public bool IsPickRoot { get; set; } = true;
+    public bool PickEnabled { get; set; } = true;
     public bool ScaleToDesign { get; set; } = true; // this is true for all elements besides cursor.
     public UiDisplayMode DisplayMode { get; set; } = UiDisplayMode.Block;
     public UiImageSizeMode SizeModeX { get; set; } = UiImageSizeMode.Expand;  // tile = GL_REPEAT, Clamp = GL_CLAMP, Expand - expand tex coords.
@@ -205,19 +205,38 @@ namespace PirateCraft
     public float PadRight { get { return _padRight; } set { _padRight = value; } }
     public float PadBot { get { return _padBot; } set { _padBot = value; } }
     public float PadLeft { get { return _padLeft; } set { _padLeft = value; } }
-    public string Text { get { return _strText; } set { SetLayoutChanged(); _strText = value; } }
+    public string Text { get { return _strText; } set { _strText = value; SetLayoutChanged(); _bTextChanged = true; } }
     public float LineHeight { get; set; } = 1;
     public FontFace FontFace { get; set; } = FontFace.Mono;
     public float FontSize { get; set; } = 12;
     public FontStyle FontStyle { get; set; } = FontStyle.Normal;
     public vec4 FontColor { get; set; } = new vec4(0, 0, 0, 1);
-    public MtTex Texture { get; set; } = null;
+    public MtTex Texture
+    {
+      get
+      {
+        return _texture;
+      }
+      set
+      {
+        _texture = value;
+        if (_texture == null)
+        {
+          _iPickId = 0;
+        }
+        else
+        {
+          _iPickId = Gu.Context.Renderer.getPicker().genPickId();
+        }
+      }
+    }
 
     #endregion
     #region Private: Members
 
     protected const int c_BaseLayerSort = 1000;
     protected const int c_GlyphLayerSort = 2000;
+    private MtTex _texture = null;
     private WeakReference<UiElement> _parent = null;
     private MtFont _cachedFont = null;
     private string _strText = "";
@@ -245,7 +264,7 @@ namespace PirateCraft
     protected float _marRight = 0;
     protected float _marBot = 0;
     protected float _marLeft = 0;
-    protected bool _bShrinkToContents = true;
+    protected bool _bShrinkToContents = true;//only for uiscreen
 
     #endregion
     #region Public: Methods
@@ -623,7 +642,7 @@ namespace PirateCraft
     private protected bool Pick(PCMouse mous, long frameStamp)
     {
       //Recursive method to pick visible elements.
-      bool bPicked = false;
+      bool picked = false;
       Box2f q = _b2LayoutQuad;
       if (LayoutVisible == true)
       {
@@ -633,25 +652,32 @@ namespace PirateCraft
           {
             if (q.ContainsPointInclusive(mous.Pos))
             {
-              _iPickedFrameId = frameStamp;
 
-              if (IsPickRoot)
+              //Pick texture
+              if (_iPickId > 0)
               {
-                // Pick root items pick by boundbox
-                bPicked = true;
+                var pixid = Gu.Context.Renderer.getPicker().getSelectedPixelId();
+                if (pixid != 0)
+                {
+                  if (pixid == _iPickId)
+                  {
+                    _iPickedFrameId = frameStamp;
+                    picked = true;
+                  }
+                }
               }
-              else
+
+              bool pickedChild = false;
+              if (!picked)
               {
                 // Else pick all children to find the pick root
                 if (Children != null)
                 {
                   foreach (var ele in Children)
                   {
-                    if (ele.Value.Pick(mous, frameStamp) == true)
+                    pickedChild = ele.Value.Pick(mous, frameStamp);
+                    if (pickedChild == true)
                     {
-                      // We pick the first child in the TOP level sort order
-                      // If we hit it, break out because we don't want to pick children underneath
-                      bPicked = true;
                       break;
                     }
                   }
@@ -659,7 +685,7 @@ namespace PirateCraft
               }
 
               // Capture the bubble-up pick event and process events
-              if (bPicked)
+              if ((picked || pickedChild) && IsPickRoot)
               {
                 DoMouseEvents(mous);
               }
@@ -667,8 +693,8 @@ namespace PirateCraft
           }
         }
       }
-      _bPickedLastFrame = bPicked;
-      return bPicked;
+      _bPickedLastFrame = picked;
+      return picked;
     }
     private void DoMouseEvents(PCMouse mouse)
     {
@@ -695,11 +721,11 @@ namespace PirateCraft
       {
         if (_events != null)
         {
-          if (_events.TryGetValue(UiEventId.Mouse_Lmb_Up, out var actions))
+          if (_events.TryGetValue(evid, out var actions))
           {
             foreach (var act in actions)
             {
-              act(UiEventId.Mouse_Lmb_Up, this, m);
+              act(evid, this, m);
             }
           }
         }
@@ -761,45 +787,49 @@ namespace PirateCraft
       //positions to the parent to build the elements.
       if (LayoutChanged)
       {
-        vec2 contentWH = new vec2(_padLeft+_padRight, _padTop+_padBot); //in HTML all elements default to zero width without any contents.
+        vec2 contentWH = new vec2(_padLeft + _padRight, _padTop + _padBot); //in HTML all elements default to zero width without any contents.
+
+        //Shrink boundary
+        vec2 maxWH = new vec2(
+          Math.Max(Math.Min(parentMaxWH.x, MaxWHPX.x), 0),
+          Math.Max(Math.Min(parentMaxWH.y, MaxWHPX.y), 0)
+        );
 
         //Check if we are a label
-        if (_bTextChanged == true || StringUtil.IsNotEmpty(_strText))
+        if (_bTextChanged == true)
         {
           CreateGlyphs(mt);
         }
         //Do Object Children.
         if (Children != null)
         {
+
           //PerformLayoutChildren
-          //First pass must expand autosize elements
+          //First pass must expand autosize elements up to the maximum w/h
           foreach (var p in Children)
           {
             UiElement ele = p.Value;
-            //Shrink maxWH boundary
-            vec2 maxWH = new vec2(
-              Math.Max(Math.Min(parentMaxWH.x, this.MaxWHPX.x), 0),
-              Math.Max(Math.Min(parentMaxWH.y, this.MaxWHPX.y), 0)
-            );
             if (ele.LayoutVisible)
             {
               ele.PerformLayout(mt, viewport_wh, bForce, maxWH);
             }
           }
+
           //Second pass positions elements, and, expands parent
-          PositionChildren(bForce, viewport_wh, parentMaxWH, ref contentWH);
+          PositionChildren(bForce, viewport_wh, maxWH, ref contentWH);
         }
 
         //Note: content quad may expand beyond container
         _b2ContentQuad._min = new vec2(Left, Top);
         _b2ContentQuad._max = _b2ContentQuad._min + contentWH;
 
-        if (_bShrinkToContents)
+        if (_bShrinkToContents)//not- this is only for uiscreen
         {
-          contentWH.x = Math.Min(parentMaxWH.x, contentWH.x);
-          contentWH.y = Math.Min(parentMaxWH.y, contentWH.y);
-          WidthPX = Math.Max(MinWHPX.x, contentWH.x);
-          HeightPX = Math.Max(MinWHPX.y, contentWH.y);
+          contentWH.x = Math.Min(maxWH.x, contentWH.x);
+          contentWH.y = Math.Min(maxWH.y, contentWH.y);
+
+          WidthPX = Math.Min(Math.Max(MinWHPX.x, contentWH.x), MaxWHPX.x);
+          HeightPX = Math.Min(Math.Max(MinWHPX.y, contentWH.y), MaxWHPX.y);
         }
 
         LayoutChanged = false;
@@ -1024,7 +1054,7 @@ namespace PirateCraft
       // }
       //ele.ApplyMinMax(ref wpx, ref hpx); //minimax for element only.
 
-      float parent_contentarea_width = parentMaxWH.x;//Math.Max(WidthPX - _padLeft - _padRight, 0);
+      float parent_contentarea_width = parentMaxWH.x - _padLeft - _padRight;
 
       //*Padding
       float mt = ComputeMarginPad_Unit(HeightPX, ele.MarginUnitTop, ele._marTop);
@@ -1303,17 +1333,17 @@ namespace PirateCraft
         FontColor = new vec4(0, 0, 0, 1),
         Color = vec4.rgba_ub(210, 220, 230, 255),
         Texture = tex.DefaultPixel, //Flat color
-        PadTop = 2,
-        PadRight = 2,
-        PadBot = 2,
-        PadLeft = 2,
-        MarginTop = 2,
-        MarginRight = 2,
-        MarginBot = 2,
-        MarginLeft = 2,
+        PadTop = 5,
+        PadRight = 5,
+        PadBot = 5,
+        PadLeft = 5,
+        MarginTop = 0,
+        MarginRight = 0,
+        MarginBot = 0,
+        MarginLeft = 0,
         FontFace = FontFace.Mono,
         FontStyle = FontStyle.Normal,
-        FontSize = 12,
+        FontSize = 22,
         LineHeight = 1.0f
       };
 
@@ -1349,29 +1379,6 @@ namespace PirateCraft
     //   }
     // }
   }
-  //   public class UiButton : UiElement
-  //   {
-  //     public UiButton(string text, UiStyleSheet ss) : base(ss)
-  //     {
-  //       /*
-  // style changes
-  // mouse press/up/down.et
-  // enter/leave
-  // tick
-  //       */
-  //       var that = this;
-  //       AddEvent(UiEventId.Mouse_Lmb_Press, (i, e, m) => { StyleSheet?.StyleElement(UiStyleSheet.DefaultStyle, UiStyleSheet.StyleState.UiButton_down, this); });
-  //       AddEvent(UiEventId.Mouse_Lmb_Release, (i, e, m) => { StyleSheet?.StyleElement(UiStyleSheet.DefaultStyle, UiStyleSheet.StyleState.UiButton_up, this); });
-  //       AddEvent(UiEventId.Mouse_Enter, (i, e, m) => { StyleSheet?.StyleElement(UiStyleSheet.DefaultStyle, UiStyleSheet.StyleState.UiButton_hover, this); });
-  //       AddEvent(UiEventId.Mouse_Leave, (i, e, m) => { StyleSheet?.StyleElement(UiStyleSheet.DefaultStyle, UiStyleSheet.StyleState.UiButton_up, this); ; });
-  //       var label = new UiLabel(text, ss);
-  //       AddChild(label);
-  //     }
-  //     public override void Update(WorldObject wo, WindowContext wc)
-  //     {
-  //       base.Update(wo, wc);
-  //     }
-  //   }
   public class UiScreen : UiElement
   {
     public UiScreen()
@@ -1560,10 +1567,13 @@ namespace PirateCraft
     public UiElement CreateButton(vec2 pos, string text, Action<UiEventId, UiElement, PCMouse> onClick = null)
     {
       UiElement e = CreateStyledElement();
-      e.Pos = pos;
       e.Texture = _megaTex.DefaultPixel;
+      e.Pos = pos;
       e.Text = text;
+      e.MaxWHPX = new vec2(100, 200);
       e.PositionMode = UiPositionMode.Relative;
+      e.IsPickRoot = true;
+      e.PadBot = e.PadLeft = e.PadTop = e.PadRight = 15;// Fonts are messed up right now 
       if (onClick != null)
       {
         e.AddEvent(UiEventId.Mouse_Lmb_Release, onClick);
@@ -1573,8 +1583,8 @@ namespace PirateCraft
     public UiElement CreateLabel(vec2 pos, string text, bool showbackground = true, FontFace? font = null, float fontSize = 12, vec4? fontColor = null, FontStyle fontstyle = FontStyle.Normal, float lineheight = 1.0f)
     {
       UiElement e = CreateStyledElement();
-      e.Pos = pos;
       e.Texture = showbackground ? _megaTex.DefaultPixel : null;
+      e.Pos = pos;
       e.Text = text;
       e.FontFace = font != null ? font : FontFace.Mono;
       e.FontSize = fontSize;
@@ -1583,6 +1593,7 @@ namespace PirateCraft
       e.LineHeight = lineheight;
       e.PadBot = e.PadLeft = e.PadTop = e.PadRight = 15;// Fonts are messed up right now 
       e.PositionMode = UiPositionMode.Relative;
+      e.IsPickRoot = true;
       return e;
     }
   }//class Gui

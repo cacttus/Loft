@@ -730,6 +730,7 @@ namespace PirateCraft
     public static void SaveTexture(FileLoc loc, int glTexId, TextureTarget target)
     {
       Img32 img = Gpu.GetTextureDataFromGpu(glTexId, target);
+      img.flip(false,true);
       SaveImage(loc.QualifiedPath, img);
     }
     //public Font LoadFont(FileLoc loc)
