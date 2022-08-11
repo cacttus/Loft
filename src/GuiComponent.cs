@@ -761,7 +761,7 @@ namespace PirateCraft
       //positions to the parent to build the elements.
       if (LayoutChanged)
       {
-        vec2 contentWH = new vec2(0, 0); //in HTML all elements default to zero width without any contents.
+        vec2 contentWH = new vec2(_padLeft+_padRight, _padTop+_padBot); //in HTML all elements default to zero width without any contents.
 
         //Check if we are a label
         if (_bTextChanged == true || StringUtil.IsNotEmpty(_strText))
@@ -932,11 +932,11 @@ namespace PirateCraft
       {
         CalcStaticElement(ele, vecLines, 0.0f, 0.0f, maxWH);
       }
-      float totalHeight = 0;
+      float totalHeight = _padBot + _padTop;
       foreach (var line in vecLines)
       {
         totalHeight += line._height;
-        contentWH.x = Math.Max(contentWH.x, line._width);
+        contentWH.x = Math.Max(contentWH.x, line._width + _padLeft + _padRight);
       }
       contentWH.y = Math.Max(contentWH.y, totalHeight);
 
@@ -1570,17 +1570,18 @@ namespace PirateCraft
       }
       return e;
     }
-    public UiElement CreateLabel(vec2 pos, string text, FontFace? font = null, float fontSize = 12, vec4? fontColor = null, FontStyle fontstyle = FontStyle.Normal, float lineheight = 1.0f)
+    public UiElement CreateLabel(vec2 pos, string text, bool showbackground = true, FontFace? font = null, float fontSize = 12, vec4? fontColor = null, FontStyle fontstyle = FontStyle.Normal, float lineheight = 1.0f)
     {
       UiElement e = CreateStyledElement();
       e.Pos = pos;
-      e.Texture = _megaTex.DefaultPixel;
+      e.Texture = showbackground ? _megaTex.DefaultPixel : null;
       e.Text = text;
       e.FontFace = font != null ? font : FontFace.Mono;
       e.FontSize = fontSize;
       e.FontColor = fontColor != null ? fontColor.Value : new vec4(0, 0, 0, 1);
       e.FontStyle = fontstyle;
       e.LineHeight = lineheight;
+      e.PadBot = e.PadLeft = e.PadTop = e.PadRight = 15;// Fonts are messed up right now 
       e.PositionMode = UiPositionMode.Relative;
       return e;
     }

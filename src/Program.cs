@@ -444,9 +444,9 @@ namespace PirateCraft
       //Some fun parenting stuff.
       //  Sphere_Rotate_Quat_Test.AddChild(Sphere_Rotate_Quat_Test2.AddChild(Sphere_Rotate_Quat_Test3.AddChild(_boxMeshThing)));
     }
+    UiElement _lblDebugInfo = null;
     UiElement _fpsLabel1 = null;
     UiElement _fpsLabel2 = null;
-    UiElement _fpsLabel3 = null;
     UiElement _buttonTest = null;
     UiElement _panelTest = null;
     private void CreateGUI()
@@ -454,10 +454,10 @@ namespace PirateCraft
       //Gui Comp
       var gui = new GuiComponent();
       gui.Screen.AddChild(_panelTest = gui.CreatePanel(new vec2(50, 50), new vec2(50, 50)));
-      gui.Screen.AddChild(_buttonTest = gui.CreateButton(new vec2(100, 50), "hello", (i, e, m) => { e.Text = "hi"; }));
-      gui.Screen.AddChild(_fpsLabel1 = gui.CreateLabel(new vec2(250, 50), "test", FontFace.Fancy));
-      gui.Screen.AddChild(_fpsLabel2 = gui.CreateLabel(new vec2(400, 100), "test", FontFace.Pixel));
-      gui.Screen.AddChild(_fpsLabel3 = gui.CreateLabel(new vec2(650, 200), "test", FontFace.Mono));
+      gui.Screen.AddChild(_buttonTest = gui.CreateButton(new vec2(100, 50), "helloxx", (i, e, m) => { e.Text = "hi"; }));
+      gui.Screen.AddChild(_fpsLabel1 = gui.CreateLabel(new vec2(250, 50), "testxx",true, FontFace.Fancy));
+      gui.Screen.AddChild(_fpsLabel2 = gui.CreateLabel(new vec2(400, 100), "testxx",true, FontFace.Pixel));
+      gui.Screen.AddChild(_lblDebugInfo = gui.CreateLabel(new vec2(0, 0), "testxx",false, FontFace.Mono, 25));
 
       //Create the gui "object" and put it in front of the player so it doesn't get culled.
       var guiobj = Gu.World.CreateObject("guiobj", null, null);
@@ -511,7 +511,7 @@ namespace PirateCraft
       //UI Test
       _fpsLabel1.Text =
       _fpsLabel2.Text =
-      _fpsLabel3.Text = info;
+      _lblDebugInfo.Text = info;
 
       Gu.Context.DebugDraw.BeginFrame();
 
