@@ -456,13 +456,23 @@ namespace PirateCraft
     {
       //Gui Comp
       var gui = new GuiComponent(Gu.World.Camera);
+      var tb = gui.CreatePanel("tb", null, null);
+      tb.MinWHPX = new vec2(0, 30);
+      tb.SizeModeWidth = UiSizeMode.Expand;
+      var file = gui.CreateButton("tbb1", null, "File", (i, e, m) => { });
+      file.DisplayMode = UiDisplayMode.Inline;
+      var options = gui.CreateButton("tbb2", null, "Options", (i, e, m) => { });
+      options.DisplayMode = UiDisplayMode.Inline;
+      tb.AddChild(file);
+      tb.AddChild(options);
+      gui.Screen.AddChild(tb);
 
-      gui.Screen.AddChild(_buttonTest = gui.CreateButton("buttonTest", new vec2(300, 50), "cLICK mE", (i, e, m) =>
-      {
-        e.Text = "Text has changed!";
-      }));
+      // gui.Screen.AddChild(_buttonTest = gui.CreateButton("buttonTest", new vec2(300, 50), "cLICK mE", (i, e, m) =>
+      // {
+      //   e.Text = "Text has changed!";
+      // }));
 
-      gui.Screen.AddChild(_lblDebugInfo = gui.CreateLabel("debugInfo", new vec2(0, 0), "testxx", false, FontFace.Mono, 25));
+      gui.Screen.AddChild(_lblDebugInfo = gui.CreateLabel("debugInfo", null, "testxx", false, FontFace.Mono, 25));
 
       //Create the gui "object" and put it in front of the player so it doesn't get culled.
       var guiobj = Gu.World.CreateObject("guiobj", null, null);
@@ -513,7 +523,10 @@ namespace PirateCraft
 
 
       //UI Test
-      _lblDebugInfo.Text = info;
+      if (_lblDebugInfo != null)
+      {
+        _lblDebugInfo.Text = info;
+      }
 
       Gu.Context.DebugDraw.BeginFrame();
 

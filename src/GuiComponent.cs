@@ -9,7 +9,7 @@ namespace PirateCraft
   #region Enums
   public enum UiDisplayMode
   {
-    InlineWrap,
+    Inline,
     Block,
     InlineNoWrap
   }
@@ -25,6 +25,11 @@ namespace PirateCraft
     Static, // elements flow within the page.
     Relative // elements are relative to the container.
     //absolute: relative to the whole document.
+  }
+  public enum UiSizeMode
+  {
+    Shrink,
+    Expand,
   }
   public enum UiEventId
   {
@@ -54,7 +59,7 @@ namespace PirateCraft
     Show,
     Hide
   };
-  public enum UiImageSizeMode
+  public enum UiImageTiling
   {
     Expand,
     Tile,
@@ -146,13 +151,15 @@ namespace PirateCraft
     public vec2 Extent { get { return new vec2(_width, _height); } set { _width = value.x; _height = value.y; SetLayoutChanged(); } }
     public UiPositionMode PositionMode { get { return _positionMode; } set { _positionMode = value; SetLayoutChanged(); } }
     public UiOverflowMode OverflowMode { get { return _overflowMode; } set { _overflowMode = value; SetLayoutChanged(); } }
+    public UiSizeMode SizeModeWidth { get { return _sizeModeHeight; } set { _sizeModeHeight = value; SetLayoutChanged(); } }
+    public UiSizeMode SizeModeHeight { get { return _sizeModeWidth; } set { _sizeModeWidth = value; SetLayoutChanged(); } }
+    public UiDisplayMode DisplayMode { get { return _displayMode; } set { _displayMode = value; SetLayoutChanged(); } }
+    public UiImageTiling ImageTilingX { get { return _imageTilingX; } set { _imageTilingX = value; SetLayoutChanged(); } }
+    public UiImageTiling ImageTilingY { get { return _imageTilingY; } set { _imageTilingY = value; SetLayoutChanged(); } }
     public vec2 MinWHPX { get { return _minWHPX; } set { _minWHPX = value; SetLayoutChanged(); } }
     public vec2 MaxWHPX { get { return _maxWHPX; } set { _maxWHPX = value; SetLayoutChanged(); } }
     public bool LayoutVisible { get { return _layoutVisible; } set { _layoutVisible = value; SetLayoutChanged(); } }
     public bool RenderVisible { get { return _renderVisible; } set { _renderVisible = value; SetLayoutChanged(); } }
-    public UiDisplayMode DisplayMode { get { return _displayMode; } set { _displayMode = value; SetLayoutChanged(); } }
-    public UiImageSizeMode SizeModeX { get { return _sizeModeX; } set { _sizeModeX = value; SetLayoutChanged(); } }
-    public UiImageSizeMode SizeModeY { get { return _sizeModeY; } set { _sizeModeY = value; SetLayoutChanged(); } }
     public float MarginTop { get { return _marTop; } set { _marTop = value; SetLayoutChanged(); } }
     public float MarginRight { get { return _marRight; } set { _marRight = value; SetLayoutChanged(); } }
     public float MarginBot { get { return _marBot; } set { _marBot = value; SetLayoutChanged(); } }
@@ -235,8 +242,8 @@ namespace PirateCraft
     protected FontStyle _fontStyle = FontStyle.Normal;
     protected vec4 _fontColor = new vec4(0, 0, 0, 1);
     protected FontFace _fontFace = FontFace.Mono;
-    protected UiImageSizeMode _sizeModeX = UiImageSizeMode.Expand;
-    protected UiImageSizeMode _sizeModeY = UiImageSizeMode.Expand;
+    protected UiImageTiling _imageTilingX = UiImageTiling.Expand;
+    protected UiImageTiling _imageTilingY = UiImageTiling.Expand;
     protected UiDisplayMode _displayMode = UiDisplayMode.Block;
     protected float _fontSize = 20;
     protected float _lineHeight = 1;
@@ -258,7 +265,8 @@ namespace PirateCraft
     protected vec2 _maxWHPX = new vec2(99999, 99999);
     protected UiPositionMode _positionMode = UiPositionMode.Static;
     protected UiOverflowMode _overflowMode = UiOverflowMode.Hide;
-    protected bool _bShrinkToContents = true;//only for uiscreen
+    protected UiSizeMode _sizeModeWidth = UiSizeMode.Shrink;
+    protected UiSizeMode _sizeModeHeight = UiSizeMode.Shrink;
     protected string _name = "";
 
     #endregion
@@ -495,18 +503,18 @@ namespace PirateCraft
         return;
       }
 
-      if (SizeModeX == UiImageSizeMode.Expand)
+      if (ImageTilingX == UiImageTiling.Expand)
       {
         _q2Tex._min.x = Texture.uv0.x;
         _q2Tex._max.x = Texture.uv1.x;
       }
-      else if (SizeModeX == UiImageSizeMode.Tile)
+      else if (ImageTilingX == UiImageTiling.Tile)
       {
         float wPx = _width;
         _q2Tex._min.x = Texture.uv0.x;
         _q2Tex._max.x = Texture.uv1.x + (Texture.uv1.x - Texture.uv0.x) * _tileScale.x;
       }
-      else if (SizeModeX == UiImageSizeMode.Computed)
+      else if (ImageTilingX == UiImageTiling.Computed)
       {
         // Tex coords are computed (used for UiGlyph)
       }
@@ -515,22 +523,22 @@ namespace PirateCraft
         Gu.Log.Error("Invalid layout X image size mode.");
       }
 
-      if (SizeModeY == UiImageSizeMode.Expand)
+      if (ImageTilingY == UiImageTiling.Expand)
       {
         _q2Tex._min.y = Texture.uv0.y;
         _q2Tex._max.y = Texture.uv1.y;
       }
-      else if (SizeModeY == UiImageSizeMode.Tile)
+      else if (ImageTilingY == UiImageTiling.Tile)
       {
         float hPx = _height;
         _q2Tex._min.y = Texture.uv0.y;
         _q2Tex._max.y = Texture.uv1.y + (Texture.uv1.y - Texture.uv0.y) * _tileScale.y;
       }
-      else if (SizeModeY == UiImageSizeMode.Computed)
+      else if (ImageTilingY == UiImageTiling.Computed)
       {
         // Tex coords are computed (used for UiGlyph)
       }
-      else if (SizeModeY == UiImageSizeMode.Proportion)
+      else if (ImageTilingY == UiImageTiling.Proportion)
       {
         // proportion the Y to the X
         _q2Tex._min.y = Texture.uv1.y;
@@ -811,14 +819,40 @@ namespace PirateCraft
         _b2ContentQuad._min = new vec2(_left, _top);
         _b2ContentQuad._max = _b2ContentQuad._min + contentWH;
 
-        if (_bShrinkToContents)
+        if (SizeModeWidth == UiSizeMode.Shrink)
         {
-          //Shrink the element (if not UiScreen)
-          //This is how HTML works by default.
-          //Also apply min/max to the element. This is specifically how you would fix an element's size.
           _width = Math.Min(Math.Max(MinWHPX.x, Math.Min(maxWH.x, contentWH.x)), MaxWHPX.x);
+        }
+        else if (SizeModeWidth == UiSizeMode.Expand)
+        {
+          if (this._parent != null && this._parent.TryGetTarget(out var par))
+          {
+            _width = par._width - _left;
+          }
+        }
+        else
+        {
+          Gu.BRThrowNotImplementedException();
+        }
+        if (SizeModeHeight == UiSizeMode.Shrink)
+        {
           _height = Math.Min(Math.Max(MinWHPX.y, Math.Min(maxWH.y, contentWH.y)), MaxWHPX.y);
         }
+        else if (SizeModeHeight == UiSizeMode.Expand)
+        {
+          if (this._parent != null && this._parent.TryGetTarget(out var par))
+          {
+            _height = par._height - _top;
+          }
+        }
+        else
+        {
+          Gu.BRThrowNotImplementedException();
+        }
+
+        //Shrink the element (if not UiScreen)
+        //This is how HTML works by default.
+        //Also apply min/max to the element. This is specifically how you would fix an element's size.
 
         LayoutChanged = false;
       }
@@ -935,7 +969,7 @@ namespace PirateCraft
 
       //**Line break
       bool bLineBreak = false;
-      if (ele.DisplayMode == UiDisplayMode.InlineWrap)
+      if (ele.DisplayMode == UiDisplayMode.Inline)
       {
         if (ml + mr + ele_width + line._width > parent_contentarea_width) //For label - auto width + expand. ?? 
         {
@@ -1039,7 +1073,7 @@ namespace PirateCraft
         }
         else
         {
-          e._displayMode = UiDisplayMode.InlineWrap;
+          e._displayMode = UiDisplayMode.Inline;
         }
         e._fontColor = FontColor;
         e.ValidateQuad();
@@ -1164,7 +1198,7 @@ namespace PirateCraft
       _height = designHeight - 1;
       _maxWHPX = new vec2(designWidth, designHeight);//Make sure stuff doesn't go off the screen.
       _minWHPX = new vec2(0, 0);
-      _bShrinkToContents = false;
+      _sizeModeWidth = _sizeModeHeight = UiSizeMode.Expand;
     }
     private void SetExtentsToViewport(Camera3D cam)
     {
@@ -1344,23 +1378,32 @@ namespace PirateCraft
       }
       return e;
     }
-    public UiElement CreatePanel(string name, vec2 pos, vec2 wh)
+    public UiElement CreatePanel(string name, vec2? pos, vec2? wh)
     {
       UiElement e = CreateStyledElement(name);
       e.Texture = _megaTex.DefaultPixel;
-      e.Pos = pos;
-      e.Extent = wh;
-      e.PositionMode = UiPositionMode.Relative;
+      if (pos != null)
+      {
+        e.Pos = pos.Value;
+        e.PositionMode = UiPositionMode.Relative;
+      }
+      if (wh != null)
+      {
+        e.Extent = wh.Value;
+      }
       return e;
     }
-    public UiElement CreateButton(string name, vec2 pos, string text, Action<UiEventId, UiElement, PCMouse> onClick = null)
+    public UiElement CreateButton(string name, vec2? pos, string text, Action<UiEventId, UiElement, PCMouse> onClick = null)
     {
       UiElement e = CreateStyledElement(name);
       e.Texture = _megaTex.DefaultPixel;
-      e.Pos = pos;
+      if (pos != null)
+      {
+        e.Pos = pos.Value;
+        e.PositionMode = UiPositionMode.Relative;
+      }
       e.Text = text;
       e.MaxWHPX = new vec2(100, 200);
-      e.PositionMode = UiPositionMode.Relative;
       e.IsPickRoot = true;
       e.PadBot = e.PadLeft = e.PadTop = e.PadRight = 15;// Fonts are messed up right now 
 
@@ -1387,11 +1430,15 @@ namespace PirateCraft
 
       return e;
     }
-    public UiElement CreateLabel(string name, vec2 pos, string text, bool showbackground = true, FontFace? font = null, float fontSize = 12, vec4? fontColor = null, FontStyle fontstyle = FontStyle.Normal, float lineheight = 1.0f)
+    public UiElement CreateLabel(string name, vec2? pos, string text, bool showbackground = true, FontFace? font = null, float fontSize = 12, vec4? fontColor = null, FontStyle fontstyle = FontStyle.Normal, float lineheight = 1.0f)
     {
       UiElement e = CreateStyledElement(name);
       e.Texture = showbackground ? _megaTex.DefaultPixel : null;
-      e.Pos = pos;
+      if (pos != null)
+      {
+        e.Pos = pos.Value;
+        e.PositionMode = UiPositionMode.Relative;
+      }
       e.Text = text;
       e.FontFace = font != null ? font : FontFace.Mono;
       e.FontSize = fontSize;
@@ -1403,7 +1450,6 @@ namespace PirateCraft
       e.PadTop = 10;
       e.PadLeft = 10;
       e.PadRight = 10;
-      e.PositionMode = UiPositionMode.Relative;
       e.IsPickRoot = true;
       return e;
     }
