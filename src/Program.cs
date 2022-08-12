@@ -79,8 +79,8 @@ namespace PirateCraft
   {
     #region Members
 
+    private string VersionId = "0.01";
     private bool DELETE_WORLD_START_FRESH = true;
-    private Camera3D _camera = null;
     private WorldObject _player_empty = null;
     private WorldObject _boxMeshThing = null;
     private int meshIdx = 0;
@@ -120,7 +120,7 @@ namespace PirateCraft
       Flags = ContextFlags.Debug,
       AutoLoadBindings = true,
       APIVersion = new Version(4, 1),
-      Title = "PirateCraft",
+      Title = "Slaver",
       StartFocused = true,
       StartVisible = true,
       WindowState = WindowState.Normal,
@@ -143,16 +143,20 @@ namespace PirateCraft
     {
       if (_bInitialized)
       {
-        _camera.Viewport_Width = e.Width;
-        _camera.Viewport_Height = e.Height;
-        if (_camera.Viewport_Width <= 0 || _camera.Viewport_Height <= 0)
+        if (Gu.World != null && Gu.World.Camera != null)
         {
-          Gu.Log.Error("Window width and height are zero (OnResize), setting to 1");
-          _camera.Viewport_Width = (_camera.Viewport_Width == 0) ? 1 : _camera.Viewport_Width;
-          _camera.Viewport_Height = (_camera.Viewport_Height == 0) ? 1 : _camera.Viewport_Height;
-        }
+          var cam = Gu.World.Camera;
+          cam.Viewport_Width = e.Width;
+          cam.Viewport_Height = e.Height;
+          if (cam.Viewport_Width <= 0 || cam.Viewport_Height <= 0)
+          {
+            Gu.Log.Error("Window width and height are zero (OnResize), setting to 1");
+            cam.Viewport_Width = (cam.Viewport_Width == 0) ? 1 : cam.Viewport_Width;
+            cam.Viewport_Height = (cam.Viewport_Height == 0) ? 1 : cam.Viewport_Height;
+          }
 
-        Gu.Context.Renderer.resizeScreenBuffers(_camera.Viewport_Width, _camera.Viewport_Height);
+          Gu.Context.Renderer.resizeScreenBuffers(cam.Viewport_Width, cam.Viewport_Height);
+        }
       }
     }
     protected override void OnMouseMove(MouseMoveEventArgs e)
@@ -197,19 +201,21 @@ namespace PirateCraft
 #else
         OperatingSystem.HideConsole();
 #endif
+        Title = "Slaver " + VersionId.ToString();
+
         //Cameras
-        _camera = Gu.World.CreateCamera("Camera-001", this.Size.X, this.Size.Y, vec3.Zero);
-        _camera.Far = 4000.0f;
+        var cam = Gu.World.CreateCamera("Camera-001", this.Size.X, this.Size.Y, vec3.Zero);
+        cam.Far = 4000.0f;
 
         //Character height
-        _camera.Position_Local = new vec3(0, .5f, 0);
+        cam.Position_Local = new vec3(0, .5f, 0);
 
         _player_empty = Gu.World.CreateAndAddObject("player-empty", null, null, second_y_glob);
         _player_empty.Collides = false;
         _player_empty.HasPhysics = true;
         _player_empty.AirFriction = MaxAirFriction; //Movement Damping
         _player_empty.HasGravity = false;
-        _player_empty.AddChild(_camera);
+        _player_empty.AddChild(cam);
 
         Gu.World.Initialize(_player_empty, "Boogerton", DELETE_WORLD_START_FRESH, 2);
 
@@ -253,7 +259,7 @@ namespace PirateCraft
         cmp.KeyFrames.Add(new Keyframe(t_seconds / kf_count * 2, mat3.getRotation(raxis, (float)(MathUtils.M_PI_2 - 0.002)).toQuat())); ;
         pick.Components.Add(cmp);
 
-        _camera.AddChild(pick);
+        Gu.World.Camera.AddChild(pick);
       }
       objs = Gu.Resources.LoadObjects(new FileLoc("sword.glb", FileStorage.Embedded));
       if (objs?.Count > 0)
@@ -263,7 +269,7 @@ namespace PirateCraft
         sword.Scale_Local *= new vec3(0.7f, 0.7f, 0.7f);
         sword.Rotation_Local *= quat.fromAxisAngle(new vec3(1, 0, 1).normalized(), MathUtils.M_PI_2 * 0.125f);
 
-        _camera.AddChild(sword);
+        Gu.World.Camera.AddChild(sword);
       }
     }
     private void CreateCrosshair()
@@ -284,7 +290,7 @@ namespace PirateCraft
       crosshair_mat.GpuRenderState.DepthTest = false;//Disable depth test.
       crosshair_mat.GpuRenderState.Blend = true;
       Crosshair.Material = crosshair_mat;
-      _camera.AddChild(Crosshair);
+      Gu.World.Camera.AddChild(Crosshair);
     }
     private void CreateSky()
     {
@@ -363,7 +369,7 @@ namespace PirateCraft
         vec3 dir = Gu.World.DayNightCycle.MoonDir.ToVec3();
         //ease multiplier so that the glare does not show on the horizon.
         float horizon_mul = (float)MathUtils.Ease(0, 1, (double)dir.dot(new vec3(0, 1, 0)));
-        float bloom_dp = dir.dot(_camera.BasisZ);
+        float bloom_dp = dir.dot(Gu.World.Camera.BasisZ);
         float bloom_dp_pw = (float)Math.Pow(bloom_dp, 64);
         obj.Color = new vec4(sun.Color.x, sun.Color.y, sun.Color.z, bloom_dp_pw * horizon_mul * 0.9413f);
         obj.Scale_Local = new vec3(1.1f + bloom_dp * 30.0f, 0, 1.1f + bloom_dp * 30.0f);
@@ -392,7 +398,7 @@ namespace PirateCraft
         vec3 dir = Gu.World.DayNightCycle.MoonDir.ToVec3() * -1.0f;
         //ease multiplier so that the glare does not show on the horizon.
         float horizon_mul = (float)MathUtils.Ease(0, 1, (double)dir.dot(new vec3(0, 1, 0)));
-        float bloom_dp = dir.dot(_camera.BasisZ);
+        float bloom_dp = dir.dot(Gu.World.Camera.BasisZ);
         float bloom_dp_pw = (float)Math.Pow(bloom_dp, 64);
         obj.Color = new vec4(moon.Color.x, moon.Color.y, moon.Color.z, bloom_dp_pw * horizon_mul * 0.3f);
         obj.Scale_Local = new vec3(1.1f + bloom_dp * 4.0f, 0, 1.1f + bloom_dp * 4.0f);
@@ -421,7 +427,7 @@ namespace PirateCraft
       //{
       //  Gu.World.RemoveObject("BoxMesh-" + i.ToString());
       //}
-      Gu.World.CreateAndAddObject("TextureFront", MeshData.GenTextureFront(_camera, 0, 0, this.Size.X, this.Size.Y), new Material("texturefront", Shader.DefaultDiffuse(), tx_peron));
+      Gu.World.CreateAndAddObject("TextureFront", MeshData.GenTextureFront(Gu.World.Camera, 0, 0, this.Size.X, this.Size.Y), new Material("texturefront", Shader.DefaultDiffuse(), tx_peron));
       Gu.World.CreateAndAddObject("Plane.", MeshData.GenPlane(10, 10), new Material("plane", Shader.DefaultDiffuse(), tx_grass));
       //  _boxMeshThing = Gu.World.FindObject("BoxMesh");
       //_boxMeshThing.Position = new vec3(0, _boxMeshThing.BoundBoxMeshBind.Height() * 0.5f, 0);
@@ -445,53 +451,24 @@ namespace PirateCraft
       //  Sphere_Rotate_Quat_Test.AddChild(Sphere_Rotate_Quat_Test2.AddChild(Sphere_Rotate_Quat_Test3.AddChild(_boxMeshThing)));
     }
     UiElement _lblDebugInfo = null;
-    UiElement _fpsLabel1 = null;
-    UiElement _fpsLabel2 = null;
     UiElement _buttonTest = null;
-    UiElement _panelTest = null;
     private void CreateGUI()
     {
       //Gui Comp
-      var gui = new GuiComponent();
-      gui.Screen.AddChild(_panelTest = gui.CreatePanel(new vec2(50, 50), new vec2(50, 50)));
-            gui.Screen.AddChild(_fpsLabel1 = gui.CreateLabel(new vec2(250, 50), "testxx", true, FontFace.Fancy));
-      gui.Screen.AddChild(_fpsLabel2 = gui.CreateLabel(new vec2(400, 100), "testxx", true, FontFace.Pixel));
+      var gui = new GuiComponent(Gu.World.Camera);
 
-      int testx = 0;
-      gui.Screen.AddChild(_buttonTest = gui.CreateButton(new vec2(100, 50), "cLICK mE", (i, e, m) =>
+      gui.Screen.AddChild(_buttonTest = gui.CreateButton("buttonTest", new vec2(300, 50), "cLICK mE", (i, e, m) =>
       {
-        if (testx == 0)
-        {
-          e.Text = "hi";
-        }
-        else if (testx == 1)
-        {
-          e.Text = "hiasdfasgadsfadfhdfhadfh";
-          e.Color = vec4.rgba_ub(255,255,255,255);
-        }
-        else if (testx == 2)
-        {
-          e.Text = "booogasodfjsadoifkjasodifjsado";
-          e.FontColor = vec4.rgba_ub(255,20,255,255);
-          e.Color = vec4.rgba_ub(30,5,10,255);
-          e.FontFace = FontFace.Fancy;
-        }
-        else if (testx == 3)
-        {
-          e.Text = "asdfajwoi4eur209384fj 043jfoiesdjflksad jf098a3w4jt09823jt0j awefim2a0w349qr jta08wj ad80ifj a0w9fej aasdfajwoi4eur209384fj 043jfoiesdjflksad jf098a3w4jt09823jt0j awefim2a0w349qr jta08wj ad80ifj a0w9fej aasdfajwoi4eur209384fj 043jfoiesdjflksad jf098a3w4jt09823jt0j awefim2a0w349qr jta08wj ad80ifj a0w9fej aasdfajwoi4eur209384fj 043jfoiesdjflksad jf098a3w4jt09823jt0j awefim2a0w349qr jta08wj ad80ifj a0w9fej aasdfajwoi4eur209384fj 043jfoiesdjflksad jf098a3w4jt09823jt0j awefim2a0w349qr jta08wj ad80ifj a0w9fej a";
-                    e.FontColor = vec4.rgba_ub(0,255,0,255);
-          e.Color = vec4.rgba_ub(255,255,140,255);
-        }
-        testx=(testx+1) %4;
+        e.Text = "Text has changed!";
       }));
 
-      gui.Screen.AddChild(_lblDebugInfo = gui.CreateLabel(new vec2(0, 0), "testxx", false, FontFace.Mono, 25));
+      gui.Screen.AddChild(_lblDebugInfo = gui.CreateLabel("debugInfo", new vec2(0, 0), "testxx", false, FontFace.Mono, 25));
 
       //Create the gui "object" and put it in front of the player so it doesn't get culled.
       var guiobj = Gu.World.CreateObject("guiobj", null, null);
       guiobj.Position_Local = new vec3(0, 0, 10);
       guiobj.Components.Add(gui);
-      _camera.AddChild(guiobj);
+      Gu.World.Camera.AddChild(guiobj);
     }
     private void TestSound()
     {
@@ -534,11 +511,8 @@ namespace PirateCraft
           $"Cap Hit:{CapsuleHit} \n"
           ;
 
-      Title = info;
 
       //UI Test
-      _fpsLabel1.Text =
-      _fpsLabel2.Text =
       _lblDebugInfo.Text = info;
 
       Gu.Context.DebugDraw.BeginFrame();
@@ -548,7 +522,7 @@ namespace PirateCraft
       //_boxMeshThing.Rotation = quaternion.FromAxisAngle(new vec3(0, 1, 0), (float)rot);
       //rot += Math.PI * 2.0f * Gu.CurrentWindowContext.Delta * 0.0125f;
 
-      Gu.World.Update(Gu.Context.Delta, _camera);
+      Gu.World.Update(Gu.Context.Delta, Gu.World.Camera);
 
       //checks out
       if (Sphere_Rotate_Quat_Test != null)
@@ -585,12 +559,14 @@ namespace PirateCraft
       Movement();
       Menu();
       DebugKeyboard();
-      EditBlocks();
+      if (Gu.Context.Renderer.Picker.PickedObjectFrame == null)
+      {
+        EditBlocks();
+      }
       if (Gu.Context.DebugDraw.DrawBoundBoxes == true)
       {
         TestEllipsoid_Box();
       }
-
     }
     bool CapsuleHit = false;
     private void Movement()
@@ -600,9 +576,9 @@ namespace PirateCraft
       vec3 basisX = vec3.Zero, basisY = vec3.Zero, basisZ = vec3.Zero;
       if (CamMode == CamMode.Flying)
       {
-        basisX = _camera.BasisX;
-        basisY = _camera.BasisY;
-        basisZ = _camera.BasisZ;
+        basisX = Gu.World.Camera.BasisX;
+        basisY = Gu.World.Camera.BasisY;
+        basisZ = Gu.World.Camera.BasisZ;
       }
       else if (CamMode == CamMode.Playing)
       {
@@ -658,7 +634,7 @@ namespace PirateCraft
 
       if (InputState == InputState.World)
       {
-        _FPSRotator.DoRotate(_player_empty, _camera, this);
+        _FPSRotator.DoRotate(_player_empty, Gu.World.Camera, this);
       }
       else if (InputState == InputState.Inventory)
       {
@@ -828,7 +804,7 @@ namespace PirateCraft
       }
       else if (this.InputState == InputState.World)
       {
-        projec_pos = new vec2(_camera.Viewport_Width * 0.5f, _camera.Viewport_Height * 0.5f);
+        projec_pos = new vec2(Gu.World.Camera.Viewport_Width * 0.5f, Gu.World.Camera.Viewport_Height * 0.5f);
       }
       else
       {
@@ -852,7 +828,7 @@ namespace PirateCraft
       //vec2 projec_pos = Gu.Mouse.Pos;
       vec2 projec_pos = Get_Interaction_Pos();
 
-      Line3f proj_pt = _camera.Frustum.ScreenToWorld(projec_pos, TransformSpace.World, 0.001f, MaxEditDistance_Block);
+      Line3f proj_pt = Gu.World.Camera.Frustum.ScreenToWorld(projec_pos, TransformSpace.World, 0.001f, MaxEditDistance_Block);
       var pr = new PickRay3D(proj_pt);
       var b = Gu.World.RaycastBlock_2(pr);
 
@@ -878,6 +854,7 @@ namespace PirateCraft
       //Play mine animation if we press
       if (Gu.Mouse.PressOrDown(MouseButton.Left))
       {
+
         if (pick != null)
         {
           pick.GrabFirstAnimation().Play(true);
@@ -886,7 +863,6 @@ namespace PirateCraft
         {
           if (b.IsHit && b.Drome != null)
           {
-
             if (Gu.Keyboard.PressOrDown(Keys.LeftControl)) //Press only for placement.
             {
               if (Gu.Mouse.Press(MouseButton.Left))
@@ -905,6 +881,7 @@ namespace PirateCraft
               UpdateMineBlock(b);
             }
           }
+
         }
       }
       else
@@ -946,7 +923,6 @@ namespace PirateCraft
 
       foreach (var projected_point in lines)
       {
-        //_camera.Frustum.ProjectPoint(proj_pos, TransformSpace.World, 0.001f, MaxEditDistance_Block );
         var pick_ray = new PickRay3D(projected_point, ellipsoid_r);
         var picked_block = Gu.World.RaycastBlock_2(pick_ray);
 
@@ -994,11 +970,11 @@ namespace PirateCraft
 
       Gu.Context.Renderer.beginRenderForward();
       {
-        Gu.World.Render(Gu.Context.Delta, _camera);
-        Gu.World.RenderDebug(Gu.Context.Delta, _camera);
+        Gu.World.Render(Gu.Context.Delta, Gu.World.Camera);
+        Gu.World.RenderDebug(Gu.Context.Delta, Gu.World.Camera);
       }
       Gu.Context.Renderer.endRenderForward();
-      Gu.Context.Renderer.endRenderAndBlit(_camera);
+      Gu.Context.Renderer.endRenderAndBlit(Gu.World.Camera);
 
       Gu.Context.DebugDraw.EndFrame();
       Gu.Context.Renderer.EndEverything_New();

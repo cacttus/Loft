@@ -632,7 +632,7 @@ namespace PirateCraft
       //CheckGpuErrorsRt();
 #endif
     }
-    public static Img32 GetTextureDataFromGpu(int iGLTexId, TextureTarget eTexTargetBase, int iCubeMapSide = -1)
+    public static Img32 GetTextureDataFromGpu(int iGLTexId, TextureTarget eTexTargetBase, ref PixelFormat outFormat, ref PixelType outType, ref PixelInternalFormat outInternalFormat, int iCubeMapSide = -1)
     {
       //Input image32 must be not nulll
       int iSavedTextureBinding;
@@ -769,6 +769,11 @@ namespace PirateCraft
 
       GL.BindTexture(eTexTargetBase, iSavedTextureBinding);
       Gpu.CheckGpuErrorsRt();
+
+      outFormat = calculatedFmt;
+      outType = calculatedType;
+      outInternalFormat = internalFormat;
+
       return image;
     }
     private static GetPName texTargetToTexBindingQuery(TextureTarget target)

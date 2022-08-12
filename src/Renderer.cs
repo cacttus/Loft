@@ -18,9 +18,13 @@ namespace PirateCraft
     public const uint c_iInvalidPickId = 0;//0xFFFFFFFF;
 
     private uint _iid = 0;
-    private WeakReference<Renderer> _pRenderer ;
+    private WeakReference<Renderer> _pRenderer;
     private uint _uiLastSelectedPixelId = 0;//Note: This is relative to the last UserSelectionSet - the Id here is not fixed.
-    public uint getSelectedPixelId() { return _uiLastSelectedPixelId; }
+    public uint GetSelectedPixelId() { return _uiLastSelectedPixelId; }
+
+    //The picked object this frame.
+    public object PickedObjectFrameLast {get;set;} = null;
+    public object PickedObjectFrame {get;set;} = null;
 
     public Picker(Renderer rp)
     {
@@ -30,20 +34,31 @@ namespace PirateCraft
     {
       //none
     }
-    public void update()
+    public void Update()
     {
+      PickedObjectFrameLast = PickedObjectFrame;
+      PickedObjectFrame = null;
       updatePickedPixel((int)Gu.Mouse.Pos.x, (int)Gu.Mouse.Pos.y);
     }
-    public uint genPickId()
+    public uint GenPickId()
     {
+      uint increment = 1;
+#if DEBUG
+      increment = 100;
+#endif
       //DEBUG pick ID that shows the color of the picked object.
-      _iid++;
-      if (_iid == Picker.c_iInvalidPickId)
+      _iid = (_iid + increment);
+      if (_iid > 0xFFFFFF)
       {
-        _iid = 0;
+        //50 = 335544 possible Id's, 10=1677721.5 id's still possible to wrap
+        Gu.Log.Warn("Pick Id Generator just wrapped, check if debug mode,  increment =" + increment);
+        _iid %= 0xFFFFFF;
       }
 
-      return _iid;
+      //Return an actual color so we can see it. Also, always set full alpha in case blending is enabled by accident.
+      uint pickColorId = ((_iid << 8) | 0xFF) & 0xFFFFFFFF;
+
+      return pickColorId;
     }
 
     private void updatePickedPixel(int x, int y)
@@ -140,7 +155,7 @@ namespace PirateCraft
     }
     public RendererlineState RenderState { get; private set; } = RendererlineState.None;
 
-    public Picker getPicker() { return _pPicker; }
+    public Picker Picker {get{ return _pPicker; }}
     //  public GraphicsWindow getWindow() { return _pWindow; }
     public int getBufferWidth() { return _iLastWidth; }
     public int getBufferHeight() { return _iLastHeight; }
@@ -270,12 +285,12 @@ namespace PirateCraft
       _pBlittedForward.init(iWidth, iHeight, _pBlittedDepth, _pPick);
 
       _pQuadMesh = MeshData.createScreenQuadMesh(iWidth, iHeight);
-      _forwardMaterial = new Material("forwardMaterial",Gu.Resources.LoadShader("v_v3x2_forward", false, FileStorage.Embedded));
+      _forwardMaterial = new Material("forwardMaterial", Gu.Resources.LoadShader("v_v3x2_forward", false, FileStorage.Embedded));
       _forwardMaterial.GpuRenderState.CullFace = false;
       _forwardMaterial.GpuRenderState.DepthTest = false;
 
       //TODO: actual deferred lighting .. is it needed ? idk. d_v3x2_lighting..
-      _deferredMaterial = new Material("deferredMaterial",Gu.Resources.LoadShader("v_v3x2_deferred", false, FileStorage.Embedded));
+      _deferredMaterial = new Material("deferredMaterial", Gu.Resources.LoadShader("v_v3x2_deferred", false, FileStorage.Embedded));
       _deferredMaterial.GpuRenderState.CullFace = true;
       _deferredMaterial.GpuRenderState.DepthTest = true;
 
@@ -611,46 +626,47 @@ namespace PirateCraft
       //  //*The clear here isn't necessary. If we're copying all of the contents of the deferred buffer.
       //  // - Clear the color and depth buffers (back and front buffers not the Mrts)
       //  //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-     // bindDeferredTargets(true);
+      // bindDeferredTargets(true);
       {
         //Set the light uniform blocks for the deferred shader.
         //_pDeferredShader.setLightUf(lightman);
         //setShadowEnv(lightman, true);
         {
-          DrawCall_UniformData dc = new DrawCall_UniformData() { 
+          DrawCall_UniformData dc = new DrawCall_UniformData()
+          {
             cam = pcam,
-              customUniforms = (su) =>
+            customUniforms = (su) =>
+            {
+              if (su.Name.Equals("_ufTexture2D_Position"))
               {
-                if (su.Name.Equals("_ufTexture2D_Position"))
-                {
-                  var t = _pMsaaDeferred.getTargets().Where(x => x.getName().ToLower().Contains("position")).First();
-                  bindDeferredTarget(true,t);
-                  GL.Uniform1(su.Location, (int)(t.getTextureChannel() - TextureUnit.Texture0));
-                }
-                else if (su.Name.Equals("_ufTexture2D_Color"))
-                {
-                  var t = _pMsaaDeferred.getTargets().Where(x => x.getName().ToLower().Contains("color")).First();
-                  bindDeferredTarget(true, t);
-                  GL.Uniform1(su.Location, (int)(t.getTextureChannel() - TextureUnit.Texture0));
-                }
-                else if (su.Name.Equals("_ufTexture2D_Normal"))
-                {
-                  var t = _pMsaaDeferred.getTargets().Where(x => x.getName().ToLower().Contains("normal")).First();
-                  bindDeferredTarget(true, t);
-                  GL.Uniform1(su.Location, (int)(t.getTextureChannel() - TextureUnit.Texture0));
-                }
-                else if (su.Name.Equals("_ufTexture2D_Spec"))
-                {
-                  var t = _pMsaaDeferred.getTargets().Where(x => x.getName().ToLower().Contains("spec")).First();
-                  bindDeferredTarget(true, t);
-                  GL.Uniform1(su.Location, (int)(t.getTextureChannel() - TextureUnit.Texture0));
-                }
-                else
-                {
-                  return false;
-                }
-                return true;
+                var t = _pMsaaDeferred.getTargets().Where(x => x.getName().ToLower().Contains("position")).First();
+                bindDeferredTarget(true, t);
+                GL.Uniform1(su.Location, (int)(t.getTextureChannel() - TextureUnit.Texture0));
               }
+              else if (su.Name.Equals("_ufTexture2D_Color"))
+              {
+                var t = _pMsaaDeferred.getTargets().Where(x => x.getName().ToLower().Contains("color")).First();
+                bindDeferredTarget(true, t);
+                GL.Uniform1(su.Location, (int)(t.getTextureChannel() - TextureUnit.Texture0));
+              }
+              else if (su.Name.Equals("_ufTexture2D_Normal"))
+              {
+                var t = _pMsaaDeferred.getTargets().Where(x => x.getName().ToLower().Contains("normal")).First();
+                bindDeferredTarget(true, t);
+                GL.Uniform1(su.Location, (int)(t.getTextureChannel() - TextureUnit.Texture0));
+              }
+              else if (su.Name.Equals("_ufTexture2D_Spec"))
+              {
+                var t = _pMsaaDeferred.getTargets().Where(x => x.getName().ToLower().Contains("spec")).First();
+                bindDeferredTarget(true, t);
+                GL.Uniform1(su.Location, (int)(t.getTextureChannel() - TextureUnit.Texture0));
+              }
+              else
+              {
+                return false;
+              }
+              return true;
+            }
           };
           _deferredMaterial.Draw(_pQuadMesh, dc);
 
@@ -662,7 +678,7 @@ namespace PirateCraft
       //}
       pcam.endRaster();
     }
-    
+
     private bool _requestSaveScreenshot = false;
     protected void checkMultisampleParams()
     {
@@ -787,7 +803,7 @@ namespace PirateCraft
         {
           string fname = Filesystem.GetFilenameDateTimeNOW() + "_deferred_" + pTarget.getName() + "_" + iTarget++ + "_.png";
           fname = System.IO.Path.Combine(Gu.LocalCachePath, fname);
-          ResourceManager.SaveTexture(new FileLoc(fname, FileStorage.Disk), pTarget.getGlTexId(), pTarget.getTextureTarget());
+          ResourceManager.SaveTexture(new FileLoc(fname, FileStorage.Disk), pTarget.getGlTexId(), pTarget.getTextureTarget(), true);
           Gu.Log.Info("[Renderer] Screenshot '" + fname + "' saved");
         }
         iTarget = 0;
@@ -795,18 +811,10 @@ namespace PirateCraft
         {
           string fname = Filesystem.GetFilenameDateTimeNOW() + "_forward_" + pTarget.getName() + "_" + iTarget++ + "_.png";
           fname = System.IO.Path.Combine(Gu.LocalCachePath, fname);
-          ResourceManager.SaveTexture(new FileLoc(fname, FileStorage.Disk), pTarget.getGlTexId(), pTarget.getTextureTarget());
+          ResourceManager.SaveTexture(new FileLoc(fname, FileStorage.Disk), pTarget.getGlTexId(), pTarget.getTextureTarget(), true);
           Gu.Log.Info("[Renderer] Screenshot '" + fname + "' saved");
         }
-        //}
-        //    else
-        //    {
-        //      //Basic Forward Screenshot
-        //      string fname = FileSystem::getScreenshotFilename();
-        //getContext().getRenderUtils().saveTexture(std::move(fname), _pBlittedForward.getGlId(), GL_TEXTURE_2D);
-        //Gu.Log.Info("[Renderer] Screenshot '" + fname + "' saved");
-        //  }
-        //}
+
       }
     }
     protected void copyMsaaSamples(FramebufferBase msaa, FramebufferBase blitted)
@@ -1023,7 +1031,7 @@ namespace PirateCraft
       Gu.SetContext(g);
 
       SetInitialGpuRenderState();
-      _pPicker.update();
+      _pPicker.Update();
     }
     public void EndEverything_New()
     {

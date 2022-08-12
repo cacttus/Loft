@@ -666,7 +666,7 @@ namespace PirateCraft
               else if (image.SourceComp == StbImageSharp.ColorComponents.RedGreenBlue)
               {
                 // ** Note : STB converts RGB images to RGBA wiht the above function's parameter so the nagive sourceComp is RGB, the input format is still RGBA.
-                pf = Img32.PixelFormat.RGBA; 
+                pf = Img32.PixelFormat.RGBA;
               }
               else
               {
@@ -727,10 +727,39 @@ namespace PirateCraft
       return ret;
     }
 
-    public static void SaveTexture(FileLoc loc, int glTexId, TextureTarget target)
+    public static void SaveTexture(FileLoc loc, int glTexId, TextureTarget target, bool formatNonRGBAtoRGBA, int cubemapside = -1)
     {
-      Img32 img = Gpu.GetTextureDataFromGpu(glTexId, target);
-      img.flip(false,true);
+      //formatNonRGBAtoRGBA - Convert things (like R32) to RGBA so we can see it.
+
+      PixelFormat fmt = PixelFormat.AbgrExt;
+      PixelType type = PixelType.Byte;
+      PixelInternalFormat internalFmt = PixelInternalFormat.Alpha;
+
+      Img32 img = Gpu.GetTextureDataFromGpu(glTexId, target, ref fmt, ref type, ref internalFmt, cubemapside);
+
+      if (formatNonRGBAtoRGBA)
+      {
+        if (fmt == PixelFormat.RedInteger && type == PixelType.UnsignedInt)
+        {
+          for (int iy = 0; iy < img.Height; iy++)
+          {
+            for (int ix = 0; ix < img.Width; ix++)
+            {
+              var p =img.getPixel32(ix,iy);
+              //r32ui is in agbr -> rgba
+              var tmp = p.a;
+              p.a = p.r;
+              p.g = p.b;
+              p.b = p.g;
+              p.r = tmp;
+              img.setPixel32(ix,iy,p);
+            }
+          }
+        }
+      }
+
+
+      img.flip(false, true);
       SaveImage(loc.QualifiedPath, img);
     }
     //public Font LoadFont(FileLoc loc)

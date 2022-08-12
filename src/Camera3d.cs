@@ -249,7 +249,7 @@ class RenderViewport {
     public mat4 ProjectionMatrix { get { return _projectionMatrix; } private set { _projectionMatrix = value; } }
     public mat4 ViewMatrix { get { return _viewMatrix; } private set { _viewMatrix = value; } }
 
-    public int _view_x = 0, _view_y = 0, _view_w = 800, _view_h = 600;
+    private int _view_x = 0, _view_y = 0, _view_w = 800, _view_h = 600;
     public int Viewport_X { get { return _view_x; } set { _view_x = value; } }
     public int Viewport_Y { get { return _view_y; } set { _view_y = value; } }
     public int Viewport_Width { get { return _view_w; } set { _view_w = value; } }
