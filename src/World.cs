@@ -2054,8 +2054,8 @@ namespace PirateCraft
     public const float MaxRenderGlobs = 4096;
     public int MaxGlobsToGeneratePerFrame_Sync = 32;//number of glob copy operations per render side frame. This can slow down / speed up rendering.
     public const float BlockSizeX = 32.0f;
-    public const float BlockSizeY = 32.0f;
-    public const float BlockSizeZ = 32.0f;
+    public const float BlockSizeY = BlockSizeX * 0.25f;
+    public const float BlockSizeZ = BlockSizeX;
     public const int GlobBlocksX = 8;
     public const int GlobBlocksY = 8;//Note2: change the GlobSHader Uniform buffer to match this^cubed //Note: now this must be <=8 since we are using ushort
     public const int GlobBlocksZ = 8;
@@ -2626,7 +2626,7 @@ namespace PirateCraft
     private void UpdateLiterallyEverything_Blockish(Camera3D cam)
     {
       _stuff.Clear();
-      List<ivec3> to_unload = new List<ivec3>();
+      //List<ivec3> to_unload = new List<ivec3>();
       //foreach (var kvp in _dromes)
       foreach (var kvp in _dromes)
       {
@@ -2641,10 +2641,10 @@ namespace PirateCraft
           else if (Drome_or_Node_Can_Delete_Distance(the_drome.Box) && ((Gu.Milliseconds() - the_drome.LastVisible_ms) > World.Abandon_DeleteTime_Drome_ms))
           {
             //Delete if we are invisible & not referenced
-            if (the_drome.Locked == false)
-            {
-              to_unload.Add(kvp.Key);
-            }
+            // if (the_drome.Locked == false)
+            // {
+            //   to_unload.Add(kvp.Key);
+            // }
           }
 
         }
@@ -2658,12 +2658,12 @@ namespace PirateCraft
       _scalarFieldsNeeded.Clear();
 
       //Unload / or / remove dromes.. here we go...
-      foreach (var key in to_unload)
-      {
-        // ** Dromes should rarely get unloaded. We do need them to stay resident in memory often now that we have made generation seamless (so long as tehy are there).
-        Gu.Log.Info("Unloading drome .. " + key.ToString());
-        _dromes.Remove(key);
-      }
+      // foreach (var key in to_unload)
+      // {
+      //   // ** Dromes should rarely get unloaded. We do need them to stay resident in memory often now that we have made generation seamless (so long as tehy are there).
+      //   Gu.Log.Info("Unloading drome .. " + key.ToString());
+      //   _dromes.Remove(key);
+      // }
     }
     private void AutoSaveWorld(double dt)
     {

@@ -457,12 +457,12 @@ namespace PirateCraft
       //Gui Comp
       var gui = new GuiComponent(Gu.World.Camera);
       var tb = gui.CreatePanel("tb", null, null);
-      tb.MinWHPX = new vec2(0, 30);
-      tb.SizeModeWidth = UiSizeMode.Expand;
+      tb.InlineStyle.MinWHPX = new vec2(0, 30);
+      tb.InlineStyle.SizeModeWidth = UiSizeMode.Expand;
       var file = gui.CreateButton("tbb1", null, "File", (i, e, m) => { });
-      file.DisplayMode = UiDisplayMode.Inline;
+      file.InlineStyle.DisplayMode = UiDisplayMode.Inline;
       var options = gui.CreateButton("tbb2", null, "Options", (i, e, m) => { });
-      options.DisplayMode = UiDisplayMode.Inline;
+      options.InlineStyle.DisplayMode = UiDisplayMode.Inline;
       tb.AddChild(file);
       tb.AddChild(options);
       gui.Screen.AddChild(tb);
