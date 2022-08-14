@@ -66,6 +66,7 @@ namespace PirateCraft
     Mouse_Enter,
     Mouse_Move,
     Mouse_Leave,
+    Drag,
     Tick, //tick event like every x ms
   };
   public enum UiOverflowMode
@@ -94,6 +95,12 @@ namespace PirateCraft
   }
   #endregion
   #region Helpers
+  public class UiDebugDraw
+  {
+    public bool DisableClip = false;
+    public bool ShowOverlay = false;
+    public vec4 OverlayColor = new vec4(1, 0, 0, 0.5f);
+  }
   public class UiStyleProps
   {
     //All styled properties of an element. Props are initially null because they are cascading. Any null property defers to its sub, or the default value.
@@ -135,6 +142,10 @@ namespace PirateCraft
       _borderRight = 0;
       _borderBot = 0;
       _borderLeft = 0;
+      _borderTopLeftRadius = 0;
+      _borderTopRightRadius = 0;
+      _borderBotRightRadius = 0;
+      _borderBotLeftRadius = 0;
       _events = null;//EventId, list of action (EventId, Object)
     }
     public UiStyleProps Clone()
@@ -175,6 +186,10 @@ namespace PirateCraft
       if (this._borderBot != null) { ret._borderBot = this._borderBot.Value; }
       if (this._borderLeft != null) { ret._borderLeft = this._borderLeft.Value; }
       if (this._events != null) { ret._events = this._events; }
+      if (this._borderTopLeftRadius != null) { ret._borderTopLeftRadius = this._borderTopLeftRadius; }
+      if (this._borderTopRightRadius != null) { ret._borderTopRightRadius = this._borderTopRightRadius; }
+      if (this._borderBotRightRadius != null) { ret._borderBotRightRadius = this._borderBotRightRadius; }
+      if (this._borderBotLeftRadius != null) { ret._borderBotLeftRadius = this._borderBotLeftRadius; }
 
       return ret;
     }
@@ -223,6 +238,10 @@ namespace PirateCraft
       if (sub._borderBot != null) { this._borderBot = sub._borderBot; }
       if (sub._borderLeft != null) { this._borderLeft = sub._borderLeft; }
       if (sub._events != null) { this._events = sub._events; }
+      if (sub._borderTopLeftRadius != null) { this._borderTopLeftRadius = sub._borderTopLeftRadius; }
+      if (sub._borderTopRightRadius != null) { this._borderTopRightRadius = sub._borderTopRightRadius; }
+      if (sub._borderBotRightRadius != null) { this._borderBotRightRadius = sub._borderBotRightRadius; }
+      if (sub._borderBotLeftRadius != null) { this._borderBotLeftRadius = sub._borderBotLeftRadius; }
     }
 
     public UiRef<MtTex> _texture = null;
@@ -260,56 +279,68 @@ namespace PirateCraft
     public float? _borderRight = null;
     public float? _borderBot = null;
     public float? _borderLeft = null;
-    public UiRef<Dictionary<UiEventId, List<Action<UiEventId, UiElement, PCMouse>>>> _events = null;
+    public float? _borderTopLeftRadius = null;
+    public float? _borderTopRightRadius = null;
+    public float? _borderBotRightRadius = null;
+    public float? _borderBotLeftRadius = null;
+    public UiRef<Dictionary<UiEventId, MultiMap<string, Action<UiEventId, UiElement, PCMouse>>>> _events = null;
     public long CompiledFrameId { get; set; } = 0;
   }
   public class UiDragInfo
   {
-    public Action<vec2> _func;
     public bool _bDragStart = false;
     public bool _bDrag = false;
     public vec2 _vDragStart;
-    public UiDragInfo(Action<vec2> func) { _func = func; }
-    //vec2 _vPosStartPx;
-    // Box2f _b2StartBox;//Computed box (design space) of starting position
+    public WeakReference<UiElement> Target { get; set; } = null;
+    public UiDragInfo() { }
     public void Update(PCMouse ms)
     {
       float mw = 1.0f / 1; // UiScreen::getDesignMultiplierW the design multiplier - this isntn't accounted for
       float mh = 1.0f / 1; // UiScreen::getDesignMultiplierH the design multiplier - this isntn't accounted for
-
-      if (_bDragStart)
+      if (Target != null && Target.TryGetTarget(out var tar))
       {
-        if (ms.GetButtonState(MouseButton.Left) == ButtonState.Up)
+        if (_bDragStart)
         {
-          //Avoid sticking
-          _bDrag = false;
-          _bDragStart = false;
-        }
-        else
-        {
-          //Check for mouse delta to prevent unnecessary updates.
-          vec2 dp = ms.Pos - _vDragStart;// pFingers->getMousePos_Relative()
-          if (MathUtils.FuzzyEquals(dp.x, 0.0f) == false || MathUtils.FuzzyEquals(dp.y, 0.0f) == false)
+          if (ms.GetButtonState(MouseButton.Left) == ButtonState.Up)
           {
-            _bDrag = true;
+            //Avoid sticking
+            _bDrag = false;
+            _bDragStart = false;
           }
           else
           {
-            _bDrag = false;
-          }
-          if (_bDrag)
-          {
-            //Multiply the distance by the design size.
-            dp.x *= mw;
-            dp.y *= mh;
+            //Check for mouse delta to prevent unnecessary updates.
+            vec2 dp = ms.Pos - _vDragStart;
+            if (MathUtils.FuzzyEquals(dp.x, 0.0f) == false || MathUtils.FuzzyEquals(dp.y, 0.0f) == false)
+            {
+              _bDrag = true;
+            }
+            else
+            {
+              _bDrag = false;
+            }
+            if (_bDrag)
+            {
+              //Multiply the distance by the design size.
+              dp.x *= mw;
+              dp.y *= mh;
 
-            _func(dp);
+              if (tar.DragFunc != null)
+              {
+                tar.DragFunc(dp);
+              }
 
-            //Reset drag start
-            _vDragStart = ms.Pos; //pFingers->getMousePos_Relative();
+              //Reset drag start
+              _vDragStart = ms.Pos;
+            }
           }
         }
       }
+      else
+      {
+        Target = null;
+      }
+
     }
   }
   #endregion
@@ -328,7 +359,17 @@ namespace PirateCraft
         _left = left;
         _top = top;
       }
-    };
+    }
+    public class Quads
+    {
+      public Box2f _b2ComputedQuad = new Box2f();      // Base quad that is calculated from _right/_left.., parent, padding, etc
+      public Box2f _b2LayoutQuad = new Box2f();        // Transformed from design space into screen space.
+      public Box2f _b2RasterQuad = new Box2f();      // Final raster quad in OpenGL screen coordinates. BOTTOM LEFT = min TOP RIGHT = max
+      public vec2 _rtl = new vec2(0, 0);
+      public vec2 _rtr = new vec2(0, 0);
+      public vec2 _rbr = new vec2(0, 0);
+      public vec2 _rbl = new vec2(0, 0);
+    }
     //Separate UiElement from container because Dictionary footprint is massive and, the glyphs have no children
     #region Public: Members
 
@@ -371,6 +412,7 @@ namespace PirateCraft
     }
     public UiStyle InlineStyle
     {
+      //overrides Style Class
       get
       {
         if (_inlineStyle == null)
@@ -387,8 +429,6 @@ namespace PirateCraft
     public bool PickEnabled { get { return _pickEnabled; } set { _pickEnabled = value; } } //Prevents the pick algorithm from running on misc elements (such as glyphs).
     public bool ScaleToDesign { get; set; } = true; // this is true for all elements besides cursor.
     public bool LayoutChanged { get; private set; } = true;
-    public vec2 Pos { get { return new vec2(_props._left.Value, _props._top.Value); } set { _props._left = value.x; _props._top = value.y; SetLayoutChanged(); } }
-    public vec2 Extent { get { return new vec2(_props._width.Value, _props._height.Value); } set { _props._width = value.x; _props._height = value.y; SetLayoutChanged(); } }
     public bool LayoutVisible { get { return _layoutVisible; } set { _layoutVisible = value; SetLayoutChanged(); } }
     public bool RenderVisible { get { return _renderVisible; } set { _renderVisible = value; SetLayoutChanged(); } }
 
@@ -409,23 +449,22 @@ namespace PirateCraft
     private bool _layoutVisible = true;
     private bool _renderVisible = true;
     private bool _bTextChanged = false;
-    private Box2f _q2Tex = new Box2f(0, 0, 1, 1);//0,1
     private vec2 _tileScale = new vec2(1, 1); //Scale if UiImageSizeMode is Tile
     private FontPatchInfo _patch = null;
-    private Box2f _b2ComputedQuad = new Box2f();      // Base quad that is calculated from _right/_left.., parent, padding, etc
-    private Box2f _b2ComputedQuadLast = new Box2f();
+    protected Quads _contentArea = new Quads();
+    private Quads _borderArea = null;
     private Box2f _b2ContentQuad = new Box2f();       // Encompassess ALL of the child quads, plus overflow.
-    private Box2f _b2LayoutQuad = new Box2f();        // Transformed from design space into screen space.
-    protected Box2f _b2RasterQuad = new Box2f();      // Final raster quad in OpenGL screen coordinates.
-    private Box2f? _renderOffset = null;
+    protected Box2f? _renderOffset = null;
     public uint _iPickId = 0;
-    //private UiDragInfo _dragInfo = null;
     protected bool _bPickedThisFrame = false;
     protected bool _bPickedPreviousFrame = false;
     private long _iPickedFrameId = 0;
     protected string _strText = "";
     protected string _name = "";
     private bool _bStyleClassChanged = false;
+    private UiDragInfo _dragInfo = null;
+    public bool DragEnabled { get; private set; } = false;
+    public Action<vec2> DragFunc { get; private set; } = null;
 
     #endregion
     #region Public: Methods
@@ -490,25 +529,17 @@ namespace PirateCraft
       return false;
     }
 
-    // public void EnableDrag(Action<vec2> func)
-    // {
-    //   _dragInfo = new UiDragInfo(func);
-    //   AddEvent(UiEventId.Mouse_Lmb_Press, (UiEventId evId, UiElement ele, PCMouse m) =>
-    //   {
-    //     ele._dragInfo._bDragStart = true;
-    //     ele._dragInfo._vDragStart = m.Pos;
-    //   });
-
-    //   AddEvent(UiEventId.Mouse_Lmb_Release, (UiEventId evId, UiElement ele, PCMouse m) =>
-    //   {
-    //     ele._dragInfo._bDrag = false;
-    //   });
-
-    //   AddEvent(UiEventId.Mouse_Lmb_Up, (UiEventId evId, UiElement ele, PCMouse m) =>
-    //   {
-    //     ele._dragInfo._bDrag = false;
-    //   });
-    // }
+    public void EnableDrag(Action<vec2> func)
+    {
+      DragEnabled = true;
+      DragFunc = func;
+      SetLayoutChanged();//get collected
+    }
+    public void DisableDrag()
+    {
+      DragEnabled = false;
+      SetLayoutChanged();//get collected
+    }
     public void ValidateQuad()
     {
       if (((_props._left + _props._width) < _props._left) || ((_props._top + _props._height) < _props._top))
@@ -541,27 +572,27 @@ namespace PirateCraft
     }
     private bool IsFullyClipped(Box2f b2ClipRect)
     {
+      Box2f boundsSS = GetScreenSpaceClipQuad();
       // This simple test saves us a ton of GPU pixel tests
-      Box2f b = _b2RasterQuad;
-      if (b._max.x < b2ClipRect._min.x)
+      if (boundsSS._max.x < b2ClipRect._min.x)
       {
         return true;
       }
-      if (b._max.y > b2ClipRect._min.y)
+      if (boundsSS._max.y > b2ClipRect._min.y)
       {  //**Norte we flipped Y's </> here - because GL min/max runs the oppostie direction in the Y axis
         return true;
       }
-      if (b._min.x > b2ClipRect._max.x)
+      if (boundsSS._min.x > b2ClipRect._max.x)
       {
         return true;
       }
-      if (b._min.y < b2ClipRect._max.y)
+      if (boundsSS._min.y < b2ClipRect._max.y)
       {  //**Norte we flipped Y's </> here - because GL min/max runs the oppostie direction in the Y axis
         return true;
       }
       return false;
     }
-    protected virtual void RegenMesh(List<v_v4v4v4v2u2> verts, Box2f b2ClipRect, uint rootPickId)
+    protected virtual void RegenMesh(List<v_v4v4v4v2u2v4v4> verts, MtTex defaultPixel, Box2f b2ClipRect, uint rootPickId, UiDebugDraw dd)
     {
       if (LayoutVisible)
       {
@@ -573,7 +604,12 @@ namespace PirateCraft
             pickId = _iPickId;
           }
 
-          GetOpenGLQuadVerts(verts, b2ClipRect, pickId);
+          GetOpenGLQuadVerts(verts, b2ClipRect, defaultPixel, pickId, dd);
+          var savedcolor = dd.OverlayColor;
+          var t = dd.OverlayColor.x; //flipflop color for sub-elements
+          dd.OverlayColor.x = dd.OverlayColor.y;
+          dd.OverlayColor.y = dd.OverlayColor.z;
+          dd.OverlayColor.z = t;
           if (_children != null)
           {
             foreach (var p in _children)
@@ -583,10 +619,11 @@ namespace PirateCraft
               if (ele.IsFullyClipped(b2ClipRect) == false)
               {
                 Box2f clip = ShrinkClipRect(b2ClipRect);
-                ele.RegenMesh(verts, clip, pickId);
+                ele.RegenMesh(verts, defaultPixel, clip, pickId, dd);
               }
             }
           }
+          dd.OverlayColor = savedcolor;
         }
       }
     }
@@ -594,7 +631,7 @@ namespace PirateCraft
     {
       // Hide all children that go beyond this container.
       // Must be called in the loop so we reset it with every child.
-      Box2f b = _b2RasterQuad;
+      Box2f b = GetScreenSpaceClipQuad();
       Box2f ret = b2ClipRect;
       if (_props._overflowMode == UiOverflowMode.Hide)
       {
@@ -627,7 +664,112 @@ namespace PirateCraft
       }
       return ret;
     }
-    private protected void GetOpenGLQuadVerts(List<v_v4v4v4v2u2> verts, Box2f b2ClipRect, uint rootPickId)
+    private void ComputeVertexTexcoord(ref v_v4v4v4v2u2v4v4 vc, MtTex pTex, UiImageTiling xtile, UiImageTiling ytile)
+    {
+      Box2f q2Tex = new Box2f();
+
+      if (xtile == UiImageTiling.Expand)
+      {
+        q2Tex._min.x = pTex.uv0.x;
+        q2Tex._max.x = pTex.uv1.x;
+      }
+      else if (xtile == UiImageTiling.Tile)
+      {
+        float wPx = _props._width.Value;
+        q2Tex._min.x = pTex.uv0.x;
+        q2Tex._max.x = pTex.uv1.x + (pTex.uv1.x - pTex.uv0.x) * _tileScale.x;
+      }
+      else if (xtile == UiImageTiling.Computed)
+      {
+        // Tex coords are computed (used for UiGlyph)
+      }
+      else
+      {
+        Gu.Log.Error("Invalid layout X image size mode.");
+      }
+
+      if (ytile == UiImageTiling.Expand)
+      {
+        q2Tex._min.y = pTex.uv0.y;
+        q2Tex._max.y = pTex.uv1.y;
+      }
+      else if (ytile == UiImageTiling.Tile)
+      {
+        float hPx = _props._height.Value;
+        q2Tex._min.y = pTex.uv0.y;
+        q2Tex._max.y = pTex.uv1.y + (pTex.uv1.y - pTex.uv0.y) * _tileScale.y;
+      }
+      else if (ytile == UiImageTiling.Computed)
+      {
+        // Tex coords are computed (used for UiGlyph)
+      }
+      else if (ytile == UiImageTiling.Proportion)
+      {
+        // proportion the Y to the X
+        q2Tex._min.y = pTex.uv1.y;
+        float fw = q2Tex._max.x - q2Tex._min.x;
+        float fr = pTex.GetSizeRatio();
+        float fh = fw * fr;
+        q2Tex._max.y = q2Tex._min.y + fh;
+      }
+      else
+      {
+        Gu.Log.Error("Invalid layout size mode.");
+      }
+
+      vc._tex.x = q2Tex._min.x;  // GL - bottom left
+      vc._tex.y = q2Tex._min.y;
+      vc._tex.z = q2Tex._max.x;  // GL - top right *this essentially flips it upside down
+      vc._tex.w = q2Tex._max.y;
+      vc._texsiz.x = Math.Abs(pTex.uv1.x - pTex.uv0.x);
+      vc._texsiz.y = Math.Abs(pTex.uv1.y - pTex.uv0.y);  // Uv0 - uv1 - because we flipped coords bove
+
+      //**Texture Adjust - modulating repeated textures causes seaming issues, especially with texture filtering
+      // adjust the texture coordinates by some pixels to account for that.  0.5f seems to work well.
+      float pixAdjust = 0.0f;  // # of pixels to adjust texture by
+      float w1px = 0;                  // 1 pixel subtract from the u/v to prevent creases during texture modulation
+      float h1px = 0;
+
+      if (pTex.GetWidth() > 0 && vc._texsiz.x > 0)
+      {
+        w1px = 1.0f / pTex.GetWidth();
+        w1px *= vc._texsiz.x;
+        w1px *= pixAdjust;
+      }
+      if (pTex.GetHeight() > 0 && vc._texsiz.y > 0)
+      {
+        h1px = 1.0f / pTex.GetHeight();
+        h1px *= vc._texsiz.y;
+        h1px *= pixAdjust;
+      }
+      vc._texsiz.x -= w1px * 2.0f;
+      vc._texsiz.y -= h1px * 2.0f;
+      vc._tex.x += w1px;
+      vc._tex.y += h1px;
+      vc._tex.z -= w1px;
+      vc._tex.w -= h1px;
+    }
+    private void SetVertexRasterArea(ref v_v4v4v4v2u2v4v4 vc, in Box2f rasterQuad, in Box2f b2ClipRect, UiDebugDraw dd)
+    {
+      //BL = min TR = max
+      vc._rect.x = rasterQuad._min.x;
+      vc._rect.y = rasterQuad._min.y;
+      vc._rect.z = rasterQuad._max.x;
+      vc._rect.w = rasterQuad._max.y;
+
+      // Clip Rect.  For discard
+      vc._clip = MakeClipRectForRender(b2ClipRect);
+      if (dd.DisableClip)
+      {
+        // Disable clip
+        vc._clip.x = -999999;
+        vc._clip.y = -999999;
+        vc._clip.z = 999999;
+        vc._clip.w = 999999;
+      }
+
+    }
+    private void GetOpenGLQuadVerts(List<v_v4v4v4v2u2v4v4> verts, Box2f b2ClipRect, MtTex defaultPixel, uint rootPickId, UiDebugDraw dd)
     {
       if (LayoutVisible == false)
       {
@@ -639,128 +781,56 @@ namespace PirateCraft
         return;
       }
 
-      if (_props._imageTilingX == UiImageTiling.Expand)
+      if (_borderArea != null)
       {
-        _q2Tex._min.x = _props._texture.Value.uv0.x;
-        _q2Tex._max.x = _props._texture.Value.uv1.x;
+        v_v4v4v4v2u2v4v4 vb = new v_v4v4v4v2u2v4v4();
+        vb._rtl_rtr = new vec4(_borderArea._rtl, _borderArea._rtr);
+        vb._rbr_rbl = new vec4(_borderArea._rbr, _borderArea._rbl);
+        SetVertexRasterArea(ref vb, in _borderArea._b2RasterQuad, in b2ClipRect, dd);
+        ComputeVertexTexcoord(ref vb, defaultPixel, UiImageTiling.Expand, UiImageTiling.Expand);
+        SetVertexPickAndColor(ref vb, _props._borderColor.Value, rootPickId);
+        verts.Add(vb);
       }
-      else if (_props._imageTilingX == UiImageTiling.Tile)
       {
-        float wPx = _props._width.Value;
-        _q2Tex._min.x = _props._texture.Value.uv0.x;
-        _q2Tex._max.x = _props._texture.Value.uv1.x + (_props._texture.Value.uv1.x - _props._texture.Value.uv0.x) * _tileScale.x;
+        v_v4v4v4v2u2v4v4 vc = new v_v4v4v4v2u2v4v4();
+        vc._rtl_rtr = new vec4(_contentArea._rtl, _contentArea._rtr);
+        vc._rbr_rbl = new vec4(_contentArea._rbr, _contentArea._rbl);
+        SetVertexRasterArea(ref vc, in _contentArea._b2RasterQuad, in b2ClipRect, dd);
+        ComputeVertexTexcoord(ref vc, _props._texture.Value, _props._imageTilingX.Value, _props._imageTilingY.Value);
+        SetVertexPickAndColor(ref vc, _props._color.Value, rootPickId);
+        verts.Add(vc);
       }
-      else if (_props._imageTilingX == UiImageTiling.Computed)
+      if (dd.ShowOverlay)
       {
-        // Tex coords are computed (used for UiGlyph)
+        //overlay colored quad.
+        v_v4v4v4v2u2v4v4 dbgv = new v_v4v4v4v2u2v4v4();
+        if (_borderArea != null)
+        {
+          SetVertexRasterArea(ref dbgv, in _borderArea._b2RasterQuad, in b2ClipRect, dd);
+        }
+        else
+        {
+          SetVertexRasterArea(ref dbgv, in _contentArea._b2RasterQuad, in b2ClipRect, dd);
+        }
+        dbgv._rtl_rtr = new vec4(0, 0, 0, 0);
+        dbgv._rbr_rbl = new vec4(0, 0, 0, 0);
+        ComputeVertexTexcoord(ref dbgv, defaultPixel, UiImageTiling.Expand, UiImageTiling.Expand);
+        SetVertexPickAndColor(ref dbgv, dd.OverlayColor, rootPickId);
+        verts.Add(dbgv);
       }
-      else
-      {
-        Gu.Log.Error("Invalid layout X image size mode.");
-      }
-
-      if (_props._imageTilingY == UiImageTiling.Expand)
-      {
-        _q2Tex._min.y = _props._texture.Value.uv0.y;
-        _q2Tex._max.y = _props._texture.Value.uv1.y;
-      }
-      else if (_props._imageTilingY == UiImageTiling.Tile)
-      {
-        float hPx = _props._height.Value;
-        _q2Tex._min.y = _props._texture.Value.uv0.y;
-        _q2Tex._max.y = _props._texture.Value.uv1.y + (_props._texture.Value.uv1.y - _props._texture.Value.uv0.y) * _tileScale.y;
-      }
-      else if (_props._imageTilingY == UiImageTiling.Computed)
-      {
-        // Tex coords are computed (used for UiGlyph)
-      }
-      else if (_props._imageTilingY == UiImageTiling.Proportion)
-      {
-        // proportion the Y to the X
-        _q2Tex._min.y = _props._texture.Value.uv1.y;
-        float fw = _q2Tex._max.x - _q2Tex._min.x;
-        float fr = _props._texture.Value.GetSizeRatio();
-        float fh = fw * fr;
-        _q2Tex._max.y = _q2Tex._min.y + fh;
-      }
-      else
-      {
-        Gu.Log.Error("Invalid layout size mode.");
-      }
-
-
-      // if(_pQuad != nullptr) {
-      // Add the vertexes of this element tot he given buffers
-      // Creates an image out of this element.
-      v_v4v4v4v2u2 v = new v_v4v4v4v2u2();
-      v._rect.x = _b2RasterQuad._min.x;
-      v._rect.y = _b2RasterQuad._min.y;
-      v._rect.z = _b2RasterQuad._max.x;
-      v._rect.w = _b2RasterQuad._max.y;
-
-      // Clip Rect.  For discard
-      v._clip = makeClipRectForRender(b2ClipRect);
-      if (Gu.EngineConfig.ShowGuiBoxesAndDisableClipping)
-      {
-        // Disable clip
-        v._clip.x = -9999;
-        v._clip.y = -9999;
-        v._clip.z = 9999;
-        v._clip.w = 9999;
-      }
-
-      //tex = pos uv
-      //texsize = size uv i.e for wrapping?
-      // Texs
-      //tex z,w arn't used
-      v._tex.x = _q2Tex._min.x;  // GL - bottom left
-      v._tex.y = _q2Tex._min.y;
-      v._tex.z = _q2Tex._max.x;  // GL - top right *this essentially flips it upside down
-      v._tex.w = _q2Tex._max.y;
-
-      v._texsiz.x = Math.Abs(_props._texture.Value.uv1.x - _props._texture.Value.uv0.x);
-      v._texsiz.y = Math.Abs(_props._texture.Value.uv1.y - _props._texture.Value.uv0.y);  // Uv0 - uv1 - because we flipped coords bove
-
-      //**Texture Adjust - modulating repeated textures causes seaming issues, especially with texture filtering
-      // adjust the texture coordinates by some pixels to account for that.  0.5f seems to work well.
-      float pixAdjust = 0.0f;  // # of pixels to adjust texture by
-      float w1px = 0;                  // 1 pixel subtract from the u/v to prevent creases during texture modulation
-      float h1px = 0;
-
-      if (_props._texture.Value.GetWidth() > 0 && v._texsiz.x > 0)
-      {
-        w1px = 1.0f / _props._texture.Value.GetWidth();
-        w1px *= v._texsiz.x;
-        w1px *= pixAdjust;
-      }
-      if (_props._texture.Value.GetHeight() > 0 && v._texsiz.y > 0)
-      {
-        h1px = 1.0f / _props._texture.Value.GetHeight();
-        h1px *= v._texsiz.y;
-        h1px *= pixAdjust;
-      }
-      v._texsiz.x -= w1px * 2.0f;
-      v._texsiz.y -= h1px * 2.0f;
-      v._tex.x += w1px;
-      v._tex.y += h1px;
-      v._tex.z -= w1px;
-      v._tex.w -= h1px;
-
-      //**End texture adjust
-
-      // Pick Color & Accent Color
-      v._pick_color = new uvec2(
+    }
+    private void SetVertexPickAndColor(ref v_v4v4v4v2u2v4v4 vc, vec4 color, uint rootPickId)
+    {
+      vc._pick_color = new uvec2(
          //Since we can't discard fragments for the pick buffer, assume the pick id of the parent pick root
          rootPickId,
-         ((uint)(_props._color.Value.x * 255.0f) << 24) |
-          ((uint)(_props._color.Value.y * 255.0f) << 16) |
-          ((uint)(_props._color.Value.z * 255.0f) << 8) |
-          ((uint)(_props._color.Value.w * 255.0f) << 0)
+         ((uint)(color.x * 255.0f) << 24) |
+          ((uint)(color.y * 255.0f) << 16) |
+          ((uint)(color.z * 255.0f) << 8) |
+          ((uint)(color.w * 255.0f) << 0)
       );
-
-      verts.Add(v);
     }
-    private vec4 makeClipRectForRender(Box2f b2ClipRect)
+    private vec4 MakeClipRectForRender(Box2f b2ClipRect)
     {
       vec4 clipRect;
 
@@ -772,11 +842,19 @@ namespace PirateCraft
 
       return clipRect;
     }
+    private Box2f GetPickableQuad()
+    {
+      if (_borderArea != null)
+      {
+        return _borderArea._b2LayoutQuad;
+      }
+      return _contentArea._b2LayoutQuad;
+    }
     protected virtual bool Pick(PCMouse mous, long frameStamp)
     {
       //Recursive method to pick visible elements.
       //Of course..quadtree but that's just.. not needed
-      Box2f q = _b2LayoutQuad;
+      Box2f q = GetPickableQuad();
       if (LayoutVisible == true && RenderVisible == true && PickEnabled == true)
       {
         if (q.ContainsPointInclusive(mous.Pos))
@@ -810,11 +888,11 @@ namespace PirateCraft
       }
       return _bPickedThisFrame;
     }
-    public void DoMouseEvents(PCMouse mouse)
+    public void DoMouseEvents(PCMouse mouse, bool iswindow = false)
     {
-      if (_bPickedThisFrame)
+      if (_bPickedThisFrame || iswindow)
       {
-        if (_bPickedPreviousFrame)
+        if (_bPickedPreviousFrame || iswindow)
         {
           DoMouseEvent(mouse, UiEventId.Mouse_Move);
         }
@@ -858,60 +936,10 @@ namespace PirateCraft
         {
           foreach (var act in actions)
           {
-            act(evid, this, m);
+            act.Value(evid, this, m);
           }
         }
       }
-    }
-    protected void ComputeQuads(vec2 viewport_wh, float top, float right, float bot, float left)
-    {
-      // Layout Quad (for picking, debug)
-      float w1 = 1.0f, h1 = 1.0f;
-      w1 = 1;//UiScreen::getDesignMultiplierW();
-      h1 = 1;//UiScreen::getDesignMultiplierH();
-
-      _b2ComputedQuad._min.y = top;
-      _b2ComputedQuad._max.x = right;
-      _b2ComputedQuad._max.y = bot;
-      _b2ComputedQuad._min.x = left;
-
-      if (_renderOffset != null)
-      {
-        //For glyphs, and other elements that go outside their physical regions
-        var origin = _b2ComputedQuad.Center();
-        var ro = this._renderOffset.Value;
-        _b2ComputedQuad._min.x = origin.x + ro.Left;
-        _b2ComputedQuad._min.y = origin.y + ro.Top;
-        _b2ComputedQuad._max.x = origin.x + ro.Right;
-        _b2ComputedQuad._max.y = origin.y + ro.Bottom;
-      }
-
-      // Set to false if we're controllig coordinates of this element (cursor, or window position)
-      _b2LayoutQuad._min.x = _b2ComputedQuad._min.x * w1;
-      _b2LayoutQuad._min.y = _b2ComputedQuad._min.y * h1;
-      _b2LayoutQuad._max.x = _b2ComputedQuad._max.x * w1;
-      _b2LayoutQuad._max.y = _b2ComputedQuad._max.y * h1;
-
-      // The resulting coordinates for the GPU are -0.5 +0.5 in both axes with the center being in the center of the screen
-      // Translate a 2D screen quad to be rendered in a shader.
-      // So* our quad is from TOP Left - OpenGL is Bottom Left - this fixes this.
-
-      _b2RasterQuad = _b2LayoutQuad;
-
-      float w = (float)viewport_wh.x;
-      float w2 = w * 0.5f;
-      float h = (float)viewport_wh.y;
-      float h2 = h * 0.5f;
-
-      // Subtract from viewport center
-      _b2RasterQuad._min.x -= w2;
-      _b2RasterQuad._max.x -= w2;
-
-      // Invert text to show rightsize up and divide by perspective
-      _b2RasterQuad._min.x = _b2RasterQuad._min.x / w2;
-      _b2RasterQuad._min.y = (h2 - _b2RasterQuad._min.y - 1) / h2;
-      _b2RasterQuad._max.x = _b2RasterQuad._max.x / w2;
-      _b2RasterQuad._max.y = (h2 - _b2RasterQuad._max.y - 1) / h2;
     }
     protected virtual void PerformLayout(MegaTex mt, vec2 viewport_wh, bool bForce, vec2 parentMaxWH)
     {
@@ -919,23 +947,8 @@ namespace PirateCraft
       //positions to the parent to build the elements.
       if (LayoutChanged || bForce)
       {
-        //This will also compile sub classes for other elements.
-        if (_styleClass != null)
-        {
-          if (_bStyleClassChanged)
-          {
-            //Debugging... this may beneeded tho
-            _bStyleClassChanged = false;
-          }
-          _styleClass.Compile();
-          _props.ApplySubclass(_styleClass.Compiled);
-        }
-        if (_inlineStyle != null)
-        {
-          _inlineStyle.Compile();
-          _props.ApplySubclass(_inlineStyle.Compiled);
-        }
-
+        ComputeStyle();
+        UpdateBorder();
         vec2 contentWH = new vec2(_props._padLeft.Value + _props._padRight.Value, _props._padTop.Value + _props._padBot.Value); //in HTML all elements default to zero width without any contents.
 
         //Shrink boundary
@@ -945,14 +958,14 @@ namespace PirateCraft
         );
 
         //Check if we are a label
-        if (_bTextChanged == true)
+        //textchanged .. font color .. font size .. etc.
+        //if (_bTextChanged == true)
         {
           CreateGlyphs(mt);
         }
         //Do Object Children.
         if (_children != null)
         {
-
           //PerformLayoutChildren
           //First pass must expand autosize elements up to the maximum w/h
           foreach (var p in _children)
@@ -968,64 +981,87 @@ namespace PirateCraft
           PositionChildren(bForce, viewport_wh, maxWH, ref contentWH);
         }
 
-        //Note: content quad may expand beyond container
-        _b2ContentQuad._min = new vec2(_props._left.Value, _props._top.Value);
-        _b2ContentQuad._max = _b2ContentQuad._min + contentWH;
-
-        if (_props._sizeModeWidth == UiSizeMode.Shrink)
-        {
-          _props._width = Math.Min(Math.Max(_props._minWHPX.Value.x, Math.Min(maxWH.x, contentWH.x)), _props._maxWHPX.Value.x);
-        }
-        else if (_props._sizeModeWidth == UiSizeMode.Expand)
-        {
-          if (this._parent != null && this._parent.TryGetTarget(out var par))
-          {
-            _props._width = par._props._width - _props._left;
-          }
-        }
-        else
-        {
-          Gu.BRThrowNotImplementedException();
-        }
-        if (_props._sizeModeHeight == UiSizeMode.Shrink)
-        {
-          _props._height = Math.Min(Math.Max(_props._minWHPX.Value.y, Math.Min(maxWH.y, contentWH.y)), _props._maxWHPX.Value.y);
-        }
-        else if (_props._sizeModeHeight == UiSizeMode.Expand)
-        {
-          if (this._parent != null && this._parent.TryGetTarget(out var par))
-          {
-            _props._height = par._props._height - _props._top;
-          }
-        }
-        else
-        {
-          Gu.BRThrowNotImplementedException();
-        }
-
-        //Shrink the element (if not UiScreen)
-        //This is how HTML works by default.
-        //Also apply min/max to the element. This is specifically how you would fix an element's size.
+        SizeElement(maxWH, contentWH);
 
         LayoutChanged = false;
       }
     }
-    private void LayoutEleQuad(vec2 viewport_wh, UiElement ele)
+    private void ComputeStyle()
     {
-      //Add the child to the parent.
-      float fr, fl, ft, fb;
-      ft = _b2ComputedQuad._min.y + ele._props._top.Value;//top
-      fr = _b2ComputedQuad._min.x + ele._props._right.Value;//right
-      fb = _b2ComputedQuad._min.y + ele._props._bottom.Value;//bot
-      fl = _b2ComputedQuad._min.x + ele._props._left.Value;//left
-
-      if (fl > fr || ft > fb)
+      //Compute Style
+      if (_styleClass != null)
       {
-        int nnn = 0;
-        nnn++;
+        if (_bStyleClassChanged)
+        {
+          //Debugging... this may beneeded tho
+          _bStyleClassChanged = false;
+        }
+        _styleClass.Compile();
+        _props.ApplySubclass(_styleClass.Compiled);
+      }
+      if (_inlineStyle != null)
+      {
+        _inlineStyle.Compile();
+        _props.ApplySubclass(_inlineStyle.Compiled);
+      }
+    }
+    private void UpdateBorder()
+    {
+      //Check if border changed
+      if (_borderArea == null)
+      {
+        if (_props._borderTop > 0 || _props._borderRight > 0 || _props._borderBot > 0 || _props._borderLeft > 0)
+        {
+          _borderArea = new Quads();
+        }
+      }
+      else
+      {
+        if (_props._borderTop == 0 && _props._borderRight == 0 && _props._borderBot == 0 && _props._borderLeft == 0)
+        {
+          _borderArea = null;
+        }
+      }
+    }
+    private void SizeElement(vec2 maxWH, vec2 contentWH)
+    {
+      //Shrink the element (if not UiScreen) This is how HTML works by default.
+      //Also apply min/max to the element. This is specifically how you would fix an element's size.
+      //Note: content quad may expand beyond container
+      _b2ContentQuad._min = new vec2(_props._left.Value, _props._top.Value);
+      _b2ContentQuad._max = _b2ContentQuad._min + contentWH;
+
+      if (_props._sizeModeWidth == UiSizeMode.Shrink)
+      {
+        _props._width = Math.Min(Math.Max(_props._minWHPX.Value.x, Math.Min(maxWH.x, contentWH.x)), _props._maxWHPX.Value.x);
+      }
+      else if (_props._sizeModeWidth == UiSizeMode.Expand)
+      {
+        if (this._parent != null && this._parent.TryGetTarget(out var par))
+        {
+          _props._width = par._props._width - _props._left;
+        }
+      }
+      else
+      {
+        Gu.BRThrowNotImplementedException();
+      }
+      if (_props._sizeModeHeight == UiSizeMode.Shrink)
+      {
+        _props._height = Math.Min(Math.Max(_props._minWHPX.Value.y, Math.Min(maxWH.y, contentWH.y)), _props._maxWHPX.Value.y);
+      }
+      else if (_props._sizeModeHeight == UiSizeMode.Expand)
+      {
+        if (this._parent != null && this._parent.TryGetTarget(out var par))
+        {
+          _props._height = par._props._height - _props._top;
+        }
+      }
+      else
+      {
+        Gu.BRThrowNotImplementedException();
       }
 
-      ele.ComputeQuads(viewport_wh, ft, fr, fb, fl);
     }
     protected void PositionChildren(bool bForce, vec2 viewport_wh, vec2 maxWH, ref vec2 contentWH)
     {
@@ -1043,7 +1079,6 @@ namespace PirateCraft
 
           if (ele.LayoutVisible)
           {
-            ele._b2ComputedQuadLast = ele._b2ComputedQuad;
 
             if (ele._props._positionMode == UiPositionMode.Static)
             {
@@ -1080,7 +1115,7 @@ namespace PirateCraft
           UiElement ele = p.Value;
           if (ele.LayoutVisible)
           {
-            LayoutEleQuad(viewport_wh, ele);
+            LayoutEleQuads(viewport_wh, ele);
           }
         }
       }
@@ -1104,6 +1139,9 @@ namespace PirateCraft
     }
     private void CalcStaticElement(UiElement ele, List<UiLine> vecLines, float fAutoWidth, float fAutoHeight, vec2 parentMaxWH)
     {
+      /*
+         .. | margin | border | padding | ** | pad | bor | mar| .. 
+      */
       if (vecLines.Count == 0)
       {
         Gu.BRThrowException("GUI error - tried to run calc algorithm without any UILines created");
@@ -1113,10 +1151,15 @@ namespace PirateCraft
       float parent_contentarea_width = parentMaxWH.x - _props._padLeft.Value - _props._padRight.Value;
 
       //*Padding
-      float mt = ele._props._marTop.Value + ele._props._borderTop.Value;
-      float mr = ele._props._marRight.Value + ele._props._borderRight.Value;
-      float mb = ele._props._marBot.Value + ele._props._borderBot.Value;
-      float ml = ele._props._marLeft.Value + +ele._props._borderLeft.Value;
+      float mt = ele._props._marTop.Value;
+      float mr = ele._props._marRight.Value;
+      float mb = ele._props._marBot.Value;
+      float ml = ele._props._marLeft.Value;
+
+      float bt = ele._props._borderTop.Value;
+      float br = ele._props._borderRight.Value;
+      float bb = ele._props._borderBot.Value;
+      float bl = ele._props._borderLeft.Value;
 
       float ele_width = Math.Max(ele._props._width.Value, ele._props._minWHPX.Value.x);
 
@@ -1124,7 +1167,7 @@ namespace PirateCraft
       bool bLineBreak = false;
       if (ele._props._displayMode == UiDisplayMode.Inline)
       {
-        if (ml + mr + ele_width + line._width > parent_contentarea_width) //For label - auto width + expand. ?? 
+        if (ml + mr + bl + br + ele_width + line._width > parent_contentarea_width) //For label - auto width + expand. ?? 
         {
           bLineBreak = true;
         }
@@ -1149,21 +1192,115 @@ namespace PirateCraft
       }
 
       line._width += ml;
+      line._width += bl;
       ele._props._left = line._left + line._width;
-      ele._props._top = line._top + mt;
+      ele._props._top = line._top + mt + bt;
       line._width += ele_width;
+      line._width += br;
       line._width += mr;
 
       ele.ValidateQuad();
 
       // Increse line height WITH PAD
-      line._height = Math.Max(line._height, Math.Max(ele._props._height.Value + mt + mb, ele._props._minWHPX.Value.y));
+      line._height = Math.Max(line._height, Math.Max(ele._props._height.Value + mt + mb + bt + bb, ele._props._minWHPX.Value.y));
 
       line._eles.Add(ele);
     }
     private void ComputePositionalElement(UiElement ele)
     {
       ValidateQuad();
+    }
+    private void LayoutEleQuads(vec2 viewport_wh, UiElement ele)
+    {
+      //Add the child to the parent.
+      float t, r, b, l;
+      float bt, br, bb, bl;
+      float rtl, rtr, rbr, rbl;
+      t = _contentArea._b2ComputedQuad._min.y + ele._props._top.Value;
+      r = _contentArea._b2ComputedQuad._min.x + ele._props._right.Value;
+      b = _contentArea._b2ComputedQuad._min.y + ele._props._bottom.Value;
+      l = _contentArea._b2ComputedQuad._min.x + ele._props._left.Value;
+      bt = ele._props._borderTop.Value;
+      br = ele._props._borderRight.Value;
+      bb = ele._props._borderBot.Value;
+      bl = ele._props._borderLeft.Value;
+      rtl = ele._props._borderTopLeftRadius.Value;
+      rtr = ele._props._borderTopRightRadius.Value;
+      rbr = ele._props._borderBotRightRadius.Value;
+      rbl = ele._props._borderBotLeftRadius.Value;
+
+      ComputeQuads(viewport_wh, t + bt, r - br, b - bb, l + bl, rtl, rtr, rbr, rbl, _renderOffset, ele._contentArea);
+
+      if (ele._borderArea != null)
+      {
+        ComputeQuads(viewport_wh, t, r, b, l, rtl, rtr, rbr, rbl, _renderOffset, ele._borderArea);
+      }
+    }
+    protected static void ComputeQuads(vec2 viewport_wh, float top, float right, float bot, float left, float rtl, float rtr, float rbr, float rbl, Box2f? offset, Quads quads)
+    {
+      // Layout Quad (for picking, debug)/*  */
+      float w1 = 1.0f, h1 = 1.0f;
+      w1 = 1;//UiScreen::getDesignMultiplierW();
+      h1 = 1;//UiScreen::getDesignMultiplierH();
+
+      if (left > right)
+      {
+        left = right;
+        Gu.DebugBreak();
+      }
+      if (top > bot)
+      {
+        top = bot;
+        Gu.DebugBreak();
+      }
+
+      quads._b2ComputedQuad._min.y = top;
+      quads._b2ComputedQuad._max.x = right;
+      quads._b2ComputedQuad._max.y = bot;
+      quads._b2ComputedQuad._min.x = left;
+
+      if (offset != null)
+      {
+        //For glyphs, and other elements that go outside their physical regions
+        var origin = quads._b2ComputedQuad.Center();
+        var ro = offset.Value;
+        quads._b2ComputedQuad._min.x = origin.x + ro.Left;
+        quads._b2ComputedQuad._min.y = origin.y + ro.Top;
+        quads._b2ComputedQuad._max.x = origin.x + ro.Right;
+        quads._b2ComputedQuad._max.y = origin.y + ro.Bottom;
+      }
+
+      // Set to false if we're controllig coordinates of this element (cursor, or window position)
+      quads._b2LayoutQuad._min.x = quads._b2ComputedQuad._min.x * w1;
+      quads._b2LayoutQuad._min.y = quads._b2ComputedQuad._min.y * h1;
+      quads._b2LayoutQuad._max.x = quads._b2ComputedQuad._max.x * w1;
+      quads._b2LayoutQuad._max.y = quads._b2ComputedQuad._max.y * h1;
+
+      // The resulting coordinates for the GPU are -0.5 +0.5 in both axes with the center being in the center of the screen
+      // Translate a 2D screen quad to be rendered in a shader.
+      // So* our quad is from TOP Left - OpenGL is Bottom Left - this fixes this.
+
+      quads._b2RasterQuad = quads._b2LayoutQuad;
+
+      float w = (float)viewport_wh.x;
+      float w2 = w * 0.5f;
+      float h = (float)viewport_wh.y;
+      float h2 = h * 0.5f;
+
+      // Subtract from viewport center
+      quads._b2RasterQuad._min.x -= w2;
+      quads._b2RasterQuad._max.x -= w2;
+
+      // Invert text to show rightsize up and divide by perspective
+      quads._b2RasterQuad._min.x = quads._b2RasterQuad._min.x / w2;
+      quads._b2RasterQuad._min.y = (h2 - quads._b2RasterQuad._min.y - 1) / h2;
+      quads._b2RasterQuad._max.x = quads._b2RasterQuad._max.x / w2;
+      quads._b2RasterQuad._max.y = (h2 - quads._b2RasterQuad._max.y - 1) / h2;
+
+      quads._rtl = new vec2(rtl / w2, rtl / h2);
+      quads._rtr = new vec2(rtr / w2, rtr / h2);
+      quads._rbr = new vec2(rbr / w2, rbr / h2);
+      quads._rbl = new vec2(rbl / w2, rbl / h2);
     }
     private void CreateGlyphs(MegaTex mt)
     {
@@ -1231,7 +1368,7 @@ namespace PirateCraft
         {
           e._props._displayMode = UiDisplayMode.Inline;
         }
-        e._props._fontColor = _props._fontColor;
+        e._props._color = _props._fontColor;
 
         e.ValidateQuad();
         AddChild(e, c_GlyphLayerSort);
@@ -1240,11 +1377,20 @@ namespace PirateCraft
 
     #endregion
 
+    protected Box2f GetScreenSpaceClipQuad()
+    {
+      if (_borderArea != null)
+      {
+        return _borderArea._b2RasterQuad;
+      }
+      return _contentArea._b2RasterQuad;
+    }
   }//UiElement
   public class UiScreen : UiElement
   {
     private WeakReference<Camera3D> _camera = new WeakReference<Camera3D>(null);
-    private UiDragInfo _dragInfo = null;//wer're putting this here...there's only ened for one draginfo..
+    public UiDebugDraw DebugDraw { get; set; } = new UiDebugDraw();
+    private UiDragInfo _dragInfo = new UiDragInfo();
 
     public UiScreen(Camera3D cam)
     {
@@ -1268,6 +1414,33 @@ namespace PirateCraft
       _props._height = cam.Viewport_Height - cam.Viewport_Y - 1;
       _props._maxWHPX = new vec2(cam.Viewport_Width, cam.Viewport_Height);//Make sure stuff doesn't go off the screen.
       _props._minWHPX = new vec2(cam.Viewport_X, cam.Viewport_Y);
+
+      CreateWindowEvents();
+    }
+    private void CreateWindowEvents()
+    {
+      InlineStyle.AddEvent(UiEventId.Mouse_Lmb_Press, (UiEventId evId, UiElement ele, PCMouse m) =>
+      {
+        //Dragging
+        _dragInfo._bDragStart = true;
+        _dragInfo._vDragStart = m.Pos;
+        var e = (Gu.Context.Renderer.Picker.PickedObjectFrame as UiElement);
+        if (e != null && e.DragEnabled)
+        {
+          _dragInfo.Target = new WeakReference<UiElement>(e);
+        }
+      });
+      InlineStyle.AddEvent(UiEventId.Mouse_Move, (UiEventId evId, UiElement ele, PCMouse m) =>
+      {
+        //Dragging
+        _dragInfo.Update(m);
+      });
+      InlineStyle.AddEvent(UiEventId.Mouse_Lmb_Release, (UiEventId evId, UiElement ele, PCMouse m) =>
+      {
+        //Dragging
+        _dragInfo.Target = null;
+        _dragInfo._bDrag = false;
+      });
     }
     public static int GetSortLayer(int n)
     {
@@ -1287,7 +1460,7 @@ namespace PirateCraft
 
         UpdateLayout(mt, wo, ct.PCMouse, cam);
 
-        UpdateMesh(wo);
+        RegenMesh(wo, mt);
 
         Pick(ct);
       }
@@ -1326,25 +1499,38 @@ namespace PirateCraft
         }
       }
 
+      //Window events
+      DoMouseEvents(ct.PCMouse, true);
     }
+    private vec2 _viewport_wh_last = new vec2(1, 1);
     private void UpdateLayout(MegaTex mt, WorldObject wo, PCMouse mouse, Camera3D cam)
     {
       if (LayoutChanged)
       {
+        bool force = false;
         vec2 viewport_wh = new vec2(cam.Viewport_Width, cam.Viewport_Height);
+        if ((int)viewport_wh.x != (int)_viewport_wh_last.x || (int)viewport_wh.y != (int)_viewport_wh_last.y)
+        {
+          force = true;
+          _viewport_wh_last = viewport_wh;
+        }
 
         // Gui2d doesn't have a parent, so we have to compute the quads to create a valid clip region.
-        ComputeQuads(viewport_wh, _props._top.Value, _props._right.Value, _props._bottom.Value, _props._left.Value);
+        ComputeQuads(viewport_wh,
+        _props._top.Value, _props._right.Value, _props._bottom.Value, _props._left.Value,
+        _props._borderTopLeftRadius.Value, _props._borderTopRightRadius.Value, _props._borderBotRightRadius.Value, _props._borderBotLeftRadius.Value,
+        _renderOffset, _contentArea);
 
-        PerformLayout(mt, viewport_wh, false, this._props._maxWHPX.Value);
+        PerformLayout(mt, viewport_wh, force, this._props._maxWHPX.Value);
       }
     }
-    private void UpdateMesh(WorldObject wo)
+    private void RegenMesh(WorldObject wo, MegaTex mt)
     {
-      Box2f b = _b2RasterQuad;// getGLRasterQuad();
-      List<v_v4v4v4v2u2> verts = new List<v_v4v4v4v2u2>();
+      Box2f b = GetScreenSpaceClipQuad();// _b2RasterQuad;// getGLRasterQuad();
+      List<v_v4v4v4v2u2v4v4> verts = new List<v_v4v4v4v2u2v4v4>();
 
-      RegenMesh(verts, b, 0);
+      Gu.Assert(mt.DefaultPixel != null);
+      RegenMesh(verts, mt.DefaultPixel, b, 0, DebugDraw);
 
       wo.Mesh = new MeshData("gui_mesh", OpenTK.Graphics.OpenGL4.PrimitiveType.Points,
       Gpu.CreateVertexBuffer(verts.ToArray()),
@@ -1451,6 +1637,16 @@ namespace PirateCraft
         SetMustCompile();
       }
     }
+    public float? BorderRadius
+    {
+      get { return _props._borderTopLeftRadius.Value; }
+      set
+      {
+        _props._borderTopLeftRadius = _props._borderBotLeftRadius = _props._borderBotRightRadius = _props._borderTopRightRadius = value;
+        SetLayoutChanged();
+        SetMustCompile();
+      }
+    }
     public float? Padding
     {
       get { return _props._padTop.Value; }
@@ -1460,7 +1656,8 @@ namespace PirateCraft
         SetLayoutChanged();
       }
     }
-
+    public vec2 Pos { get { return new vec2(_props._left.Value, _props._top.Value); } set { _props._left = value.x; _props._top = value.y; SetLayoutChanged(); } }
+    public vec2 Extent { get { return new vec2(_props._width.Value, _props._height.Value); } set { _props._width = value.x; _props._height = value.y; SetLayoutChanged(); } }
     public vec4? BorderColor { get { return _props._borderColor; } set { _props._borderColor = value; SetLayoutChanged(); } }
     public vec4? Color { get { return _props._color; } set { _props._color = value; SetLayoutChanged(); } }
     public vec4? FontColor { get { return _props._fontColor; } set { _props._fontColor = value; SetLayoutChanged(); } }
@@ -1483,6 +1680,10 @@ namespace PirateCraft
     public float? BorderRight { get { return _props._borderRight; } set { _props._borderRight = value; SetLayoutChanged(); } }
     public float? BorderBot { get { return _props._borderBot; } set { _props._borderBot = value; SetLayoutChanged(); } }
     public float? BorderLeft { get { return _props._borderLeft; } set { _props._borderLeft = value; SetLayoutChanged(); } }
+    public float? BorderTopLeftRadius { get { return _props._borderTopLeftRadius; } set { _props._borderTopLeftRadius = value; SetLayoutChanged(); } }
+    public float? BorderTopRightRadius { get { return _props._borderTopRightRadius; } set { _props._borderTopRightRadius = value; SetLayoutChanged(); } }
+    public float? BorderBotRightRadius { get { return _props._borderBotRightRadius; } set { _props._borderBotRightRadius = value; SetLayoutChanged(); } }
+    public float? BorderBotLeftRadius { get { return _props._borderBotLeftRadius; } set { _props._borderBotLeftRadius = value; SetLayoutChanged(); } }
     public float? PadTop { get { return _props._padTop; } set { _props._padTop = value; SetLayoutChanged(); } }
     public float? PadRight { get { return _props._padRight; } set { _props._padRight = value; SetLayoutChanged(); } }
     public float? PadBot { get { return _props._padBot; } set { _props._padBot = value; SetLayoutChanged(); } }
@@ -1491,7 +1692,7 @@ namespace PirateCraft
     public UiRef<FontFace> FontFace { get { return _props._fontFace; } set { _props._fontFace = value; SetLayoutChanged(); } }
     public float? FontSize { get { return _props._fontSize; } set { _props._fontSize = value; SetLayoutChanged(); } }
     public UiFontStyle? FontStyle { get { return _props._fontStyle; } set { _props._fontStyle = value; SetLayoutChanged(); } }
-    public UiRef<Dictionary<UiEventId, List<Action<UiEventId, UiElement, PCMouse>>>> Events { get { return _props._events; } set { _props._events = value; } }
+    public UiRef<Dictionary<UiEventId, MultiMap<string, Action<UiEventId, UiElement, PCMouse>>>> Events { get { return _props._events; } set { _props._events = value; } }
 
     public bool IsStatic { get; set; } = false;//If this style is static, it is copied to the element. Also remove temp data. Used for Glyphs and non-updatable (expensive) elements.
 
@@ -1535,20 +1736,28 @@ namespace PirateCraft
     public UiStyle()
     {
     }
-    public void AddEvent(UiEventId evId, Action<UiEventId, UiElement, PCMouse> f)
+    public void AddEvent(UiEventId evId, Action<UiEventId, UiElement, PCMouse> f, string tag = "")
     {
       // Layman's: For each Mouse Button State we have a list of functions that get called when it is active (like clicked)
       if (_props._events == null)
       {
-        _props._events = new UiRef<Dictionary<UiEventId, List<Action<UiEventId, UiElement, PCMouse>>>>(new Dictionary<UiEventId, List<Action<UiEventId, UiElement, PCMouse>>>());
+        _props._events = new UiRef<Dictionary<UiEventId, MultiMap<string, Action<UiEventId, UiElement, PCMouse>>>>(new Dictionary<UiEventId, MultiMap<string, Action<UiEventId, UiElement, PCMouse>>>());
       }
-      List<Action<UiEventId, UiElement, PCMouse>>? evList = null;
+      MultiMap<string, Action<UiEventId, UiElement, PCMouse>>? evList = null;
       if (!_props._events.Value.TryGetValue(evId, out evList))
       {
-        evList = new List<Action<UiEventId, UiElement, PCMouse>>();
+        evList = new MultiMap<string, Action<UiEventId, UiElement, PCMouse>>();
         _props._events.Value.Add(evId, evList);
       }
-      evList.Add(f);
+      evList.Add(tag, f);
+    }
+    public bool RemoveEvents(UiEventId evId, string tag)
+    {
+      if (_props._events.Value.TryGetValue(evId, out var evList))
+      {
+        return evList.Remove(tag);
+      }
+      return false;
     }
     public UiStyle Clone()
     {
@@ -1686,7 +1895,7 @@ namespace PirateCraft
     }
     public GuiComponent(Camera3D cam)
     {
-      _megaTex = new MegaTex("gui_megatex", true, 128);
+      _megaTex = new MegaTex("gui_megatex", true);
       _styleSheet = new UiStyleSheet(_megaTex);
 
       GetFont(FontFace.Fancy);
@@ -1750,12 +1959,12 @@ namespace PirateCraft
       e.InlineStyle.Texture = new UiRef<MtTex>(_megaTex.DefaultPixel);
       if (pos != null)
       {
-        e.Pos = pos.Value;
+        e.InlineStyle.Pos = pos.Value;
         e.InlineStyle.PositionMode = UiPositionMode.Relative;
       }
       if (wh != null)
       {
-        e.Extent = wh.Value;
+        e.InlineStyle.Extent = wh.Value;
       }
       return e;
     }
@@ -1765,34 +1974,42 @@ namespace PirateCraft
       e.InlineStyle.Texture = new UiRef<MtTex>(_megaTex.DefaultPixel);
       if (pos != null)
       {
-        e.Pos = pos.Value;
+        e.InlineStyle.Pos = pos.Value;
         e.InlineStyle.PositionMode = UiPositionMode.Relative;
       }
       e.Text = text;
       e.InlineStyle.MaxWHPX = new vec2(100, 200);
+      e.InlineStyle.Border = 0;
+      e.InlineStyle.BorderRadius = 6;
+      e.InlineStyle.BorderColor = vec4.rgba_ub(90, 120, 240, 255);
+      e.InlineStyle.Color = vec4.rgba_ub(35,47,62, 255);
       e.IsPickRoot = true;
       e.InlineStyle.PadBot = e.InlineStyle.PadLeft = e.InlineStyle.PadTop = e.InlineStyle.PadRight = 15;// Fonts are messed up right now 
+      e.InlineStyle.FontColor = vec4.rgba_ub(255, 255, 255, 255);
       e.InlineStyle.AddEvent(UiEventId.Mouse_Lmb_Release, (eid, uie, m) =>
       {
         e.StyleClass = _styleSheet.GetClass(UiStyleSheet.DefaultHoverStyle);
+        e.InlineStyle.FontColor = vec4.rgba_ub(255, 255, 255, 255);
+      });
+      e.InlineStyle.AddEvent(UiEventId.Mouse_Enter, (eid, uie, m) =>
+      {
+        e.InlineStyle.Border = 1;
+        e.InlineStyle.BorderColor = vec4.rgba_ub(255, 255, 255, 255);
+        //e.StyleClass = _styleSheet.GetClass(UiStyleSheet.DefaultHoverStyle);
+      });
+      e.InlineStyle.AddEvent(UiEventId.Mouse_Leave, (eid, uie, m) =>
+      {
+        e.InlineStyle.Border = 0;
+        //e.StyleClass = _styleSheet.GetClass(UiStyleSheet.DefaultStyle);
+      });
+      e.InlineStyle.AddEvent(UiEventId.Mouse_Lmb_Press, (eid, uie, m) =>
+      {
+        e.InlineStyle.FontColor = vec4.rgba_ub(200, 200, 200, 255);
       });
       if (onClick != null)
       {
         e.InlineStyle.AddEvent(UiEventId.Mouse_Lmb_Release, onClick);
       }
-      e.InlineStyle.AddEvent(UiEventId.Mouse_Enter, (eid, uie, m) =>
-      {
-        e.StyleClass = _styleSheet.GetClass(UiStyleSheet.DefaultHoverStyle);
-      });
-      e.InlineStyle.AddEvent(UiEventId.Mouse_Leave, (eid, uie, m) =>
-      {
-        e.StyleClass = _styleSheet.GetClass(UiStyleSheet.DefaultStyle);
-      });
-      e.InlineStyle.AddEvent(UiEventId.Mouse_Lmb_Press, (eid, uie, m) =>
-      {
-        e.StyleClass = _styleSheet.GetClass(UiStyleSheet.DefaultDownStyle);
-      });
-
       return e;
     }
     public UiElement CreateLabel(string name, vec2? pos, string text, bool showbackground = true, FontFace? font = null, float fontSize = 12, vec4? fontColor = null, UiFontStyle fontstyle = UiFontStyle.Normal, float lineheight = 1.0f)
@@ -1801,13 +2018,13 @@ namespace PirateCraft
       e.InlineStyle.Texture = new UiRef<MtTex>(showbackground ? _megaTex.DefaultPixel : null);
       if (pos != null)
       {
-        e.Pos = pos.Value;
+        e.InlineStyle.Pos = pos.Value;
         e.InlineStyle.PositionMode = UiPositionMode.Relative;
       }
       e.Text = text;
       e.InlineStyle.FontFace = new UiRef<FontFace>(font != null ? font : FontFace.Mono);
       e.InlineStyle.FontSize = fontSize;
-      e.InlineStyle.FontColor = fontColor != null ? fontColor.Value : new vec4(0, 0, 0, 1);
+      e.InlineStyle.FontColor = fontColor != null ? fontColor.Value : new vec4(1, 1, 1, 1);
       e.InlineStyle.FontStyle = fontstyle;
       e.InlineStyle.LineHeight = lineheight;
       e.InlineStyle.PadBot = e.InlineStyle.PadLeft = e.InlineStyle.PadTop = e.InlineStyle.PadRight = 15;// Fonts are messed up right now 

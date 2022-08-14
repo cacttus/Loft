@@ -457,20 +457,37 @@ namespace PirateCraft
       //Gui Comp
       var gui = new GuiComponent(Gu.World.Camera);
       var tb = gui.CreatePanel("tb", null, null);
-      tb.InlineStyle.MinWHPX = new vec2(0, 30);
+      tb.InlineStyle.MinWHPX = new vec2(0, 25);
       tb.InlineStyle.SizeModeWidth = UiSizeMode.Expand;
-      var file = gui.CreateButton("tbb1", null, "File", (i, e, m) => { });
+      tb.InlineStyle.Color = vec4.rgba_ub(35,47,62,255);
+
+      var file = gui.CreateButton("tbb1", null, "File", (i, e, m) => { 
+        
+        e.InlineStyle.BorderRadius+=1; 
+        });
       file.InlineStyle.DisplayMode = UiDisplayMode.Inline;
+
       var options = gui.CreateButton("tbb2", null, "Options", (i, e, m) => { });
       options.InlineStyle.DisplayMode = UiDisplayMode.Inline;
+      
+      var showdb = gui.CreateButton("opts", null, "ShowDbg", (i, e, m) => { 
+        gui.Screen.DebugDraw.DisableClip = !gui.Screen.DebugDraw.DisableClip;
+        gui.Screen.DebugDraw.ShowOverlay = !gui.Screen.DebugDraw.ShowOverlay;
+      });
+      showdb.InlineStyle.DisplayMode = UiDisplayMode.Inline;
+
       tb.AddChild(file);
       tb.AddChild(options);
+      tb.AddChild(showdb);
       gui.Screen.AddChild(tb);
 
-      // gui.Screen.AddChild(_buttonTest = gui.CreateButton("buttonTest", new vec2(300, 50), "cLICK mE", (i, e, m) =>
-      // {
-      //   e.Text = "Text has changed!";
-      // }));
+      var dragpanel = gui.CreateLabel("drag", new vec2(400,400), "DragMe",true,null,35);
+      dragpanel.InlineStyle.MaxWHPX = new vec2(100,100);
+      dragpanel.EnableDrag((v)=>{
+        dragpanel.InlineStyle.Left+=v.x;
+        dragpanel.InlineStyle.Top+=v.y;
+        dragpanel.Text = "AAAAAAAHHHHHHH DRAGGGGGGGGGGG!!!!!!!!!!!!!";});
+      gui.Screen.AddChild(dragpanel);
 
       gui.Screen.AddChild(_lblDebugInfo = gui.CreateLabel("debugInfo", null, "testxx", false, FontFace.Mono, 25));
 

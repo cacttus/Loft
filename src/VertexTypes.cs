@@ -10,30 +10,44 @@ namespace PirateCraft
     v2_01,
     v2_02,
     v2_03,
+    v2_04,
+    v2_05,
 
     v3_01,
     v3_02,
     v3_03,
+    v3_04,
+    v3_05,
 
     v4_01,
     v4_02,
     v4_03,
+    v4_04,
+    v4_05,
 
     c4_01,
     c4_02,
     c4_03,
+    c4_04,
+    c4_05,
 
     c3_01,
     c3_02,
     c3_03,
+    c3_04,
+    c3_05,
 
     n3_01,
     n3_02,
     n3_03,
+    n3_04,
+    n3_05,
 
     x2_01,
     x2_02,
     x2_03,
+    x2_04,
+    x2_05,
 
     i1_01, //int (4 bytes)
     i1_02,
@@ -365,7 +379,7 @@ namespace PirateCraft
           int count = 0;
           if (occurances.TryGetValue(outType, out count))
           {
-            if (count >= 3)
+            if (count >= 5)
             {
               Gu.BRThrowException("Attribute count for type was more than 3. Not a bug, just we haven't supported it yet (update the enum).");
             }
@@ -432,6 +446,8 @@ namespace PirateCraft
         case VertexComponentType.v2_01:
         case VertexComponentType.v2_02:
         case VertexComponentType.v2_03:
+        case VertexComponentType.v2_04:
+        case VertexComponentType.v2_05:
           eType = VertexAttribPointerType.Float;
           compCount = 2;
           size = Marshal.SizeOf(default(vec2));
@@ -439,6 +455,8 @@ namespace PirateCraft
         case VertexComponentType.v3_01:
         case VertexComponentType.v3_02:
         case VertexComponentType.v3_03:
+        case VertexComponentType.v3_04:
+        case VertexComponentType.v3_05:
           //*******************************************
           //**note this from the opengl wiki
           //"Implementations sometimes get the std140 layout wrong for vec3 components.
@@ -451,6 +469,8 @@ namespace PirateCraft
         case VertexComponentType.v4_01:
         case VertexComponentType.v4_02:
         case VertexComponentType.v4_03:
+        case VertexComponentType.v4_04:
+        case VertexComponentType.v4_05:
           eType = VertexAttribPointerType.Float;
           compCount = 4;
           size = Marshal.SizeOf(default(vec4));
@@ -458,6 +478,8 @@ namespace PirateCraft
         case VertexComponentType.c3_01:
         case VertexComponentType.c3_02:
         case VertexComponentType.c3_03:
+        case VertexComponentType.c3_04:
+        case VertexComponentType.c3_05:
           eType = VertexAttribPointerType.Float;
           compCount = 3;
           size = Marshal.SizeOf(default(vec3));  //**Look at the size: vec4 - OpenGL requires components to be 64 byte aligned.
@@ -465,6 +487,8 @@ namespace PirateCraft
         case VertexComponentType.c4_01:
         case VertexComponentType.c4_02:
         case VertexComponentType.c4_03:
+        case VertexComponentType.c4_04:
+        case VertexComponentType.c4_05:
           eType = VertexAttribPointerType.Float;
           compCount = 4;
           size = Marshal.SizeOf(default(vec4));
@@ -472,6 +496,8 @@ namespace PirateCraft
         case VertexComponentType.n3_01:
         case VertexComponentType.n3_02:
         case VertexComponentType.n3_03:
+        case VertexComponentType.n3_04:
+        case VertexComponentType.n3_05:
           eType = VertexAttribPointerType.Float;
           compCount = 3;
           size = Marshal.SizeOf(default(vec3));  //**Look at the size: vec4  - OpenGL requires components to be 64 byte aligned.
@@ -479,6 +505,8 @@ namespace PirateCraft
         case VertexComponentType.x2_01:
         case VertexComponentType.x2_02:
         case VertexComponentType.x2_03:
+        case VertexComponentType.x2_04:
+        case VertexComponentType.x2_05:
           eType = VertexAttribPointerType.Float;
           compCount = 2;
           size = Marshal.SizeOf(default(vec2));  //**Look at the size: vec4  - OpenGL requires components to be 64 byte aligned.
@@ -786,6 +814,8 @@ namespace PirateCraft
         case VertexComponentType.v4_01:
         case VertexComponentType.v4_02:
         case VertexComponentType.v4_03:
+        case VertexComponentType.v4_04:
+        case VertexComponentType.v4_05:
           return ("Position4f");
       };
 
@@ -880,13 +910,15 @@ namespace PirateCraft
   }
   //v_GuiVert
   [StructLayout(LayoutKind.Sequential)]
-  public struct v_v4v4v4v2u2
+  public struct v_v4v4v4v2u2v4v4
   {
     public vec4 _rect;
     public vec4 _clip;
     public vec4 _tex;
     public vec2 _texsiz;
     public uvec2 _pick_color;
+    public vec4 _rtl_rtr; //css corners = tl, tr, br, bl = xyzw
+    public vec4 _rbr_rbl; 
   };
   [StructLayout(LayoutKind.Sequential)]
   public struct v_v3x2

@@ -121,16 +121,18 @@ namespace PirateCraft
     private vec2 _uv_p0, _uv_p1;
     private FileLoc _strImgName;
     private int _iPatchImg = 0;  //0-8 for 9p, or 0-2 for 3p //Basically this is if we split an image up into "patches". Probably not being used.
+    public int ShrinkPixels { get; private set; } = 0;
 
     public void SetWH(int w, int h)
     {
       _iWidth = w;
       _iHeight = h;
     }
-    public MtTex(FileLoc imgName, int iPatch)
+    public MtTex(FileLoc imgName, int iPatch, int shrinkPixelBorder = 0)
     {
       _strImgName = imgName;
       _iPatchImg = iPatch;
+      ShrinkPixels = shrinkPixelBorder;
     }
     public FileLoc ImgName() { return _strImgName; }
     public int GetWidth() { return _iWidth; }
@@ -183,9 +185,9 @@ namespace PirateCraft
       _strName = imgName;
       _pMegaTex = mt;
     }
-    public void AddTexImage(FileLoc img, int iPatch)
+    public void AddTexImage(FileLoc img, int iPatch, int shrinkPixelBorder = 0)
     {
-      MtTex mt = new MtTex(img, iPatch);
+      MtTex mt = new MtTex(img, iPatch, shrinkPixelBorder);
       Gpu.CheckGpuErrorsDbg();
       //_pMegaTex.getContext().chkErrDbg();
       _vecTexs.Add(mt);
@@ -673,7 +675,7 @@ namespace PirateCraft
         float bearing = (float)leftbearing * patchInfo.ScaleForPixelHeight;
         float ascent = (float)_ascent * patchInfo.ScaleForPixelHeight;
         float descent = (float)_descent * patchInfo.ScaleForPixelHeight;
-        float lineHeight = Math.Abs(ascent) + Math.Abs(descent) + (float)_lineGap *  patchInfo.ScaleForPixelHeight;
+        float lineHeight = Math.Abs(ascent) + Math.Abs(descent) + (float)_lineGap * patchInfo.ScaleForPixelHeight;
         // advanceWidth is the offset from the current horizontal position to the next horizontal position
         // leftSideBearing is the offset from the current horizontal position to the left edge of the character
         // ascent is the coordinate above the baseline the font extends; descent
@@ -685,7 +687,7 @@ namespace PirateCraft
 
         ccd.height = lineHeight;
         ccd.width = (stbQuad.x1 - stbQuad.x0);
-        ccd.marginRight =  Math.Abs(advance) - ccd.width; 
+        ccd.marginRight = Math.Abs(advance) - ccd.width;
         ccd.left = stbQuad.x0;
         ccd.top = stbQuad.y0;
         ccd.right = stbQuad.x1;
@@ -738,14 +740,16 @@ namespace PirateCraft
     public MtTex DefaultPixel = null;
     public string Name { get; private set; } = "";
 
-    public MegaTex(string name, bool bCache, int defaultRegionSize = 0) //: Texture2D(name, TextureFormat::Image4ub, ctx)
+    public MegaTex(string name, bool bCache, int defaultPixelSize = 3)
     {
-      //@param defaultRegionSize - Add a default white region for rendering solid colors. 0=disable.
+      //@param defaultPixelSize - Add a default white region for rendering solid colors. 0=disable.
       _bCache = bCache;
-      if (defaultRegionSize > 0)
+      if (defaultPixelSize > 0)
       {
         //Note: Default region will get skewed if texture filtering is enabled.
-        var tp = GetTex(new Img32(defaultRegionSize, defaultRegionSize, Enumerable.Repeat((byte)255, defaultRegionSize * defaultRegionSize * 4).ToArray(), Img32.PixelFormat.RGBA));
+        var pixelBytes = Enumerable.Repeat((byte)255, defaultPixelSize * defaultPixelSize * 4).ToArray();
+        var dpImage = new Img32(defaultPixelSize, defaultPixelSize, pixelBytes, Img32.PixelFormat.RGBA);
+        var tp = GetTex(dpImage, 1);
         DefaultPixel = tp.GetTexs()[0];
       }
       Name = name;
@@ -767,10 +771,10 @@ namespace PirateCraft
       MtFont ft = ret as MtFont;
       return ft;
     }
-    public MtTexPatch GetTex(Img32 tx)
+    public MtTexPatch GetTex(Img32 tx, int shrinkPixelBorder = 0)
     {
       string genName = "|gen-" + genId++;
-      MtTexPatch p = GetTex(new FileLoc(genName, FileStorage.Embedded), 1, true);
+      MtTexPatch p = GetTex(new FileLoc(genName, FileStorage.Embedded), 1, true, false, shrinkPixelBorder);
       if (p != null && p.GetTexs().Count > 0)
       {
         p.GetTexs()[0].SetImg(tx);
@@ -783,7 +787,7 @@ namespace PirateCraft
 
       return p;
     }
-    public MtTexPatch GetTex(FileLoc img, int nPatches = 1, bool bPreloaded = false, bool bLoadNow = false)
+    public MtTexPatch GetTex(FileLoc img, int nPatches = 1, bool bPreloaded = false, bool bLoadNow = false, int shrinkPixelBorder = 0)
     {
       Gu.Assert(nPatches > 0);
 
@@ -803,7 +807,7 @@ namespace PirateCraft
         ret = new MtTexPatch(this, img);
         for (int i = 0; i < nPatches; ++i)
         {
-          ret.AddTexImage(img, i);  //we could do "preloaded' as a bool, but it's probably nto necessary
+          ret.AddTexImage(img, i, shrinkPixelBorder);  //we could do "preloaded' as a bool, but it's probably nto necessary
         }
         _mapTexs.Add(img.QualifiedPath, ret);
         _eState = MegaTexCompileState.Dirty;
@@ -982,12 +986,13 @@ namespace PirateCraft
           master_albedo.copySubImageFrom(texx.Node()._b2Rect._min, new ivec2(0, 0), new ivec2(texx.GetWidth(), texx.GetHeight()), texx.Img());
           Gpu.CheckGpuErrorsDbg();
 
-          texx.uv0 = new vec2(
-            (float)texx.Node()._b2Rect._min.x / imgW,
-           (float)texx.Node()._b2Rect._min.y / imgH);
-          texx.uv1 = new vec2(
-            (float)texx.Node()._b2Rect._max.x / imgW,
-           (float)texx.Node()._b2Rect._max.y / imgH);
+          //Tex coords
+          float minx = (float)texx.Node()._b2Rect._min.x + texx.ShrinkPixels;
+          float miny = (float)texx.Node()._b2Rect._min.y + texx.ShrinkPixels;
+          float maxx = (float)texx.Node()._b2Rect._max.x - texx.ShrinkPixels;
+          float maxy = (float)texx.Node()._b2Rect._max.y - texx.ShrinkPixels;
+          texx.uv0 = new vec2(minx / imgW, miny / imgH);
+          texx.uv1 = new vec2(maxx / imgW, maxy / imgH);
 
           //Free the image and node, we don't need it
           texx.FreeTmp();
@@ -1022,6 +1027,8 @@ namespace PirateCraft
           output.Normal = null;
         }
       }
+
+
 
       _eState = MegaTexCompileState.Compiled;
 
