@@ -5,6 +5,7 @@ using OpenTK.Graphics.OpenGL4;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
+
 namespace PirateCraft
 {
   public enum CamMode
@@ -459,18 +460,19 @@ namespace PirateCraft
       var tb = gui.CreatePanel("tb", null, null);
       tb.InlineStyle.MinWHPX = new vec2(0, 25);
       tb.InlineStyle.SizeModeWidth = UiSizeMode.Expand;
-      tb.InlineStyle.Color = vec4.rgba_ub(35,47,62,255);
+      tb.InlineStyle.Color = vec4.rgba_ub(35, 47, 62, 255);
 
-      var file = gui.CreateButton("tbb1", null, "File", (i, e, m) => { 
-        
-        e.InlineStyle.BorderRadius+=1; 
-        });
+      var file = gui.CreateButton("tbb1", null, "File", (i, e, m) =>
+      {
+        e.InlineStyle.BorderRadius += 1;
+      });
       file.InlineStyle.DisplayMode = UiDisplayMode.Inline;
 
       var options = gui.CreateButton("tbb2", null, "Options", (i, e, m) => { });
       options.InlineStyle.DisplayMode = UiDisplayMode.Inline;
-      
-      var showdb = gui.CreateButton("opts", null, "ShowDbg", (i, e, m) => { 
+
+      var showdb = gui.CreateButton("opts", null, "ShowDbg", (i, e, m) =>
+      {
         gui.Screen.DebugDraw.DisableClip = !gui.Screen.DebugDraw.DisableClip;
         gui.Screen.DebugDraw.ShowOverlay = !gui.Screen.DebugDraw.ShowOverlay;
       });
@@ -481,12 +483,14 @@ namespace PirateCraft
       tb.AddChild(showdb);
       gui.Screen.AddChild(tb);
 
-      var dragpanel = gui.CreateLabel("drag", new vec2(400,400), "DragMe",true,null,35);
-      dragpanel.InlineStyle.MaxWHPX = new vec2(100,100);
-      dragpanel.EnableDrag((v)=>{
-        dragpanel.InlineStyle.Left+=v.x;
-        dragpanel.InlineStyle.Top+=v.y;
-        dragpanel.Text = "AAAAAAAHHHHHHH DRAGGGGGGGGGGG!!!!!!!!!!!!!";});
+      var dragpanel = gui.CreateLabel("drag", new vec2(400, 400), "DragMe", true, null, 35);
+      dragpanel.InlineStyle.MaxWHPX = new vec2(100, 100);
+      dragpanel.EnableDrag((v) =>
+      {
+        dragpanel.InlineStyle.Left += v.x;
+        dragpanel.InlineStyle.Top += v.y;
+        dragpanel.Text = "AAAAAAAHHHHHHH DRAGGGGGGGGGGG!!!!!!!!!!!!!";
+      });
       gui.Screen.AddChild(dragpanel);
 
       gui.Screen.AddChild(_lblDebugInfo = gui.CreateLabel("debugInfo", null, "testxx", false, FontFace.Mono, 25));
@@ -535,7 +539,8 @@ namespace PirateCraft
           $"Arrays_Frame: {MeshData.dbg_numDrawArrays_Frame} \n" +
           $"OBs culled:{Gu.World.Dbg_N_OB_Culled} \n" +
           $"Mouse:{Gu.Mouse.Pos.x},{Gu.Mouse.Pos.y} \n" +
-          $"Cap Hit:{CapsuleHit} \n"
+          $"Cap Hit:{CapsuleHit} \n" +
+          $"Memory:{StringUtil.FormatPrec((float)System.Diagnostics.Process.GetCurrentProcess().PrivateMemorySize64 / 1024 / 1024, 2)}MB \n"
           ;
 
 
