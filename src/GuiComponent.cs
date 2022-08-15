@@ -375,6 +375,7 @@ namespace PirateCraft
       get { return _strText; }
       set
       {
+        _strTextLast = _strText;
         _strText = value;
         SetLayoutChanged();
         _bTextChanged = true;
@@ -418,7 +419,10 @@ namespace PirateCraft
         }
         return _inlineStyle;
       }
-      set { _inlineStyle = value; }
+      set
+      {
+        _inlineStyle = value;
+      }
     }
     public bool IsPickRoot { get { return _isPickRoot; } set { _isPickRoot = value; } }
     public bool PickEnabled { get { return _pickEnabled; } set { _pickEnabled = value; } } //Prevents the pick algorithm from running on misc elements (such as glyphs).
@@ -454,6 +458,7 @@ namespace PirateCraft
     protected bool _bPickedPreviousFrame = false;
     private long _iPickedFrameId = 0;
     protected string _strText = "";
+    private string _strTextLast = "";
     protected string _name = "";
     public bool DragEnabled { get; private set; } = false;
     public Action<vec2> DragFunc { get; private set; } = null;
@@ -461,6 +466,7 @@ namespace PirateCraft
     private long _iCompiledInlineFrameId = 0;
     private bool _bMustRedoTextBecauseOfStyle = false;
 
+    int _char; //debug -- for text;
     #endregion
     #region Public: Methods
 
@@ -964,8 +970,7 @@ namespace PirateCraft
     }
     protected virtual void PerformLayout_SizeElements(MegaTex mt, bool bForce, vec2 parentMaxWH)
     {
-      //Build the UI depth-first. Children elements are built, then we add those
-      //positions to the parent to build the elements.
+      //Build the UI depth-first. Children elements are sized. Then we got hrough again and position them from the top.
       if (LayoutChanged || bForce)
       {
         ComputeStyle();
@@ -982,15 +987,14 @@ namespace PirateCraft
         //textchanged .. font color .. font size .. etc.
         if (_bTextChanged || _bMustRedoTextBecauseOfStyle)
         {
-          CreateGlyphs(mt);
+          CreateGlyphs(mt, _bTextChanged && !_bMustRedoTextBecauseOfStyle);
           _bMustRedoTextBecauseOfStyle = false;
           _bTextChanged = false;
         }
-        //Do Object Children.
+
+        //Do Children.
         if (_children != null)
         {
-          //PerformLayoutChildren
-          //First pass must expand autosize elements up to the maximum w/h
           foreach (var p in _children)
           {
             UiElement ele = p.Value;
@@ -1000,17 +1004,15 @@ namespace PirateCraft
             }
           }
 
-          //Second pass positions elements, and, expands parent
-          PositionChildren(bForce, maxWH, ref contentWH);
+          LayoutChildren(bForce, maxWH, ref contentWH);
         }
 
         SizeElement(maxWH, contentWH);
-
-        //LayoutChanged = false;
       }
     }
     protected void PerformLayout_PositionElements(vec2 viewport_wh, bool bForce)
     {
+      //Position elements after size calculated
       if (LayoutChanged || bForce)
       {
         if (_children != null)
@@ -1115,7 +1117,7 @@ namespace PirateCraft
       }
 
     }
-    protected void PositionChildren(bool bForce, vec2 maxWH, ref vec2 contentWH)
+    protected void LayoutChildren(bool bForce, vec2 maxWH, ref vec2 contentWH)
     {
       //Layout each layer specified by the key in the Children multimap.
       //Each new layer will be a new layout set (bucket).
@@ -1355,13 +1357,14 @@ namespace PirateCraft
       _b2RasterQuad._max.x = _b2RasterQuad._max.x / w2;
       _b2RasterQuad._max.y = (h2 - _b2RasterQuad._max.y - 1) / h2;
     }
-    private void CreateGlyphs(MegaTex mt)
+    private void CreateGlyphs(MegaTex mt, bool replaceChangedGlyphs)
     {
+      //textOnly If just text changed then just create new chars
+      //style - if style changed we must redo everything.
       if (_children == null)
       {
         _children = new MultiMap<int, UiElement>();
       }
-      _children.Remove(c_GlyphLayerSort);
 
       //Get the font if it isn't already got.
       MtFont font = null;
@@ -1380,53 +1383,159 @@ namespace PirateCraft
       {
         return;
       }
-      CachedCharData ccd = new CachedCharData();
-
-      // var glyphStyle = new UiStyle();
-      // glyphStyle._props.SetAllDefault();
-
-      int index = 0;
-      foreach (int cc in _strText)
+      //replaceChangedGlyphs=false;
+      int[] diff = null;
+      if (replaceChangedGlyphs)
       {
-        int ccNext = (index + 1) < _strText.Length ? _strText[index++] : 0;
-        float adv = font.GetKernAdvanceWidth(patch, _props._fontSize.Value, cc, ccNext);
-        if (adv != 0)
+        //Try to "smart" replace only changed text. 
+        var glyphs = _children.ItemsAt(c_GlyphLayerSort);
+        if (glyphs == null)
         {
-          int n = 0;
-          n++;
+          replaceChangedGlyphs = false;
         }
-
-        patch.GetChar(cc, fontHeight, out ccd);
-
-        //TODO: this should be UiElementBase, for simplicity. UiElement is too huge.
-        UiElement e = new UiElement();
-        e._pickEnabled = false;
-        e._renderOffset = new Box2f(new vec2(ccd.left, ccd.top), new vec2(ccd.right, ccd.bot));
-        e._props.SetDefault();
-        e._props._texture = new UiRef<MtTex>(new MtTex(null, 0));
-        e._props._texture.Value.SetWH(patch.TextureWidth, patch.TextureHeight);
-        e._props._texture.Value.uv0 = ccd.uv0;
-        e._props._texture.Value.uv1 = ccd.uv1;
-        e._props._left = 0;
-        e._props._top = 0;
-        e._props._minWHPX = new vec2(ccd.width, ccd.height * _props._lineHeight.Value);
-        e._props._marRight = ccd.marginRight + adv;
-        e._props._positionMode = UiPositionMode.Static;
-        if (cc == '\n')
+        else if (_strTextLast.Length != glyphs.Count)
         {
-          e._props._displayMode = UiDisplayMode.Block;
+          //Something messed up between text/glyphs, redo everything, technically this should never happen, hence debugberak
+          replaceChangedGlyphs = false;
+          _children.Remove(c_GlyphLayerSort);
+          Gu.DebugBreak();
         }
         else
         {
-          e._props._displayMode = UiDisplayMode.Inline;
+          int ilast = 0;
+          int icur = 0;
+          List<UiElement> newChildren = new List<UiElement>();
+          diff = StringUtil.SlidingDiff(_strTextLast, _strText, 16);
+          int debug_numcreated = 0;
+          for (int di = 0; di < diff.Length; di += 2)
+          {
+            int ct = diff[di + 1];
+            int code = diff[di + 0];
+            if (code == 0) // no change 
+            {
+              for (int cti = 0; cti < ct; cti++)
+              {
+                var e = glyphs[ilast + cti];
+                e.LayoutChanged = true;
+                newChildren.Add(e);
+              }
+              ilast += ct;
+              icur += ct;
+            }
+            else if (code == 1)//add new
+            {
+              for (int cti = 0; cti < ct; cti++)
+              {
+                UiElement e = new UiElement();
+                DoGlyph(e, icur + cti, _strText, font, patch, fontHeight);
+                newChildren.Add(e);
+                debug_numcreated++;
+              }
+              icur += ct;
+            }
+            else if (code == 2) //remove
+            {
+              ilast += ct;
+            }
+          }
+
+          // //test
+          // string test1="";
+          // foreach(var c in newChildren){
+          // test1+=(char)c._char;
+          // }
+          //       string test2 = "";
+          //       ilast = 0;
+          //       icur = 0;
+          //       int nadd = 0;
+          //       int nrem = 0;
+          //       for (var xi = 0; xi < diff.Length; xi += 2)
+          //       {
+          //           int ct = diff[xi + 1];
+          //         if (diff[xi + 0] == 0)
+          //         {
+          //           test2 += _strTextLast.Substring(ilast, ct);
+          //           ilast += ct;
+          //           icur += ct;
+          //         }
+          //         else if (diff[xi + 0] == 1)
+          //         {
+          //           test2 += _strText.Substring(icur, ct);
+          //           icur += ct;
+          //           nadd += ct;
+          //         }
+          //         else if (diff[xi + 0] == 2)
+          //         {
+          //           ilast += ct;
+          //           nrem += ct;
+          //         }
+          //       }
+          //       bool didWork = StringUtil.Equals(_strText, test2);
+          //       bool didWork2 = StringUtil.Equals(_strText, test1);
+
+
+          _children.SetValueList(c_GlyphLayerSort, newChildren);
         }
-        e._props._color = _props._fontColor;
-
-        e.ValidateQuad();
-
-        //fASTER THAN AddChild, we don't need the extra stuff for glyphs
-        _children.Add(c_GlyphLayerSort, e);
       }
+      else
+      {
+        _children.Remove(c_GlyphLayerSort);
+        int debug_redocount = 0;
+        for (int ci = 0; ci < _strText.Length; ci++)
+        {
+          UiElement e = new UiElement();
+
+          DoGlyph(e, ci, _strText, font, patch, fontHeight);
+
+          _children.Add(c_GlyphLayerSort, e);
+
+          debug_redocount++;
+        }
+      }
+    }
+
+    private void DoGlyph(UiElement e, int index, string text, MtFont font, FontPatchInfo patch, float fontHeight)
+    {
+      int cc = _strText[index];
+      int ccNext = (index + 1) < _strText.Length ? _strText[index + 1] : 0;
+      float adv = font.GetKernAdvanceWidth(patch, _props._fontSize.Value, cc, ccNext);
+      if (adv != 0)
+      {
+        int n = 0;
+        n++;
+      }
+
+      CachedCharData ccd = new CachedCharData();
+      patch.GetChar(cc, fontHeight, out ccd);
+
+      //TODO: this should be UiElementBase, for simplicity. UiElement is too huge.
+
+      e._pickEnabled = false;
+      e._renderOffset = new Box2f(new vec2(ccd.left, ccd.top), new vec2(ccd.right, ccd.bot));
+      e._props.SetDefault();
+      e._props._texture = new UiRef<MtTex>(new MtTex(null, 0));
+      e._props._texture.Value.SetWH(patch.TextureWidth, patch.TextureHeight);
+      e._props._texture.Value.uv0 = ccd.uv0;
+      e._props._texture.Value.uv1 = ccd.uv1;
+      e._props._left = 0;
+      e._props._top = 0;
+      e._props._minWHPX = new vec2(ccd.width, ccd.height * _props._lineHeight.Value);
+      e._props._marRight = ccd.marginRight + adv;
+      e._props._positionMode = UiPositionMode.Static;
+      e._props._sizeModeHeight = UiSizeMode.Shrink;
+      e._props._sizeModeWidth = UiSizeMode.Shrink;
+      e._char = cc;
+      if (cc == '\n')
+      {
+        e._props._displayMode = UiDisplayMode.Block;
+      }
+      else
+      {
+        e._props._displayMode = UiDisplayMode.Inline;
+      }
+      e._props._color = _props._fontColor;
+
+      e.ValidateQuad();
     }
 
     #endregion
@@ -1439,6 +1548,7 @@ namespace PirateCraft
       }
       return _contentArea._b2RasterQuad;
     }
+
   }//UiElement
   public class UiScreen : UiElement
   {
@@ -1460,16 +1570,6 @@ namespace PirateCraft
       _props._minWHPX = new vec2(0, 0);
       _props._sizeModeWidth = _props._sizeModeHeight = UiSizeMode.Expand;
       this.Name = "screen(root)";
-    }
-    private void SetExtentsToViewport(Camera3D cam)
-    {
-      _props._top = cam.Viewport_Y;
-      _props._left = cam.Viewport_X;
-      _props._width = cam.Viewport_Width - cam.Viewport_X - 1;
-      _props._height = cam.Viewport_Height - cam.Viewport_Y - 1;
-      _props._maxWHPX = new vec2(cam.Viewport_Width, cam.Viewport_Height);//Make sure stuff doesn't go off the screen.
-      _props._minWHPX = new vec2(cam.Viewport_X, cam.Viewport_Y);
-
       CreateWindowEvents();
     }
     private void CreateWindowEvents()
@@ -1511,14 +1611,28 @@ namespace PirateCraft
 
       if (_camera.TryGetTarget(out var cam))
       {
+        long a = Gu.Milliseconds();
         SetExtentsToViewport(cam);
-
         UpdateLayout(mt, wo, ct.PCMouse, cam);
+        this.UpdateMs = Gu.Milliseconds() - a;
 
+        a = Gu.Milliseconds();
         RegenMesh(wo, mt);
+        this.MeshMs = Gu.Milliseconds() - a;
 
+        a = Gu.Milliseconds();
         Pick(ct);
+        this.PickMs = Gu.Milliseconds() - a;
       }
+    }
+    private void SetExtentsToViewport(Camera3D cam)
+    {
+      _props._top = cam.Viewport_Y;
+      _props._left = cam.Viewport_X;
+      _props._width = cam.Viewport_Width - cam.Viewport_X - 1;
+      _props._height = cam.Viewport_Height - cam.Viewport_Y - 1;
+      _props._maxWHPX = new vec2(cam.Viewport_Width, cam.Viewport_Height);//Make sure stuff doesn't go off the screen.
+      _props._minWHPX = new vec2(cam.Viewport_X, cam.Viewport_Y);
     }
     private void Pick(WindowContext ct)
     {
@@ -1535,6 +1649,7 @@ namespace PirateCraft
       //Do Pick
       Pick(ct.PCMouse, ct.FrameStamp);
 
+      long a = Gu.Milliseconds();
       //Fire events
       if (picker.PickedObjectFrameLast != null)
       {
@@ -1553,9 +1668,12 @@ namespace PirateCraft
           }
         }
       }
+      this.ObjectEventsMs = Gu.Milliseconds() - a;
 
+      a = Gu.Milliseconds();
       //Window events
       DoMouseEvents(ct.PCMouse, true);
+      this.WindowEventsMs = Gu.Milliseconds() - a;
     }
     private vec2 _viewport_wh_last = new vec2(1, 1);
     private void UpdateLayout(MegaTex mt, WorldObject wo, PCMouse mouse, Camera3D cam)
@@ -1578,8 +1696,14 @@ namespace PirateCraft
 
         PerformLayout_SizeElements(mt, force, this._props._maxWHPX.Value);
         PerformLayout_PositionElements(viewport_wh, force);
+
       }
     }
+    public long UpdateMs { get; private set; } = 0;
+    public long MeshMs { get; private set; } = 0;
+    public long PickMs { get; private set; } = 0;
+    public long ObjectEventsMs { get; private set; } = 0;
+    public long WindowEventsMs { get; private set; } = 0;
     private void RegenMesh(WorldObject wo, MegaTex mt)
     {
       Box2f b = GetScreenSpaceClipQuad();
@@ -2019,7 +2143,7 @@ namespace PirateCraft
       e.Text = text;
       e.InlineStyle.MaxWHPX = new vec2(100, 200);
       e.InlineStyle.Border = 0;
-      e.InlineStyle.BorderRadius = 6;
+      e.InlineStyle.BorderRadius = 20;
       e.InlineStyle.BorderColor = vec4.rgba_ub(90, 120, 240, 255);
       e.InlineStyle.Color = vec4.rgba_ub(35 + 90, 47 + 90, 62 + 90, 255);
       e.IsPickRoot = true;
@@ -2034,7 +2158,7 @@ namespace PirateCraft
       });
       e.InlineStyle.AddEvent(UiEventId.Mouse_Enter, (eid, uie, m) =>
       {
-        e.InlineStyle.Border = 1;
+        e.InlineStyle.Border = 2;
         e.InlineStyle.BorderColor = vec4.rgba_ub(255, 255, 255, 255);
         //e.StyleClass = _styleSheet.GetClass(UiStyleSheet.DefaultHoverStyle);
       });

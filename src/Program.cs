@@ -453,52 +453,60 @@ namespace PirateCraft
     }
     UiElement _lblDebugInfo = null;
     UiElement _buttonTest = null;
+    GuiComponent _gui = null;
     private void CreateGUI()
     {
       //Gui Comp
-      var gui = new GuiComponent(Gu.World.Camera);
-      var tb = gui.CreatePanel("tb", null, null);
+      _gui = new GuiComponent(Gu.World.Camera);
+      var tb = _gui.CreatePanel("tb", null, null);
       tb.InlineStyle.MinWHPX = new vec2(0, 25);
       tb.InlineStyle.SizeModeWidth = UiSizeMode.Expand;
       tb.InlineStyle.Color = vec4.rgba_ub(35, 47, 62, 255);
 
-      var file = gui.CreateButton("tbb1", null, "File", (i, e, m) =>
+      var file = _gui.CreateButton("tbb1", null, "File", (i, e, m) =>
       {
-        e.InlineStyle.BorderRadius += 1;
+        e.InlineStyle.BorderRadius += 5;
       });
       file.InlineStyle.DisplayMode = UiDisplayMode.Inline;
 
-      var options = gui.CreateButton("tbb2", null, "Options", (i, e, m) => { });
+      var options = _gui.CreateButton("tbb2", null, "Options", (i, e, m) => { });
       options.InlineStyle.DisplayMode = UiDisplayMode.Inline;
 
-      var showdb = gui.CreateButton("opts", null, "ShowDbg", (i, e, m) =>
+      var showdb = _gui.CreateButton("opts", null, "ShowDbg", (i, e, m) =>
       {
-        gui.Screen.DebugDraw.DisableClip = !gui.Screen.DebugDraw.DisableClip;
-        gui.Screen.DebugDraw.ShowOverlay = !gui.Screen.DebugDraw.ShowOverlay;
+        _gui.Screen.DebugDraw.DisableClip = !_gui.Screen.DebugDraw.DisableClip;
+        _gui.Screen.DebugDraw.ShowOverlay = !_gui.Screen.DebugDraw.ShowOverlay;
       });
       showdb.InlineStyle.DisplayMode = UiDisplayMode.Inline;
 
       tb.AddChild(file);
       tb.AddChild(options);
       tb.AddChild(showdb);
-      gui.Screen.AddChild(tb);
+      _gui.Screen.AddChild(tb);
 
-      var dragpanel = gui.CreateLabel("drag", new vec2(400, 400), "DragMe", true, null, 35);
+      var dragpanel = _gui.CreateLabel("drag", new vec2(400, 400), "DragMe", true, FontFace.Fancy, 35, vec4.rgba_ub(8,70,100,255));
       dragpanel.InlineStyle.MaxWHPX = new vec2(100, 100);
+      dragpanel.InlineStyle.Border = 2;
+      dragpanel.InlineStyle.BorderRadius = 10;
+      dragpanel.InlineStyle.BorderColor = vec4.rgba_ub(220,119,12,180);
+      dragpanel.InlineStyle.Color = vec4.rgba_ub(240,190,100,200);
+      dragpanel.InlineStyle.SizeModeWidth = UiSizeMode.Shrink;
+      dragpanel.InlineStyle.SizeModeHeight = UiSizeMode.Shrink;
+      dragpanel.InlineStyle.MaxWHPX = null;
       dragpanel.EnableDrag((v) =>
       {
         dragpanel.InlineStyle.Left += v.x;
         dragpanel.InlineStyle.Top += v.y;
-        dragpanel.Text = "AAAAAAAHHHHHHH DRAGGGGGGGGGGG!!!!!!!!!!!!!";
+        dragpanel.Text = "Thanks for dragging.";
       });
-      gui.Screen.AddChild(dragpanel);
+      _gui.Screen.AddChild(dragpanel);
 
-      gui.Screen.AddChild(_lblDebugInfo = gui.CreateLabel("debugInfo", null, "testxx", false, FontFace.Mono, 25));
+      _gui.Screen.AddChild(_lblDebugInfo = _gui.CreateLabel("debugInfo", null, "testxx", false, FontFace.Mono, 25));
 
       //Create the gui "object" and put it in front of the player so it doesn't get culled.
       var guiobj = Gu.World.CreateObject("guiobj", null, null);
       guiobj.Position_Local = new vec3(0, 0, 10);
-      guiobj.Components.Add(gui);
+      guiobj.Components.Add(_gui);
       Gu.World.Camera.AddChild(guiobj);
     }
     private void TestSound()
@@ -529,20 +537,25 @@ namespace PirateCraft
     private void UpdateFrame(FrameEventArgs e)
     {
       float chary = this._player_empty.Position_World.y;
-      var info = $"(Cam = {_player_empty.Position_World.ToString(2)}) \n" +
-          $"FPS: {(int)Gu.Context.Fps}\n" +
-          $"nyugs b: {Box3f.nugs} \n" +
-          $"Visible Glob: {Gu.World.NumVisibleRenderGlobs} \n" +
-          $"Gen Glob: {Gu.World.NumGenGlobs} \n" +
-          $"Gen Drome: {Gu.World.NumGenDromes} \n" +
-          $"DrawElements_Frame:{MeshData.dbg_numDrawElements_Frame}\n" +
-          $"Arrays_Frame: {MeshData.dbg_numDrawArrays_Frame} \n" +
-          $"OBs culled:{Gu.World.Dbg_N_OB_Culled} \n" +
-          $"Mouse:{Gu.Mouse.Pos.x},{Gu.Mouse.Pos.y} \n" +
-          $"Cap Hit:{CapsuleHit} \n" +
-          $"Memory:{StringUtil.FormatPrec((float)System.Diagnostics.Process.GetCurrentProcess().PrivateMemorySize64 / 1024 / 1024, 2)}MB \n"
+      var info = $"(Cam = {_player_empty.Position_World.ToString(2)}) \n" 
+          + $"FPS: {(int)Gu.Context.Fps}\n" 
+          + $"nyugs b: {Box3f.nugs} \n" 
+          + $"Visible Glob: {Gu.World.NumVisibleRenderGlobs} \n" 
+          + $"Gen Glob: {Gu.World.NumGenGlobs} \n" 
+          + $"Gen Drome: {Gu.World.NumGenDromes} \n" 
+          + $"DrawElements_Frame:{MeshData.dbg_numDrawElements_Frame}\n" 
+          + $"Arrays_Frame: {MeshData.dbg_numDrawArrays_Frame} \n" 
+          + $"OBs culled:{Gu.World.Dbg_N_OB_Culled} \n" 
+          + $"Mouse:{Gu.Mouse.Pos.x},{Gu.Mouse.Pos.y} \n" 
+          + $"Cap Hit:{CapsuleHit} \n" 
+          + $"Memory:{StringUtil.FormatPrec((float)System.Diagnostics.Process.GetCurrentProcess().PrivateMemorySize64 / 1024 / 1024, 2)}MB \n" 
+          + $"UI Update:{_gui.Screen.UpdateMs}ms \n"
+          + $"UI pick:{_gui.Screen.PickMs}ms \n"
+          + $"UI mesh:{_gui.Screen.MeshMs}ms \n"
+          + $"UI obj events:{_gui.Screen.ObjectEventsMs}ms \n"
+          + $"UI window events:{_gui.Screen.WindowEventsMs}ms \n"
+          + $"UI tot:{_gui.Screen.MeshMs+_gui.Screen.UpdateMs+_gui.Screen.PickMs}ms \n"
           ;
-
 
       //UI Test
       if (_lblDebugInfo != null)

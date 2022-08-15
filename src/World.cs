@@ -2054,7 +2054,7 @@ namespace PirateCraft
     public const float MaxRenderGlobs = 4096;
     public int MaxGlobsToGeneratePerFrame_Sync = 32;//number of glob copy operations per render side frame. This can slow down / speed up rendering.
     public const float BlockSizeX = 32.0f;
-    public const float BlockSizeY = BlockSizeX * 0.25f;
+    public const float BlockSizeY = BlockSizeX ;
     public const float BlockSizeZ = BlockSizeX;
     public const int GlobBlocksX = 8;
     public const int GlobBlocksY = 8;//Note2: change the GlobSHader Uniform buffer to match this^cubed //Note: now this must be <=8 since we are using ushort

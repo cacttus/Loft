@@ -46,6 +46,18 @@ namespace PirateCraft
       }
       ret.Add(y);
     }
+    public List<TValue> ItemsAt(TKey key)
+    {
+      if (_dict.TryGetValue(key, out var ret))
+      {
+        return ret;
+      }
+      return null;
+    }
+    public void SetValueList(TKey key, List<TValue> val){
+      _dict.Remove(key);
+      _dict.Add(key,val);
+    }
     public bool Remove(KeyValuePair<TKey, TValue> val)
     {
       return Remove(val.Key, val.Value);
@@ -316,7 +328,176 @@ namespace PirateCraft
     {
       return String.Format("{0:0." + new string('0', prec) + "}", x);
     }
+    public static int[] SlidingDiff(string strlast, string strcur, int window = 16)
+    {
+      //The purpose of this is to test for subtle changes to a string, say if we replace a number in the debug. So we don't need an entire LCS matrix, or remove all glyphs.
+      //The greater the size of window() the less add/remove there will be, at the cost of algorithm time.
+      
+     // long msa = Gu.Microseconds();
 
+      //int
+      // - = remove char x from last
+      // + = add char x from cur
+      //abcad fxxy = ls, 
+      //ab  def    = cu  nc 0,1 remove 2,3 add 3, nc 4, remove 5,6,7
+      //0022010
+      //xabdxf = ls, 
+      // abdefgh = cu   remove 1-1, same 1-3, replace 4-4, same 5-5, add 6-7
+      //20003011
+      //same=0, add = 1, remove = 2, replace = 3
+      //if there is a diff, find next like char in last, up to maxchange
+
+      //we use RLE, so we need to double the potential changes.
+      int maxlen = Math.Max(strlast.Length, strcur.Length) * 2 + 2;
+      var ret = new int[maxlen];
+      int ri = 0;
+
+      int no_c = 0;
+      int add_c = 1;
+      int rem_c = 2;
+
+      int li = 0;
+      int ci = 0;
+      int ca;
+      int cb;
+
+      bool exit = false;
+      for (int xx = 0; xx < 10000; xx++)//dummy infinite loop blocker
+      {
+        //Find runs
+        int change_none = 0;
+        for (; ci < strcur.Length && li < strlast.Length; ci++, li++)
+        {
+          if (strcur[ci] == strlast[li])
+          {
+            change_none++;
+          }
+          else
+          {
+            break;
+          }
+        }
+        if (change_none > 0)
+        {
+          ret[ri++] = no_c;
+          ret[ri++] = change_none;
+        }
+        if (ci >= strcur.Length && li >= strlast.Length)
+        {
+          break;
+        }
+        else if (ci >= strcur.Length)
+        {
+          ret[ri++] = rem_c;
+          ret[ri++] = strlast.Length - li;
+          break;
+        }
+        else if (li >= strlast.Length)
+        {
+          ret[ri++] = add_c;
+          ret[ri++] = strcur.Length - ci;
+          break;
+        }
+
+        //use a sliding window of maxchange to find next thing
+        //number of chars that are good to go in the best lookahead.
+        //instead of distance I think the heuristic should be "lookahead similarity"
+        int ci_c = -1;
+        int li_c = -1;
+        int best_lookahead = -1;
+        for (int li2 = li; li2 < strlast.Length && (li2 - li) < window; li2++)
+        {
+          for (int ci2 = ci; ci2 < strcur.Length && (ci2 - ci) < window; ci2++)
+          {
+            char a = strlast[li2];
+            char b = strcur[ci2];
+            if (a == b)
+            {
+              int cur_lookahead = 0;
+              for (int li_look = li2, ci_look = ci2;
+              ((li_look < strlast.Length) && ((li_look - li2) < window)) &&
+              ((ci_look < strcur.Length) && ((ci_look - ci2) < window));
+              li_look++, ci_look++)
+              {
+                if (strlast[li_look] == strcur[ci_look])
+                {
+                  cur_lookahead++;
+                }
+                else
+                {
+                  break;
+                }
+              }
+
+              if (cur_lookahead > best_lookahead)
+              {
+                best_lookahead = cur_lookahead;
+                li_c = li2; //set the values to the next best match, based on the best lookahead within our window
+                ci_c = ci2;
+                if (li_c < 0) li_c = 0;
+                if (ci_c < 0) ci_c = 0;
+              }
+            }
+
+          }
+        }
+        if (ci_c == -1)
+        {
+          //drop
+          ret[ri++] = rem_c;
+          ret[ri++] = strlast.Length - ci;
+          ret[ri++] = add_c;
+          ret[ri++] = strcur.Length - ci;
+          break;
+        }
+        else
+        {
+          ret[ri++] = rem_c;
+          ret[ri++] = li_c - li;
+          ret[ri++] = add_c;
+          ret[ri++] = ci_c - ci;
+          li = li_c;
+          ci = ci_c;
+        }
+
+      }
+      Array.Resize<int>(ref ret, ri);
+
+      // //***TESTING
+      // string test = "";
+      // int ilast = 0;
+      // int icur = 0;
+      // int nadd = 0;
+      // int nrem = 0;
+      // for (var xi = 0; xi < ret.Length; xi += 2)
+      // {
+      //   if (ret[xi + 0] == 0)
+      //   {
+      //     int ct = ret[xi + 1];
+      //     test += strlast.Substring(ilast, ct);
+      //     ilast += ct;
+      //     icur += ct;
+      //   }
+      //   else if (ret[xi + 0] == 1)
+      //   {
+      //     int ct = ret[xi + 1];
+      //     test += strcur.Substring(icur, ct);
+      //     icur += ct;
+      //     nadd += ct;
+      //   }
+      //   else if (ret[xi + 0] == 2)
+      //   {
+      //     int ct = ret[xi + 1];
+      //     ilast += ct;
+      //     nrem += ct;
+      //   }
+      // }
+      // bool didWork = StringUtil.Equals(strcur, test);
+      // long msb = Gu.Microseconds () - msa;
+
+
+      return ret;
+    }
   }
 
 
