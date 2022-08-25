@@ -21,5 +21,5 @@ void main(void)
 
   setOutput_Color(new vec4(finalDiffuseColor.rgb *  tx_albedo.rgb, 1));
   setOutput_Pick(_vsPickOut);
-  setOutput_Position(_vsVertex);
+  setOutput_Position(vec4(_vsVertex,1));
 }

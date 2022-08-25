@@ -272,24 +272,25 @@ namespace PirateCraft
       Gu.Assert(rv != null);
       Gu.Assert(rv.Camera != null);
 
-      Gu.Context.Renderer.BeginEverything_New(rv);
-      {
-        Gu.Context.Renderer.BeginRenderDeferred();
-        {
-          Gu.World.RenderDeferred(Gu.Context.Delta, rv);
-        }
-        Gu.Context.Renderer.EndRenderDeferred();
-        Gu.Context.Renderer.BlitDeferredRender(rv);
+      Gu.Context.Renderer.Render(rv, new Dictionary<PipelineStageEnum,Action<double,RenderView>>(){});
+      // Gu.Context.Renderer.BeginEverything_New(rv);
+      // {
+      //   Gu.Context.Renderer.BeginRenderDeferred();
+      //   {
+      //     Gu.World.RenderDeferred(Gu.Context.Delta, rv);
+      //   }
+      //   Gu.Context.Renderer.EndRenderDeferred();
+      //   Gu.Context.Renderer.BlitDeferredRender(rv);
 
-        Gu.Context.Renderer.BeginRenderForward();
-        {
-          Gu.World.RenderForward(Gu.Context.Delta, rv);
-          Gu.World.RenderDebug(Gu.Context.Delta, rv);
-        }
-        Gu.Context.Renderer.EndRenderForward();
-        Gu.Context.Renderer.BlitFinalRender(rv);
-      }
-      Gu.Context.Renderer.EndEverything_New(rv);
+      //   Gu.Context.Renderer.BeginRenderForward();
+      //   {
+      //     Gu.World.RenderForward(Gu.Context.Delta, rv);
+      //     Gu.World.RenderDebug(Gu.Context.Delta, rv);
+      //   }
+      //   Gu.Context.Renderer.EndRenderForward();
+      //   Gu.Context.Renderer.BlitFinalRender(rv);
+      // }
+      // Gu.Context.Renderer.EndEverything_New(rv);
 
       Gu.Context.Gpu.ExecuteCallbacks_RenderThread(Gu.Context);
     }
@@ -538,11 +539,12 @@ namespace PirateCraft
 
       CursorVisible = true;
     }
-    private void CreateLight(){
+    private void CreateLight()
+    {
       var l = new Light("pt");
       l.Radius = 1000;
       l.Power = 1;
-      l.Position_Local = new vec3(0,10,0);
+      l.Position_Local = new vec3(0, 10, 0);
       Gu.World.AddObject(l);
 
     }

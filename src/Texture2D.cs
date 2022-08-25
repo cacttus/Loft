@@ -26,7 +26,6 @@ namespace PirateCraft
 
     public static NormalMapFormat NormalMapFormat { get; private set; } = NormalMapFormat.Yup;
 
-    public string Name { get; private set; } = "texture2d-unnamed";
     public int Width { get; private set; } = 0;
     public int Height { get; private set; } = 0;
     public TexFilter Filter { get; private set; } = TexFilter.Nearest;
@@ -47,7 +46,7 @@ namespace PirateCraft
 
     #endregion
     #region Public:Methods
-    public Texture2D(string name, Img32 img, bool mipmaps, TexFilter filter, TextureWrapMode wrap = TextureWrapMode.Repeat) : base(name+"-tex2d")
+    public Texture2D(string name, Img32 img, bool mipmaps, TexFilter filter, TextureWrapMode wrap = TextureWrapMode.Repeat) : base(name + "-tex2d")
     {
       LoadToGpu(img, mipmaps, filter, wrap);
     }
@@ -57,18 +56,20 @@ namespace PirateCraft
     }
     public Texture2D(FileLoc loc, bool mipmaps, TexFilter filter, TextureWrapMode wrap = TextureWrapMode.Repeat) : base(loc.QualifiedPath)
     {
-      Img32 img=null;
-      try{
-      img= ResourceManager.LoadImage(loc);
+      Img32 img = null;
+      try
+      {
+        img = ResourceManager.LoadImage(loc);
       }
-      catch(Exception ex){
+      catch (Exception ex)
+      {
         Gu.Log.Info("Image not found. Loading default image.");
-        img = Img32.Default1x1_RGBA32ub(255,0,255,255);
+        img = Img32.Default1x1_RGBA32ub(255, 0, 255, 255);
       }
 
       LoadToGpu(img, mipmaps, filter, wrap);
     }
-    public Texture2D(string name, PixelInternalFormat eInternalFormat, PixelFormat eTextureFormat, PixelType eDataType, int iWidth, int iHeight, bool bMultisample, int nSamples) : base(name+"-tex2d")
+    public Texture2D(string name, PixelInternalFormat eInternalFormat, PixelFormat eTextureFormat, PixelType eDataType, int iWidth, int iHeight, int nSamples) : base(name + "-tex2d")
     {
       //MakeRenderTexture
       Gpu.CheckGpuErrorsRt();
@@ -77,13 +78,14 @@ namespace PirateCraft
       this._glId = GL.GenTexture();
       this.PixelFormat = eTextureFormat;
       this.PixelType = eDataType;
+      this.PixelInternalFormat = eInternalFormat;
 
       Gpu.CheckGpuErrorsRt();
 
       //this is for mipmaps or shadows .. array textures
       //      GL.TexStorage2D(TextureTarget2d.Texture2D, _numMipmaps, this.SizedInternalFormat, (int)Width, (int)Height
 
-      if (bMultisample)
+      if (nSamples > 0)
       {
         TextureTarget = TextureTarget.Texture2DMultisample;
         GL.BindTexture(TextureTarget, this._glId);
@@ -127,7 +129,7 @@ namespace PirateCraft
 
       SetObjectLabel();
     }
-    public Texture2D(string owner, int w, int h, bool bMsaaEnabled, int nMsaaSamples) : base(owner + "_DepthTexture" + (bMsaaEnabled ? "_Multisample" : ""))
+    public Texture2D(string owner, int w, int h, int nMsaaSamples) : base(owner + "_DepthTexture" + (nMsaaSamples > 0 ? "_Multisample" : ""))
     {
       //createdepthtexture
       //Creates a depth texture, or multisample depth texture on texture channel 0
@@ -143,7 +145,7 @@ namespace PirateCraft
       //this is for mipmaps or shadows .. array textures
       //      GL.TexStorage2D(TextureTarget2d.Texture2D, _numMipmaps, this.SizedInternalFormat, (int)Width, (int)Height);
 
-      if (bMsaaEnabled)
+      if (nMsaaSamples > 0)
       {
         this.TextureTarget = TextureTarget.Texture2DMultisample;
       }
@@ -159,7 +161,7 @@ namespace PirateCraft
       //THe following parameters are for depth textures only
       Gpu.CheckGpuErrorsRt();
 
-      if (bMsaaEnabled == false)
+      if (nMsaaSamples > 0)
       {
         //For some reason you can't use this with multisample.
 
@@ -190,9 +192,9 @@ namespace PirateCraft
       //Loop over creating a texture until we get no error
       // if(eRequestedDepth == PixelInternalFormat.DepthComponent32f){
       // }
-      getCompatibleDepthComponent(32, (eDepth) =>
+      GetCompatibleDepthComponent(32, (eDepth) =>
       {
-        if (bMsaaEnabled)
+        if (nMsaaSamples > 0)
         {
           //texTarget = TextureTargetMultisample.Texture2D;
           //..ok .. it's the same Enum 
@@ -226,23 +228,23 @@ namespace PirateCraft
       var t = _default1x1ColorPixel_RGBA32ub.Get();
       if (t == null)
       {
-        t = new Texture2D("default1x1-color",Img32.Default1x1_RGBA32ub(Byte.MaxValue, Byte.MaxValue, Byte.MaxValue, Byte.MaxValue), false, TexFilter.Nearest);
+        t = new Texture2D("default1x1-color", Img32.Default1x1_RGBA32ub(Byte.MaxValue, Byte.MaxValue, Byte.MaxValue, Byte.MaxValue), false, TexFilter.Nearest);
         _default1x1ColorPixel_RGBA32ub.Set(t);
       }
       return t;
     }
     public static Texture2D Default1x1NormalPixel_RGBA32ub()
     {
-      var t =_default1x1NormalPixel_RGBA32ub.Get();
-      if (t== null)
+      var t = _default1x1NormalPixel_RGBA32ub.Get();
+      if (t == null)
       {
         if (NormalMapFormat == NormalMapFormat.Yup)
         {
-          t = new Texture2D("default1x1-normal",Img32.Default1x1_RGBA32ub(0, Byte.MaxValue, 0, Byte.MaxValue), false, TexFilter.Nearest);
+          t = new Texture2D("default1x1-normal", Img32.Default1x1_RGBA32ub(0, Byte.MaxValue, 0, Byte.MaxValue), false, TexFilter.Nearest);
         }
         else if (NormalMapFormat == NormalMapFormat.Zup)
         {
-          t = new Texture2D("default1x1-normal",Img32.Default1x1_RGBA32ub(0, 0, Byte.MaxValue, Byte.MaxValue), false, TexFilter.Nearest);
+          t = new Texture2D("default1x1-normal", Img32.Default1x1_RGBA32ub(0, 0, Byte.MaxValue, Byte.MaxValue), false, TexFilter.Nearest);
         }
         else
         {
@@ -375,31 +377,25 @@ namespace PirateCraft
       GL.ActiveTexture(state.Unit);
       GL.BindTexture(target, state.BindingId);
     }
-    private static void getCompatibleDepthComponent(int max_bits, Action<PixelInternalFormat> func)
+    private void GetCompatibleDepthComponent(int max_bits, Action<PixelInternalFormat> func)
     {
       //Try a bunch of depth formats.
       //max_bits isn't used
       //we don't use stencil here. Use as much as we can get.
-      func(PixelInternalFormat.DepthComponent32f);
-      if (GL.GetError() == ErrorCode.NoError)
+      List<PixelInternalFormat> fmts = new List<PixelInternalFormat>(){
+        PixelInternalFormat.DepthComponent32f,
+        PixelInternalFormat.DepthComponent32,
+        PixelInternalFormat.DepthComponent24,
+        PixelInternalFormat.DepthComponent16
+      };
+      foreach (var fmt in fmts)
       {
-        return;
-      }
-      func(PixelInternalFormat.DepthComponent32);
-      if (GL.GetError() == ErrorCode.NoError)
-      {
-        return;
-      }
-      func(PixelInternalFormat.DepthComponent24);//The O.G.
-      if (GL.GetError() == ErrorCode.NoError)
-      {
-        return;
-      }
-      func(PixelInternalFormat.DepthComponent16);
-      if (GL.GetError() == ErrorCode.NoError)
-      {
-        Gu.Log.Warn("Selected 16 bit depth buffer");
-        return;
+        func(fmt);
+        if (GL.GetError() == ErrorCode.NoError)
+        {
+          PixelInternalFormat = fmt;
+          return;
+        }
       }
       Gu.BRThrowException("Could not find suitable depth buffer pixelformat.");
     }

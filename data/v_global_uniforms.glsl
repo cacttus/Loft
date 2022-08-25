@@ -70,6 +70,8 @@ vec4 getMRT_Normal(vec2 tcoord)   { return texture(_ufGpuMaterial_s2Normal, vec2
 vec4 getMRT_Position(vec2 tcoord) { return texture(_ufGpuMaterial_s2Position, vec2(tcoord)); } 
 vec4 getMRT_Rough(vec2 tcoord)    { return texture(_ufGpuMaterial_s2Roughness, vec2(tcoord)); }
 
+
+
 struct GpuPointLight {
   vec3 _pos;
   float _radius;

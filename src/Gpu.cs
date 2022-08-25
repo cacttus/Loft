@@ -49,7 +49,25 @@ namespace PirateCraft
     {
       //if (_blendEnabled != _blendEnabledLast)
       {
-        Gu.Context.Renderer.CurrentPipelineFramebuffer.EnableBlend(_blendEnabled);
+        Gu.Assert(Gu.Context != null);
+        Gu.Assert(Gu.Context.Renderer != null);
+        Gu.Assert(Gu.Context.Renderer.CurrentStage != null);
+        if (Gu.Context.Renderer.CurrentStage.OutputFramebuffer != null)
+        {
+          Gu.Context.Renderer.CurrentStage.OutputFramebuffer.EnableBlend(_blendEnabled);
+        }
+        else
+        {
+          if (_blendEnabled)
+          {
+            GL.Enable(EnableCap.Blend);
+            GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+          }
+          else
+          {
+            GL.Disable(EnableCap.Blend);
+          }
+        }
       }
       //if (_blendFunc != _blendFuncLast)
       //{
@@ -717,6 +735,24 @@ namespace PirateCraft
       {
         calculatedFmt = PixelFormat.RedInteger;
         calculatedType = PixelType.UnsignedInt;
+        bufsiz_bytes = w * h * 4;//4 for ui? 
+      }
+      else if (internalFormat == PixelInternalFormat.DepthComponent32f)
+      {
+        calculatedFmt = PixelFormat.DepthComponent;
+        calculatedType = PixelType.Float;
+        bufsiz_bytes = w * h * 4;//4 for ui? 
+      }
+      else if (internalFormat == PixelInternalFormat.DepthComponent24)
+      {
+        calculatedFmt = PixelFormat.DepthComponent;
+        calculatedType = PixelType.Float;
+        bufsiz_bytes = w * h * 4;//4 for ui? 
+      }
+      else if (internalFormat == PixelInternalFormat.DepthComponent16)
+      {
+        calculatedFmt = PixelFormat.DepthComponent;
+        calculatedType = PixelType.Float;;
         bufsiz_bytes = w * h * 4;//4 for ui? 
       }
       else

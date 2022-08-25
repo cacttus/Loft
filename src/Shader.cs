@@ -25,6 +25,17 @@ namespace PirateCraft
     [Description("_m4View_Debug")] _m4View_Debug,
     [Description("_m4Model_Debug")] _m4Model_Debug,
   }
+  public enum ShaderDataType
+  {
+    Float,
+    UInt,
+    Int,
+    Vec2,
+    Vec3,
+    Vec4,
+    Mat3,
+    Mat4,
+  }
   [StructLayout(LayoutKind.Sequential)]
   public struct GpuInstanceData
   {
@@ -121,16 +132,19 @@ namespace PirateCraft
       PipelineStage = stage;
     }
     public ShaderType? ShaderType { get; private set; } = null;
-    public PipelineStage? PipelineStage { get; private set; } = null;
+    //public PipelineStageEnum? PipelineStage { get; private set; } = null;
     public int MaxPointLights { get; set; } = 8;
     public int MaxDirLights { get; set; } = 2;
     public int MaxCubeShadowSamples { get; set; } = 4;
     public int MaxFrusShadowSamples { get; set; } = 4;
     public int MaxInstances { get; set; } = 8;
     public bool IsInstanced { get; set; } = true;  //this is, technically going to always be set now, but later we can add non-instanced for performance improvements.
+    private PipelineStage PipelineStage = null;
 
     public ShaderControlVars Clone(PipelineStage stage, ShaderType type)
     {
+      Gu.Assert(stage != null);
+
       var ret = new ShaderControlVars(stage, type);
       ret.MaxPointLights = this.MaxPointLights;
       ret.MaxDirLights = this.MaxDirLights;
@@ -146,7 +160,7 @@ namespace PirateCraft
     {
       sb.Append("#define " + key + "\n");
     }
-    public override string ToString()
+    public string DefinesString()
     {
       var sb = new StringBuilder();
 
@@ -162,7 +176,7 @@ namespace PirateCraft
       }
 
       ShaderType st = this.ShaderType.Value;
-      PipelineStage ps = this.PipelineStage.Value;
+      PipelineStageEnum ps = this.PipelineStage.PipelineStageEnum;
       if (st == OpenTK.Graphics.OpenGL4.ShaderType.FragmentShader || st == OpenTK.Graphics.OpenGL4.ShaderType.FragmentShaderArb) { AddDef(sb, "DEF_SHADER_STAGE_FRAGMENT"); }
       else if (st == OpenTK.Graphics.OpenGL4.ShaderType.VertexShader || st == OpenTK.Graphics.OpenGL4.ShaderType.VertexShaderArb) { AddDef(sb, "DEF_SHADER_STAGE_VERTEX"); }
       else if (st == OpenTK.Graphics.OpenGL4.ShaderType.GeometryShader) { AddDef(sb, "DEF_SHADER_STAGE_GEOMETRY"); }
@@ -172,6 +186,62 @@ namespace PirateCraft
       AddDef(sb, ps.Description());
 
       return sb.ToString();
+    }
+    public string OutputsString()
+    {
+      StringBuilder sb = new StringBuilder();
+
+      //Get all pipeline outputs and set blank set() functions for outputs that are disabled in the given stage.
+      //HashSet<string> outputs = new HashSet<string>();
+      var all_outputs = Gu.Context.Renderer.GetAllUniqueAttachments();
+      var unique_outputs = new Dictionary<string, FramebufferAttachment>();
+      foreach (var pp in all_outputs)
+      {
+        if (!unique_outputs.ContainsKey(pp.OutputName))
+        {
+          unique_outputs.Add(pp.OutputName, pp);
+        }
+      }
+      if (PipelineStage.OutputFramebuffer == null)
+      {
+        SetOutputString(sb, 0, "vec4", "Color");//default fbo
+          Gu.Assert(unique_outputs.Remove("Color"));//output must be in the global outputs array
+      }
+      else
+      {
+        foreach (var output in PipelineStage.OutputFramebuffer.Bindings)
+        {
+          var outname = output.Attachment.OutputName;
+          Gu.Assert(unique_outputs.Remove(outname));//output must be in the global outputs array
+          string datatype = PixelInternalFormatToShaderDataType(output.Attachment.Texture.PixelInternalFormat);
+          SetOutputString(sb, output.LayoutIndex, datatype, outname);
+        }
+      }
+
+      foreach (var output in unique_outputs)
+      {
+        string datatype = PixelInternalFormatToShaderDataType(output.Value.Texture.PixelInternalFormat);
+        sb.Append("void setOutput_" + output.Value.OutputName + "(in " + datatype + " val) { }\n");
+      }
+      return sb.ToString();
+    }
+    private void SetOutputString(StringBuilder sb, int layoutidx, string datatype, string outname)
+    {
+      sb.Append($"layout(location = {layoutidx}) out {datatype} _mrtOutput_{outname};\n");
+      sb.Append("void setOutput_" + outname + "(in " + datatype + " val) { _mrtOutput_" + outname + " = val; }\n");
+    }
+    private string PixelInternalFormatToShaderDataType(PixelInternalFormat fmt)
+    {
+      if (fmt == PixelInternalFormat.DepthComponent32f) { return "float"; }
+      else if (fmt == PixelInternalFormat.DepthComponent32) { return "float"; }
+      else if (fmt == PixelInternalFormat.DepthComponent24) { return "float"; }
+      else if (fmt == PixelInternalFormat.DepthComponent16) { return "float"; }
+      //else if (fmt == PixelInternalFormat.Rgba) { return "vec4"; }
+      else if (fmt == PixelInternalFormat.Rgba32f) { return "vec4"; }
+      else if (fmt == PixelInternalFormat.R32ui) { return "uint"; }
+      //These are the only supported image->buffer formats right now..
+      Gu.BRThrowNotImplementedException();
+      return "";
     }
   }
   public class WorldProps : DataBlock
@@ -218,7 +288,7 @@ namespace PirateCraft
     }
 
     protected WorldProps() { }
-    public WorldProps(string name) : base(name+"-env") { }
+    public WorldProps(string name) : base(name + "-env") { }
     public void CompileGpuData()
     {
       if (Modified || Lights.Modified || Gu.EngineConfig.AlwaysCompileAndReloadGpuUniformData)
@@ -475,7 +545,7 @@ namespace PirateCraft
   public class ShaderStage : OpenGLResource
   {
     public ShaderType ShaderType { get; private set; } = ShaderType.VertexShader;
-    public ShaderStage(string name, ShaderType tt, string src) : base(name+"-shr")
+    public ShaderStage(string name, ShaderType tt, string src) : base(name + "-shr")
     {
       ShaderType = tt;
       _glId = GL.CreateShader(tt);
@@ -525,7 +595,7 @@ namespace PirateCraft
     {
       GL.DeleteBuffer(UboId);
     }
-    public ShaderUniformBlock(string name, int iBlockIndex, int iBindingIndex, int iBufferByteSize, bool active) : base(name+"-ubk")
+    public ShaderUniformBlock(string name, int iBlockIndex, int iBindingIndex, int iBufferByteSize, bool active) : base(name + "-ubk")
     {
       BufferSizeBytes = iBufferByteSize;
       BindingIndex = iBindingIndex;
@@ -546,11 +616,12 @@ namespace PirateCraft
   public class ContextShader : OpenGLResource
   {
     private static string c_strGlobalDefineString = "<GLSL_CONTROL_DEFINES_HERE>";
+    private static string c_strGlobalOutputString = "<GLSL_CONTROL_OUTPUTS_HERE>";
     private ShaderStage _vertexStage = null;
     private ShaderStage _fragmentStage = null;
     private ShaderStage _geomStage = null;
 
-    public PipelineStage PipelineStage { get; private set; } = PipelineStage.Unset;
+    public PipelineStageEnum PipelineStage { get; private set; } = PipelineStageEnum.Unset;
 
     private Dictionary<string, ShaderUniform> _uniforms = new Dictionary<string, ShaderUniform>();
     private Dictionary<string, ShaderUniformBlock> _uniformBlocks = new Dictionary<string, ShaderUniformBlock>();
@@ -565,14 +636,14 @@ namespace PirateCraft
 
     private string Name = "";
 
-    public ContextShader(string name, WindowContext ct, string vsSrc_raw = "", string psSrc_raw = "", string gsSrc_raw = "") : base(name+"-prog")
+    public ContextShader(string name, WindowContext ct, string vsSrc_raw = "", string psSrc_raw = "", string gsSrc_raw = "") : base(name + "-prog")
     {
       Gu.Assert(ct != null);
       Gu.Assert(ct.Renderer != null);
-      Gu.Assert(ct.Renderer.PipelineStage != PipelineStage.Unset);
+      Gu.Assert(ct.Renderer.CurrentStage != null);
 
       Name = name;
-      PipelineStage = ct.Renderer.PipelineStage;
+      PipelineStage = ct.Renderer.CurrentStage.PipelineStageEnum;
       Gu.Log.Debug("Compiling shader '" + Name + "'");
 
       Gpu.CheckGpuErrorsDbg();
@@ -641,17 +712,27 @@ namespace PirateCraft
       string src_cpy = src_raw;
       if (StringUtil.IsNotEmpty(src_cpy))
       {
-        if (src_cpy.Contains(ContextShader.c_strGlobalDefineString))
+        string e = "" + Name + " (" + type.ToString() + "): Shader vars tag '";
+
+        if (!src_cpy.Contains(ContextShader.c_strGlobalDefineString))
         {
-          var vars = ct.Renderer.DefaultControlVars.Clone(ct.Renderer.PipelineStage, type);
-          var vars_string = vars.ToString();
-          src_cpy = src_cpy.Replace(ContextShader.c_strGlobalDefineString, vars_string);
+          _shaderErrors.Add(e + c_strGlobalDefineString + "' was not found.");
+          State = ShaderLoadState.Failed;
+        }
+        else if (!src_cpy.Contains(ContextShader.c_strGlobalOutputString))
+        {
+          _shaderErrors.Add(e + c_strGlobalOutputString + "' was not found.");
+          State = ShaderLoadState.Failed;
         }
         else
         {
-          string e = "" + Name + " (" + type.ToString() + "): Shader vars tag '" + c_strGlobalDefineString + "' was not found.";
-          _shaderErrors.Add(e);
-          State = ShaderLoadState.Failed;
+          var vars = ct.Renderer.DefaultControlVars.Clone(ct.Renderer.CurrentStage, type);
+
+          var defines_string = vars.DefinesString();
+          src_cpy = src_cpy.Replace(ContextShader.c_strGlobalDefineString, defines_string);
+
+          var outputs_string = vars.OutputsString();
+          src_cpy = src_cpy.Replace(ContextShader.c_strGlobalOutputString, outputs_string);
         }
       }
       return src_cpy;
@@ -1191,7 +1272,7 @@ namespace PirateCraft
 
   }
   //to make contexts transparent.
-  public class Shader : OpenGLContextDataManager<Dictionary<PipelineStage, ContextShader>>
+  public class Shader : OpenGLContextDataManager<Dictionary<PipelineStageEnum, ContextShader>>
   {
 
 
@@ -1239,14 +1320,14 @@ namespace PirateCraft
     {
       return GetOrCreateShader(Gu.Context);
     }
-    protected override Dictionary<PipelineStage, ContextShader> CreateNew()
+    protected override Dictionary<PipelineStageEnum, ContextShader> CreateNew()
     {
-      return new Dictionary<PipelineStage, ContextShader>();
+      return new Dictionary<PipelineStageEnum, ContextShader>();
     }
     private ContextShader GetOrCreateShader(WindowContext ct)
     {
       Gu.Assert(ct != null);
-      PipelineStage stage = ct.Renderer.PipelineStage;
+      PipelineStageEnum stage = ct.Renderer.CurrentStage.PipelineStageEnum;
       var dict = GetDataForContext(ct);
       Gu.Assert(dict != null);
 

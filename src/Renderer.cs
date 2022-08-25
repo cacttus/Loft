@@ -9,7 +9,7 @@ namespace PirateCraft
 {
   #region Enums
 
-  public enum PipelineStage
+  public enum PipelineStageEnum
   {
     [Description("**UNSET**")] Unset,
     [Description("DEF_PIPELINE_STAGE_DEFERRED")] Deferred,
@@ -37,7 +37,6 @@ namespace PirateCraft
     private WeakReference<Renderer> _pRenderer;
     private uint _uiLastSelectedPixelId = 0;//Note: This is relative to the last UserSelectionSet - the Id here is not fixed.
     public uint GetSelectedPixelId() { return _uiLastSelectedPixelId; }
-
 
     //The world object that was picked.. this MUST be set if picked object was set.
     public WorldObject PickedWorldObjectFrameLast { get; set; } = null;
@@ -116,10 +115,10 @@ namespace PirateCraft
       }
       if (_pRenderer.TryGetTarget(out var renderer))
       {
-        Gu.Assert(renderer.CurrentPipelineFramebuffer != null);
-        renderer.CurrentPipelineFramebuffer.Bind(FramebufferTarget.ReadFramebuffer);
-        var pick = renderer.CurrentPipelineFramebuffer.GetTargetByName(FramebufferBase.c_strPickMRT_DF);
-        var readbufferMode = FramebufferBase.AttachmentIndexToReadBufferMode(pick._eAttachment);
+        Gu.Assert(renderer.CurrentStage != null);
+        renderer.CurrentStage.OutputFramebuffer.Bind(FramebufferTarget.ReadFramebuffer);
+        var pick = renderer.CurrentStage.OutputFramebuffer.GetBinding(RenderTargetType.Pick);
+        var readbufferMode = FramebufferGeneric.AttachmentIndexToReadBufferMode((OpenTK.Graphics.OpenGL4.FramebufferAttachment)pick.BindingIndex);
         GL.ReadBuffer(readbufferMode); //Note if you change this you must change the pick index in DeferredFramebuffer
         Gpu.CheckGpuErrorsDbg();
 
@@ -174,43 +173,137 @@ namespace PirateCraft
     }
   }
 
+  public class PipelineStage
+  {
+    public string ShaderDefine = "";
+    public PipelineStageEnum PipelineStageEnum { get; set; }
+    public FramebufferGeneric InputFramebuffer = null;
+    public FramebufferGeneric OutputFramebuffer = null;
+    public ClearBufferMask ClearMask;
+    public vec4 ClearColor { get; set; } = new vec4(0, 0, 0, 1);
+    public List<FramebufferAttachment> Inputs;
+    public List<FramebufferAttachment> Outputs;
+    public WorldObject DefaultObj = null;
+    public string Name { get { return PipelineStageEnum.Description(); } }
+    public Action<RenderView> BeginRenderAction = null;
+
+    //So, cull, winding .. 
+    public PipelineStage(PipelineStageEnum stage, ClearBufferMask mask, vec4 clear,
+    List<FramebufferAttachment> inputs, List<FramebufferAttachment> outputs, WorldObject defaultObj = null, Action<RenderView> beginRenderAction = null)
+    {
+      ClearMask = mask;
+      ClearColor = clear;
+      DefaultObj = defaultObj;
+      PipelineStageEnum = stage;
+      BeginRenderAction = beginRenderAction;
+      Inputs = inputs;
+      Outputs = outputs;
+      Validate(inputs, outputs);
+
+      if (outputs.Count > 0)
+      {
+        OutputFramebuffer = new FramebufferGeneric(Enum.GetName(stage) + "-out-fb", outputs);
+      }
+      if (inputs.Count > 0)
+      {
+        InputFramebuffer = new FramebufferGeneric(Enum.GetName(stage) + "-in-fb", inputs);
+      }
+    }
+    private void Validate(List<FramebufferAttachment> inputs, List<FramebufferAttachment> outputs)
+    {
+      string s = "";
+      for (int i = 0; i < inputs.Count; ++i)
+      {
+        for (int j = i + 1; j < outputs.Count; ++j)
+        {
+          if (inputs[i] == outputs[j])
+          {
+            //an input is also an output. Error
+            s += "Framebuffer " + Name + " input is also an output : " + inputs[i].Texture.Name + "\n";
+          }
+          if (inputs[i].Texture == null)
+          {
+            s += "Framebuffer " + Name + " input " + i + " texture was null. " + "\n";
+
+          }
+          if (outputs[j].Texture == null)
+          {
+            s += "Framebuffer " + Name + " output " + j + " texture was null. " + "\n";
+          }
+        }
+      }
+      if (StringUtil.IsNotEmpty(s))
+      {
+        Gu.BRThrowException(s);
+      }
+    }
+    public void BeginRender()
+    {
+      GL.UseProgram(0);//just for sanity i guess
+
+      if (InputFramebuffer != null)
+      {
+        InputFramebuffer.Bind(FramebufferTarget.ReadFramebuffer);
+      }
+      if (OutputFramebuffer != null)
+      {
+        if (OutputFramebuffer.State != FramebufferState.Initialized)
+        {
+          Gu.BRThrowException("Framebuffer was not initialized.");
+        }
+
+        //Clear all buffers
+        OutputFramebuffer.Bind(FramebufferTarget.DrawFramebuffer);
+        FramebufferGeneric.UnbindRenderbuffer();//_depthRenderBufferId);
+        OutputFramebuffer.SetDrawAllTargets();
+      }
+      else
+      {
+        //Default FBO
+        GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, 0);
+        Gpu.CheckGpuErrorsDbg();
+        GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, 0);
+        Gpu.CheckGpuErrorsDbg();
+      }
+      if (ClearMask > 0)
+      {
+        GL.ClearColor(ClearColor.r, ClearColor.g, ClearColor.b, ClearColor.a);
+        GL.Clear(ClearMask);
+      }
+
+    }
+    public void EndRender()
+    {
+      if (InputFramebuffer != null)
+      {
+        InputFramebuffer.Unbind(FramebufferTarget.ReadFramebuffer);
+      }
+      if (OutputFramebuffer != null)
+      {
+        OutputFramebuffer.Unbind(FramebufferTarget.DrawFramebuffer);
+      }
+    }
+  }
+
   public class Renderer : HasGpuResources
   {
     #region Public:Members
 
     public ShaderControlVars DefaultControlVars = new ShaderControlVars();
     public RendererState RenderState { get; private set; } = RendererState.None;
-    public PipelineStage PipelineStage { get; private set; } = PipelineStage.Unset;
+    //public PipelineStageEnum PipelineStage { get; private set; } = PipelineStageEnum.Unset;
     public Picker Picker { get; private set; } = null;
-    public FramebufferBase CurrentPipelineFramebuffer { get; private set; } = null;
+    public PipelineStage CurrentStage { get; private set; } = null;
 
     #endregion
     #region Private:Members
 
-    private bool _bMsaaEnabled = false;
-    private int _nMsaaSamples = 0;
-    private MeshData _pQuadMesh = null;
-
-    private WorldObject _dummyForward = null;
-    private WorldObject _dummyDeferred = null;
-
     private int _iLastWidth = 0;
     private int _iLastHeight = 0;  //Last weidth/height gotten from the screen manager.
 
-    private FramebufferAttachment _pMsaaDepth = null;
-    private FramebufferAttachment _pBlittedDepth = null;
-    private FramebufferAttachment _pPick = null;
-    // RenderTarget _pPickDepth = null;
+    private List<PipelineStage> PipelineStages = new List<PipelineStage>();
+    private List<FramebufferAttachment> Attachments = new List<FramebufferAttachment>();
 
-    private DeferredFramebuffer _pMsaaDeferred = null;  //If no multisampling is enabled this is equal to the blittedFramebuffer object
-    private DeferredFramebuffer _pBlittedDeferred = null;
-
-    private ForwardFramebuffer _pMsaaForward = null;
-    private ForwardFramebuffer _pBlittedForward = null;
-
-    // private ShadowBox _pShadowBoxFboMaster = null;
-    // private ShadowFrustum _pShadowFrustumMaster = null;
-    // private DOFFbo _pDOFFbo = null;
     private Texture2D _pEnvTex = null;  //Enviro map - for mirrors (coins)
     private vec4 ClearColor { get; set; } = new vec4(0, 0, 0, 1);//(0.01953, .4114f, .8932f, 1);
     private bool _bRenderInProgress = false;
@@ -247,35 +340,26 @@ namespace PirateCraft
       releaseFbosAndMesh();
 
       // - Setup Framebuffers.
-      _bMsaaEnabled = Gu.EngineConfig.EnableMSAA;// Gu::getEngineConfig().getEnableMSAA();
-      _nMsaaSamples = Gu.EngineConfig.MSAASamples;
       _iLastWidth = iWidth;
       _iLastHeight = iHeight;
 
       Gu.Log.Info("[Renderer] Checking Caps");
-      CheckDeviceCaps(iWidth, iHeight);
+      CheckDeviceCaps(iWidth, iHeight, Gu.EngineConfig.EnableMSAA ? Gu.EngineConfig.MSAASamples : 0);
 
-      if (_bMsaaEnabled)
+      int samples = 0;
+      if (Gu.EngineConfig.EnableMSAA)
       {
         GL.Enable(EnableCap.Multisample);
         Gpu.CheckGpuErrorsRt();
+        samples = Gu.EngineConfig.MSAASamples;
+      }
+      else
+      {
+        samples = 0;
       }
 
       //Mesh
       Gu.Log.Info("[Renderer] Creating Quad Mesh");
-
-      //Shaders
-      //   Gu.BRThrowNotImplementedException();
-      //if (_pDeferredShader == null)
-      //{
-      //  _pDeferredShader = Gu::getShaderMaker().makeShader(List<string>{
-      //    "d_v3x2_lighting.vs", "d_v3x2_lighting.ps"});
-      //}
-      //if (_pForwardShader == null)
-      //{
-      //  _pForwardShader = Gu::getShaderMaker().makeShader(List<string>{
-      //    "f_v3x2_fbo.vs", "f_v3x2_fbo.ps"});
-      //}
 
       GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, 0);
       Gpu.CheckGpuErrorsDbg();
@@ -284,82 +368,85 @@ namespace PirateCraft
       GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, 0);
       Gpu.CheckGpuErrorsDbg();
 
-      //Guess what?  Headache time.
-      //This deletion of the shared stuff is super important 2/9/18
-      //this must come before all the code below.  In short: RenderTarget automatically deletes its texure
-      //TODO: in the future remove deferred/forward targets.  Make the render targets refer to a shared_ptr Texture2DSpec so that
-      //deletion of the texture is natural when it gets unreferenced.  Make the creation of all render target textures be independent
-      //of their framebuffers so that we can share them across multiple render stages.
-      _pMsaaDeferred = null;
-      _pMsaaForward = null;
-      _pMsaaDepth = null;
-      _pBlittedDepth = null;
-      _pBlittedForward = null;
-      _pBlittedDeferred = null;
-      _pPick = null;
-      //_pDOFFbo = null;
+      Gu.Assert(samples == 0);//TODO: we need to duplicate the targets for MSAA, but we probably won't use MSAA for this game.
 
-      //Base FBOs
-      _pBlittedDepth = FramebufferBase.CreateTarget(FramebufferBase.c_strBlittedDepthMRT_DF, iWidth, iHeight, RenderTargetType.Depth, 0, false, 0, null, null, null);
-
-      //Do not cahnge "Pick" name.  This is shared.
-      _pPick = FramebufferBase.CreateTarget(FramebufferBase.c_strPickMRT_DF, iWidth, iHeight, RenderTargetType.Pick, 0, false, 0, PixelInternalFormat.R32ui, PixelFormat.RedInteger, PixelType.UnsignedInt);  //4
-
-      _pBlittedDeferred = new DeferredFramebuffer(_bMsaaEnabled, 0, ClearColor);
-      _pBlittedDeferred.Init(iWidth, iHeight, _pBlittedDepth, _pPick);
-
-      _pBlittedForward = new ForwardFramebuffer(_bMsaaEnabled, 0, ClearColor);
-      _pBlittedForward.Init(iWidth, iHeight, _pBlittedDepth, _pPick);
-
-      _pQuadMesh = MeshData.CreateScreenQuadMesh(iWidth, iHeight);
-
-      //Pick
       Picker = new Picker(this);
 
-      //Multisamplecell
-      if (_bMsaaEnabled == true)
-      {
-        Gu.Log.Info("[Renderer] Creating deferred MSAA lighting buffer");
-        _pMsaaDepth = FramebufferBase.CreateTarget(FramebufferBase.c_strBlittedDepthMRT_DF, iWidth, iHeight, RenderTargetType.Depth, 0, _bMsaaEnabled, _nMsaaSamples, null, null, null);
-        _pMsaaDeferred = new DeferredFramebuffer(true, _nMsaaSamples, ClearColor);
-        _pMsaaDeferred.Init(iWidth, iHeight, _pMsaaDepth, _pPick);  // Yeah I don't know if the "pick" here will work
-        _pMsaaForward = new ForwardFramebuffer(true, _nMsaaSamples, ClearColor);
-        _pMsaaForward.Init(iWidth, iHeight, _pMsaaDepth, _pPick);  // Yeah I don't know if the "pick" here will work
-      }
-      else
-      {
-        Gu.Log.Info("[Renderer] Multisample not enabled.");
-        _pMsaaDeferred = _pBlittedDeferred;
-        _pMsaaForward = _pBlittedForward;
-        _pMsaaDepth = _pBlittedDepth;
-      }
+      Gu.Log.Debug("[Renderer] Creating Framebuffer Attachments");
+      FramebufferAttachment albedo_df = new FramebufferAttachment("Color", RenderTargetType.Color, iWidth, iHeight, samples);//names must match
+      FramebufferAttachment albedo_fw = new FramebufferAttachment("Color", RenderTargetType.Color, iWidth, iHeight, samples);
+      FramebufferAttachment pick = new FramebufferAttachment("Pick", RenderTargetType.Pick, iWidth, iHeight, samples);
+      FramebufferAttachment normal = new FramebufferAttachment("Normal", RenderTargetType.Color, iWidth, iHeight, samples);
+      FramebufferAttachment position = new FramebufferAttachment("Position", RenderTargetType.Color, iWidth, iHeight, samples);
+      FramebufferAttachment plane = new FramebufferAttachment("Plane", RenderTargetType.Color, iWidth, iHeight, samples);
+      FramebufferAttachment depth = new FramebufferAttachment("Depth", RenderTargetType.Depth, iWidth, iHeight, samples);
 
-      _dummyForward = new WorldObject("dummyforward");
-      _dummyForward.Material = new Material("forwardMaterial", Gu.Resources.LoadShader("v_v3x2_forward", false, FileStorage.Embedded));
-      _dummyForward.Material.GpuRenderState.CullFace = false;
-      _dummyForward.Material.GpuRenderState.DepthTest = false;
-      _dummyForward.Material.GpuRenderState.Blend = false;
-      _dummyForward.Material.AlbedoSlot.Texture = _pMsaaForward.GetTargetByName(ForwardFramebuffer.c_strColorMRT_FW)._texture;
-      _dummyForward.Mesh = _pQuadMesh;
+      var quadmesh = MeshData.CreateScreenQuadMesh(iWidth, iHeight);
 
-      _dummyDeferred = new WorldObject("dummydeferred");
-      _dummyDeferred.Material = new Material("deferredMaterial", Gu.Resources.LoadShader("v_v3x2_deferred", false, FileStorage.Embedded));
-      _dummyDeferred.Material.GpuRenderState.CullFace = false;
-      _dummyDeferred.Material.GpuRenderState.DepthTest = false;
-      _dummyDeferred.Material.GpuRenderState.Blend = false;
-      _dummyDeferred.Material.AlbedoSlot.Texture = _pMsaaDeferred.GetTargetByName(DeferredFramebuffer.c_strColorMRT_DF)._texture;
-      _dummyDeferred.Material.NormalSlot.Texture = _pMsaaDeferred.GetTargetByName(DeferredFramebuffer.c_strNormalMRT_DF)._texture;
-      _dummyDeferred.Material.PositionSlot.Texture = _pMsaaDeferred.GetTargetByName(DeferredFramebuffer.c_strPositionMRT_DF)._texture;
-      _dummyDeferred.Material.RoughnessSlot.Texture = _pMsaaDeferred.GetTargetByName(DeferredFramebuffer.c_strPlaneMRT_DF)._texture;
-      _dummyDeferred.Mesh = _pQuadMesh;
+      var dummyD = new WorldObject("dummy-blit-d");
+      dummyD.Mesh = quadmesh;
+      dummyD.Material = new Material("blit-d-material", Gu.Resources.LoadShader("v_v3x2_deferred", false, FileStorage.Embedded));
+      dummyD.Material.GpuRenderState.CullFace = false;
+      dummyD.Material.GpuRenderState.DepthTest = false;
+      dummyD.Material.GpuRenderState.Blend = false;
+      dummyD.Material.AlbedoSlot.Texture = albedo_df.Texture;
+      dummyD.Material.NormalSlot.Texture = normal.Texture;
+      dummyD.Material.PositionSlot.Texture = position.Texture;
 
-      //These are here SOLELY for shadow map blending.
-      //If we don't do any shadow blending then these are useless.
-      int iShadowMapRes = Gu.EngineConfig.ShadowMapResolution;
-      //_pShadowBoxFboMaster = new ShadowBox(null, iShadowMapRes, iShadowMapRes);
-      //_pShadowBoxFboMaster.init();
-      //_pShadowFrustumMaster = new ShadowFrustum(null, iShadowMapRes, iShadowMapRes);
-      //_pShadowFrustumMaster.init();
+      var dummyF = new WorldObject("dummy-blit-f");
+      dummyF.Mesh = quadmesh;
+      dummyF.Material = new Material("blit-f-material", Gu.Resources.LoadShader("v_v3x2_forward", false, FileStorage.Embedded));
+      dummyF.Material.GpuRenderState.CullFace = false;
+      dummyF.Material.GpuRenderState.DepthTest = false;
+      dummyF.Material.GpuRenderState.Blend = false;
+      dummyF.Material.AlbedoSlot.Texture = albedo_fw.Texture;
+
+      Gu.Log.Debug("[Renderer] Creating Pipeline Stages");
+
+      var deferred = new PipelineStage(PipelineStageEnum.Deferred,
+        ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit, ClearColor,
+        new List<FramebufferAttachment>() { },
+        new List<FramebufferAttachment>() { albedo_df, pick, normal, position, plane, depth },
+        null,
+        (rv) =>
+        {
+          Picker.Update(rv);
+          Gu.World.RenderDeferred(Gu.Context.Delta, rv);
+        }
+      );
+
+      var deferredBlit = new PipelineStage(PipelineStageEnum.DeferredBlit,
+        ClearBufferMask.None, ClearColor,
+        new List<FramebufferAttachment>() { albedo_df, normal, position, plane, depth },
+        new List<FramebufferAttachment>() { albedo_fw },
+        dummyD
+       );
+
+      var forward = new PipelineStage(PipelineStageEnum.Forward,
+        ClearBufferMask.None, ClearColor,
+        new List<FramebufferAttachment>() { },
+        new List<FramebufferAttachment>() { albedo_fw, pick },
+        null,
+        (rv) =>
+        {
+          Picker.Update(rv);
+          Gu.World.RenderForward(Gu.Context.Delta, rv);
+        }
+       );
+
+      var forwardBlit = new PipelineStage(PipelineStageEnum.ForwardBlit,
+        ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit, ClearColor,
+        new List<FramebufferAttachment>() { albedo_fw },
+        new List<FramebufferAttachment>() { }//default
+        , dummyF
+      );
+
+      PipelineStages = new List<PipelineStage>(){
+        deferred,
+        deferredBlit,
+        forward,
+        forwardBlit
+      };
 
       if (envTextureLoc != null)
       {
@@ -387,293 +474,89 @@ namespace PirateCraft
       //The reason we do it this way is so that we can save the screenshot right before we blit the final render to the screen.
       _requestSaveFBOs = true;
     }
+    public void Render(RenderView rv, Dictionary<PipelineStageEnum, Action<double, RenderView>> stuff)
+    {
+      BeginEverything_New(rv);
+      {
+        foreach (PipelineStage ps in PipelineStages)
+        {
+          CurrentStage = ps;
+
+          ps.BeginRender();
+          ps.BeginRenderAction?.Invoke(rv);
+          if (ps.DefaultObj != null)
+          {
+            rv.BeginRaster2D();
+            {
+              SetShadowEnv(/*lightman,*/ true);
+              {
+                if (_requestSaveFBOs || Gu.EngineConfig.SaveFBOsEveryFrame)
+                {
+                  //save fbo for each stage.
+                  SaveCurrentStageFBOsImmediately(ps.Name);
+                }
+                //    Gu.BreakRenderState = true;
+                DrawCall.Draw(Gu.World.WorldProps, rv, ps.DefaultObj);
+              }
+              SetShadowEnv(/*lightman,*/ false);  //Fix this, we should be able to clear the texture units before the next operation.
+            }
+            rv.EndRaster2D();
+          }
+          ps.EndRender();
+        }
+        CurrentStage = null;
+        _requestSaveFBOs = false;
+      }
+      EndEverything_New(rv);
+    }
     public void BeginEverything_New(RenderView rv)
     {
       Gu.Assert(RenderState == RendererState.End || RenderState == RendererState.None);
       RenderState = RendererState.Begin;
-      CurrentPipelineFramebuffer = _pMsaaDeferred;
       rv.BeginRender3D();
       Gu.Context.DebugDraw.BeginFrame();
       SetInitialGpuRenderState();
       Gpu.CheckGpuErrorsDbg();
-      Picker.Update(rv);
-      _pMsaaForward.ClearSharedFb();//Must call before deferred. After Picker.
-      PipelineStage = PipelineStage.Unset;
+      //  _pMsaaForward.ClearSharedFb();//Must call before deferred. After Picker.
+      //PipelineStage = PipelineStageEnum.Unset;
     }
     public void EndEverything_New(RenderView rv)
     {
       Gu.Assert(RenderState == RendererState.Begin);
       RenderState = RendererState.End;
       Gu.Context.GameWindow.Context.SwapBuffers();
-      CurrentPipelineFramebuffer = null;
       rv.EndRender3D();
       Gu.Context.DebugDraw.EndFrame();
-      PipelineStage = PipelineStage.Unset;
+      //PipelineStage = PipelineStageEnum.Unset;
     }
-    public void BeginRenderDeferred()
-    {
-      EnableDisablePipeBits();
-      CurrentPipelineFramebuffer = _pMsaaDeferred;
-
-      DebugSaveAllFBOs("BeginRenderDeferred1");
-      _pMsaaDeferred.BeginRender();
-      PipelineStage = PipelineStage.Deferred;
-      DebugSaveAllFBOs("BeginRenderDeferred2");
-    }
-    public void EndRenderDeferred()
-    {
-      _pMsaaDeferred.EndRender();
-      DebugSaveAllFBOs("EndRenderDeferred");
-      PipelineStage = PipelineStage.Unset;
-    }
-    public void BeginRenderForward()
-    {
-      DebugSaveAllFBOs("BeginRenderForward1");
-      _pMsaaForward.BeginRender();
-      CurrentPipelineFramebuffer = _pMsaaForward;
-      DebugSaveAllFBOs("BeginRenderForward2");
-      PipelineStage = PipelineStage.Forward;
-    }
-    public void EndRenderForward()
-    {
-      DebugSaveAllFBOs("EndRenderForward1");
-      _pMsaaForward.EndRender();
-      DebugSaveAllFBOs("EndRenderForward2");
-      PipelineStage = PipelineStage.Unset;
-    }
-    public void BlitDeferredRender(RenderView rv)
-    {
-      PipelineStage = PipelineStage.DeferredBlit;
-      //NOTE:
-      //Bind the forward framebuffer (_pBlittedForward is equal to _pMsaaForward if MSAA is disabled, if it isn't we call copyMSAASamples later)
-      GL.UseProgram(0);
-
-      GL.BindFramebuffer(FramebufferTarget.Framebuffer, _pMsaaForward.GetGlId());
-      Gpu.CheckGpuErrorsDbg();
-      GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, 0);
-      Gpu.CheckGpuErrorsDbg();
-
-//Disable writes to pick (debug)
-
-      rv.BeginRaster2D();
-      {
-        //  //*The clear here isn't necessary. If we're copying all of the contents of the deferred buffer.
-        //  // - Clear the color and depth buffers (back and front buffers not the Mrts)
-        //  //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        //  BindDeferredTargets(true);
-        {
-          //Set the light uniform blocks for the deferred shader.
-          //_pDeferredShader.setLightUf(lightman);
-          SetShadowEnv(/*lightman,*/ true);
-          {
-            if (_requestSaveFBOs || Gu.EngineConfig.SaveFBOsEveryFrame)
-            {
-              SaveAllFBOsImmediately("BlitDeferredRender");
-            }
-            //    Gu.BreakRenderState = true;
-            DrawCall.Draw(Gu.World.WorldProps, rv, _dummyDeferred);
-          }
-          SetShadowEnv(/*lightman,*/ false);  //Fix this, we should be able to clear the texture units before the next operation.
-        }
-        //  BindDeferredTargets(false);
-      }
-      rv.EndRaster2D();
-
-      PipelineStage = PipelineStage.Unset;
-    }
-    public void BlitFinalRender(RenderView rv)
-    {
-      PipelineStage = PipelineStage.ForwardBlit;
-      //Blits the final deferred Color image (after our deferred rendering step) to a quad.
-      //Do not bind anything - default framebuffer.
-      //Gu::getShaderMaker().shaderBound(null);  //Unbind and reset shader.
-      GL.UseProgram(0);
-      GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);//switch to default framebuffer
-      Gpu.CheckGpuErrorsDbg();
-      GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, 0);//switch to default depth buffer
-      Gpu.CheckGpuErrorsDbg();
-
-      // - Clear the DEFAULT color and depth buffers 
-      GL.ClearColor(ClearColor.r, ClearColor.g, ClearColor.b, ClearColor.a);
-      GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-      Gpu.CheckGpuErrorsDbg();
-
-      rv.BeginRaster2D();
-      {
-        if (_requestSaveFBOs || Gu.EngineConfig.SaveFBOsEveryFrame)
-        {
-          SaveAllFBOsImmediately("BlitFinalRender");
-          _requestSaveFBOs = false;
-        }
-        Gpu.CheckGpuErrorsDbg();
-
-        //_dummyForward.Material.Textures[TextureInput.Albedo] = _ufGpuMaterial_s2Albedo
-        DrawCall.Draw(Gu.World.WorldProps, rv, _dummyForward);
-      }
-      rv.EndRaster2D();
-      PipelineStage = PipelineStage.Unset;
-
-      DebugSaveAllFBOs("EBlitFinalRender2");
-    }
-    //protected void renderShadows(LightManager lightman, CameraNode cam)
-    //{
-    //  lightman.update(_pShadowBoxFboMaster, _pShadowFrustumMaster);
-    //  Gu::checkErrorsDbg();
-
-    //  //Force refresh teh viewport.
-    //  cam.getViewport().bind();
-    //****Pipeline stage ** 
-    //}
-    //protected void beginRenderShadows()
-    //{
-    //  Gu::checkErrorsDbg();
-    //  //See GLLightManager in BRO
-    //  getContext().pushDepthTest();
-    //  getContext().pushBlend();
-    //  getContext().pushCullFace();
-    //  glCullFace(GL_FRONT);
-    //  glEnable(GL_DEPTH_TEST);
-    //  glEnable(GL_CULL_FACE);
-    //  glDisable(GL_BLEND);
-    //  Gu::checkErrorsDbg();
-    //****Pipeline stage ** 
-    //}
-    //protected void endRenderShadows()
-    //{
-    //  Gu::checkErrorsDbg();
-    //  glCullFace(GL_BACK);
-    //  getContext().popDepthTest();
-    //  getContext().popBlend();
-    //  getContext().popCullFace();
-    //  Gu::checkErrorsDbg();
-    //****Pipeline stage ** 
-    //}
-    //protected void postProcessDOF(LightManager lightman, CameraNode cam)
-    //{
-    //  //If MSAA is enabled downsize the MSAA buffer to the _pBlittedForward buffer so we can execute post processing.
-    //  //copyMsaaSamples(_pMsaaForward, _pBlittedForward);
-
-    //  if (Gu::getRenderSettings().getDOF())
-    //  {
-    //    ShaderBase pDofShader = Gu::getShaderMaker().getDepthOfFieldShader();
-    //    if (pDofShader == null || cam == null)
-    //    {
-    //      Gu.Log.ErrorCycle("Error: nulls 348957");
-    //      return;
-    //    }
-    //    vec3 pos = cam.getFinalPos();
-    //    FramebufferAttachment rtPos = _pMsaaDeferred.getTargetByName(DeferredFramebuffer::c_strPositionMRT_DF);
-    //    FramebufferAttachment rtColor = _pMsaaForward.getTargetByName(ForwardFramebuffer::c_strColorMRT_FW);  //**Note** Forward
-
-    //    if (rtPos == null || rtColor == null)
-    //    {
-    //      Gu.Log.ErrorCycle("oen or more Render targets were null");
-    //      return;
-    //    }
-
-    //    //Blend color + position and store it in the color.
-    //    pDofShader.BeginRaster2D(cam.getViewport());
-    //    {
-    //      //This could be removed if we used Texture2DSpec for the RenderTarget texturs..
-    //      GLuint i0;
-    //      GL.ActiveTexture(GL_TEXTURE0);
-    //      GL.BindTexture(GL_TEXTURE_2D, rtPos.getGlTexId());
-    //      i0 = 0;
-    //      pDofShader.setUf("_ufTextureId_i0", (GLvoid*)&i0);
-
-    //      //This could be removed if we used Texture2DSpec for the RenderTarget texturs..
-    //      GL.ActiveTexture(GL_TEXTURE1);
-    //      GL.BindTexture(GL_TEXTURE_2D, rtColor.getGlTexId());
-    //      i0 = 1;
-    //      pDofShader.setUf("_ufTextureId_i1", (GLvoid*)&i0);
-
-    //      //Camera params
-    //      //pDofShader.setUf("_fFocalDepth", (GLvoid*)&Gu::getLightManager().getDeferredParams()._fFocalDepth);
-    //      pDofShader.setUf("_fFocalRange", (GLvoid*)&lightman.getDeferredParams()._fFocalRange);
-    //      //View pos
-    //      pDofShader.setUf("_ufViewPos", (void*)&pos);
-
-    //      //Draw Round 1
-    //      GL.BindFramebuffer(GL_DRAW_FRAMEBUFFER, _pDOFFbo._uiDOFFboId);
-    //      GL.FramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, _pDOFFbo._uiTexId0, 0);
-    //      GLint horiz = 0;
-    //      pDofShader.setUf("_ufHorizontal", (GLvoid*)&horiz);
-    //      pDofShader.draw(_pQuadMesh);
-    //      Gu::checkErrorsDbg();
-
-    //      //Draw Round 2
-    //      //Bind rtColor back to the output.
-    //      GL.BindFramebuffer(GL_DRAW_FRAMEBUFFER, _pDOFFbo._uiDOFFboId);
-    //      GL.FramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, rtColor.getGlTexId(), 0);
-
-    //      //Bind the previously rendered color to the color buffer so we can pingpong it back.
-    //      GL.ActiveTexture(GL_TEXTURE1);
-    //      GL.BindTexture(GL_TEXTURE_2D, _pDOFFbo._uiTexId0);
-
-    //      i0 = 1;
-    //      pDofShader.setUf("_ufTextureId_i1", (GLvoid*)&i0);
-
-    //      horiz = 1;
-    //      pDofShader.setUf("_ufHorizontal", (GLvoid*)&horiz);
-    //      pDofShader.draw(_pQuadMesh);
-
-    //      Gu::checkErrorsDbg();
-    //    }
-    //    pDofShader.endRaster();
-    //    Gu::checkErrorsDbg();
-
-    //    //Unbind / Delete
-    //    GL.BindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-    //    GL.ActiveTexture(GL_TEXTURE0);
-    //    GL.BindTexture(GL_TEXTURE_2D, 0);
-    //    GL.ActiveTexture(GL_TEXTURE1);
-    //    GL.BindTexture(GL_TEXTURE_2D, 0);
-    //  }
-    //}
 
     #endregion
     #region Private:Methods
 
-    private void EnableDisablePipeBits()
-    {
-      //TODO: make sure the given input window is in focus.
-      //if (_pWindow!=null && _pWindow.hasFocus()) {
-      //    if (Gu::getFingers().keyPress(SDL_SCANCODE_F8)) {
-      //        Gu::incrementEnum<PipeBit::e>(_pipeBits, PipeBit::e::MaxPipes);
-      //        if (_ePipeBit == PipeBit::e::Full) {
-      //            _pipeBits.set();
-      //        }
-      //        else {
-      //            _pipeBits.reset();
-      //            _pipeBits.set(_ePipeBit);
-      //        }
-      //    }
-      //}
-    }
-    private void CheckMultisampleParams()
+    private void CheckMultisampleParams(int samples)
     {
       int iMaxSamples;
       GL.GetInteger(GetPName.MaxSamples, out iMaxSamples);
       Gu.Log.Info("Max OpenGL MSAA Samples " + iMaxSamples);
 
-      if (_bMsaaEnabled)
+      if (samples > 0)
       {
-        if ((int)_nMsaaSamples > iMaxSamples)
+        if ((int)samples > iMaxSamples)
         {
-          Gu.Log.Warn("[Renderer] MSAA sample count of '" + _nMsaaSamples +
+          Gu.Log.Warn("[Renderer] MSAA sample count of '" + samples +
                     "' was larger than the card's maximum: '" + iMaxSamples + "'. Truncating.");
-          _nMsaaSamples = iMaxSamples;
+          samples = iMaxSamples;
           Gu.DebugBreak();
         }
-        if (!MathUtils.IsPowerOfTwo(_nMsaaSamples))
+        if (!MathUtils.IsPowerOfTwo(samples))
         {
           Gu.Log.Warn("[Renderer] Error, multisampling: The number of samples must be 2, 4, or 8.  Setting to 2.");
-          _nMsaaSamples = iMaxSamples > 2 ? 2 : iMaxSamples;
+          samples = iMaxSamples > 2 ? 2 : iMaxSamples;
           Gu.DebugBreak();
         }
       }
     }
-    private void CheckDeviceCaps(int iWidth, int iHeight)
+    private void CheckDeviceCaps(int iWidth, int iHeight, int samples)
     {
       //TODO: later we'll create this async.
       //  Gd::verifyRenderThread();
@@ -704,62 +587,64 @@ namespace PirateCraft
       //                    " pixels. The system requested " + iWidth + "x" + iHeight + ".");
       // }
 
-      CheckMultisampleParams();
+      CheckMultisampleParams(samples);
     }
-    private void copyMsaaSamples(FramebufferBase msaa, FramebufferBase blitted)
-    {
-      //Downsize the MSAA sample buffer.
-      if (_bMsaaEnabled)
-      {
-        GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, 0);
-        Gpu.CheckGpuErrorsDbg();
+    // private void CopyMsaaSamples(FramebufferGeneric msaa, FramebufferGeneric blitted)
+    // {
+    //   //Downsize the MSAA sample buffer.
+    //   if (_bMsaaEnabled)
+    //   {
+    //     GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, 0);
+    //     Gpu.CheckGpuErrorsDbg();
 
-        GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, msaa.GetGlId());
-        Gpu.CheckGpuErrorsDbg();
-        GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, blitted.GetGlId());
-        Gpu.CheckGpuErrorsDbg();
+    //     GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, msaa.GetGlId());
+    //     Gpu.CheckGpuErrorsDbg();
+    //     GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, blitted.GetGlId());
+    //     Gpu.CheckGpuErrorsDbg();
 
-        foreach (var inf in msaa.Targets)
-        {
-          BlitFramebufferFilter blendMode;
-          ClearBufferMask bitMask;
-          if (inf.getTargetType() == RenderTargetType.Depth)
-          {
-            //GL_LINEAR is only a valid interpolation method for the color buffer.
-            blendMode = BlitFramebufferFilter.Nearest;
-          }
-          else
-          {
-            GL.ReadBuffer((ReadBufferMode)inf.getAttachment()); // This is the same enum in most cases
-            Gpu.CheckGpuErrorsDbg();
-            GL.DrawBuffer((DrawBufferMode)inf.getAttachment());
-            Gpu.CheckGpuErrorsDbg();
-            blendMode = BlitFramebufferFilter.Linear;
-          }
+    //     foreach (var inf in msaa.Bindings)
+    //     {
+    //       BlitFramebufferFilter blendMode;
+    //       ClearBufferMask bitMask;
+    //       if (inf._eTargetType == RenderTargetType.Depth)
+    //       {
+    //         //GL_LINEAR is only a valid interpolation method for the color buffer.
+    //         blendMode = BlitFramebufferFilter.Nearest;
+    //       }
+    //       else
+    //       {
+    //         GL.ReadBuffer((ReadBufferMode)inf.BindingIndex); // This is the same enum in most cases
+    //         Gpu.CheckGpuErrorsDbg();
+    //         GL.DrawBuffer((DrawBufferMode)inf.BindingIndex);
+    //         Gpu.CheckGpuErrorsDbg();
+    //         blendMode = BlitFramebufferFilter.Linear;
+    //       }
 
-          //GL_DEPTH_BUFFER_BIT 0x00000100
-          //GL_COLOR_BUFFER_BIT  0x00004000
-          bitMask = inf.getBlitBit();
+    //       //GL_DEPTH_BUFFER_BIT 0x00000100
+    //       //GL_COLOR_BUFFER_BIT  0x00004000
+    //       bitMask = inf._eBlitBit;
 
-          //GL_DEPTH_BUFFER_BIT;
-          GL.BlitFramebuffer(0, 0, _iLastWidth, _iLastHeight, 0, 0, _iLastWidth, _iLastHeight, bitMask, blendMode);
-          Gpu.CheckGpuErrorsDbg();
-        }
-        Gpu.CheckGpuErrorsDbg();
-      }
-    }
+    //       //GL_DEPTH_BUFFER_BIT;
+    //       GL.BlitFramebuffer(0, 0, _iLastWidth, _iLastHeight, 0, 0, _iLastWidth, _iLastHeight, bitMask, blendMode);
+    //       Gpu.CheckGpuErrorsDbg();
+    //     }
+    //     Gpu.CheckGpuErrorsDbg();
+    //   }
+    // }
     private void releaseFbosAndMesh()
     {
       GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-      _pBlittedDeferred = null;
-      _pBlittedForward = null;
-      _pBlittedDepth = null;
-      if (_bMsaaEnabled)
-      {
-        _pMsaaForward = null;
-        _pMsaaDeferred = null;
-        _pMsaaDepth = null;
-      }
+      PipelineStages.Clear();
+
+      // _pBlittedDeferred = null;
+      // _pBlittedForward = null;
+      // _pBlittedDepth = null;
+      // if (_bMsaaEnabled)
+      // {
+      //   _pMsaaForward = null;
+      //   _pMsaaDeferred = null;
+      //   _pMsaaDepth = null;
+      // }
 
       //  _pShadowBoxFboMaster = null;
       //  _pShadowFrustumMaster = null;
@@ -933,10 +818,25 @@ namespace PirateCraft
     {
       if (Gu.EngineConfig.SaveAllFBOsEveryStageOfPipeline)
       {
-        SaveAllFBOsImmediately(tag);
+        SaveCurrentStageFBOsImmediately(tag);
       }
     }
-    private void SaveAllFBOsImmediately(string tag = "")
+    public HashSet<FramebufferAttachment> GetAllUniqueAttachments()
+    {
+      var x = new HashSet<FramebufferAttachment>();
+      foreach (var ps in PipelineStages)
+      {
+        if (ps.OutputFramebuffer != null)
+        {
+          foreach (var b in ps.OutputFramebuffer.Bindings)
+          {
+            x.Add(b.Attachment);
+          }
+        }
+      }
+      return x;
+    }
+    private void SaveCurrentStageFBOsImmediately(string stage = "")
     {
       string ctxName = Gu.Context.GameWindow.Name;
 
@@ -992,22 +892,24 @@ namespace PirateCraft
       //  iTarget++;
       //}
 
-      string prefix = tag + "_context-" + ctxName + "_" + Gu.GetFilenameDateTimeNOW();
-      iTarget = 0;
-      foreach (FramebufferAttachment pTarget in _pBlittedDeferred.Targets)
+
+      string prefix = Gu.GetFilenameDateTimeNOW() + "_" + stage + "_context-" + ctxName;
+
+
+      //ok so pick isn't getting savd..
+      //GetAllUniqueAttachments();
+
+//using input framebuffer as we call saveFBOs in the blit routine (which, uses inputs)
+      if (this.CurrentStage.InputFramebuffer != null)
       {
-        string fname = prefix + "_deferred_" + pTarget.getName() + "_" + iTarget++ + "_.png";
-        fname = System.IO.Path.Combine(Gu.LocalCachePath, fname);
-        ResourceManager.SaveTexture(new FileLoc(fname, FileStorage.Disk), pTarget._texture, true);
-        Gu.Log.Info("[Renderer] Screenshot '" + fname + "' saved");
-      }
-      iTarget = 0;
-      foreach (FramebufferAttachment pTarget in _pBlittedForward.Targets)
-      {
-        string fname = prefix + "_forward_" + pTarget.getName() + "_" + iTarget++ + "_.png";
-        fname = System.IO.Path.Combine(Gu.LocalCachePath, fname);
-        ResourceManager.SaveTexture(new FileLoc(fname, FileStorage.Disk), pTarget._texture, true);
-        Gu.Log.Info("[Renderer] Screenshot '" + fname + "' saved");
+        foreach (var bind in this.CurrentStage.InputFramebuffer.Bindings)// atts)
+        {
+          var pTarget = bind.Attachment;
+          string fname = prefix + "_" + pTarget.Texture.Name + "_" + bind.LayoutIndex + "_.png";//names may be the same
+          fname = System.IO.Path.Combine(Gu.LocalCachePath, fname);
+          ResourceManager.SaveTexture(new FileLoc(fname, FileStorage.Disk), pTarget.Texture, true);
+          Gu.Log.Info("[Renderer] Screenshot '" + fname + "' saved");
+        }
       }
     }
 

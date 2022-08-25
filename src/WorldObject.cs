@@ -857,7 +857,6 @@ namespace PirateCraft
     {
       Gu.Assert(Gu.Context != null);
       Gu.Assert(Gu.Context.Renderer != null);
-      Gu.Assert(Gu.Context.Renderer.Picker != null);
       //For now, everything gets a pick color. Debug reasons.
       //NOTE: the pick IDs are from the context.. and they should be basd on eadch context.
       // This is INVALID

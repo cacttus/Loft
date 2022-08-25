@@ -67,7 +67,7 @@ namespace PirateCraft
       {
         ident = ObjectLabelIdentifier.Buffer;
       }
-      else if (this is FramebufferBase)
+      else if (this is FramebufferGeneric)
       {
         ident = ObjectLabelIdentifier.Framebuffer;
       }

@@ -29,9 +29,9 @@ void main(void)
 
   setOutput_Color(albedo);
   setOutput_Pick(_vsPick);
-  setOutput_Normal(tx_normal);
-  setOutput_Position(_vsVertex);
-  setOutput_Plane(_vsNormal);
+  setOutput_Normal(vec4(tx_normal,1));
+  setOutput_Position(vec4(_vsVertex,1));
+  setOutput_Plane(vec4(_vsNormal,1));
 }
 
 
