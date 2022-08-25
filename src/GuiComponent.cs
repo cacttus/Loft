@@ -37,7 +37,10 @@ namespace PirateCraft
   {
     //Note: the position terminology here mirrors that of CSS. 
     Static, // elements flow within the page.
-    Relative // elements are relative to the container.
+    Relative, // elements are relative to the container.
+    RelativeConstrainX, //Relative positioning, but cannot go outside parent boundary
+    RelativeConstrainY,
+    RelativeConstrainXY
     //absolute: relative to the whole document.
   }
   public enum UiSizeMode
@@ -146,6 +149,8 @@ namespace PirateCraft
       _borderTopRightRadius = 0;
       _borderBotRightRadius = 0;
       _borderBotLeftRadius = 0;
+      _width = 10;
+      _height = 10;
       _events = null;//EventId, list of action (EventId, Object)
     }
     public UiStyleProps Clone()
@@ -190,6 +195,8 @@ namespace PirateCraft
       if (this._borderTopRightRadius != null) { ret._borderTopRightRadius = this._borderTopRightRadius; }
       if (this._borderBotRightRadius != null) { ret._borderBotRightRadius = this._borderBotRightRadius; }
       if (this._borderBotLeftRadius != null) { ret._borderBotLeftRadius = this._borderBotLeftRadius; }
+      if (this._width != null) { ret._width = this._width; }
+      if (this._height != null) { ret._height = this._height; }
 
       return ret;
     }
@@ -237,6 +244,8 @@ namespace PirateCraft
       if (sub._borderTopRightRadius != null) { this._borderTopRightRadius = sub._borderTopRightRadius; }
       if (sub._borderBotRightRadius != null) { this._borderBotRightRadius = sub._borderBotRightRadius; }
       if (sub._borderBotLeftRadius != null) { this._borderBotLeftRadius = sub._borderBotLeftRadius; }
+      if (sub._width != null) { this._width = sub._width; }
+      if (sub._height != null) { this._height = sub._height; }
     }
 
     public UiRef<MtTex> _texture = null;
@@ -282,52 +291,55 @@ namespace PirateCraft
   }
   public class UiDragInfo
   {
-    public bool _bDragStart = false;
-    public bool _bDrag = false;
-    public vec2 _vDragStart;
-    public WeakReference<UiElement> Target { get; set; } = null;
+    private bool _bDragStart = false;
+    private vec2 _vDragStart;
+    private WeakReference<UiElement> Target { get; set; } = null;
+
     public UiDragInfo() { }
-    public void Update(PCMouse ms)
+    public void StartDrag(UiElement target, PCMouse ms)
+    {
+      if (target != null)
+      {
+        Target = new WeakReference<UiElement>(target);
+        _vDragStart = ms.Pos;
+        _bDragStart = true;
+      }
+    }
+    public void EndDrag()
+    {
+      Target = null;
+      _bDragStart = false;
+    }
+    public void UpdateDrag(PCMouse ms)
     {
       float mw = 1.0f / 1; // UiScreen::getDesignMultiplierW the design multiplier - this isntn't accounted for
       float mh = 1.0f / 1; // UiScreen::getDesignMultiplierH the design multiplier - this isntn't accounted for
       if (Target != null && Target.TryGetTarget(out var tar))
       {
-        if (_bDragStart)
+        //Check for mouse delta to prevent unnecessary updates.
+        bool canDrag = false;
+        vec2 dp = ms.Pos - _vDragStart;
+        if (MathUtils.FuzzyEquals(dp.x, 0.0f) == false || MathUtils.FuzzyEquals(dp.y, 0.0f) == false)
         {
-          if (ms.GetButtonState(MouseButton.Left) == ButtonState.Up)
-          {
-            //Avoid sticking
-            _bDrag = false;
-            _bDragStart = false;
-          }
-          else
-          {
-            //Check for mouse delta to prevent unnecessary updates.
-            vec2 dp = ms.Pos - _vDragStart;
-            if (MathUtils.FuzzyEquals(dp.x, 0.0f) == false || MathUtils.FuzzyEquals(dp.y, 0.0f) == false)
-            {
-              _bDrag = true;
-            }
-            else
-            {
-              _bDrag = false;
-            }
-            if (_bDrag)
-            {
-              //Multiply the distance by the design size.
-              dp.x *= mw;
-              dp.y *= mh;
+          canDrag = true;
+        }
+        else
+        {
+          canDrag = false;
+        }
+        if (canDrag)
+        {
+          //Multiply the distance by the design size.
+          dp.x *= mw;
+          dp.y *= mh;
 
-              if (tar.DragFunc != null)
-              {
-                tar.DragFunc(dp);
-              }
-
-              //Reset drag start
-              _vDragStart = ms.Pos;
-            }
+          if (tar.DragFunc != null)
+          {
+            tar.DragFunc(dp);
           }
+
+          //Reset drag start
+          _vDragStart = ms.Pos;
         }
       }
       else
@@ -366,7 +378,6 @@ namespace PirateCraft
       public vec2 _rbr = new vec2(0, 0);
       public vec2 _rbl = new vec2(0, 0);
     }
-    //Separate UiElement from container because Dictionary footprint is massive and, the glyphs have no children
     #region Public: Members
 
     public string Name { get { return _name; } set { _name = value; } }
@@ -426,11 +437,15 @@ namespace PirateCraft
     }
     public bool IsPickRoot { get { return _isPickRoot; } set { _isPickRoot = value; } }
     public bool PickEnabled { get { return _pickEnabled; } set { _pickEnabled = value; } } //Prevents the pick algorithm from running on misc elements (such as glyphs).
+    public bool DragEnabled { get; private set; } = false;
+    public Action<vec2> DragFunc { get; private set; } = null;
+    public float MinValue { get; set; } = 0;
+    public float MaxValue { get; set; } = 100;
     public bool ScaleToDesign { get; set; } = true; // this is true for all elements besides cursor.
     public bool LayoutChanged { get; private set; } = true;
     public bool LayoutVisible { get { return _layoutVisible; } set { _layoutVisible = value; SetLayoutChanged(); } }
     public bool RenderVisible { get { return _renderVisible; } set { _renderVisible = value; SetLayoutChanged(); } }
-
+    public UiStyleProps Props { get { return _props; } }
     #endregion
     #region Private: Members
 
@@ -460,8 +475,6 @@ namespace PirateCraft
     protected string _strText = "";
     private string _strTextLast = "";
     protected string _name = "";
-    public bool DragEnabled { get; private set; } = false;
-    public Action<vec2> DragFunc { get; private set; } = null;
     private long _iCompiledClassFrameId = 0;
     private long _iCompiledInlineFrameId = 0;
     private bool _bMustRedoTextBecauseOfStyle = false;
@@ -571,7 +584,19 @@ namespace PirateCraft
             par.SetLayoutChanged();
           }
         }
+        //Unfortunately layout changes must take place in siblings and children as well.
+        //Basically the entire UI if a STATIC element changes.
+        //If a child has size:expand, layout changes won't take place for just parents.
+        //However, relative elements (specifically x or y) would not I think.
+        if (_children != null)
+        {
+          foreach (var c in _children)
+          {
+            c.Value.SetLayoutChanged();
+          }
+        }
       }
+
     }
     private bool IsFullyClipped(Box2f b2ClipRect)
     {
@@ -890,7 +915,7 @@ namespace PirateCraft
           {
             //Pick root means we don't pick any children deeper than this element.
             var pixid = Gu.Context.Renderer.Picker.GetSelectedPixelId();
-            if (pixid != 0)
+            if (pixid != Picker.c_iInvalidPickId)
             {
               if (pixid == _iPickId)
               {
@@ -1148,10 +1173,19 @@ namespace PirateCraft
               }
               bucket.Add(p.Value);
             }
-            else if (ele._props._positionMode == UiPositionMode.Relative)
+            else if (ele._props._positionMode == UiPositionMode.Relative ||
+            ele._props._positionMode == UiPositionMode.RelativeConstrainX ||
+            ele._props._positionMode == UiPositionMode.RelativeConstrainY ||
+            ele._props._positionMode == UiPositionMode.RelativeConstrainXY)
             {
               // Fixed elements relative to container
-              ComputePositionalElement(ele);
+              ComputePositionalElement(ele,
+              ele._props._positionMode == UiPositionMode.RelativeConstrainX || ele._props._positionMode == UiPositionMode.RelativeConstrainXY,
+              ele._props._positionMode == UiPositionMode.RelativeConstrainY || ele._props._positionMode == UiPositionMode.RelativeConstrainXY);
+            }
+            else
+            {
+              Gu.BRThrowNotImplementedException();
             }
             //Absolute - relative to entire document.
           }
@@ -1250,8 +1284,31 @@ namespace PirateCraft
 
       line._eles.Add(ele);
     }
-    private void ComputePositionalElement(UiElement ele)
+    private void ComputePositionalElement(UiElement ele, bool constrainX, bool constrainY)
     {
+      if (constrainX)
+      {
+        if (ele._props._right > _props._width)
+        {
+          ele._props._left = _props._width - ele._props._width;
+        }
+        if (ele._props._left < 0)
+        {
+          ele._props._left = 0;
+        }
+      }
+      if (constrainY)
+      {
+        if (ele._props._bottom > _props._height)
+        {
+          ele._props._top = _props._height - ele._props._height;
+        }
+        if (ele._props._top < 0)
+        {
+          ele._props._top = 0;
+        }
+      }
+
       ValidateQuad();
     }
     private void LayoutEleQuads(vec2 viewport_wh, UiElement ele)
@@ -1493,7 +1550,6 @@ namespace PirateCraft
         }
       }
     }
-
     private void DoGlyph(UiElement e, int index, string text, MtFont font, FontPatchInfo patch, float fontHeight)
     {
       int cc = _strText[index];
@@ -1537,9 +1593,6 @@ namespace PirateCraft
 
       e.ValidateQuad();
     }
-
-    #endregion
-
     protected Box2f GetScreenSpaceClipQuad()
     {
       if (_borderArea != null)
@@ -1549,7 +1602,24 @@ namespace PirateCraft
       return _contentArea._b2RasterQuad;
     }
 
+    #endregion
+
   }//UiElement
+  public class UiGridRow : UiElement
+  {
+  }
+  public class UiGrid : UiElement
+  {
+    public void AddRows(int nr, int nc)
+    {
+    }
+  }
+  public class UiDropdown : UiElement
+  {
+    public UiDropdown()
+    {
+    }
+  }
   public class UiScreen : UiElement
   {
     private WeakReference<Camera3D> _camera = new WeakReference<Camera3D>(null);
@@ -1576,25 +1646,16 @@ namespace PirateCraft
     {
       InlineStyle.AddEvent(UiEventId.Mouse_Lmb_Press, (UiEventId evId, UiElement ele, PCMouse m) =>
       {
-        //Dragging
-        _dragInfo._bDragStart = true;
-        _dragInfo._vDragStart = m.Pos;
         var e = (Gu.Context.Renderer.Picker.PickedObjectFrame as UiElement);
-        if (e != null && e.DragEnabled)
-        {
-          _dragInfo.Target = new WeakReference<UiElement>(e);
-        }
+        _dragInfo.StartDrag(e, m);
       });
       InlineStyle.AddEvent(UiEventId.Mouse_Move, (UiEventId evId, UiElement ele, PCMouse m) =>
       {
-        //Dragging
-        _dragInfo.Update(m);
+        _dragInfo.UpdateDrag(m);
       });
       InlineStyle.AddEvent(UiEventId.Mouse_Lmb_Release, (UiEventId evId, UiElement ele, PCMouse m) =>
       {
-        //Dragging
-        _dragInfo.Target = null;
-        _dragInfo._bDrag = false;
+        _dragInfo.EndDrag();
       });
     }
     public static int GetSortLayer(int n)
@@ -1604,11 +1665,6 @@ namespace PirateCraft
     }
     public void Update(MegaTex mt, WorldObject wo, WindowContext ct)
     {
-      if (_dragInfo != null)
-      {
-        _dragInfo.Update(ct.PCMouse);
-      }
-
       if (_camera.TryGetTarget(out var cam))
       {
         long a = Gu.Milliseconds();
@@ -1619,10 +1675,6 @@ namespace PirateCraft
         a = Gu.Milliseconds();
         RegenMesh(wo, mt);
         this.MeshMs = Gu.Milliseconds() - a;
-
-        a = Gu.Milliseconds();
-        Pick(ct);
-        this.PickMs = Gu.Milliseconds() - a;
       }
     }
     private void SetExtentsToViewport(Camera3D cam)
@@ -1634,7 +1686,7 @@ namespace PirateCraft
       _props._maxWHPX = new vec2(cam.Viewport_Width, cam.Viewport_Height);//Make sure stuff doesn't go off the screen.
       _props._minWHPX = new vec2(cam.Viewport_X, cam.Viewport_Y);
     }
-    private void Pick(WindowContext ct)
+    public void Pick(WindowContext ct)
     {
       //Update picked state
       var picker = Gu.Context.Renderer.Picker;
@@ -1713,10 +1765,13 @@ namespace PirateCraft
       RegenMesh(verts, mt.DefaultPixel, b, 0, DebugDraw);
 
       wo.Mesh = new MeshData("gui_mesh", OpenTK.Graphics.OpenGL4.PrimitiveType.Points,
-      Gpu.CreateVertexBuffer(verts.ToArray()),
+      Gpu.CreateVertexBuffer("gui_mesh", verts.ToArray()),
       false
       );
+      wo.Mesh.DrawMode = DrawMode.Forward;
       wo.Mesh.DrawOrder = DrawOrder.Last;
+        //wo.Mesh.DebugBreakRender = true;
+
     }
   }
   public class UiRef<T> where T : class
@@ -1750,7 +1805,7 @@ namespace PirateCraft
     private bool AssertDAG()
     {
       UiStyle that = Super;
-      for (int n = 0; n < 1000; n++)
+      for (int n = 0; n < Gu.c_intMaxWhileTrueLoop; n++)
       {
         if (that == this)
         {
@@ -1880,7 +1935,7 @@ namespace PirateCraft
 
     public void Compile(UiStyle sub = null)
     {
-      if (_bMustCompile)
+      if (_bMustCompile || Gu.EngineConfig.AlwaysCompileAndReloadGpuUniformData)
       {
         _compiled = _props.Clone();
         if (_super != null)
@@ -1897,7 +1952,6 @@ namespace PirateCraft
 
     public UiStyleProps Props { get { return _props; } }
     public UiStyleProps Compiled { get { return _compiled; } }
-
     private UiStyleProps _props = new UiStyleProps();
     private UiStyleProps _compiled = null; // This is only for classes, not elements. Don't duplciate this data for all glyphs!
     private bool _bMustCompile = true;
@@ -2084,7 +2138,7 @@ namespace PirateCraft
         myObj.Material = new Material("GuiMT", _shader);
         myObj.Material.GpuRenderState.DepthTest = false;
         myObj.Material.GpuRenderState.Blend = true;
-        myObj.Material.Textures[Shader.TextureInput.Albedo] = tx.Albedo;
+        myObj.Material.AlbedoSlot.Texture = tx.Albedo;
       }
       else
       {
@@ -2094,6 +2148,10 @@ namespace PirateCraft
     public override void OnUpdate(double dt, WorldObject obj)
     {
       Screen.Update(_megaTex, obj, Gu.Context);
+    }
+    public override void OnPick()
+    {
+      Screen.Pick(Gu.Context);
     }
     public override void OnDestroy(WorldObject myObj)
     {
@@ -2141,6 +2199,7 @@ namespace PirateCraft
         e.InlineStyle.PositionMode = UiPositionMode.Relative;
       }
       e.Text = text;
+      e.InlineStyle.DisplayMode = UiDisplayMode.Inline;
       e.InlineStyle.MaxWHPX = new vec2(100, 200);
       e.InlineStyle.Border = 0;
       e.InlineStyle.BorderRadius = 20;
@@ -2200,6 +2259,69 @@ namespace PirateCraft
       e.IsPickRoot = true;
       return e;
     }
+    public UiElement CreateScrollbar(string name, bool horizontal, Action<float> scrollFunc)
+    {
+      UiElement thumb = CreateDefaultStyledElement(name);
+      thumb.Name = name + "_thumb";
+      thumb.InlineStyle.Texture = new UiRef<MtTex>(this.DefaultPixel());
+      thumb.InlineStyle.PadBot = thumb.InlineStyle.PadLeft = thumb.InlineStyle.PadTop = thumb.InlineStyle.PadRight = 15;// Fonts are messed up right now 
+      thumb.InlineStyle.PadBot = 10;
+      thumb.InlineStyle.PadTop = 10;
+      thumb.InlineStyle.PadLeft = 10;
+      thumb.InlineStyle.PadRight = 10;
+      thumb.InlineStyle.MaxWHPX = new vec2(999999, 999999);
+      thumb.InlineStyle.MinWHPX = new vec2(5, 5);
+      thumb.InlineStyle.Border = 1;
+      thumb.InlineStyle.BorderColor = vec4.rgba_ub(200, 200, 220);
+      thumb.IsPickRoot = true;
+      thumb.InlineStyle.PositionMode = UiPositionMode.RelativeConstrainXY;
+      thumb.InlineStyle.Top = 0;
+      thumb.InlineStyle.Left = 0;
+
+      UiElement cont = CreateDefaultStyledElement(name);
+      cont.Name = name;
+      cont.InlineStyle.Texture = new UiRef<MtTex>(this.DefaultPixel());
+      cont.InlineStyle.Padding = 3;
+      if (horizontal)
+      {
+        cont.InlineStyle.MaxWHPX = new vec2(999999, 20);
+        cont.InlineStyle.MinWHPX = new vec2(20, 20);
+        cont.InlineStyle.SizeModeWidth = UiSizeMode.Expand;
+      }
+      else
+      {
+        cont.InlineStyle.MaxWHPX = new vec2(20, 999999);
+        cont.InlineStyle.MinWHPX = new vec2(20, 20);
+        cont.InlineStyle.SizeModeHeight = UiSizeMode.Expand;
+      }
+      cont.InlineStyle.Color = vec4.rgba_ub(90, 90, 90);
+      cont.AddChild(thumb);
+
+
+      thumb.EnableDrag((v) =>
+      {
+        float valpct = 0;
+        if (horizontal)
+        {
+          valpct = (float)thumb.Props._left / ((float)cont.Props._width - (float)thumb.Props._width);
+        }
+        else
+        {
+          valpct = (float)thumb.Props._top / ((float)cont.Props._height - (float)thumb.Props._height);
+
+        }
+        thumb.InlineStyle.Left = thumb.Props._left;
+        thumb.InlineStyle.Top = thumb.Props._top;
+        thumb.InlineStyle.Left += v.x;
+        thumb.InlineStyle.Top += v.y;
+        scrollFunc?.Invoke(valpct * (thumb.MinValue + thumb.MaxValue));
+      });
+
+      return cont;
+
+    }
+
+
   }//class Gui
 
   #endregion

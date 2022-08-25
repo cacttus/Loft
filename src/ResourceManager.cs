@@ -5,10 +5,350 @@ namespace PirateCraft
 {
   public class ResourceManager
   {
+    #region Public: Members
+
+    //Not sure if we want weak or strong here. 
+    //If an object goes away.. well, we may need it later right? Particles, etc.
+    // then we can manually unload all resources when we load a new scene.
     public Dictionary<FileLoc, WeakReference<Shader>> Shaders { get; private set; } = new Dictionary<FileLoc, WeakReference<Shader>>(new FileLoc.Comparer());
     public Dictionary<FileLoc, WeakReference<Texture2D>> Textures { get; private set; } = new Dictionary<FileLoc, WeakReference<Texture2D>>(new FileLoc.Comparer());
-    //public Dictionary<FileLoc, AudioData> Sounds { get; private set; } = new Dictionary<FileLoc, AudioData>(new FileLoc.Comparer());
 
+    #endregion
+    #region Public: Methods
+
+    public List<WorldObject> LoadObjects(FileLoc loc)
+    {
+      //Load GLTF object
+      //Note: this is not an optimal loading - it loads the entire mesh into memory.
+      //For small meshes, small games. Not for research.
+
+      List<WorldObject> objs = new List<WorldObject>();
+
+      try
+      {
+        //GLTF has 2 parts the model info and the binary data.
+        //It also has 3 file formats: data only, data + metadata, and metadata with embedded data (json)
+        string path = loc.QualifiedPath;
+        byte[]? model_bytes = null;
+        glTFLoader.Schema.Gltf myModel = null;
+
+        using (Stream? stream = loc.GetStream())
+        {
+          if (stream != null)
+          {
+            myModel = glTFLoader.Interface.LoadModel(stream);
+          }
+          else
+          {
+            Gu.BRThrowException("Stream from '" + path + "'was null");
+          }
+        }
+        using (Stream? stream = loc.GetStream())
+        {
+          if (stream != null)
+          {
+            model_bytes = glTFLoader.Interface.LoadBinaryBuffer(stream);
+          }
+          else
+          {
+            Gu.BRThrowException("Stream from '" + path + "'was null");
+          }
+        }
+
+        objs = LoadObjectNodes(myModel);
+        foreach (var ob in objs)
+        {
+          LoadMesh(ob, myModel, model_bytes);
+        }
+
+
+
+      }
+      catch (Exception ex)
+      {
+        Gu.Log.Error(ex.ToString());
+      }
+
+      return objs;
+    }
+    public bool LoadObject(FileLoc loc, out WorldObject ob)
+    {
+      ob = null;
+      var objs = LoadObjects(loc);
+      if (objs?.Count > 0)
+      {
+        ob = objs[0];
+        return true;
+      }
+      return false;
+    }
+    public Texture2D LoadTexture(FileLoc loc, bool mipmaps, TexFilter filter)
+    {
+      Texture2D ret = FindItem(loc, Textures);
+
+      if (ret == null)
+      {
+        ret = new Texture2D(loc, true, TexFilter.Bilinear);
+      }
+      return ret;
+    }
+    public Shader LoadShader(string generic_name, bool gs, FileStorage storage, bool use_cached = true)
+    {
+      Gu.Log.Info("Loading shader source: " + generic_name + " gs=" + gs.ToString() + " storage=" + storage.ToString() + " use_cached=" + use_cached);
+      //This simply loads the shader source, it doesn't proces vars or create shaders. This is done when we begin rendering.
+      string vert_name = generic_name + ".vs.glsl";
+      string geom_name = gs ? generic_name + ".gs.glsl" : "";
+      string frag_name = generic_name + ".fs.glsl";
+      string fileloc_name = vert_name + "-" + geom_name + "-" + frag_name; //hacky, but it will work
+      var cache_loc = new FileLoc(vert_name, storage);
+
+      Shader ret = FindItem(cache_loc, Shaders);
+
+      if (ret == null)
+      {
+        List<string> errors = new List<string>();
+        bool hasErrors = false;
+        string vert = ContextShader.ProcessFile(new FileLoc(vert_name, FileStorage.Embedded), errors);
+        string geom = gs ? ContextShader.ProcessFile(new FileLoc(geom_name, FileStorage.Embedded), errors) : "";
+        string frag = ContextShader.ProcessFile(new FileLoc(frag_name, FileStorage.Embedded), errors);
+
+        if (errors.Count > 0)
+        {
+          Gu.Log.Warn("Shader preprocessing errors: \n" + string.Join("\n", errors));
+          Gu.DebugBreak();
+        }
+
+        ret = new Shader(generic_name, vert, frag, geom);
+        Shaders.Add(cache_loc, new WeakReference<Shader>(ret));
+      }
+      return ret;
+    }
+    public static string ReadTextFile(FileLoc loc)
+    {
+      //Returns empty string when failSilently is true.
+      string data = "";
+      loc.AssertExists();
+
+      if (loc.FileStorage == FileStorage.Embedded)
+      {
+        using (Stream stream = loc.GetStream())
+        {
+          using (StreamReader reader = new StreamReader(stream))
+          {
+            data = reader.ReadToEnd();
+          }
+        }
+      }
+      else if (loc.FileStorage == FileStorage.Disk)
+      {
+        if (!System.IO.File.Exists(loc.RawPath))
+        {
+          Gu.BRThrowException("File '" + loc.RawPath + "' does not exist.");
+        }
+
+        using (Stream stream = File.Open(loc.RawPath, FileMode.Open, FileAccess.Read, FileShare.None))
+        using (StreamReader reader = new StreamReader(stream))
+        {
+          data = reader.ReadToEnd();
+        }
+      }
+      else
+      {
+        Gu.BRThrowNotImplementedException();
+      }
+
+      return data;
+    }
+    public static void SaveImage(string path, Img32 image)
+    {
+      var dir = Path.GetDirectoryName(path);
+      if (!Directory.Exists(dir))
+      {
+        Directory.CreateDirectory(dir);
+      }
+
+      string ext = System.IO.Path.GetExtension(path).ToLower();
+      try
+      {
+        using (Stream fs = File.OpenWrite(path))
+        {
+          StbImageWriteSharp.ImageWriter writer = new StbImageWriteSharp.ImageWriter();
+
+          Img32 img2 = image.Clone();
+          if (image.Format != Img32.ImagePixelFormat.RGBA32ub)
+          {
+            Gu.Log.Error("Invalid pixel format when saving image");
+            Gu.DebugBreak();
+            //          img2.FlipBR(); //flip back before saving
+          }
+
+          writer.WritePng(img2.Data, image.Width, image.Height, StbImageWriteSharp.ColorComponents.RedGreenBlueAlpha, fs);
+        }
+      }
+      catch (Exception ex)
+      {
+        Gu.Log.Error("Failed to save image: " + ex.ToString());
+        Gu.DebugBreak();
+      }
+    }
+    public static Img32 LoadImage(FileLoc loc)
+    {
+      Img32 b = null;
+
+      loc.AssertExists();
+
+      try
+      {
+        using (var fs = loc.GetStream())
+        {
+          if (fs != null)
+          {
+            StbImageSharp.ImageResult image = StbImageSharp.ImageResult.FromStream(fs, StbImageSharp.ColorComponents.RedGreenBlueAlpha);
+            if (image != null)
+            {
+              Img32.ImagePixelFormat pf = Img32.ImagePixelFormat.RGBA32ub;
+              if (image.SourceComp == StbImageSharp.ColorComponents.RedGreenBlueAlpha)
+              {
+                //RGBA is the basic texture2d format. We convert everything to RGBA for simplicity.
+                pf = Img32.ImagePixelFormat.RGBA32ub;
+              }
+              else if (image.SourceComp == StbImageSharp.ColorComponents.RedGreenBlue)
+              {
+                // ** Note : STB converts RGB images to RGBA wiht the above function's parameter so the nagive sourceComp is RGB, the input format is still RGBA.
+                pf = Img32.ImagePixelFormat.RGBA32ub;
+              }
+              else
+              {
+                //We don't handle images not stored as RGBAyet. Use some kind of flip routine to create RGBA.
+                // b.FlipBA();
+                // b.FlipBR();
+                Gu.DebugBreak();
+              }
+              b = new Img32(loc.QualifiedPath, image.Width, image.Height, image.Data, pf);
+
+            }
+            fs.Close();
+          }
+        }
+      }
+      catch (Exception ex)
+      {
+        Gu.Log.Error("failed to load image: " + ex.ToString());
+        Gu.DebugBreak();
+        b = Img32.Default1x1_RGBA32ub(255, 0, 255, 255);
+      }
+
+      return b;
+    }
+    public static unsafe byte[] Serialize<T>(T[] data) where T : struct
+    {
+      //This is .. terrible.
+      var size = Marshal.SizeOf(data[0]);
+      var bytes = new byte[size * data.Length];
+      for (int di = 0; di < data.Length; di++)
+      {
+        var ptr = Marshal.AllocHGlobal(size);
+        Marshal.StructureToPtr(data[di], ptr, true);
+        Marshal.Copy(ptr, bytes, di * size, size);
+        Marshal.FreeHGlobal(ptr);
+      }
+
+      return bytes;
+    }
+    public static T[] Deserialize<T>(byte[] data) where T : struct
+    {
+      var tsize = Marshal.SizeOf(default(T));
+
+      //Must be a multiple of the struct.
+      Gu.Assert(data.Length % tsize == 0);
+
+      var count = data.Length / tsize;
+      T[] ret = new T[count];
+
+      for (int di = 0; di < data.Length; di += tsize)
+      {
+        var ptr_struct = Marshal.AllocHGlobal(tsize);
+        Marshal.StructureToPtr(data[di], ptr_struct, true);
+        ret[di / tsize] = (T)Marshal.PtrToStructure(ptr_struct, typeof(T));
+        Marshal.FreeHGlobal(ptr_struct);
+      }
+
+      return ret;
+    }
+    public static void SaveTexture(FileLoc loc, Texture2D tex, bool formatNonRGBAtoRGBA, int cubemapside = -1)
+    {
+      //formatNonRGBAtoRGBA - Convert things (like R32) to RGBA so we can see it.
+
+      PixelFormat fmt = PixelFormat.AbgrExt;
+      PixelType type = PixelType.Byte;
+      PixelInternalFormat internalFmt = PixelInternalFormat.Alpha;
+
+      Img32 img = Gpu.GetTextureDataFromGpu(tex.GetGlId(), tex.TextureTarget, ref fmt, ref type, ref internalFmt, cubemapside);
+
+      if (formatNonRGBAtoRGBA)
+      {
+        if (fmt == PixelFormat.RedInteger && type == PixelType.UnsignedInt)
+        {
+          for (int iy = 0; iy < img.Height; iy++)
+          {
+            for (int ix = 0; ix < img.Width; ix++)
+            {
+              var p = img.getPixel32(ix, iy);
+              //r32ui is in agbr -> rgba
+              var tmp = p.a;
+              p.a = p.r;
+              p.r = tmp;
+              tmp = p.b;
+              p.b = p.g;
+              p.g = tmp;
+              img.setPixel32(ix, iy, p);
+            }
+          }
+        }
+      }
+
+
+      img.flip(false, true);
+      SaveImage(loc.QualifiedPath, img);
+    }
+    public static void ClearCache()
+    {
+      Gu.Log.Info("Clearing local cache data (engineconfig.ClearCacheOnStart = " + Gu.EngineConfig.ClearCacheOnStart.ToString() + ")");
+      var fs = System.IO.Directory.GetFiles(Gu.LocalCachePath);
+      foreach (var f in fs)
+      {
+        try
+        {
+          System.IO.File.Delete(f);
+        }
+        catch (Exception ex)
+        {
+          Gu.Log.Error("Clear Cache; Could not delete '" + f + "'");
+        }
+      }
+    }
+
+    #endregion
+    #region Private: Methods
+
+    private Tx FindItem<Tx>(FileLoc loc, Dictionary<FileLoc, WeakReference<Tx>> dict) where Tx : class
+    {
+      Tx ret = null;
+      dict.TryGetValue(loc, out var tex);
+      if (tex != null)
+      {
+        if (tex.TryGetTarget(out var tex_target))
+        {
+          ret = tex_target;
+        }
+        else
+        {
+          //Remove the std::weak_reference item as it is no longer used
+          dict.Remove(loc);
+        }
+      }
+      return ret;
+    }
     private void ParseNodes(WorldObject parent, int[] nodeIndexes, glTFLoader.Schema.Gltf myModel, List<WorldObject> worldobjs_ordered_toplevel)
     {
       if (nodeIndexes != null)
@@ -408,7 +748,7 @@ namespace PirateCraft
         }
 
         root.Mesh = new MeshData(mesh.Name, mesh_prim_type,
-          Gpu.CreateVertexBuffer(verts.ToArray())
+          Gpu.CreateVertexBuffer(mesh.Name, verts.ToArray())
             );
       }
       else
@@ -423,14 +763,14 @@ namespace PirateCraft
           }
         }
         root.Mesh = new MeshData(mesh.Name, mesh_prim_type,
-          Gpu.CreateVertexBuffer(verts.ToArray()),
-          Gpu.CreateIndexBuffer(indices_uint.ToArray())
+          Gpu.CreateVertexBuffer(mesh.Name, verts.ToArray()),
+          Gpu.CreateIndexBuffer(mesh.Name, indices_uint.ToArray())
           );
       }
 
       //TODO: materials
-      Gu.Log.Warn("TODO: must create materials for objects");
-      root.Material = Material.DefaultDiffuse();
+      Gu.Log.Warn("TODO: must create materials for GLTF objects");
+      root.Material = Material.DefaultObjectMaterial;
 
       if (root.LoaderTempData != null)
       {
@@ -442,7 +782,10 @@ namespace PirateCraft
           {
             if (mat.PbrMetallicRoughness != null)
             {
-              root.Color = new vec4(
+              root.Material.Roughness = mat.PbrMetallicRoughness.RoughnessFactor;
+              root.Material.Metallic = mat.PbrMetallicRoughness.MetallicFactor;
+              root.Material.AlphaMode = mat.AlphaMode;
+              root.Material.BaseColor = new vec4(
                  mat.PbrMetallicRoughness.BaseColorFactor[0],
                  mat.PbrMetallicRoughness.BaseColorFactor[1],
                  mat.PbrMetallicRoughness.BaseColorFactor[2],
@@ -460,336 +803,7 @@ namespace PirateCraft
         LoadMesh(child, myModel, gltf_data);
       }
     }
-    public List<WorldObject> LoadObjects(FileLoc loc)
-    {
-      //Load GLTF object
-      //Note: this is not an optimal loading - it loads the entire mesh into memory.
-      //For small meshes, small games. Not for research.
 
-      List<WorldObject> objs = new List<WorldObject>();
-
-      try
-      {
-        //GLTF has 2 parts the model info and the binary data.
-        //It also has 3 file formats: data only, data + metadata, and metadata with embedded data (json)
-        string path = loc.QualifiedPath;
-        byte[]? model_bytes = null;
-        glTFLoader.Schema.Gltf myModel = null;
-
-        using (Stream? stream = loc.GetStream())
-        {
-          if (stream != null)
-          {
-            myModel = glTFLoader.Interface.LoadModel(stream);
-          }
-          else
-          {
-            Gu.BRThrowException("Stream from '" + path + "'was null");
-          }
-        }
-        using (Stream? stream = loc.GetStream())
-        {
-          if (stream != null)
-          {
-            model_bytes = glTFLoader.Interface.LoadBinaryBuffer(stream);
-          }
-          else
-          {
-            Gu.BRThrowException("Stream from '" + path + "'was null");
-          }
-        }
-
-        objs = LoadObjectNodes(myModel);
-        foreach (var ob in objs)
-        {
-          LoadMesh(ob, myModel, model_bytes);
-        }
-
-
-
-      }
-      catch (Exception ex)
-      {
-        Gu.Log.Error(ex.ToString());
-      }
-
-      return objs;
-    }
-    private Tx FindItem<Tx>(FileLoc loc, Dictionary<FileLoc, WeakReference<Tx>> dict) where Tx : class
-    {
-      Tx ret = null;
-      dict.TryGetValue(loc, out var tex);
-      if (tex != null)
-      {
-        if (tex.TryGetTarget(out var tex_target))
-        {
-          ret = tex_target;
-        }
-        else
-        {
-          //Remove the std::weak_reference item as it is no longer used
-          dict.Remove(loc);
-        }
-      }
-      return ret;
-    }
-    private Tx FindItem<Tx>(FileLoc loc, Dictionary<FileLoc, Tx> dict) where Tx : class
-    {
-      Tx ret = null;
-      dict.TryGetValue(loc, out var tex);
-      if (tex != null)
-      {
-        return tex;
-      }
-      return ret;
-    }
-    public Texture2D LoadTexture(FileLoc loc, bool mipmaps, TexFilter filter)
-    {
-      Texture2D ret = FindItem(loc, Textures);
-
-      if (ret == null)
-      {
-        ret = new Texture2D(loc, true, TexFilter.Bilinear);
-      }
-      return ret;
-    }
-    public Shader LoadShader(string generic_name, bool gs, FileStorage storage, bool use_cached = true)
-    {
-      string vert_name = generic_name + ".vs.glsl";
-      string geom_name = gs ? generic_name + ".gs.glsl" : "";
-      string frag_name = generic_name + ".fs.glsl";
-      string fileloc_name = vert_name + "-" + geom_name + "-" + frag_name; //hacky, but it will work
-      var cache_loc = new FileLoc(vert_name, storage);
-
-      Shader ret = FindItem(cache_loc, Shaders);
-
-      if (ret == null)
-      {
-        string vert = Shader.ProcessFile(new FileLoc(vert_name, FileStorage.Embedded));
-        string geom = gs ? Shader.ProcessFile(new FileLoc(geom_name, FileStorage.Embedded)) : "";
-        string frag = Shader.ProcessFile(new FileLoc(frag_name, FileStorage.Embedded));
-
-        ret = new Shader(generic_name, vert, frag, geom);
-        Shaders.Add(cache_loc, new WeakReference<Shader>(ret));
-      }
-      return ret;
-    }
-    public static string ReadTextFile(FileLoc loc)
-    {
-      //Returns empty string when failSilently is true.
-      string data = "";
-      loc.AssertExists();
-
-      if (loc.FileStorage == FileStorage.Embedded)
-      {
-        using (Stream stream = loc.GetStream())
-        {
-          using (StreamReader reader = new StreamReader(stream))
-          {
-            data = reader.ReadToEnd();
-          }
-        }
-      }
-      else if (loc.FileStorage == FileStorage.Disk)
-      {
-        if (!System.IO.File.Exists(loc.RawPath))
-        {
-          Gu.BRThrowException("File '" + loc.RawPath + "' does not exist.");
-        }
-
-        using (Stream stream = File.Open(loc.RawPath, FileMode.Open, FileAccess.Read, FileShare.None))
-        using (StreamReader reader = new StreamReader(stream))
-        {
-          data = reader.ReadToEnd();
-        }
-      }
-      else
-      {
-        Gu.BRThrowNotImplementedException();
-      }
-
-      return data;
-    }
-    public static void SaveImage(string path, Img32 image)
-    {
-      var dir = Path.GetDirectoryName(path);
-      if (!Directory.Exists(dir))
-      {
-        Directory.CreateDirectory(dir);
-      }
-
-      string ext = System.IO.Path.GetExtension(path).ToLower();
-      try
-      {
-        using (Stream fs = File.OpenWrite(path))
-        {
-          StbImageWriteSharp.ImageWriter writer = new StbImageWriteSharp.ImageWriter();
-
-          Img32 img2 = image.Clone();
-          if (image.Format != Img32.PixelFormat.RGBA)
-          {
-            Gu.Log.Error("Invalid pixel format when saving image");
-            Gu.DebugBreak();
-            //          img2.FlipBR(); //flip back before saving
-          }
-
-          writer.WritePng(img2.Data, image.Width, image.Height, StbImageWriteSharp.ColorComponents.RedGreenBlueAlpha, fs);
-        }
-      }
-      catch (Exception ex)
-      {
-        Gu.Log.Error("Failed to save image: " + ex.ToString());
-        Gu.DebugBreak();
-      }
-    }
-    public static Img32 LoadImage(FileLoc loc)
-    {
-      Img32 b = null;
-
-      loc.AssertExists();
-
-      try
-      {
-        using (var fs = loc.GetStream())
-        {
-          if (fs != null)
-          {
-            StbImageSharp.ImageResult image = StbImageSharp.ImageResult.FromStream(fs, StbImageSharp.ColorComponents.RedGreenBlueAlpha);
-            if (image != null)
-            {
-              Img32.PixelFormat pf = Img32.PixelFormat.RGBA;
-              if (image.SourceComp == StbImageSharp.ColorComponents.RedGreenBlueAlpha)
-              {
-                //RGBA is the basic texture2d format. We convert everything to RGBA for simplicity.
-                pf = Img32.PixelFormat.RGBA;
-              }
-              else if (image.SourceComp == StbImageSharp.ColorComponents.RedGreenBlue)
-              {
-                // ** Note : STB converts RGB images to RGBA wiht the above function's parameter so the nagive sourceComp is RGB, the input format is still RGBA.
-                pf = Img32.PixelFormat.RGBA;
-              }
-              else
-              {
-                //We don't handle images not stored as RGBAyet. Use some kind of flip routine to create RGBA.
-                // b.FlipBA();
-                // b.FlipBR();
-                Gu.DebugBreak();
-              }
-              b = new Img32(image.Width, image.Height, image.Data, pf);
-
-            }
-            fs.Close();
-          }
-        }
-      }
-      catch (Exception ex)
-      {
-        Gu.Log.Error("failed to load image: " + ex.ToString());
-        Gu.DebugBreak();
-        b = Img32.Default1x1(255, 0, 255, 255);
-      }
-
-      return b;
-    }
-    public static unsafe byte[] Serialize<T>(T[] data) where T : struct
-    {
-      //This is .. terrible.
-      var size = Marshal.SizeOf(data[0]);
-      var bytes = new byte[size * data.Length];
-      for (int di = 0; di < data.Length; di++)
-      {
-        var ptr = Marshal.AllocHGlobal(size);
-        Marshal.StructureToPtr(data[di], ptr, true);
-        Marshal.Copy(ptr, bytes, di * size, size);
-        Marshal.FreeHGlobal(ptr);
-      }
-
-      return bytes;
-    }
-    public static T[] Deserialize<T>(byte[] data) where T : struct
-    {
-      var tsize = Marshal.SizeOf(default(T));
-
-      //Must be a multiple of the struct.
-      Gu.Assert(data.Length % tsize == 0);
-
-      var count = data.Length / tsize;
-      T[] ret = new T[count];
-
-      for (int di = 0; di < data.Length; di += tsize)
-      {
-        var ptr_struct = Marshal.AllocHGlobal(tsize);
-        Marshal.StructureToPtr(data[di], ptr_struct, true);
-        ret[di / tsize] = (T)Marshal.PtrToStructure(ptr_struct, typeof(T));
-        Marshal.FreeHGlobal(ptr_struct);
-      }
-
-      return ret;
-    }
-
-    public static void SaveTexture(FileLoc loc, int glTexId, TextureTarget target, bool formatNonRGBAtoRGBA, int cubemapside = -1)
-    {
-      //formatNonRGBAtoRGBA - Convert things (like R32) to RGBA so we can see it.
-
-      PixelFormat fmt = PixelFormat.AbgrExt;
-      PixelType type = PixelType.Byte;
-      PixelInternalFormat internalFmt = PixelInternalFormat.Alpha;
-
-      Img32 img = Gpu.GetTextureDataFromGpu(glTexId, target, ref fmt, ref type, ref internalFmt, cubemapside);
-
-      if (formatNonRGBAtoRGBA)
-      {
-        if (fmt == PixelFormat.RedInteger && type == PixelType.UnsignedInt)
-        {
-          for (int iy = 0; iy < img.Height; iy++)
-          {
-            for (int ix = 0; ix < img.Width; ix++)
-            {
-              var p =img.getPixel32(ix,iy);
-              //r32ui is in agbr -> rgba
-              var tmp = p.a;
-              p.a = p.r;
-              p.g = p.b;
-              p.b = p.g;
-              p.r = tmp;
-              img.setPixel32(ix,iy,p);
-            }
-          }
-        }
-      }
-
-
-      img.flip(false, true);
-      SaveImage(loc.QualifiedPath, img);
-    }
-    //public Font LoadFont(FileLoc loc)
-    //{
-    //  Font font = new Font();
-
-    //}
-
-    //public AudioData LoadSound(FileLoc loc)
-    //{
-    //  AudioData audioData = null;
-    //  if (!Sounds.TryGetValue(loc, out audioData))
-    //  {
-    //    var bytes = loc.GetBytes();
-    //    if (bytes != null)
-    //    {
-    //      //Ok so we need to know how to stream data with openAL
-    //      var v = StbVorbisSharp.Vorbis.FromMemory(bytes);
-    //      audioData = new AudioData(v);
-    //      this.Sounds.Add(loc, audioData);
-    //    }
-    //    else
-    //    {
-    //        Gu.Log.Error("Could not load sound " + loc.QualifiedPath);
-    //    }
-    //  }
-
-    //  return audioData;
-    //}
-
-
+    #endregion
   }
 }

@@ -1,4 +1,19 @@
 ﻿
+we need to add the lighting code and test out lights.
+fix the "modified" data in uniforms.
+
+
+not all graphics drivers support sharing context data. we can create a "virtual" context and render everything offscreen and send this to the other window context
+this works to prevent having to clone all the data..several times.. just a waste.
+
+dropdown area .. new window
+
+we need the ability to have padding on positionconstrain element for scrollbar. so we need to split positiomode to x , y
+
+
+world will only have 1 drome
+drome size expands when we go outside the region.
+
 So
 * right/left etc of uielement are CHANGED while we mess weith them.. this is a problem.
 characters have a fixed width/height - this must be set. - so we must account for this.

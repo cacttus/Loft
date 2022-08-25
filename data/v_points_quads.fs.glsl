@@ -1,7 +1,4 @@
-﻿#include "v_glsl_version.glsl"
-#include "v_forward_header.glsl"
-
-uniform sampler2D _ufTexture0;
+﻿#include "v_globals.glsl"
 
 in vec2 _vert;
 flat in vec4 _clip;
@@ -24,7 +21,7 @@ void main() {
   texmod.x = _texPos.x + mod(_tex.x - _texPos.x, _texSiz.x);
   texmod.y = _texPos.y + mod(_tex.y - _texPos.y, _texSiz.y);
    
-vec4 tx = texture(_ufTexture0, vec2(texmod));
+vec4 tx = texture(_ufGpuMaterial_s2Albedo, vec2(texmod));
   if(tx.a < 0.001){
   	discard;
   } 
@@ -36,6 +33,6 @@ vec4 tx = texture(_ufTexture0, vec2(texmod));
   //_gColorOut = tx * vec4(r, g, b, 1.0);
   //
   //_gPickOut = _pick_color.x;
-  setColorOutput(tx * vec4(r, g, b, 1.0));
-  setPickOutput(_pick_color.x);
+  setOutput_Color(tx * vec4(r, g, b, 1.0));
+  setOutput_Pick(_pick_color.x);
 }

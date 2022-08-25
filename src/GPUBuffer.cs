@@ -23,7 +23,7 @@ namespace PirateCraft
     public int ItemCount { get { return _itemCount; } }
     public int ItemSizeBytes { get { return _format.ItemSizeBytes; } }
 
-    public GPUBuffer(VertexFormat fmt, BufferTarget t, GpuDataPtr items)
+    public GPUBuffer(string name, VertexFormat fmt, BufferTarget t, GpuDataPtr items) : base(name + "-buffer")
     {
       Gu.Assert(fmt != null);
       Gu.Assert(items != null);
@@ -31,6 +31,7 @@ namespace PirateCraft
       _format = fmt;
       _glId = GL.GenBuffer();
       Allocate(items);
+      SetObjectLabel();
 
       if (t == BufferTarget.ElementArrayBuffer)
       {
@@ -68,6 +69,11 @@ namespace PirateCraft
     public void Unbind()
     {
       GL.BindBuffer(BufferTarget, 0);
+      Gpu.CheckGpuErrorsDbg();
+    }
+    public static void UnbindBuffer(BufferTarget t)
+    {
+      GL.BindBuffer(t, 0);
       Gpu.CheckGpuErrorsDbg();
     }
     public GpuDataArray CopyDataFromGPU(int itemOffset = 0, int itemCount = -1)

@@ -1,5 +1,4 @@
-﻿#include "v_glsl_version.glsl"
-
+﻿#include "v_globals.glsl"
 //Renders 2d points to screen.
 
 layout(location = 0) in vec4 _v401;//rect

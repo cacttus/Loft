@@ -548,8 +548,7 @@ namespace PirateCraft
         imgData[iPix + 3] = dat;  //a
       }
 
-      Img32 img = new Img32();
-      img.init(image_width, image_height, imgData, Img32.PixelFormat.RGBA);
+      Img32 img = new Img32("FontImage", image_width, image_height, imgData, Img32.ImagePixelFormat.RGBA32ub);
 
       return img;
     }
@@ -748,7 +747,7 @@ namespace PirateCraft
       {
         //Note: Default region will get skewed if texture filtering is enabled.
         var pixelBytes = Enumerable.Repeat((byte)255, defaultPixelSize * defaultPixelSize * 4).ToArray();
-        var dpImage = new Img32(defaultPixelSize, defaultPixelSize, pixelBytes, Img32.PixelFormat.RGBA);
+        var dpImage = new Img32("MegaTexDefaultPixel", defaultPixelSize, defaultPixelSize, pixelBytes, Img32.ImagePixelFormat.RGBA32ub);
         var tp = GetTex(dpImage, 1);
         DefaultPixel = tp.GetTexs()[0];
       }
@@ -932,7 +931,6 @@ namespace PirateCraft
         Gu.Log.Debug("..Successful. Tex size=" + iImageSize + ".. Creating Bitmap..");
 
         //Compose Master Image
-        master_albedo = new Img32();
         int datSiz = iImageSize * iImageSize * 4;
 
         Byte[] pData = null;
@@ -972,8 +970,8 @@ namespace PirateCraft
             }
           }
         }
-
-        master_albedo.init(iImageSize, iImageSize, pData, Img32.PixelFormat.RGBA);
+        
+        master_albedo = new Img32(this.Name+"-master", iImageSize, iImageSize, pData, Img32.ImagePixelFormat.RGBA32ub);
 
         //delete[] pData;
 

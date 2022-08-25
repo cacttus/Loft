@@ -5,10 +5,10 @@
 //#define BLINN_PHONG 1
 //#define GGX 1
 struct GpuLight {
-    vec3 _pos;
-    float _radius;
-    vec3 _color;
-    float _power; // This would be the falloff curve  ^x
+  vec3 _pos;
+  float _radius;
+  vec3 _color;
+  float _power; // This would be the falloff curve  ^x
 };
 
 uniform sampler2D _ufTexture2D_Albedo;
@@ -23,9 +23,6 @@ uniform int _ufLightModel_Index;
 uniform float _ufLightModel_GGX_X;
 uniform float _ufLightModel_GGX_Y;
 uniform float _ufNormalMap_Blend;
-
-
-uniform mat4[] _ufInstanceData;
 
 out vec4 _psColorOut;
 

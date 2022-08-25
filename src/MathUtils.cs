@@ -1037,7 +1037,7 @@ namespace PirateCraft
       return a * (1.0f - f) + b * f;
     }
     public static vec3 Zero { get { return new vec3(0, 0, 0); } }
-    public static vec3 one { get { return new vec3(1, 1, 1); } }
+    public static vec3 One { get { return new vec3(1, 1, 1); } }
     public static vec3 VEC3_MIN()
     {
       return new vec3(float.MinValue, float.MinValue, float.MinValue);
@@ -1571,7 +1571,11 @@ namespace PirateCraft
   {
     public float x, y, z, w;
 
-    public static vec4 rgba_ub(byte r, byte g, byte b, byte a)
+    public float r { get { return x; } }
+    public float g { get { return y; } }
+    public float b { get { return z; } }
+    public float a { get { return w; } }
+    public static vec4 rgba_ub(byte r, byte g, byte b, byte a = 255)
     {
       return new vec4(
         Math.Clamp((float)r / 255.0f, 0, 1),
@@ -1793,6 +1797,27 @@ namespace PirateCraft
     }
     public override string ToString() { return "(" + x.ToString() + "," + y + "," + z + "," + w + ")"; }
     public string ToString(int prec) { return "(" + StringUtil.FormatPrec(x, prec) + "," + StringUtil.FormatPrec(y, prec) + "," + StringUtil.FormatPrec(z, prec) + "," + StringUtil.FormatPrec(w, prec) + ")"; }
+  }
+  [StructLayout(LayoutKind.Sequential)]
+  public struct vec4ub
+  {
+    public byte x, y, z, w;
+    public vec4ub(byte dx) : this(dx, dx, dx, dx)
+    {
+    }
+    public vec4ub(byte dx, byte dy, byte dz, byte dw)
+    {
+      x = dx;
+      y = dy;
+      z = dz;
+      w = dw;
+    }
+    public byte r { get { return x; } }
+    public byte g { get { return y; } }
+    public byte b { get { return z; } }
+    public byte a { get { return w; } }
+    public static vec4ub White { get { return new vec4ub(byte.MaxValue); } }
+    public static vec4ub Black { get { return new vec4ub(0); } }
   }
   [StructLayout(LayoutKind.Sequential)]
   public struct ivec2
@@ -2287,6 +2312,29 @@ namespace PirateCraft
       else if (index == 8) { _m33 = val; }
       else throw new Exception("Mat3 index out of range");
     }
+    public static mat3 Identity
+    {
+      get
+      {
+        return new mat3(
+            1, 0, 0,
+            0, 1, 0,
+            0, 0, 1);
+      }
+    }
+    public static mat3 getScale(vec3 xyz)
+    {
+      return getScale(xyz.x, xyz.y, xyz.z);
+    }
+    public static mat3 getScale(float x, float y, float z)
+    {
+      mat3 m = mat3.Identity;
+      m._m11 = x;
+      m._m22 = y;
+      m._m33 = z;
+      return m;
+    }
+
     public mat3 adj()
     {
       // - The expanded cofactor adjoint.
@@ -2457,6 +2505,14 @@ namespace PirateCraft
           "" + _m21 + ", " + _m22 + "," + _m23 + ", " + "\n" +
           "" + _m31 + ", " + _m32 + "," + _m33 + ", " + "\n";
     }
+    public static vec3 operator *(in mat3 m, in vec3 v)
+    {
+      vec3 vret = new vec3(
+              m._m11 * v.x + m._m21 * v.y + m._m31 * v.z,
+              m._m12 * v.x + m._m22 * v.y + m._m32 * v.z,
+              m._m13 * v.x + m._m23 * v.y + m._m33 * v.z);
+      return vret;
+    }
   }
   [StructLayout(LayoutKind.Sequential)]
   public struct mat4
@@ -2539,25 +2595,23 @@ namespace PirateCraft
       //Note: this does not convert between row/column major. 
       //Simply allows this matrix to be used in OpenGL
       OpenTK.Mathematics.Matrix4 ret = new OpenTK.Mathematics.Matrix4(
-      _m11,
-      _m12,
-      _m13,
-      _m14,
-      _m21,
-      _m22,
-      _m23,
-      _m24,
-      _m31,
-      _m32,
-      _m33,
-      _m34,
-      _m41,
-      _m42,
-      _m43,
-      _m44
-          );
+      _m11, _m12, _m13, _m14,
+      _m21, _m22, _m23, _m24,
+      _m31, _m32, _m33, _m34,
+      _m41, _m42, _m43, _m44);
       return ret;
     }
+    // public OpenTK.Mathematics.Matrix4 ToOpenTK()
+    // {
+    //   //Note: this does not convert between row/column major. 
+    //   //Simply allows this matrix to be used in OpenGL
+    //   OpenTK.Mathematics.Matrix4 ret = new OpenTK.Mathematics.Matrix4(
+    //   _m11, _m12, _m13, _m14,
+    //   _m21, _m22, _m23, _m24,
+    //   _m31, _m32, _m33, _m34,
+    //   _m41, _m42, _m43, _m44);
+    //   return ret;
+    // }
     public void set(float val, int index)
     {
       if (index == 0) { _m11 = val; }
@@ -2578,13 +2632,16 @@ namespace PirateCraft
       else if (index == 15) { _m44 = val; }
       else throw new Exception("Mat4 index out of range");
     }
-    public static mat4 identity()
+    public static mat4 Identity
     {
-      return new mat4(
-          1, 0, 0, 0,
-          0, 1, 0, 0,
-          0, 0, 1, 0,
-          0, 0, 0, 1);
+      get
+      {
+        return new mat4(
+            1, 0, 0, 0,
+            0, 1, 0, 0,
+            0, 0, 1, 0,
+            0, 0, 0, 1);
+      }
     }
     public void clone(out mat4 to)
     {
@@ -2625,7 +2682,7 @@ namespace PirateCraft
     }
     public static mat4 getTranslation(float x, float y, float z)
     {
-      mat4 m = identity();
+      mat4 m = mat4.Identity;
 
       m._m41 = x;
       m._m42 = y;
@@ -2649,7 +2706,7 @@ namespace PirateCraft
     }
     public static mat4 getScale(float x, float y, float z)
     {
-      mat4 m = identity();
+      mat4 m = mat4.Identity;
       m._m11 = x;
       m._m22 = y;
       m._m33 = z;
@@ -2719,7 +2776,7 @@ namespace PirateCraft
     }
     public mat4 getOrientToVector(in vec3 iv, in vec3 iup)
     {
-      mat4 m = identity();
+      mat4 m = mat4.Identity;
 
       vec3 v = new vec3(iv);
       vec3 up = new vec3(iup);
@@ -3116,7 +3173,7 @@ namespace PirateCraft
     {
       return base.Equals(obj);
     }
-    public vec3 extractTranslation()
+    public vec3 ExtractTranslation()
     {
       vec3 ret = new vec3();
       ret.x = _m41;
@@ -3160,7 +3217,7 @@ namespace PirateCraft
       rot = new mat4();
       scale = new vec4();
 
-      pos = new vec4(extractTranslation(), 0);
+      pos = new vec4(ExtractTranslation(), 0);
 
       scale.x = new vec3(_m11, _m21, _m31).length();
       scale.y = new vec3(_m12, _m22, _m32).length();
@@ -3738,20 +3795,33 @@ namespace PirateCraft
     {
       return _max.z - _min.z;
     }
-    public void Validate()
+    public bool Validate(bool throwIfInvalid = false)
     {
       if (_max.x < _min.x)
       {
-        throw new Exception("Bound box X was invalid.");
+        if (throwIfInvalid)
+        {
+          throw new Exception("Bound box X was invalid.");
+        }
+        return false;
       }
       if (_max.y < _min.y)
       {
-        throw new Exception("Bound box Y was invalid.");
+        if (throwIfInvalid)
+        {
+          throw new Exception("Bound box Y was invalid.");
+        }
+        return false;
       }
       if (_max.z < _min.z)
       {
-        throw new Exception("Bound box Z was invalid.");
+        if (throwIfInvalid)
+        {
+          throw new Exception("Bound box Z was invalid.");
+        }
+        return false;
       }
+      return true;
     }
     public bool Intersect_Ellipsoid_Fast(vec3 c, vec3 r)
     {
@@ -3967,14 +4037,14 @@ namespace PirateCraft
 
       return false;
     }
-    public float DistanceToCam2(Camera3D cam)
+    public float DistanceToCam2(vec3 p)
     {
       //Squared distance to camera viewport from box FACE
       //technically this is incorrect since the distance would be the projection onto the viewport, and not the center of the viewport
+      //To prevent passing camera all the way down here (and putting it in mathUtils, we can just use a vec3 position..good enough)
       //Return
       // - float.maxvalue if there is no hit
       // - the length squared if there is a hit
-      vec3 p = cam.Position_World;
       if (containsPointBottomLeftInclusive(p))
       {
         return 0;

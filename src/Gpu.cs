@@ -3,6 +3,7 @@
 using System.Runtime.InteropServices;
 using System.Collections.Generic;
 using System;
+using System.Text;
 
 namespace PirateCraft
 {
@@ -46,18 +47,9 @@ namespace PirateCraft
 
     public void SetState()
     {
-      if (_blendEnabled != _blendEnabledLast)
+      //if (_blendEnabled != _blendEnabledLast)
       {
-        if (_blendEnabled)
-        {
-          GL.Enable(EnableCap.Blend);
-          //Just default to basic blending for now
-          GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
-        }
-        else
-        {
-          GL.Disable(EnableCap.Blend);
-        }
+        Gu.Context.Renderer.CurrentPipelineFramebuffer.EnableBlend(_blendEnabled);
       }
       //if (_blendFunc != _blendFuncLast)
       //{
@@ -197,7 +189,7 @@ namespace PirateCraft
           {
             errmsg += Environment.NewLine + " -> shader: " + shaderName;
           }
-          errmsg += Gpu.debugGetRenderState();
+          errmsg += Gpu.DebugGetRenderState();
           Gu.Log.Error(errmsg);
         }
 
@@ -269,20 +261,20 @@ namespace PirateCraft
         int[] lengths = new int[numMsgs];
 
         //unsafe
-       // {
-          //Yeah i don't know what's up with opentk here.
-          string msgcopy = "";
+        // {
+        //Yeah i don't know what's up with opentk here.
+        string msgcopy = "";
 
-          numFound = GL.GetDebugMessageLog(numMsgs, numMsgs * _maxMsgLen, sources, types, ids, severities, lengths, out msgcopy);
-          //fixed (char* ptr = msgcopy)
-          //{
-          //  for (int x = 0; x < msgData.Length; x++)
-          //  {
-          //    msgData[x] = *(ptr + x);
-          //  }
-          //}
+        numFound = GL.GetDebugMessageLog(numMsgs, numMsgs * _maxMsgLen, sources, types, ids, severities, lengths, out msgcopy);
+        //fixed (char* ptr = msgcopy)
+        //{
+        //  for (int x = 0; x < msgData.Length; x++)
+        //  {
+        //    msgData[x] = *(ptr + x);
+        //  }
+        //}
 
-       // }//
+        // }//
 
         if (numFound == 0)
         {
@@ -369,8 +361,8 @@ namespace PirateCraft
           _bPrintingGPULog = true;
           //This isn't necessary. We can just add it above. what's happening is calling renderstate() resets the glError.
           // Also the GL Error automatically resets.
-          strRenderState = (severity == DebugSeverity.DebugSeverityNotification) ? "" : Gpu.debugGetRenderState(true, false, false);
-          strStackInfo = "";//(type == GL_DEBUG_TYPE_ERROR || type == GL_DEBUG_SEVERITY_NOTIFICATION) ? "" : DebugHelper::getStackTrace();  //error prints stack.
+          strRenderState = (severity == DebugSeverity.DebugSeverityNotification) ? "" : Gpu.DebugGetRenderState(true, false, false);
+          strStackInfo = "";//(type ==GLenum.GL_DEBUG_TYPE_ERROR || type ==GLenum.GL_DEBUG_SEVERITY_NOTIFICATION) ? "" : DebugHelper::getStackTrace();  //error prints stack.
           _bPrintingGPULog = false;
         }
         //else
@@ -389,6 +381,8 @@ namespace PirateCraft
         if (type == DebugType.DebugTypeError)
         {
           Gu.Log.Error(msg);
+          Gu.DebugBreak();
+
         }
         else if (severity == DebugSeverity.DebugSeverityNotification)
         {
@@ -543,6 +537,12 @@ namespace PirateCraft
     {
       return _maxTextureSize;
     }
+    public static TextureUnit GetActiveTexture()
+    {
+      int tex_unit = 0;
+      GL.GetInteger(GetPName.ActiveTexture, out tex_unit);
+      return (TextureUnit)tex_unit;
+    }
     public static GpuDataPtr GetGpuDataPtr<T>(T[] data)
     {
       //takes an array of vertexes and marshals them for copying to the GPU
@@ -629,7 +629,6 @@ namespace PirateCraft
     {
 #if DEBUG
       GPULog.chkErrDbg(donotbreak, donotlog, shadername, clearonly);
-      //CheckGpuErrorsRt();
 #endif
     }
     public static Img32 GetTextureDataFromGpu(int iGLTexId, TextureTarget eTexTargetBase, ref PixelFormat outFormat, ref PixelType outType, ref PixelInternalFormat outInternalFormat, int iCubeMapSide = -1)
@@ -682,7 +681,7 @@ namespace PirateCraft
       {  //All color buffers
         calculatedFmt = PixelFormat.Rgba;
         calculatedType = PixelType.UnsignedByte;
-        bufsiz_bytes = w * h * 4;
+        bufsiz_bytes = w * h * 4 * 4;
       }
       else if (internalFormat == PixelInternalFormat.Rgba32ui)
       {  //Pick buffer
@@ -711,8 +710,8 @@ namespace PirateCraft
       else if (internalFormat == PixelInternalFormat.R16f)
       {
         calculatedFmt = PixelFormat.RedInteger; // ? Look at r32ui
-        calculatedType = PixelType.Float; // valid ?
-        bufsiz_bytes = w * h * 4;
+        calculatedType = PixelType.UnsignedShort; // valid ?
+        bufsiz_bytes = w * h * 2;
       }
       else if (internalFormat == PixelInternalFormat.R32ui)
       {
@@ -761,7 +760,7 @@ namespace PirateCraft
       // char* buf = new char[bufsiz_bytes];
       // glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, (GLvoid*)bi.getData()->ptr());
       //glGetTexImage(GL_TEXTURE_2D, iMipLevel, GL_RGBA, GL_UNSIGNED_BYTE, (GLvoid*)bi.getData()->ptr());
-      Img32 image = new Img32(w, h, null, Img32.PixelFormat.RGBA);
+      Img32 image = new Img32("GpuTexture", w, h, null, Img32.ImagePixelFormat.RGBA32ub);
       var handle = GCHandle.Alloc(image.Data, GCHandleType.Pinned);
       GL.GetTexImage(eTexTargetSide, iMipLevel, calculatedFmt, calculatedType, handle.AddrOfPinnedObject());
       handle.Free();
@@ -825,28 +824,905 @@ namespace PirateCraft
       }
       return 0;
     }
-
-    public static GPUBuffer CreateBuffer<T>(BufferTarget t, T[] verts)
+    public static string GetObjectLabel(ObjectLabelIdentifier idt, int id)
+    {
+      string label;
+      int length;
+      if (id == 0)
+      {
+        return " 0 (none)";
+      }
+      GL.GetObjectLabel(idt, id, 256, out length, out label);
+      return label;
+    }
+    public static GPUBuffer CreateBuffer<T>(string name, BufferTarget t, T[] verts)
     {
       var fmt = VertexFormat.GetVertexFormat<T>();
-      GPUBuffer b = new GPUBuffer(fmt, t, Gpu.GetGpuDataPtr(verts));
+      GPUBuffer b = new GPUBuffer(name, fmt, t, Gpu.GetGpuDataPtr(verts));
       return b;
     }
-    public static GPUBuffer CreateVertexBuffer<T>(T[] verts)
+    public static GPUBuffer CreateVertexBuffer<T>(string name, T[] verts)
     {
-      return CreateBuffer(BufferTarget.ArrayBuffer, verts);
+      return CreateBuffer(name + "-vertex", BufferTarget.ArrayBuffer, verts);
     }
-    public static GPUBuffer CreateIndexBuffer<T>(T[] inds)
+    public static GPUBuffer CreateIndexBuffer<T>(string name, T[] inds)
     {
-      return CreateBuffer(BufferTarget.ElementArrayBuffer, inds);
+      return CreateBuffer(name + "-index", BufferTarget.ElementArrayBuffer, inds);
     }
+    private static bool _bGettingRenderState = false;
+    public static string DebugGetRenderState(bool bForceRun = false, bool bPrintToStdout = true, bool bSaveFramebufferTexture = false) //DebugGetGpuState
+    {
+      // This method is called in frames to drag down the debug arrow
+      //  and we skip it unless we force it to run.
+      // Do not comment
+      if (!bForceRun)
+      {
+        return "";  // Do not comment
+      }
+      System.Text.StringBuilder strState = new StringBuilder();
 
-    public static string debugGetRenderState(bool x = true, bool y = true, bool z = true)//udmmies
-    {
-      //TODO:
-      return "todo: renderstate";
-    }
+      if (_bGettingRenderState == true)
+      {
+        return "Render State tried to be called recursively.";  // Prevent recursive calls.
+      }
+      _bGettingRenderState = true;
 
+      // Gd::verifyRenderThread();//We must be in render thread
+
+      var ct = Gu.Context;
+      if (ct == null)
+      {
+        Gu.Log.Error("Context was null for DebugGetRenderState");
+        return "";
+      }
+
+      strState.AppendLine($"");
+      strState.AppendLine($"===================================================================");
+      strState.AppendLine($"                     RENDER STATE                                  ");
+      strState.AppendLine($"                     Window={ct.GameWindow.Title}                  ");
+      strState.AppendLine($"===================================================================");
+      Gpu.CheckGpuErrorsRt();
+
+      DebugPrintShaderLimits(strState);
+
+      DebugGetLegacyViewAndMatrixStack(strState);
+      Gpu.CheckGpuErrorsRt();
+      DebugGetBufferState(strState);
+      Gpu.CheckGpuErrorsRt();
+      // debugGetAttribState(); // This is redundant with vertexarraystate
+      //     CheckGpuErrorsDbg();
+      DebugGetTextureState(strState);
+      Gpu.CheckGpuErrorsRt();
+
+      DebugGetVertexArrayState(strState);
+      Gpu.CheckGpuErrorsRt();
+      DebugGetFramebufferAttachmentState(strState);
+      Gpu.CheckGpuErrorsRt();
+
+      if (bPrintToStdout)
+      {
+        Gu.Log.Info(strState.ToString());
+      }
+      // if (bSaveFramebufferTexture) {
+      //   string fname = FileSystem::getScreenshotFilename();
+      //   saveFramebufferAsPng(std::move(fname));
+      // }
+
+      _bGettingRenderState = false;
+
+      return strState.ToString();
+    }
+    private static void DebugPrintGLGetInteger(StringBuilder strState, GetPName pname)
+    {
+      //deosnt work in some cases due to dupes
+      int val = 0;
+      GL.GetInteger(GetPName.Blend, out val);
+      strState.AppendLine(((GLenum)pname).Description() + ": " + ((GLenum)val).Description());
+      Gpu.CheckGpuErrorsRt();
+    }
+    private static void DebugGetLegacyViewAndMatrixStack(StringBuilder strState)
+    {
+      int[] iScissorBox = new int[4];
+      int[] iViewportBox = new int[4];
+      strState.AppendLine("---------------- Legcay State ----------------");
+
+      int val = 0;
+      GL.GetInteger(GetPName.Blend, out val);
+      strState.AppendLine("Blending: " + ((GLenum)val).Description());
+      Gpu.CheckGpuErrorsRt();
+
+      GL.GetInteger(GetPName.Blend, out val);
+      strState.AppendLine("Blending: " + ((GLenum)val).Description());
+      Gpu.CheckGpuErrorsRt();
+
+      GL.GetInteger(GetPName.CullFace, out val);
+      strState.AppendLine("Culling: " + ((GLenum)val).Description());
+      Gpu.CheckGpuErrorsRt();
+
+      GL.GetInteger(GetPName.CullFaceMode, out val);
+      strState.AppendLine("CullMode: " + ((GLenum)val).Description());
+      Gpu.CheckGpuErrorsRt();
+
+      GL.GetInteger(GetPName.FrontFace, out val);
+      strState.AppendLine("FrontFace: " + ((GLenum)val).Description());
+      Gpu.CheckGpuErrorsRt();
+
+      GL.GetInteger(GetPName.DepthTest, out val);
+      strState.AppendLine("Depth Test: " + ((GLenum)val).Description());
+      Gpu.CheckGpuErrorsRt();
+
+
+      // View Bounds (Legacy)
+      GL.GetInteger(GetPName.ScissorBox, iScissorBox);
+      GL.GetInteger(GetPName.Viewport, iViewportBox);
+      //GL.GetInteger(GL_SCISSOR_BOX, (int*)iScissorBox);
+      //GL.GetInteger(GL_VIEWPORT, (int*)iViewportBox);
+      strState.AppendLine("Scissor: " + iScissorBox[0] + "," + iScissorBox[1] + "," + iScissorBox[2] + "," + iScissorBox[3]);
+      strState.AppendLine("Viewport: " + iViewportBox[0] + "," + iViewportBox[1] + "," + iViewportBox[2] + "," + iViewportBox[3]);
+      // TODO: legacy matrix array state.
+      Gpu.CheckGpuErrorsRt();
+    }
+    private static void DebugGetBufferState(StringBuilder strState)
+    {
+      strState.AppendLine("----------------SHADER STATE----------------");
+
+      int iBoundBuffer;
+      int iCurrentProgram;
+      int iElementArrayBufferBinding;
+      int iSsboBinding;  // shader storage
+      int iVertexArrayBinding;
+
+      GL.GetInteger(GetPName.ArrayBufferBinding, out iBoundBuffer);
+      GL.GetInteger(GetPName.ElementArrayBufferBinding, out iElementArrayBufferBinding);
+      //GL.GetInteger(GetPName.binding out iSsboBinding);
+      GL.GetInteger(GetPName.VertexArrayBinding, out iVertexArrayBinding);
+      GL.GetInteger(GetPName.CurrentProgram, out iCurrentProgram);
+      Gpu.CheckGpuErrorsRt();
+
+      strState.AppendLine("Bound Shader Program: " + GetObjectLabel(ObjectLabelIdentifier.Program, iCurrentProgram));
+      Gpu.CheckGpuErrorsRt();
+      strState.AppendLine("Bound Vertex Array Buffer (VBO): " + GetObjectLabel(ObjectLabelIdentifier.Buffer, iBoundBuffer));
+      Gpu.CheckGpuErrorsRt();
+      strState.AppendLine("Bound Element Array Buffer (IBO): " + GetObjectLabel(ObjectLabelIdentifier.Buffer, iElementArrayBufferBinding));
+      Gpu.CheckGpuErrorsRt();
+      strState.AppendLine("Bound Shader Storage Buffer (SSBO): Not avialable in opentk?");
+      // List<int> binds = new List<int>();
+      // int iMaxUniformBindings;
+      // GL.GetInteger(GetPName.MaxUniformBufferBindings, out iMaxUniformBindings);
+      // for (int xxx = 0; xxx < iMaxUniformBindings; xxx++)
+      // {
+      //   int iUniformBufferBindingxx = 0;
+      //   GL.GetInteger(GetIndexedPName.UniformBufferBinding, xxx, out iUniformBufferBindingxx);
+      //   strState.AppendLine("Bound Uniform Buffer (UBO): " + GetObjectLabel(ObjectLabelIdentifier.Buffer, iUniformBufferBindingxx));
+      // }
+      Gpu.CheckGpuErrorsRt();
+      strState.AppendLine("Bound Vertex Array Object (VAO): " + GetObjectLabel(ObjectLabelIdentifier.VertexArray, iVertexArrayBinding));
+      Gpu.CheckGpuErrorsRt();
+
+      if (iCurrentProgram > 0)
+      {
+        DebugPrintActiveUniforms(iCurrentProgram, strState);
+      }
+    }
+    private static void DebugPrintActiveUniforms(int iGlProgramId, StringBuilder strState)
+    {
+      int nUniforms;
+      string uniformName;
+      int name_len = -1;
+      int iArraySize = -1;
+      ActiveUniformType uniformType;
+      int nActiveUniformBlocks;
+      int nMaxUniformLocations;
+
+
+      // - Get the number of uniforms
+      GL.GetProgram(iGlProgramId, GetProgramParameterName.ActiveUniforms, out nUniforms);
+      GL.GetProgram(iGlProgramId, GetProgramParameterName.ActiveUniformBlocks, out nActiveUniformBlocks);
+      // GL.GetInteger(max uniform locations.., ref nMaxUniformLocations);
+
+      //GL.GetInteger(GL_MAX_COMPUTE_UNIFORM_COMPONENTS, ref nMaxComponentsComp);
+      Gpu.CheckGpuErrorsRt();
+
+      strState.AppendLine("Active Uniform Blocks: " + nActiveUniformBlocks);
+
+      strState.AppendLine("Active Uniforms (" + nUniforms + "): ");
+      strState.AppendLine("  (Name, Type, Location, ArraySize)");
+
+      // Get all uniform names and types into a list.
+      for (Int32 i = 0; i < nUniforms; ++i)
+      {
+        // Get name an d type
+        GL.GetActiveUniform(iGlProgramId, i, 256, out name_len, out iArraySize, out uniformType, out uniformName);
+
+        // get location
+        int glLocation = GL.GetUniformLocation(iGlProgramId, uniformName);
+
+        strState.AppendLine(" " + uniformName + ", " + ((GLenum)uniformType).Description() + ", " + glLocation + ", " + iArraySize);
+
+        // Uniform Block Data.
+        Gpu.CheckGpuErrorsRt();
+
+        int iCurrentBlockIdx;
+        iCurrentBlockIdx = GL.GetUniformBlockIndex(iGlProgramId, uniformName);
+
+        if (iCurrentBlockIdx != -1)
+        {
+          int iBlockBinding;
+          int iBlockDataSize;
+          int iBlockNameLength;
+          int iBlockActiveUniforms;
+          int iBlockActiveUniformIndices;
+
+          Gpu.CheckGpuErrorsRt();
+          GL.GetActiveUniformBlock(iGlProgramId, iCurrentBlockIdx, ActiveUniformBlockParameter.UniformBlockBinding, out iBlockBinding);
+          Gpu.CheckGpuErrorsRt();
+          GL.GetActiveUniformBlock(iGlProgramId, iCurrentBlockIdx, ActiveUniformBlockParameter.UniformBlockDataSize, out iBlockDataSize);
+          Gpu.CheckGpuErrorsRt();
+          GL.GetActiveUniformBlock(iGlProgramId, iCurrentBlockIdx, ActiveUniformBlockParameter.UniformBlockNameLength, out iBlockNameLength);
+          Gpu.CheckGpuErrorsRt();
+          GL.GetActiveUniformBlock(iGlProgramId, iCurrentBlockIdx, ActiveUniformBlockParameter.UniformBlockActiveUniforms, out iBlockActiveUniforms);
+          Gpu.CheckGpuErrorsRt();
+          GL.GetActiveUniformBlock(iGlProgramId, iCurrentBlockIdx, ActiveUniformBlockParameter.UniformBlockActiveUniformIndices, out iBlockActiveUniformIndices);
+          Gpu.CheckGpuErrorsRt();
+
+          strState.AppendLine("  Block Index: " + iCurrentBlockIdx);
+          strState.AppendLine("  Block Binding: " + iBlockBinding);
+          strState.AppendLine("  Block Data Size: " + iBlockDataSize);
+          strState.AppendLine("  Block Name Length: " + iBlockNameLength);
+          strState.AppendLine("  Block Active Uniforms: " + iBlockActiveUniforms);
+          strState.AppendLine("  Block Active Uniform Indices: " + iBlockActiveUniformIndices);
+        }
+
+        // strState.AppendLine("  TODO: dump UBO buffer data");
+        // Data
+        // if (Gu::isManagerConstructed(ManagerType::ShaderMaker))
+        // {
+        //   // We can call this anywhere. SM is lazy initialized, so this may not be available.
+        //   if (Gu::getShaderMaker()->getBound() != nullptr)
+        //   {
+        //     std::shared_ptr<ShaderUniform> uf = Gu::getShaderMaker()->getBound()->getUniformByName(uniformName);
+        //     if (uf != nullptr)
+        //     {
+        //       strState.AppendLine(("  Buffer Data:"));
+        //       if (uf->hasBeenSet() == false)
+        //       {
+        //         strState.AppendLine(("  not set."));
+        //       }
+        //       else
+        //       {
+        //         strState.AppendLine("  Text:" + (uf->debugGetUniformValueAsString(false)));
+        //         strState.AppendLine("   Raw:" + (uf->debugGetUniformValueAsString(true)));
+        //       }
+        //     }
+        //     else
+        //     {
+        //       strState.AppendLine("Uniform " + uniformName + " was not found.  It may be a uniform buffer.");
+        //     }
+        //   }
+        // }
+        // else
+        // {
+        //   strState.AppendLine(" Bound uniform Data not available. Shader manager has not been constructed yet.");
+        // }
+      }
+    }
+    public static void DebugGetAttribState(StringBuilder strState)
+    {
+      //// - print bound attributes
+      // int iMaxAttribs;
+      // int iBoundAttrib;
+      // GL.GetInteger(GL_MAX_VERTEX_ATTRIBS,out iMaxAttribs);
+      // std::cout<<"Attribs: max count = "<<iMaxAttribs<<std::endl;
+      // for(int xx=0; xx<iMaxAttribs; ++xx)
+      //{
+      //     GL.GetInteger(GL_VERTEX_ATTRIB_ARRAY0_NV+xx,out iBoundAttrib);
+      //     std::cout<<"attrib "<<xx<<": "<<iBoundAttrib<<std::endl;
+      // }
+    }
+    private static void DebugGetTextureState(StringBuilder strState)
+    {
+      Gpu.CheckGpuErrorsRt();
+      strState.AppendLine("----------------Texture State----------------");
+
+
+      int iActiveTexture;
+      GL.GetInteger(GetPName.ActiveTexture, out iActiveTexture);  // 0x84C0 is TEXTURE0
+      strState.AppendLine("Active Texture : " + "GL_TEXTURE" + (iActiveTexture - 0x84c0));
+
+      // Get the max id (possibly)
+      Gpu.CheckGpuErrorsRt();
+      int maxId = 0;
+      GL.GenTextures(1, out maxId);
+      GL.DeleteTexture(maxId);
+      Gpu.CheckGpuErrorsRt();
+      int ntexs = 0;
+      for (var iTexId = 0; iTexId < maxId; ++iTexId)
+      {
+        if (GL.IsTexture(iTexId))
+        {
+          ntexs++;
+        }
+      }
+      strState.AppendLine($"----------------All Textures ({ntexs})----------------");
+      // Show all registered texture parameters
+      for (var iTexId = 0; iTexId < maxId; ++iTexId)
+      {
+        DebugPrintTextureInfo(strState, iTexId);
+      }
+
+      strState.AppendLine("----------------Bound Textures----------------");
+
+      Gpu.CheckGpuErrorsRt();
+
+      // - Get bound texture units.
+      int iMaxVertexTextureUnits;
+      GL.GetInteger(GetPName.MaxVertexTextureImageUnits, out iMaxVertexTextureUnits);
+      for (int i = 0; i < iMaxVertexTextureUnits; ++i)
+      {
+        int iTextureId = 0;  // Texture ID
+        GL.ActiveTexture(TextureUnit.Texture0 + i);
+        strState.AppendLine("  Channel " + i);
+        GL.GetInteger(GetPName.TextureBinding1D, out iTextureId);
+        if (iTextureId > 0)
+        {
+          strState.AppendLine("     1D: " + GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
+        }
+        iTextureId = 0;
+        GL.GetInteger(GetPName.TextureBinding1DArray, out iTextureId);
+        if (iTextureId > 0)
+        {
+          strState.AppendLine("     1D_ARRAY: " + GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
+        }
+        iTextureId = 0;
+        GL.GetInteger(GetPName.TextureBinding2D, out iTextureId);
+        if (iTextureId > 0)
+        {
+          strState.AppendLine("     2D: " + GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
+        }
+        iTextureId = 0;
+        GL.GetInteger(GetPName.TextureBinding1DArray, out iTextureId);
+        if (iTextureId > 0)
+        {
+          strState.AppendLine("     2D_ARRAY: " + GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
+        }
+        iTextureId = 0;
+        GL.GetInteger(GetPName.TextureBinding2DMultisample, out iTextureId);
+        if (iTextureId > 0)
+        {
+          strState.AppendLine("     2D_MULTISAMPLE: " + GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
+        }
+        iTextureId = 0;
+        GL.GetInteger(GetPName.TextureBinding2DMultisampleArray, out iTextureId);
+        if (iTextureId > 0)
+        {
+          strState.AppendLine("     2D_MULTISAMPLE_ARRAY: " + GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
+        }
+        iTextureId = 0;
+        GL.GetInteger(GetPName.TextureBinding3D, out iTextureId);
+        if (iTextureId > 0)
+        {
+          strState.AppendLine("     3D: " + GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
+        }
+        iTextureId = 0;
+        GL.GetInteger(GetPName.TextureBindingBuffer, out iTextureId);
+        if (iTextureId > 0)
+        {
+          strState.AppendLine("     BUFFER: " + GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
+        }
+        iTextureId = 0;
+        GL.GetInteger(GetPName.TextureBindingCubeMap, out iTextureId);
+        if (iTextureId > 0)
+        {
+          strState.AppendLine("     CUBE_MAP: " + GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
+        }
+        iTextureId = 0;
+        GL.GetInteger(GetPName.TextureBindingRectangle, out iTextureId);
+        if (iTextureId > 0)
+        {
+          strState.AppendLine("     RECTANGLE: " + GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
+        }
+        Gpu.CheckGpuErrorsRt();
+      }
+    }
+    private static void DebugPrintTextureInfo(StringBuilder strState, int iTexId)
+    {
+      if (!GL.IsTexture(iTexId))
+      {
+        return;
+      }
+      Gpu.CheckGpuErrorsRt();
+
+      GL.ActiveTexture(TextureUnit.Texture0);
+
+      string texName = GetObjectLabel(ObjectLabelIdentifier.Texture, iTexId);
+      Gpu.CheckGpuErrorsRt();
+
+      int tex_target;
+      GL.GetTextureParameter(iTexId, GetTextureParameter.TextureTarget, out tex_target);
+      Gpu.CheckGpuErrorsRt();
+
+      if (tex_target == 0)
+      {
+        strState.AppendLine("  " + texName + " - Texture Target was zero (error).");
+      }
+      else
+      {
+        int get_binding = (int)TexTargetToTexBindingQuery((GLenum)tex_target);
+        if (get_binding == 0)
+        {
+          strState.AppendLine("  " + texName + " - Texture Binding information (" + tex_target + ") was invalid.");
+        }
+        else
+        {
+          strState.AppendLine("Texture: " + texName);
+          strState.AppendLine("  Target: " + ((GLenum)tex_target).Description());
+          strState.AppendLine("  Binding: " + ((GLenum)tex_target).Description());
+
+          int iSavedTextureId = 0;
+          GL.GetInteger((GetPName)get_binding, out iSavedTextureId);
+          Gpu.CheckGpuErrorsRt();
+          GL.BindTexture((TextureTarget)tex_target, iTexId);
+          Gpu.CheckGpuErrorsRt();
+          {
+            DebugPrintBoundTextureAttribs(strState, texName, tex_target);
+          }
+          GL.BindTexture((TextureTarget)tex_target, iSavedTextureId);
+          Gpu.CheckGpuErrorsRt();
+        }
+      }
+    }
+    private static GLenum TexTargetToTexBindingQuery(GLenum target)
+    {
+      if (target == GLenum.GL_TEXTURE_1D)
+      {
+        return GLenum.GL_TEXTURE_BINDING_1D;
+      }
+      else if (target == GLenum.GL_TEXTURE_2D)
+      {
+        return GLenum.GL_TEXTURE_BINDING_2D;
+      }
+      else if (target == GLenum.GL_TEXTURE_3D)
+      {
+        return GLenum.GL_TEXTURE_BINDING_3D;
+      }
+      else if (target == GLenum.GL_TEXTURE_RECTANGLE)
+      {
+        return GLenum.GL_TEXTURE_BINDING_RECTANGLE;
+      }
+      else if (target == GLenum.GL_TEXTURE_BUFFER)
+      {
+        return GLenum.GL_TEXTURE_BINDING_BUFFER;
+      }
+      else if (target == GLenum.GL_TEXTURE_CUBE_MAP)
+      {
+        return GLenum.GL_TEXTURE_BINDING_CUBE_MAP;
+      }
+      else if (target == GLenum.GL_TEXTURE_1D_ARRAY)
+      {
+        return GLenum.GL_TEXTURE_BINDING_1D_ARRAY;
+      }
+      else if (target == GLenum.GL_TEXTURE_2D_ARRAY)
+      {
+        return GLenum.GL_TEXTURE_BINDING_2D_ARRAY;
+      }
+      else if (target == GLenum.GL_TEXTURE_CUBE_MAP_ARRAY)
+      {
+        return GLenum.GL_TEXTURE_BINDING_CUBE_MAP_ARRAY;
+      }
+      else if (target == GLenum.GL_TEXTURE_2D_MULTISAMPLE)
+      {
+        return GLenum.GL_TEXTURE_BINDING_2D_MULTISAMPLE;
+      }
+      else if (target == GLenum.GL_TEXTURE_2D_MULTISAMPLE_ARRAY)
+      {
+        return GLenum.GL_TEXTURE_BINDING_2D_MULTISAMPLE_ARRAY;
+      }
+      return (int)0;
+    }
+    private static GLenum TexBindingToTexTargetQuery(GLenum binding)
+    {
+      if (binding == GLenum.GL_TEXTURE_BINDING_1D)
+      {
+        return GLenum.GL_TEXTURE_1D;
+      }
+      else if (binding == GLenum.GL_TEXTURE_BINDING_2D)
+      {
+        return GLenum.GL_TEXTURE_2D;
+      }
+      else if (binding == GLenum.GL_TEXTURE_BINDING_3D)
+      {
+        return GLenum.GL_TEXTURE_3D;
+      }
+      else if (binding == GLenum.GL_TEXTURE_BINDING_RECTANGLE)
+      {
+        return GLenum.GL_TEXTURE_RECTANGLE;
+      }
+      else if (binding == GLenum.GL_TEXTURE_BINDING_BUFFER)
+      {
+        return GLenum.GL_TEXTURE_BUFFER;
+      }
+      else if (binding == GLenum.GL_TEXTURE_BINDING_CUBE_MAP)
+      {
+        return GLenum.GL_TEXTURE_CUBE_MAP;
+      }
+      else if (binding == GLenum.GL_TEXTURE_BINDING_1D_ARRAY)
+      {
+        return GLenum.GL_TEXTURE_1D_ARRAY;
+      }
+      else if (binding == GLenum.GL_TEXTURE_BINDING_2D_ARRAY)
+      {
+        return GLenum.GL_TEXTURE_2D_ARRAY;
+      }
+      else if (binding == GLenum.GL_TEXTURE_BINDING_CUBE_MAP_ARRAY)
+      {
+        return GLenum.GL_TEXTURE_CUBE_MAP_ARRAY;
+      }
+      else if (binding == GLenum.GL_TEXTURE_BINDING_2D_MULTISAMPLE)
+      {
+        return GLenum.GL_TEXTURE_2D_MULTISAMPLE;
+      }
+      else if (binding == GLenum.GL_TEXTURE_BINDING_2D_MULTISAMPLE_ARRAY)
+      {
+        return GLenum.GL_TEXTURE_2D_MULTISAMPLE_ARRAY;
+      }
+      return 0;
+    }
+    private static void DebugPrintBoundTextureAttribs(StringBuilder strState, string texName, int tex_target)
+    {
+      int val;
+      if (Gu.AllowOpenTKFaults)
+      {
+        GL.GetTexParameter((TextureTarget)tex_target, GetTextureParameter.TextureWidth, out val);
+        strState.AppendLine("  TextureWidth: " + val);
+        Gpu.CheckGpuErrorsRt();
+        GL.GetTexParameter((TextureTarget)tex_target, GetTextureParameter.TextureHeight, out val);
+        strState.AppendLine("  TextureHeight: " + val);
+        Gpu.CheckGpuErrorsRt();
+      }
+      GL.GetTexParameter((TextureTarget)tex_target, GetTextureParameter.TextureMagFilter, out val);
+      strState.AppendLine("  TextureMagFilter: " + ((GLenum)val).Description());
+      Gpu.CheckGpuErrorsRt();
+      GL.GetTexParameter((TextureTarget)tex_target, GetTextureParameter.TextureMinFilter, out val);
+      strState.AppendLine("  TextureMinFilter: " + ((GLenum)val).Description());
+      Gpu.CheckGpuErrorsRt();
+      GL.GetTexParameter((TextureTarget)tex_target, GetTextureParameter.TextureMinLod, out val);
+      strState.AppendLine("  TextureMinLod: " + val);
+      Gpu.CheckGpuErrorsRt();
+      GL.GetTexParameter((TextureTarget)tex_target, GetTextureParameter.TextureBaseLevel, out val);
+      strState.AppendLine("  TextureBaseLevel: " + val);
+      Gpu.CheckGpuErrorsRt();
+      GL.GetTexParameter((TextureTarget)tex_target, GetTextureParameter.TextureMaxLevel, out val);
+      strState.AppendLine("  TextureMaxLevel: " + val);
+      Gpu.CheckGpuErrorsRt();
+      GL.GetTexParameter((TextureTarget)tex_target, GetTextureParameter.TextureWrapS, out val);
+      strState.AppendLine("  TextureWrapS: " + ((GLenum)val).Description());
+      Gpu.CheckGpuErrorsRt();
+      GL.GetTexParameter((TextureTarget)tex_target, GetTextureParameter.TextureWrapT, out val);
+      strState.AppendLine("  TextureWrapT: " + ((GLenum)val).Description());
+      Gpu.CheckGpuErrorsRt();
+      GL.GetTexParameter((TextureTarget)tex_target, GetTextureParameter.TextureWrapR, out val);
+      strState.AppendLine("  TextureWrapR: " + ((GLenum)val).Description());
+      Gpu.CheckGpuErrorsRt();
+      GL.GetTexParameter((TextureTarget)tex_target, GetTextureParameter.TextureCompareMode, out val);
+      strState.AppendLine("  TextureCompareMode: " + ((GLenum)val).Description());
+      Gpu.CheckGpuErrorsRt();
+      GL.GetTexParameter((TextureTarget)tex_target, GetTextureParameter.TextureCompareFunc, out val);
+      strState.AppendLine("  TextureCompareFunc: " + ((GLenum)val).Description());
+      Gpu.CheckGpuErrorsRt();
+      if (Gu.Context.GameWindow.Profile == OpenTK.Windowing.Common.ContextProfile.Compatability)
+      {
+        GL.GetTexParameter((TextureTarget)tex_target, GetTextureParameter.DepthTextureMode, out val);
+        strState.AppendLine("  DepthTextureMode: " + ((GLenum)val).Description());
+        Gpu.CheckGpuErrorsRt();
+        GL.GetTexParameter((TextureTarget)tex_target, GetTextureParameter.GenerateMipmap, out val);
+        strState.AppendLine("  GenerateMipmap: " + ((GLenum)val).Description());
+        Gpu.CheckGpuErrorsRt();
+      }
+
+    }
+    private static void DebugGetFramebufferAttachmentState(StringBuilder strState)
+    {
+      strState.AppendLine("----------------Framebuffers----------------");
+      int eDrawBuffer;
+      int iDrawFramebufferBinding;  // name of fb beijmg drawn to
+      int iReadFramebufferBinding;  // name of fb beijmg drawn to
+      int iRenderbufferBinding;
+      int eReadBuffer;
+      int iSamplerBinding;  //! Texture sampler (should be 2d??)
+      int boundFramebuffer;
+
+      // Reference enums
+      //#define GL_FRONT 0x0404
+      //#define GL_BACK 0x0405
+
+      // Framebuffers
+      GL.GetInteger(GetPName.DrawBuffer, out eDrawBuffer);  // 0x08CE0 is the COLOR ATTACHMENT 1, 0x0405 is the default BACK buffer.
+      GL.GetInteger(GetPName.ReadBuffer, out eReadBuffer);  // Default: GL_BACK
+      GL.GetInteger(GetPName.DrawFramebufferBinding, out iDrawFramebufferBinding);
+      GL.GetInteger(GetPName.ReadFramebufferBinding, out iReadFramebufferBinding);
+      GL.GetInteger(GetPName.RenderbufferBinding, out iRenderbufferBinding);
+      GL.GetInteger(GetPName.SamplerBinding, out iSamplerBinding);
+      GL.GetInteger(GetPName.FramebufferBinding, out boundFramebuffer);
+      Gpu.CheckGpuErrorsRt();
+
+
+      //strState.AppendLine(" Max Fragment Texture Image Units: " + maxFragmentTextureImageUnits);
+      strState.AppendLine("Current Bound Framebuffer: " + GetObjectLabel(ObjectLabelIdentifier.Framebuffer, boundFramebuffer));
+      strState.AppendLine("Current Draw Framebuffer Binding: " + GetObjectLabel(ObjectLabelIdentifier.Framebuffer, iDrawFramebufferBinding));
+      strState.AppendLine("Current Read Framebuffer Binding: " + GetObjectLabel(ObjectLabelIdentifier.Framebuffer, iReadFramebufferBinding));
+      if (iDrawFramebufferBinding != iReadFramebufferBinding)
+      {
+        strState.AppendLine("   NOTE: Draw and Read framebuffers are bound different!");
+      }
+      strState.AppendLine("Current Draw Framebuffer Attachment: " + ((GLenum)eDrawBuffer).Description());
+      strState.AppendLine("Current Read Framebuffer Attachment: " + ((GLenum)eReadBuffer).Description());
+      strState.AppendLine("Current RenderBuffer Binding: " + iRenderbufferBinding);
+      strState.AppendLine("Current Sampler Binding: " + iSamplerBinding);
+
+      if (boundFramebuffer == 0)
+      {
+        return;
+      }
+
+
+      // Print details about hte bound buffer.
+      int maxColorAttachments;
+      GL.GetInteger(GetPName.MaxColorAttachments, out maxColorAttachments);
+      strState.AppendLine("Current Attachments: (max=" + maxColorAttachments + ")");
+
+      for (int i = 0; i < maxColorAttachments; ++i)
+      {
+        DebugPrintFBOAttachment(strState, (OpenTK.Graphics.OpenGL4.FramebufferAttachment.ColorAttachment0 + i), i);
+      }
+      DebugPrintFBOAttachment(strState, OpenTK.Graphics.OpenGL4.FramebufferAttachment.DepthAttachment, -1);
+      DebugPrintFBOAttachment(strState, OpenTK.Graphics.OpenGL4.FramebufferAttachment.StencilAttachment, -1);
+      //DebugPrintFBOAttachment(strState, OpenTK.Graphics.OpenGL4.FramebufferAttachment.DepthStencilAttachment);
+    }
+    private static void DebugPrintFBOAttachment(StringBuilder strState, OpenTK.Graphics.OpenGL4.FramebufferAttachment attachment, int icoloratt)
+    {
+      int attachmentName = 0;
+      int attachmentType = 0;
+      int mipmapLevel = 0;
+
+      // string strAttachment = "";
+
+      // if (attachment == OpenTK.Graphics.OpenGL4.FramebufferAttachment.DepthAttachment)
+      // {
+      //   strAttachment = ("GL_DEPTH_ATTACHMENT");
+      // }
+      // else if (attachment == OpenTK.Graphics.OpenGL4.FramebufferAttachment.StencilAttachment)
+      // {
+      //   strAttachment = ("GL_STENCIL_ATTACHMENT");
+      // }
+      // else if (attachment >= OpenTK.Graphics.OpenGL4.FramebufferAttachment.ColorAttachment0 && attachment <= OpenTK.Graphics.OpenGL4.FramebufferAttachment.ColorAttachment15)
+      // {
+      //   strAttachment = "GL_COLOR_ATTACHMENT" + (attachment - OpenTK.Graphics.OpenGL4.FramebufferAttachment.ColorAttachment0);
+      // }
+
+      strState.AppendLine("  Attachment: " + ((GLenum)(attachment)).Description());
+
+      GL.GetFramebufferAttachmentParameter(FramebufferTarget.Framebuffer, attachment, FramebufferParameterName.FramebufferAttachmentObjectType, out attachmentType);
+      Gpu.CheckGpuErrorsRt();
+      if (attachmentType == 0)//GL_NONE is zero
+      {
+        strState.AppendLine("    Type: " + "GL_NONE");
+      }
+      else if (attachmentType == 0x8D41)//GL_RENDERBUFFER
+      {
+        GL.GetFramebufferAttachmentParameter(FramebufferTarget.Framebuffer, attachment, FramebufferParameterName.FramebufferAttachmentObjectName, out attachmentName);
+        Gpu.CheckGpuErrorsRt();
+        strState.AppendLine("    Type: " + "GL_RENDERBUFFER");
+        strState.AppendLine("    Name: " + GetObjectLabel(ObjectLabelIdentifier.Renderbuffer, attachmentName));
+      }
+      else if (attachmentType == 0x1702)//GL_TEXTURE
+      {
+        if (icoloratt >= 0)
+        {
+          int blend = 0;
+          int[] rgb = new int[4];
+          GL.GetInteger((GetIndexedPName)GLenum.GL_BLEND_SRC, icoloratt, out blend);
+          strState.AppendLine("    BlendSrc: " + ((blend == 0) ? "GL_ZERO" : (blend == 1 ? "GL_ONE" : ((GLenum)blend).Description())));
+          Gpu.CheckGpuErrorsRt();
+          GL.GetInteger((GetIndexedPName)GLenum.GL_BLEND_DST, icoloratt, out blend);
+          strState.AppendLine("    BlendDst: " + ((blend == 0) ? "GL_ZERO" : (blend == 1 ? "GL_ONE" : ((GLenum)blend).Description())));
+          Gpu.CheckGpuErrorsRt();
+          GL.GetInteger((GetIndexedPName)GLenum.GL_BLEND_SRC_RGB, icoloratt, rgb);
+          strState.AppendLine("    BlendSrcRGB: " + (float)rgb[0] + "," + (float)rgb[1] + "," + (float)rgb[2] + "," + (float)rgb[3]);
+          Gpu.CheckGpuErrorsRt();
+          GL.GetInteger((GetIndexedPName)GLenum.GL_BLEND_DST_RGB, icoloratt, rgb);
+          strState.AppendLine("    BlendDstRGB: " + (float)rgb[0] + "," + (float)rgb[1] + "," + (float)rgb[2] + "," + (float)rgb[3]);
+          Gpu.CheckGpuErrorsRt();
+          GL.GetInteger((GetIndexedPName)GLenum.GL_BLEND_SRC_ALPHA, icoloratt, out blend);
+          strState.AppendLine("    BlendSrcAlpha: " + ((blend == 0) ? "GL_ZERO" : (blend == 1 ? "GL_ONE" : ((GLenum)blend).Description())));
+          Gpu.CheckGpuErrorsRt();
+          GL.GetInteger((GetIndexedPName)GLenum.GL_BLEND_DST_ALPHA, icoloratt, out blend);
+          strState.AppendLine("    BlendDstAlpha: " + ((blend == 0) ? "GL_ZERO" : (blend == 1 ? "GL_ONE" : ((GLenum)blend).Description())));
+          Gpu.CheckGpuErrorsRt();
+        }
+
+        GL.GetFramebufferAttachmentParameter(FramebufferTarget.Framebuffer, attachment, FramebufferParameterName.FramebufferAttachmentObjectName, out attachmentName);
+        Gpu.CheckGpuErrorsRt();
+        GL.GetFramebufferAttachmentParameter(FramebufferTarget.Framebuffer, attachment, FramebufferParameterName.FramebufferAttachmentTextureLevel, out mipmapLevel);
+        Gpu.CheckGpuErrorsRt();
+        strState.AppendLine("    Type: " + "GL_TEXTURE");
+        strState.AppendLine("    Name: " + GetObjectLabel(ObjectLabelIdentifier.Texture, attachmentName));
+        strState.AppendLine("    Mipmap Level: " + mipmapLevel);
+      }
+    }
+    private static void DebugGetVertexArrayState(StringBuilder strState)
+    {
+      strState.AppendLine(("----------------Vertex Array State----------------"));
+      int nMaxAttribs;
+      int iVertexArrayBinding;
+      GL.GetInteger(GetPName.MaxVertexAttribs, out nMaxAttribs);
+      GL.GetInteger(GetPName.VertexArrayBinding, out iVertexArrayBinding);
+
+      strState.AppendLine("Bound Vertex Array Id (VAO): " + GetObjectLabel(ObjectLabelIdentifier.VertexArray, iVertexArrayBinding) + " (" + iVertexArrayBinding + ")");
+      strState.AppendLine("Max Allowed Atribs: " + nMaxAttribs);
+
+      int nact = 0;
+      for (int iAttrib = 0; iAttrib < nMaxAttribs; ++iAttrib)
+      {
+        int aaaa = 0;
+        GL.GetVertexAttrib(iAttrib, VertexAttribParameter.ArrayEnabled, out aaaa);
+        Gpu.CheckGpuErrorsRt();
+        nact++;
+      }
+      strState.AppendLine("Active Vertex Attribs (" + nact + "): ");
+
+      Gpu.CheckGpuErrorsRt();
+
+      // - Disable all arrays by default.
+      for (int iAttrib = 0; iAttrib < nMaxAttribs; ++iAttrib)
+      {
+        // TODO:
+        int iArrayBufferBinding = 0;
+        int iArrayEnabled = 0;
+        int iAttribArraySize = 0;
+        int iAttribArrayType = 0;
+        int iAttribArrayStride = 0;
+        int iAttribArrayInteger = 0;
+
+        int iAttribArrayNormalized;
+        // int iAttribArrayDivisor;
+        //memset(fCurAttrib, 0, sizeof(GLfloat) * 4);
+        //memset(iCurAttrib, 0, sizeof(int) * 4);
+        //memset(uiCurAttrib, 0, sizeof(GLuint) * 4);
+
+        GL.GetVertexAttrib(iAttrib, (VertexAttribParameter)(GLenum.GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING), out iArrayBufferBinding);
+        Gpu.CheckGpuErrorsRt();
+        GL.GetVertexAttrib(iAttrib, VertexAttribParameter.ArrayEnabled, out iArrayEnabled);
+        Gpu.CheckGpuErrorsRt();
+        GL.GetVertexAttrib(iAttrib, VertexAttribParameter.ArraySize, out iAttribArraySize);
+        Gpu.CheckGpuErrorsRt();
+        GL.GetVertexAttrib(iAttrib, VertexAttribParameter.ArrayType, out iAttribArrayType);
+        Gpu.CheckGpuErrorsRt();
+        GL.GetVertexAttrib(iAttrib, VertexAttribParameter.ArrayStride, out iAttribArrayStride);
+        Gpu.CheckGpuErrorsRt();
+        GL.GetVertexAttrib(iAttrib, VertexAttribParameter.VertexAttribArrayInteger, out iAttribArrayInteger);
+        Gpu.CheckGpuErrorsRt();
+        GL.GetVertexAttrib(iAttrib, VertexAttribParameter.ArrayNormalized, out iAttribArrayNormalized);
+        Gpu.CheckGpuErrorsRt();
+        // glGetVertexAttribiv(iAttrib, GL_VERTEX_ATTRIB_ARRAY_DIVISOR, ref iAttribArrayDivisor);
+        // CheckGpuErrorsDbg();
+
+        strState.AppendLine("  Attrib " + iAttrib + "  Enabled:" + (iArrayEnabled > 0 ? "Y" : "N"));
+
+        if (iArrayEnabled == 0)
+        {
+          continue;
+        }
+
+        strState.AppendLine("    Array Buffer Binding: " + GetObjectLabel(ObjectLabelIdentifier.Buffer, iArrayBufferBinding));
+        strState.AppendLine("    Size: " + iAttribArraySize);
+        strState.AppendLine("    Stride: " + iAttribArrayStride);
+        strState.AppendLine("    Is Integer: " + (iAttribArrayInteger > 0 ? "Y" : "N"));
+        strState.AppendLine("    Normalized: " + (iAttribArrayNormalized > 0 ? "Y" : "N"));
+        strState.AppendLine("    Type: " + ((GLenum)(iAttribArrayType)).Description());
+
+        //if (iAttrib != 0)
+        {
+
+          //2022 - this seems like not an issue anymore
+          // Generic vertex attribute 0 is unique in that it has no current state,
+          // so an error will be generated if index is 0. The initial value for all
+          // other generic vertex attributes is (0,0,0,1).
+          unsafe
+          {
+            //We recommend using Span<T> or ReadOnlySpan<T> types to work with stack allocated memory whenever possible. MSDN
+            float* fCurAttrib = stackalloc float[4];
+            int* iCurAttrib = stackalloc int[4];
+            uint* uiCurAttrib = stackalloc uint[4];
+            switch (iAttribArrayType)
+            {
+              case (int)GLenum.GL_INT:
+                GL.GetVertexAttribI(iAttrib, (VertexAttribParameter)GLenum.GL_CURRENT_VERTEX_ATTRIB, (int*)iCurAttrib);
+                Gpu.CheckGpuErrorsRt();
+                strState.AppendLine("    Cur Value(int): " + iCurAttrib[0] + "," + iCurAttrib[1] + "," + iCurAttrib[2] + "," + iCurAttrib[3]);
+                break;
+              case (int)GLenum.GL_UNSIGNED_INT:
+                //GL.GetVertexAttribI(iAttrib, (VertexAttribParameter)GLenum.GL_CURRENT_VERTEX_ATTRIB, (uint*)uiCurAttrib);
+                //Gpu.CheckGpuErrorsRt();
+                strState.AppendLine("    Cur Value(uint): not working.. " /*+ uiCurAttrib[0] + "," + uiCurAttrib[1] + "," + uiCurAttrib[2] + "," + uiCurAttrib[3]*/);
+                break;
+              case (int)GLenum.GL_FLOAT:
+                GL.GetVertexAttrib(iAttrib, (VertexAttribParameter)GLenum.GL_CURRENT_VERTEX_ATTRIB, (float*)fCurAttrib);
+                Gpu.CheckGpuErrorsRt();
+                strState.AppendLine("    Cur Value(float): " + fCurAttrib[0] + "," + fCurAttrib[1] + "," + fCurAttrib[2] + "," + fCurAttrib[3]);
+                break;
+              default:
+                strState.AppendLine("    Cur Value:  NOT SUPPORTED****** TODO:::: ");
+                break;
+            };
+          }
+        }
+        // This reads the attrib values such as float, int etc.
+        // int iCurrentVertexAttrib;
+        // glGetVertexAttribiv(iAttrib, GL_CURRENT_VERTEX_ATTRIB, ref iCurrentVertexAttrib);
+      }
+    }
+    private static void DebugPrintShaderLimits(StringBuilder strState)
+    {
+      strState.AppendLine("---------------- Gpu Info ----------------");
+      strState.AppendLine($"GPU: {GL.GetString​(StringName.Renderer)}");
+      strState.AppendLine($"Vendor: {GL.GetString​(StringName.Vendor)}");
+      strState.AppendLine($"Supported GL: {GL.GetString​(StringName.Version)}");
+      strState.AppendLine($"Supported GLSL: {GL.GetString​(StringName.ShadingLanguageVersion)}");
+      strState.AppendLine($"Window Title: {Gu.Context.GameWindow.Title.ToString()}");
+      //strState.AppendLine($"This API: {Gu.Context.GameWindow.API.ToString()}");
+      strState.AppendLine($"Window GL Profile: {Gu.Context.GameWindow.Profile.ToString()}");
+      strState.AppendLine($"Window GL Version: {Gu.Context.GameWindow.APIVersion.ToString()}");
+
+      int iMaxVertexTextureUnits;
+      int iMaxVertexGeometryUnits;
+      int iMaxTextureUnits;
+      int iMaxCombinedTextureUnits;
+
+      GL.GetInteger(GetPName.MaxTextureImageUnits, out iMaxTextureUnits);
+      GL.GetInteger(GetPName.MaxVertexTextureImageUnits, out iMaxVertexTextureUnits);
+      GL.GetInteger(GetPName.MaxGeometryTextureImageUnits, out iMaxVertexGeometryUnits);
+      GL.GetInteger(GetPName.MaxCombinedTextureImageUnits, out iMaxCombinedTextureUnits);
+      Gpu.CheckGpuErrorsRt();
+
+      strState.AppendLine("Max Texture Units: " + iMaxTextureUnits);
+      strState.AppendLine("Max Vertex Texture Units: " + iMaxVertexTextureUnits);
+      strState.AppendLine("Max Geometry Texture Units: " + iMaxVertexGeometryUnits);
+      strState.AppendLine("Max Combined Texture Units: " + iMaxCombinedTextureUnits);
+
+      int maxColorAttachments;
+      int maxDrawBuffers;
+      int maxFragmentUniformBlocks;
+      int maxGeometryUniformBlocks;
+      int maxVertexUniformBlocks;
+      int maxVertexTextureImageUnits;
+      int maxGeometryTextureImageUnits;
+      int maxFragmentTextureImageUnits;
+      int maxVertexUniformComponents;
+      int maxGeometryUniformComponents;
+      int maxFragmentUniformComponents;
+
+      GL.GetInteger(GetPName.MaxColorAttachments, out maxColorAttachments);
+      GL.GetInteger(GetPName.MaxDrawBuffers, out maxDrawBuffers);
+      GL.GetInteger(GetPName.MaxFragmentUniformBlocks, out maxFragmentUniformBlocks);
+      GL.GetInteger(GetPName.MaxGeometryUniformBlocks, out maxGeometryUniformBlocks);
+      GL.GetInteger(GetPName.MaxVertexUniformBlocks, out maxVertexUniformBlocks);
+      GL.GetInteger(GetPName.MaxVertexTextureImageUnits, out maxVertexTextureImageUnits);
+      GL.GetInteger(GetPName.MaxGeometryTextureImageUnits, out maxGeometryTextureImageUnits);
+      GL.GetInteger(GetPName.MaxVertexUniformComponents, out maxVertexUniformComponents);
+      GL.GetInteger(GetPName.MaxGeometryUniformComponents, out maxGeometryUniformComponents);
+      GL.GetInteger(GetPName.MaxFragmentUniformComponents, out maxFragmentUniformComponents);
+      strState.AppendLine("Max Color Attachments: " + maxColorAttachments);
+      strState.AppendLine("Max Draw Buffers: " + maxDrawBuffers);
+      strState.AppendLine("Max Vertex Uniform Blocks: " + maxVertexUniformBlocks);
+      strState.AppendLine("Max Vertex Uniform Components: " + maxVertexUniformComponents);
+      strState.AppendLine("Max Vertex Texture Image Units: " + maxVertexTextureImageUnits);
+      strState.AppendLine("Max Geometry Uniform Components: " + maxGeometryUniformComponents);
+      strState.AppendLine("Max Geometry Uniform Blocks: " + maxGeometryUniformBlocks);
+      strState.AppendLine("Max Geometry Texture Image Units: " + maxGeometryTextureImageUnits);
+      strState.AppendLine("Max Fragment Uniform Components: " + maxFragmentUniformComponents);
+      strState.AppendLine("Max Fragment Uniform Blocks: " + maxFragmentUniformBlocks);
+      Gpu.CheckGpuErrorsRt();
+    }
 
 
 

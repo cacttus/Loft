@@ -1,5 +1,4 @@
-﻿#include "v_glsl_version.glsl"
-
+﻿#include "v_globals.glsl"
 layout(points) in;
 layout(triangle_strip, max_vertices=4) out;
 

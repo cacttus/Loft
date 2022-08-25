@@ -12,38 +12,207 @@ namespace PirateCraft
     Nearest, //If mipmaps enabled, then this will also choose nearest mipmap (mipmapping should be specified if possible)
     Linear, //Simple linear filtering of texels (no mipmapping, regardless if it is set)
     Bilinear, //Linear filter texture, but use nearest mipmap (smooth with some noticable mipmap jumps). 
-    Trilinear //Linear filter texture, linear filter between mipmaps. (very smooth / blurry).
-      , Separate
+    Trilinear, //Linear filter texture, linear filter between mipmaps. (very smooth / blurry).
+    Separate
   }
   public class Texture2D : OpenGLResource
   {
-    public static NormalMapFormat NormalMapFormat { get; private set; } = NormalMapFormat.Yup;
-    private static Dictionary<Shader.TextureInput, Texture2D> _defaults = new Dictionary<Shader.TextureInput, Texture2D>();
+    private class BoundTexture2DState
+    {
+      public TextureUnit Unit;
+      public int BindingId;
+    }
+    #region Public: Members
 
-    private int _numMipmaps = 0; // if zero mipmapping disabledd
-    public float Width { get; private set; } = 0;
-    public float Height { get; private set; } = 0;
-    private bool MipmappingEnabled { get { return _numMipmaps > 0; } }
+    public static NormalMapFormat NormalMapFormat { get; private set; } = NormalMapFormat.Yup;
+
+    public string Name { get; private set; } = "texture2d-unnamed";
+    public int Width { get; private set; } = 0;
+    public int Height { get; private set; } = 0;
     public TexFilter Filter { get; private set; } = TexFilter.Nearest;
     public TextureWrapMode WrapMode { get; private set; } = TextureWrapMode.ClampToEdge;
-    public PixelFormat GlPixelFormat
-    {
-      get
-      {
-        return PixelFormat.Rgba;//Bgra; //Why did we have this as Bgra?
-      }
-      private set
-      {
-      }
-    }
-    public Texture2D(Img32 img, bool mipmaps, TexFilter filter, TextureWrapMode wrap = TextureWrapMode.Repeat)
+    public PixelFormat PixelFormat { get; private set; }
+    public PixelInternalFormat PixelInternalFormat { get; private set; }
+    public PixelType PixelType { get; private set; }
+    public TextureTarget TextureTarget { get; private set; }
+
+    #endregion
+    #region Private:Members
+
+    private TextureUnit _boundUnit = TextureUnit.Texture0;
+    private int _numMipmaps = 0; // if zero mipmapping disabledd
+    private Stack<BoundTexture2DState> _states = new Stack<BoundTexture2DState>();
+    private static StaticContextData<Texture2D> _default1x1ColorPixel_RGBA32ub = new StaticContextData<Texture2D>();
+    private static StaticContextData<Texture2D> _default1x1NormalPixel_RGBA32ub = new StaticContextData<Texture2D>();
+
+    #endregion
+    #region Public:Methods
+    public Texture2D(string name, Img32 img, bool mipmaps, TexFilter filter, TextureWrapMode wrap = TextureWrapMode.Repeat) : base(name+"-tex2d")
     {
       LoadToGpu(img, mipmaps, filter, wrap);
     }
-    public Texture2D(FileLoc loc, bool mipmaps, TexFilter filter, TextureWrapMode wrap = TextureWrapMode.Repeat)
+    public Texture2D(Img32 img, bool mipmaps, TexFilter filter, TextureWrapMode wrap = TextureWrapMode.Repeat) : base(img.Name)
     {
-      var bmp = ResourceManager.LoadImage(loc);
-      LoadToGpu(bmp, mipmaps, filter, wrap);
+      LoadToGpu(img, mipmaps, filter, wrap);
+    }
+    public Texture2D(FileLoc loc, bool mipmaps, TexFilter filter, TextureWrapMode wrap = TextureWrapMode.Repeat) : base(loc.QualifiedPath)
+    {
+      Img32 img=null;
+      try{
+      img= ResourceManager.LoadImage(loc);
+      }
+      catch(Exception ex){
+        Gu.Log.Info("Image not found. Loading default image.");
+        img = Img32.Default1x1_RGBA32ub(255,0,255,255);
+      }
+
+      LoadToGpu(img, mipmaps, filter, wrap);
+    }
+    public Texture2D(string name, PixelInternalFormat eInternalFormat, PixelFormat eTextureFormat, PixelType eDataType, int iWidth, int iHeight, bool bMultisample, int nSamples) : base(name+"-tex2d")
+    {
+      //MakeRenderTexture
+      Gpu.CheckGpuErrorsRt();
+      GL.ActiveTexture(TextureUnit.Texture0);
+
+      this._glId = GL.GenTexture();
+      this.PixelFormat = eTextureFormat;
+      this.PixelType = eDataType;
+
+      Gpu.CheckGpuErrorsRt();
+
+      //this is for mipmaps or shadows .. array textures
+      //      GL.TexStorage2D(TextureTarget2d.Texture2D, _numMipmaps, this.SizedInternalFormat, (int)Width, (int)Height
+
+      if (bMultisample)
+      {
+        TextureTarget = TextureTarget.Texture2DMultisample;
+        GL.BindTexture(TextureTarget, this._glId);
+        Gpu.CheckGpuErrorsRt();
+
+        //if (Gu::GetEngineDisplayParams()->getEnableAnisotropicFiltering())
+        //{
+        //    //CHANGED FROM GL_TEXTURE_2D **MIGHT BE WRONG
+        //   GL.TexParameterf(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_MAX_ANISOTROPY_EXT, Gu::GetEngineDisplayParams()->getTextureAnisotropyLevel());
+        //    CheckGpuErrorsDbg();
+        //}
+        //I think this is stupid. Just add the additional enums to TextureTarget @Microsoft
+        GL.TexImage2DMultisample(TextureTargetMultisample.Texture2DMultisample, nSamples, eInternalFormat, iWidth, iHeight, true);
+        Gpu.CheckGpuErrorsRt();
+      }
+      else
+      {
+        TextureTarget = TextureTarget.Texture2D;
+        GL.BindTexture(TextureTarget, this._glId);
+        Gpu.CheckGpuErrorsRt();
+
+        //if (Gu::GetEngineDisplayParams()->getEnableAnisotropicFiltering())
+        //{
+        //   GL.TexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, Gu::GetEngineDisplayParams()->getTextureAnisotropyLevel());
+        //    Gu::getGraphicsContext()->chkErrRt();
+        //}
+        GL.TexImage2D(TextureTarget, 0, eInternalFormat, iWidth, iHeight, 0, eTextureFormat, eDataType, IntPtr.Zero);
+        Gpu.CheckGpuErrorsRt();
+
+        GL.TexParameter(TextureTarget, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+        Gpu.CheckGpuErrorsRt();
+
+        GL.TexParameter(TextureTarget, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+        Gpu.CheckGpuErrorsRt();
+
+
+      }
+      GL.Disable(EnableCap.Dither);  //Dithering gets enabled for some reason
+
+      Gpu.CheckGpuErrorsRt();
+
+      SetObjectLabel();
+    }
+    public Texture2D(string owner, int w, int h, bool bMsaaEnabled, int nMsaaSamples) : base(owner + "_DepthTexture" + (bMsaaEnabled ? "_Multisample" : ""))
+    {
+      //createdepthtexture
+      //Creates a depth texture, or multisample depth texture on texture channel 0
+      //This will query the device to make sure the depth format is supported.
+      Gpu.CheckGpuErrorsRt();
+      //TextureTarget texTarget;
+
+      GL.ActiveTexture(TextureUnit.Texture0);
+
+      PixelFormat = PixelFormat.DepthComponent;
+      PixelType = PixelType.Float;
+
+      //this is for mipmaps or shadows .. array textures
+      //      GL.TexStorage2D(TextureTarget2d.Texture2D, _numMipmaps, this.SizedInternalFormat, (int)Width, (int)Height);
+
+      if (bMsaaEnabled)
+      {
+        this.TextureTarget = TextureTarget.Texture2DMultisample;
+      }
+      else
+      {
+        this.TextureTarget = TextureTarget.Texture2D;
+      }
+      GL.ActiveTexture(TextureUnit.Texture0);
+      this._glId = GL.GenTexture();
+      Gpu.CheckGpuErrorsRt();
+      GL.BindTexture(this.TextureTarget, this._glId);
+
+      //THe following parameters are for depth textures only
+      Gpu.CheckGpuErrorsRt();
+
+      if (bMsaaEnabled == false)
+      {
+        //For some reason you can't use this with multisample.
+
+        //**NOTE: we changed this from GL.TexparameterI
+        GL.TexParameter(this.TextureTarget, TextureParameterName.TextureCompareMode, (int)TextureCompareMode.CompareRefToTexture);  //GL_NONE
+        Gpu.CheckGpuErrorsRt();
+
+        //OpenTK.Graphics.OpenGL.TextureCompareMode
+        // GL.TexParameter(texTarget, TextureParameterName.TextureCompareFunc,  OpenTK.Graphics.OpenGL4.depthtexture  GL_LEQUAL);
+        // Gpu.CheckGpuErrorsRt();
+        Gu.Log.Warn("Commented out Texturecomparefunc");
+
+        GL.TexParameter(this.TextureTarget, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+        Gpu.CheckGpuErrorsRt();
+
+        GL.TexParameter(this.TextureTarget, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+        Gpu.CheckGpuErrorsRt();
+
+        GL.TexParameter(this.TextureTarget, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+        Gpu.CheckGpuErrorsRt();
+
+        GL.TexParameter(this.TextureTarget, TextureParameterName.TextureMagFilter, (int)TextureMinFilter.Nearest);
+        Gpu.CheckGpuErrorsRt();
+      }
+
+      var that = this;
+      //This will cycle through depth formats and choose the most precise.
+      //Loop over creating a texture until we get no error
+      // if(eRequestedDepth == PixelInternalFormat.DepthComponent32f){
+      // }
+      getCompatibleDepthComponent(32, (eDepth) =>
+      {
+        if (bMsaaEnabled)
+        {
+          //texTarget = TextureTargetMultisample.Texture2D;
+          //..ok .. it's the same Enum 
+          GL.TexImage2DMultisample(TextureTargetMultisample.Texture2DMultisample, nMsaaSamples, eDepth, w, h, true);
+          Gpu.CheckGpuErrorsRt();
+
+        }
+        else
+        {
+          GL.TexImage2D(this.TextureTarget, 0, eDepth, w, h, 0, that.PixelFormat, that.PixelType, IntPtr.Zero);
+          Gpu.CheckGpuErrorsRt();
+        }
+      });
+
+      Gpu.CheckGpuErrorsRt();
+
+      GL.BindTexture(this.TextureTarget, 0);
+      Gpu.CheckGpuErrorsRt();
+
+      SetObjectLabel();
     }
     public override void Dispose_OpenGL_RenderThread()
     {
@@ -52,62 +221,56 @@ namespace PirateCraft
         GL.DeleteTexture(GetGlId());
       }
     }
-    private int GetNumMipmaps(int w, int h)
+    public static Texture2D Default1x1ColorPixel_RGBA32ub(vec4ub color)
     {
-      int numMipMaps = 0;
-      int x = System.Math.Max(w, h);
-      for (; x > 0; x = x >> 1)
+      var t = _default1x1ColorPixel_RGBA32ub.Get();
+      if (t == null)
       {
-        numMipMaps++;
+        t = new Texture2D("default1x1-color",Img32.Default1x1_RGBA32ub(Byte.MaxValue, Byte.MaxValue, Byte.MaxValue, Byte.MaxValue), false, TexFilter.Nearest);
+        _default1x1ColorPixel_RGBA32ub.Set(t);
       }
-      return numMipMaps;
+      return t;
     }
-
-    class BoundTexture2DState
+    public static Texture2D Default1x1NormalPixel_RGBA32ub()
     {
-      public TextureUnit Unit;
-      public int BindingId;
-    }
-    static Stack<BoundTexture2DState> _states = new Stack<BoundTexture2DState>();
-    private static TextureUnit GetActiveTexture()
-    {
-      int tex_unit = 0;
-      GL.GetInteger(GetPName.ActiveTexture, out tex_unit);
-      return (TextureUnit)tex_unit;
-    }
-    private static void PushState()
-    {
-      TextureUnit tex_unit = GetActiveTexture();
-      int tex_binding = 0;
-      GL.GetInteger(GetPName.TextureBinding2D, out tex_binding);
-
-      _states.Push(new BoundTexture2DState() { Unit = tex_unit, BindingId = tex_binding });
-    }
-    private static void PopState()
-    {
-      BoundTexture2DState state = _states.Pop();
-      GL.ActiveTexture(state.Unit);
-      GL.BindTexture(TextureTarget.Texture2D, state.BindingId);
+      var t =_default1x1NormalPixel_RGBA32ub.Get();
+      if (t== null)
+      {
+        if (NormalMapFormat == NormalMapFormat.Yup)
+        {
+          t = new Texture2D("default1x1-normal",Img32.Default1x1_RGBA32ub(0, Byte.MaxValue, 0, Byte.MaxValue), false, TexFilter.Nearest);
+        }
+        else if (NormalMapFormat == NormalMapFormat.Zup)
+        {
+          t = new Texture2D("default1x1-normal",Img32.Default1x1_RGBA32ub(0, 0, Byte.MaxValue, Byte.MaxValue), false, TexFilter.Nearest);
+        }
+        else
+        {
+          Gu.BRThrowNotImplementedException();
+        }
+        _default1x1NormalPixel_RGBA32ub.Set(t);
+      }
+      return t;
     }
     public void SetWrap(TextureWrapMode wrap)
     {
       Gu.Assert(GL.IsTexture(this.GetGlId()));
       WrapMode = wrap;
-      PushState();
-      Bind(GetActiveTexture());
-      GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)WrapMode);
-      GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)WrapMode);
-      PopState();
+      PushState(TextureTarget);
+      Bind(Gpu.GetActiveTexture());
+      GL.TexParameter(TextureTarget, TextureParameterName.TextureWrapS, (int)WrapMode);
+      GL.TexParameter(TextureTarget, TextureParameterName.TextureWrapT, (int)WrapMode);
+      PopState(TextureTarget);
     }
     public void SetFilter(TextureMinFilter min, TextureMagFilter mag)
     {
       Gu.Assert(GL.IsTexture(this.GetGlId()));
       Filter = TexFilter.Separate;
-      PushState();
-      Bind(GetActiveTexture());
-      GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)min);//LinearMipmapLinear
-      GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)mag);
-      PopState();
+      PushState(TextureTarget);
+      Bind(Gpu.GetActiveTexture());
+      GL.TexParameter(TextureTarget, TextureParameterName.TextureMinFilter, (int)min);//LinearMipmapLinear
+      GL.TexParameter(TextureTarget, TextureParameterName.TextureMagFilter, (int)mag);
+      PopState(TextureTarget);
     }
     public void SetFilter(TexFilter filter)
     {
@@ -122,7 +285,7 @@ namespace PirateCraft
       }
       else if (filter == TexFilter.Nearest)
       {
-        if (MipmappingEnabled)
+        if (IsMipmappingEnabled())
         {
           //Mipmap nearest is smoother than simply nearest, it looks better
           min = TextureMinFilter.NearestMipmapNearest;
@@ -135,7 +298,7 @@ namespace PirateCraft
       }
       else if (filter == TexFilter.Bilinear)
       {
-        if (MipmappingEnabled)
+        if (IsMipmappingEnabled())
         {
           min = TextureMinFilter.LinearMipmapNearest;
           mag = TextureMagFilter.Linear;
@@ -147,7 +310,7 @@ namespace PirateCraft
       }
       else if (filter == TexFilter.Trilinear)
       {
-        if (MipmappingEnabled)
+        if (IsMipmappingEnabled())
         {
           min = TextureMinFilter.LinearMipmapLinear;
           mag = TextureMagFilter.Linear;
@@ -162,7 +325,100 @@ namespace PirateCraft
         Gu.BRThrowNotImplementedException();
       }
       SetFilter(min, mag);
+    }
+    public void Bind(TextureUnit unit)
+    {
+      if (GetGlId() == 0)
+      {
+        throw new System.Exception("Texture ID was 0 when binding texture.");
+      }
 
+      _boundUnit = unit;
+      GL.ActiveTexture(unit);
+      GL.BindTexture(TextureTarget, GetGlId());
+    }
+    public void Unbind()
+    {
+      GL.ActiveTexture(_boundUnit);
+      GL.BindTexture(TextureTarget, 0);
+    }
+
+    #endregion
+    #region Private:Methods
+    private int GetNumMipmaps(int w, int h)
+    {
+      int numMipMaps = 0;
+      int x = System.Math.Max(w, h);
+      for (; x > 0; x = x >> 1)
+      {
+        numMipMaps++;
+      }
+      return numMipMaps;
+    }
+    private void PushState(TextureTarget target)
+    {
+      TextureUnit tex_unit = Gpu.GetActiveTexture();
+      int tex_binding = 0;
+
+      GetPName binding = GetPName.TextureBinding2D;
+      if (target == TextureTarget.Texture2D) { binding = GetPName.TextureBinding2D; }
+      else if (target == TextureTarget.Texture2DMultisample) { binding = GetPName.TextureBinding2DMultisample; }
+      else { Gu.BRThrowNotImplementedException(); }
+
+      GL.GetInteger(binding, out tex_binding);
+
+      _states.Push(new BoundTexture2DState() { Unit = tex_unit, BindingId = tex_binding });
+    }
+    private void PopState(TextureTarget target)
+    {
+      BoundTexture2DState state = _states.Pop();
+      GL.ActiveTexture(state.Unit);
+      GL.BindTexture(target, state.BindingId);
+    }
+    private static void getCompatibleDepthComponent(int max_bits, Action<PixelInternalFormat> func)
+    {
+      //Try a bunch of depth formats.
+      //max_bits isn't used
+      //we don't use stencil here. Use as much as we can get.
+      func(PixelInternalFormat.DepthComponent32f);
+      if (GL.GetError() == ErrorCode.NoError)
+      {
+        return;
+      }
+      func(PixelInternalFormat.DepthComponent32);
+      if (GL.GetError() == ErrorCode.NoError)
+      {
+        return;
+      }
+      func(PixelInternalFormat.DepthComponent24);//The O.G.
+      if (GL.GetError() == ErrorCode.NoError)
+      {
+        return;
+      }
+      func(PixelInternalFormat.DepthComponent16);
+      if (GL.GetError() == ErrorCode.NoError)
+      {
+        Gu.Log.Warn("Selected 16 bit depth buffer");
+        return;
+      }
+      Gu.BRThrowException("Could not find suitable depth buffer pixelformat.");
+    }
+    private bool IsMipmappingEnabled()
+    {
+      return _numMipmaps > 0;
+    }
+    private SizedInternalFormat GetSizedInternalFormat()
+    {
+      if (PixelType == OpenTK.Graphics.OpenGL4.PixelType.UnsignedByte)
+      {
+        if (PixelInternalFormat == PixelInternalFormat.Rgba)
+        {
+          return SizedInternalFormat.Rgba8;
+        }
+      }
+      Gu.Log.Error("Invalid texture format.");
+      Gu.BRThrowNotImplementedException();
+      return SizedInternalFormat.R16;
     }
     private void LoadToGpu(Img32 bmp, bool mipmaps, TexFilter filter, TextureWrapMode wrap)
     {
@@ -170,6 +426,10 @@ namespace PirateCraft
       Height = bmp.Height;
       Filter = filter;
       WrapMode = WrapMode;
+      PixelFormat = PixelFormat.Rgba;
+      PixelType = PixelType.UnsignedByte;
+      PixelInternalFormat = PixelInternalFormat.Rgba;
+      TextureTarget = TextureTarget.Texture2D;
 
       int ts = Gu.Context.Gpu.GetMaxTextureSize();
       if (Width >= ts)
@@ -188,22 +448,24 @@ namespace PirateCraft
       }
 
       _glId = GL.GenTexture();
-      GL.BindTexture(TextureTarget.Texture2D, GetGlId());
+      GL.BindTexture(TextureTarget, GetGlId());
       SetFilter(filter);
       SetWrap(wrap);
 
-      GL.TexStorage2D(TextureTarget2d.Texture2D, _numMipmaps, SizedInternalFormat.Rgba8, (int)Width, (int)Height);
+      //This calls glteximage2d for every mip level, or array texture (shadow array)
+      //Allocates storage (buffers) on the GPU for all levels
+      GL.TexStorage2D(TextureTarget2d.Texture2D, _numMipmaps, GetSizedInternalFormat(), (int)Width, (int)Height);
 
       //var raw = Gpu.SerializeGPUData(bmp.Data);
       var raw = Gpu.GetGpuDataPtr(bmp.Data);
 
-      GL.TexSubImage2D(TextureTarget.Texture2D,
+      GL.TexSubImage2D(TextureTarget,
           0, //mipmap level
           0, 0, //x.y
-          bmp.Width,
-          bmp.Height,
-          GlPixelFormat,
-          PixelType.UnsignedByte,
+          this.Width,
+          this.Height,
+          this.PixelFormat,
+          this.PixelType,
           raw.Lock());
       raw.Unlock();
 
@@ -211,66 +473,12 @@ namespace PirateCraft
       {
         GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
       }
-    }
-    public static Texture2D Default(Shader.TextureInput input)
-    {
-      if (!_defaults.TryGetValue(input, out Texture2D texture))
-      {
-        Texture2D tex = null;
-        if (input == Shader.TextureInput.Albedo)
-        {
-          //White albedo
-          Img32 b = Img32.Default1x1(255, 255, 255, 255);// new Img32(1, 1, new byte[] { 255, 255, 255, 255 });
-          tex = new Texture2D(b, false, TexFilter.Nearest);
-        }
-        else if (input == Shader.TextureInput.Normal)
-        {
-          //Normal texture pointing up from surface (default) 
-          byte[] dat = null;
-          if (NormalMapFormat == NormalMapFormat.Yup)
-          {
-            dat = new byte[] { 0, 255, 0, 255 };
-          }
-          else if (NormalMapFormat == NormalMapFormat.Zup)
-          {
-            dat = new byte[] { 0, 0, 255, 255 };
-          }
-          else
-          {
-            Gu.BRThrowNotImplementedException();
-          }
 
-          Img32 b = new Img32(1, 1, dat, Img32.PixelFormat.RGBA);
-          tex = new Texture2D(b, false, TexFilter.Nearest);
-        }
-        else
-        {
-          Gu.Log.WarnCycle("Default texture not handled for Texture2D::BindDefault");
-        }
-        if (tex != null)
-        {
-          _defaults.Add(input, tex);
-        }
-      }
-      return texture;
-    }
-    TextureUnit _boundUnit = TextureUnit.Texture0;
-    public void Bind(TextureUnit unit)
-    {
-      if (GetGlId() == 0)
-      {
-        throw new System.Exception("Texture ID was 0 when binding texture.");
-      }
+      SetObjectLabel();
 
-      _boundUnit = unit;
-      GL.ActiveTexture(unit);
-      GL.BindTexture(TextureTarget.Texture2D, GetGlId());
-    }
-    public void Unbind()
-    {
-      GL.ActiveTexture(_boundUnit);
-      GL.BindTexture(TextureTarget.Texture2D, 0);
+      GL.BindTexture(TextureTarget, 0);
     }
 
+    #endregion
   }
 }

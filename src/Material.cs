@@ -5,125 +5,159 @@ using System.Collections.Generic;
 namespace PirateCraft
 {
   //Material, input to a shader & gpu state for material FBO (blending, etc)
-  public class Material
+  public class Material : DataBlock
   {
-    private static Material _defaultDiffuse = null; //Default color material / shader.
-    private static Material _defaultFlatColor = null; //Default color material / shader.
-    public string Name { get;set;} = "material-unnamd";
+    private static Material _defaultObjectMaterial = null; //Default color material / shader.
+    private static Material _defaultFlatColorMaterial = null; //Default color material / shader.
 
-    //Clonable members
-    public Dictionary<Shader.TextureInput, Texture2D> Textures { get; private set; } = new Dictionary<Shader.TextureInput, Texture2D>();
-    public Shader Shader { get; private set; } = null;
+    #region Public: Members
+
+    public vec4 BaseColor { get { return _baseColor; } set { _baseColor = value; SetModified(); } }
+    public float Roughness { get { return _roughness; } set { _roughness = value; SetModified(); } }
+    public float Metallic { get { return _metallic; } set { _metallic = value; SetModified(); } }
+    public float Specular { get { return _specular; } set { _specular = value; SetModified(); } }
+    public float IndexOfRefraction { get { return _indexOfRefraction; } set { _indexOfRefraction = value; SetModified(); } }
+
+    public TextureInput AlbedoSlot { get { return _albedoSlot; } private set { _albedoSlot = value; SetModified(); } }
+    public TextureInput NormalSlot { get { return _normalSlot; } private set { _normalSlot = value; SetModified(); } }
+    public TextureInput RoughnessSlot { get { return _roughnessSlot; } private set { _roughnessSlot = value; SetModified(); } }
+    public TextureInput MetalnessSlot { get { return _metalnessSlot; } private set { _metalnessSlot = value; SetModified(); } }
+    public TextureInput PositionSlot { get { return _positionSlot; } private set { _positionSlot = value; SetModified(); } }
+
+    public Shader Shader { get { return _shader; } private set { _shader = value; SetModified(); } }
     public GpuRenderState GpuRenderState { get; set; } = new GpuRenderState(); //The rendering state of the material: clipping, depth, alpha, culling, etc
-
-    public Material(string name, Shader s) :
-       this(name, s, null, Shader.TextureInput.Albedo)
+    public GpuMaterial GpuMaterial
     {
-    }
-    public Material(string name, Shader s, Texture2D albedo) :
-       this(name, s, albedo, Shader.TextureInput.Albedo)
-    {
-    }
-    public Material(string name, Shader s, Texture2D single_tex, Shader.TextureInput single_tex_input) :
- this(name, s, new Dictionary<Shader.TextureInput, Texture2D>() { { single_tex_input, single_tex } })
-    {
-    }
-    public Material(string name, Shader s, Texture2D albedo, Texture2D normal) :
-       this(name, s, new Dictionary<Shader.TextureInput, Texture2D>() { { Shader.TextureInput.Albedo, albedo }, { Shader.TextureInput.Normal, normal } })
-    {
-    }
-    private Material() { }
-    public Material(string name, Shader s, Dictionary<Shader.TextureInput, Texture2D> textures = null)
-    {
-      this.Name = name;
-      Textures = new Dictionary<Shader.TextureInput, Texture2D>();
-      if (textures != null)
+      get
       {
-        //Add textures that aren't null.
-        bool added = false;
-        foreach (var tex in textures)
-        {
-          if (tex.Value != null)
-          {
-            Textures.Add(tex.Key, tex.Value);
-            added = true;
-          }
-        }
+        CompileGpuData();
+        return _gpuMaterial;
       }
+    }
+
+    //**TODO: alpha is actually in the GpuRenderState
+    public glTFLoader.Schema.Material.AlphaModeEnum AlphaMode = glTFLoader.Schema.Material.AlphaModeEnum.BLEND;
+
+    #endregion
+
+    #region Private:Members
+
+    private Shader _shader = null;
+
+    private vec4 _baseColor = new vec4(1, 1, 1, 1);
+    private float _roughness = 0.5f;
+    private float _metallic = 0.0f;
+    private float _specular = 0.5f;
+    private float _indexOfRefraction = 1;//1.45
+    private TextureInput _albedoSlot = null;
+    private TextureInput _normalSlot = null;
+    private TextureInput _roughnessSlot = null;
+    private TextureInput _metalnessSlot = null;
+    private TextureInput _positionSlot = null;
+
+    private Dictionary<TextureInput, Texture2D> _textures = new Dictionary<TextureInput, Texture2D>();
+
+    private GpuMaterial _gpuMaterial = default(GpuMaterial);
+
+    private bool _bMustCompile = false;
+
+    #endregion
+
+    #region Public: Methods
+
+    public void CompileGpuData()
+    {
+      if (_bMustCompile || Gu.EngineConfig.AlwaysCompileAndReloadGpuUniformData)
+      {
+        _gpuMaterial._vPBR_baseColor = _baseColor;
+        _gpuMaterial._fPBR_roughness = _roughness;
+        _gpuMaterial._fPBR_metallic = _metallic;
+        _gpuMaterial._fPBR_indexOfRefraction = _indexOfRefraction;
+        _gpuMaterial._fPBR_specular = _specular;
+
+        _bMustCompile = false;
+      }
+    }
+
+    private Material() { }//clone ctor
+    public Material(string name, Shader s) : base(name + "-mat")
+    {
+      this._albedoSlot = new TextureInput(Texture2D.Default1x1ColorPixel_RGBA32ub(vec4ub.White));
+      this._normalSlot = new TextureInput(Texture2D.Default1x1NormalPixel_RGBA32ub());
+      this._roughnessSlot = new TextureInput(Texture2D.Default1x1ColorPixel_RGBA32ub(vec4ub.White));
+      this._metalnessSlot = new TextureInput(Texture2D.Default1x1ColorPixel_RGBA32ub(vec4ub.White));
+      this._positionSlot = new TextureInput(Texture2D.Default1x1ColorPixel_RGBA32ub(vec4ub.White));
 
       Shader = s;
     }
-    public Material Clone(bool shallow = true)
+    public Material(string name, Shader s, Texture2D albedo) : this(name, s)
     {
-      Gu.Assert(shallow == true);//Not supported to clone the shader or textures
-
+      _albedoSlot.Texture = albedo;
+    }
+    public Material(string name, Shader s, Texture2D albedo, Texture2D normal) : this(name, s)
+    {
+      _normalSlot.Texture = normal;
+    }
+    public Material Clone()
+    {
       Material other = new Material();
-
-      other.GpuRenderState = this.GpuRenderState.Clone();
-      other.Shader = this.Shader;
-      other.Name = this.Name + "-copy";
-      if (this.Textures != null)
-      {
-        other.Textures = new Dictionary<Shader.TextureInput, Texture2D>(this.Textures);
-      }
+      Copy(other);
       return other;
     }
-    public static Material DefaultFlatColor()
+    protected void Copy(Material other)
     {
-      //TODO: - the input shader should also be default.
-      if (_defaultFlatColor == null)
-      {
-        _defaultFlatColor = new Material("DefaultFlatColor",Shader.DefaultFlatColorShader());
-      }
-      return _defaultFlatColor;
+      base.Copy(other);
+      other.GpuRenderState = this.GpuRenderState.Clone();
+      other._shader = this._shader;
+      other._baseColor = this._baseColor;
+      other._roughness = this._roughness;
+      other._metallic = this._metallic;
+      other._specular = this._specular;
+      other._indexOfRefraction = this._indexOfRefraction;
+      other._albedoSlot = this._albedoSlot;
+      other._normalSlot = this._normalSlot;
+      other._roughnessSlot = this._roughnessSlot;
+      other._metalnessSlot = this._metalnessSlot;
+      other._positionSlot = this._positionSlot;
+      other.AlphaMode = this.AlphaMode;
     }
-    public static Material DefaultDiffuse()
+    public static Material DefaultFlatColor
     {
-      //TODO: - the input shader should also be default.
-      if (_defaultDiffuse == null)
+      get
       {
-        _defaultDiffuse = new Material("DefaultDiffuse",Shader.DefaultDiffuse());
-      }
-      return _defaultDiffuse;
-    }
-    public void Draw(MeshData mesh, DrawCall_UniformData dat)
-    {
-      GpuRenderState.SetState();
-      dat.m = this;
-      Shader.BeginRender(dat);
-      mesh.Draw(dat.instanceData);
-      Shader.EndRender();
-    }
-    public void Draw(MeshData[] meshes, DrawCall_UniformData dat)
-    {
-      GpuRenderState.SetState();
-      dat.m = this;
-      Shader.BeginRender(dat);
-      foreach (var m in meshes)
-      {
-        m.Draw(dat.instanceData);
-      }
-      Shader.EndRender();
-    }
-    public Texture2D GetTextureOrDefault(Shader.TextureInput texture_input)
-    {
-      Texture2D tex = null;
-      if (Textures == null)
-      {
-        tex = Texture2D.Default(texture_input);
-      }
-      else
-      {
-        Textures.TryGetValue(texture_input, out tex);
-
-        if (tex == null)
+        //TODO: - the input shader should also be default.
+        if (_defaultFlatColorMaterial == null)
         {
-          tex = Texture2D.Default(texture_input);
+          _defaultFlatColorMaterial = new Material("DefaultFlatColorMaterial", Shader.DefaultFlatColorShader());
+          _defaultObjectMaterial.AlbedoSlot.Texture = Texture2D.Default1x1ColorPixel_RGBA32ub(new vec4ub(255,255,255,255));
         }
+        return _defaultFlatColorMaterial;
       }
-
-      return tex;
     }
+    public static Material DefaultObjectMaterial
+    {
+      get
+      {
+        //TODO: - the input shader should also be default.
+        if (_defaultObjectMaterial == null)
+        {
+          _defaultObjectMaterial = new Material("DefaultObjectMaterial", Shader.DefaultObjectShader());
+          _defaultObjectMaterial.AlbedoSlot.Texture = Texture2D.Default1x1ColorPixel_RGBA32ub(new vec4ub(255,0,255,255));
+        }
+        return _defaultObjectMaterial;
+      }
+    }
+    //     public static Material DefaultBillboard()
+    // {
+    //   //TODO: - the input shader should also be default.
+    //   if (_defaultObjectShader == null)
+    //   {
+    //     _defaultObjectShader = new Material("DefaultBillboard", Shader.DefaultBillboardPoints());
+    //   }
+    //   return _defaultObjectShader;
+    // }
+
+    #endregion
 
   }
 }

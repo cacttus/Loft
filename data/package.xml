@@ -1,0 +1,12 @@
+<!--
+This is the package specification for the graphics project.
+-->
+<ApplicationPackage name="MyAppName">
+  <Prop key="TextureFolder" value="./textures/"/>
+  <Prop key="ShaderFolder" value="./shaders/"/>
+  <Prop key="ModelsTextFolder" value="./mob/"/>
+  <Prop key="ModelsBinFolder" value="./mbi/"/>
+  <Prop key="ScriptsFolder" value="./scripts/"/>
+  <Prop key="SoundsFolder" value="./sounds/"/>
+  <Prop key="FontsFolder" value="./fonts/"/>
+</ApplicationPackage>

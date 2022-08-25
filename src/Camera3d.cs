@@ -4,6 +4,16 @@ namespace PirateCraft
 {
   public class Frustum
   {
+    #region Public:Members
+
+    public vec3 NearCenter { get { return _nearCenter; } private set { _nearCenter = value; } }
+    public vec3 FarCenter { get { return _farCenter; } private set { _farCenter = value; } }
+    public vec3 NearTopLeft { get { return _nearTopLeft; } private set { _nearTopLeft = value; } }
+    public vec3 FarTopLeft { get { return _farTopLeft; } private set { _farTopLeft = value; } }
+    public Box3f BoundBox { get { return _boundBox; } private set { _boundBox = value; } }
+
+    #endregion
+    #region Private:Members
 
     private const int fpt_nbl = 0;
     private const int fpt_fbl = 1;
@@ -20,24 +30,21 @@ namespace PirateCraft
     private const int fp_top = 4;
     private const int fp_bottom = 5;
 
-    WeakReference<Camera3D> _camera;
-    float _widthNear = 1;
-    float _heightNear = 1;
-    float _widthFar = 1;
-    float _heightFar = 1;
-    Plane3f[] _planes = new Plane3f[6];
-    vec3[] _points = new vec3[8];
-    vec3 _nearCenter = new vec3(0, 0, 0);
-    vec3 _farCenter = new vec3(0, 0, 0);
-    vec3 _nearTopLeft = new vec3(0, 0, 0);
-    vec3 _farTopLeft = new vec3(0, 0, 0);
-    Box3f _boundBox = new Box3f(new vec3(0, 0, 0), new vec3(1, 1, 1));
+    private WeakReference<Camera3D> _camera;
+    private float _widthNear = 1;
+    private float _heightNear = 1;
+    private float _widthFar = 1;
+    private float _heightFar = 1;
+    private Plane3f[] _planes = new Plane3f[6];
+    private vec3[] _points = new vec3[8];
+    private vec3 _nearCenter = new vec3(0, 0, 0);
+    private vec3 _farCenter = new vec3(0, 0, 0);
+    private vec3 _nearTopLeft = new vec3(0, 0, 0);
+    private vec3 _farTopLeft = new vec3(0, 0, 0);
+    private Box3f _boundBox = new Box3f(new vec3(0, 0, 0), new vec3(1, 1, 1));
 
-    public vec3 NearCenter { get { return _nearCenter; } private set { _nearCenter = value; } }
-    public vec3 FarCenter { get { return _farCenter; } private set { _farCenter = value; } }
-    public vec3 NearTopLeft { get { return _nearTopLeft; } private set { _nearTopLeft = value; } }
-    public vec3 FarTopLeft { get { return _farTopLeft; } private set { _farTopLeft = value; } }
-    public Box3f BoundBox { get { return _boundBox; } private set { _boundBox = value; } }
+    #endregion
+    #region Public:Methods
 
     public Frustum(Camera3D cam)
     {
@@ -69,49 +76,6 @@ namespace PirateCraft
 
         ConstructPointsAndPlanes(FarCenter, NearCenter, cam.BasisY, cam.BasisX, _widthNear, _widthFar, _heightNear, _heightFar);
       }
-    }
-    private void ConstructPointsAndPlanes(vec3 farCenter, vec3 nearCenter,
-                                         vec3 upVec, vec3 rightVec,
-                                         float w_near_2, float w_far_2,
-                                         float h_near_2, float h_far_2)
-    {
-      _points[fpt_nbl] = (nearCenter - (upVec * h_near_2) - (rightVec * w_near_2));
-      _points[fpt_fbl] = (farCenter - (upVec * h_far_2) - (rightVec * w_far_2));
-
-      _points[fpt_nbr] = (nearCenter - (upVec * h_near_2) + (rightVec * w_near_2));
-      _points[fpt_fbr] = (farCenter - (upVec * h_far_2) + (rightVec * w_far_2));
-
-      _points[fpt_ntl] = (nearCenter + (upVec * h_near_2) - (rightVec * w_near_2));
-      _points[fpt_ftl] = (farCenter + (upVec * h_far_2) - (rightVec * w_far_2));
-
-      _points[fpt_ntr] = (nearCenter + (upVec * h_near_2) + (rightVec * w_near_2));
-      _points[fpt_ftr] = (farCenter + (upVec * h_far_2) + (rightVec * w_far_2));
-
-      // - Construct AA bound box
-      _boundBox._min = vec3.VEC3_MAX();
-      _boundBox._max = vec3.VEC3_MIN();
-
-      for (int i = 0; i < 8; ++i)
-      {
-        _boundBox._min = vec3.minv(BoundBox._min, _points[i]);
-        _boundBox._max = vec3.maxv(BoundBox._max, _points[i]);
-      }
-      //TODO: Optimize:
-      //        1) we don't use the fourth value of the QuadPlane4 at all
-      //        2) QuadPLane4 calculates a TBN basis.  We don't need that.
-      //  1   2
-      //
-      //  3   4
-      //
-      // - Construct so that the normals are facing into the frustum  - Checked all is good
-      _planes[fp_near] = new Plane3f(_points[fpt_ntl], _points[fpt_ntr], _points[fpt_nbl], _points[fpt_nbr]);
-      _planes[fp_far] = new Plane3f(_points[fpt_ftr], _points[fpt_ftl], _points[fpt_fbr], _points[fpt_fbl]);
-
-      _planes[fp_left] = new Plane3f(_points[fpt_ftl], _points[fpt_ntl], _points[fpt_fbl], _points[fpt_nbl]);
-      _planes[fp_right] = new Plane3f(_points[fpt_ntr], _points[fpt_ftr], _points[fpt_nbr], _points[fpt_fbr]);
-
-      _planes[fp_top] = new Plane3f(_points[fpt_ntr], _points[fpt_ntl], _points[fpt_ftr], _points[fpt_ftl]);
-      _planes[fp_bottom] = new Plane3f(_points[fpt_fbr], _points[fpt_fbl], _points[fpt_nbr], _points[fpt_nbl]);
     }
     public Line3f ScreenToWorld(vec2 point_on_screen_topleftorigin, TransformSpace space = TransformSpace.World, float additionalZDepthNear = 0, float maxDistance = -1)
     {
@@ -172,9 +136,11 @@ namespace PirateCraft
       bool ret = false;  // Inside the frustum
       vec3 min, max;
       float d1, d2;
-      if (pCube._max < pCube._min)
+      if (!pCube.Validate())
       {
-        Gu.Assert(pCube._max >= pCube._min);
+        Gu.Log.ErrorCycle("Box was invalid");
+        Gu.DebugBreak();
+        return false;
       }
 
       for (int i = 0; i < 6; ++i)
@@ -225,11 +191,132 @@ namespace PirateCraft
       }
       return true;
     }
+
+    #endregion
+    #region Private:Methods
+
+    private void ConstructPointsAndPlanes(vec3 farCenter, vec3 nearCenter,
+                                        vec3 upVec, vec3 rightVec,
+                                        float w_near_2, float w_far_2,
+                                        float h_near_2, float h_far_2)
+    {
+      _points[fpt_nbl] = (nearCenter - (upVec * h_near_2) - (rightVec * w_near_2));
+      _points[fpt_fbl] = (farCenter - (upVec * h_far_2) - (rightVec * w_far_2));
+
+      _points[fpt_nbr] = (nearCenter - (upVec * h_near_2) + (rightVec * w_near_2));
+      _points[fpt_fbr] = (farCenter - (upVec * h_far_2) + (rightVec * w_far_2));
+
+      _points[fpt_ntl] = (nearCenter + (upVec * h_near_2) - (rightVec * w_near_2));
+      _points[fpt_ftl] = (farCenter + (upVec * h_far_2) - (rightVec * w_far_2));
+
+      _points[fpt_ntr] = (nearCenter + (upVec * h_near_2) + (rightVec * w_near_2));
+      _points[fpt_ftr] = (farCenter + (upVec * h_far_2) + (rightVec * w_far_2));
+
+      // - Construct AA bound box
+      _boundBox._min = vec3.VEC3_MAX();
+      _boundBox._max = vec3.VEC3_MIN();
+
+      for (int i = 0; i < 8; ++i)
+      {
+        _boundBox._min = vec3.minv(BoundBox._min, _points[i]);
+        _boundBox._max = vec3.maxv(BoundBox._max, _points[i]);
+      }
+      //TODO: Optimize:
+      //        1) we don't use the fourth value of the QuadPlane4 at all
+      //        2) QuadPLane4 calculates a TBN basis.  We don't need that.
+      //  1   2
+      //
+      //  3   4
+      //
+      // - Construct so that the normals are facing into the frustum  - Checked all is good
+      _planes[fp_near] = new Plane3f(_points[fpt_ntl], _points[fpt_ntr], _points[fpt_nbl], _points[fpt_nbr]);
+      _planes[fp_far] = new Plane3f(_points[fpt_ftr], _points[fpt_ftl], _points[fpt_fbr], _points[fpt_fbl]);
+
+      _planes[fp_left] = new Plane3f(_points[fpt_ftl], _points[fpt_ntl], _points[fpt_fbl], _points[fpt_nbl]);
+      _planes[fp_right] = new Plane3f(_points[fpt_ntr], _points[fpt_ftr], _points[fpt_nbr], _points[fpt_fbr]);
+
+      _planes[fp_top] = new Plane3f(_points[fpt_ntr], _points[fpt_ntl], _points[fpt_ftr], _points[fpt_ftl]);
+      _planes[fp_bottom] = new Plane3f(_points[fpt_fbr], _points[fpt_fbl], _points[fpt_nbr], _points[fpt_nbl]);
+    }
+    #endregion
   }
 
-class RenderViewport {
-  
-}
+  public class Viewport
+  {
+    public int X { get; set; } = 0;
+    public int Y { get; set; } = 0;
+    public int Width { get; set; } = 1;
+    public int Height { get; set; } = 1;
+    public Viewport() { }
+    public Viewport(int x, int y, int w, int h)
+    {
+      X = X;
+      Y = y;
+      Width = w;
+      Height = h;
+    }
+    public void SetupViewport()
+    {
+      // A render area of zero pixels raises an error.
+      Gu.Assert(X < Width);
+      Gu.Assert(Y < Height);
+
+      GL.Viewport(X, Y, Width, Height);
+      GL.Scissor(X, Y, Width, Height);
+    }
+    public bool ContainsPoint_WindowRelative(int x, int y)
+    {
+      return x >= X && y >= Y && x < (X + Width) && y < (Y + Height);
+    }
+  }
+
+  public class RenderView : MutableState
+  {
+    public Camera3D Camera { get; set; } = null;
+    public Viewport Viewport { get; set; } = null;
+    public mat4 ProjectionMatrix { get; private set; } = mat4.Identity;
+    public GpuCamera GpuCamera { get { return _gpuCamera; } private set { _gpuCamera = value; } }
+
+    private GpuCamera _gpuCamera = new GpuCamera();
+
+    public RenderView(Camera3D cam, int x, int y, int w, int h)
+    {
+      Camera = cam;
+      Viewport = new Viewport(x, y, w, h);
+    }
+    public void BeginRender3D()
+    {
+      Viewport.SetupViewport();
+      ProjectionMatrix = Camera.ProjectionMatrix;
+    }
+    public void EndRender3D()
+    {
+      ProjectionMatrix = mat4.Identity;
+    }
+    public void BeginRaster2D()
+    {
+      Viewport.SetupViewport();
+      //Enter orthorgraphic projection mode for drawing images directly to the screen.
+      //Note: in the past the width/height of viewport has been off by -1 (math issue)
+      ProjectionMatrix = mat4.getOrtho((float)Viewport.X, (float)Viewport.Width, (float)Viewport.Y, (float)Viewport.Height, -1.0f, 1.0f);
+    }
+    public void EndRaster2D()
+    {
+      ProjectionMatrix = Camera.ProjectionMatrix;
+    }
+    public void CompileGpuData()
+    {
+      if (Modified || Gu.EngineConfig.AlwaysCompileAndReloadGpuUniformData)
+      {
+        Gu.Assert(Camera != null);
+        _gpuCamera._vViewPos = Camera.Position_World;
+        _gpuCamera._vViewDir = Camera.Heading;
+        _gpuCamera._m4View = Camera.ViewMatrix;
+        _gpuCamera._m4Projection = ProjectionMatrix;//Could be orthographic, or perspective depending
+      }
+    }
+
+  }
 
   public class Camera3D : WorldObject
   {
@@ -238,8 +325,8 @@ class RenderViewport {
     float _far = 1000;
 
     public Frustum Frustum { get; private set; } = null;
-    mat4 _projectionMatrix = mat4.identity();
-    mat4 _viewMatrix = mat4.identity();
+    mat4 _projectionMatrix = mat4.Identity;
+    mat4 _viewMatrix = mat4.Identity;
     //ProjectionMode ProjectionMode = ProjectionMode.Perspective;
 
     public float FOV { get { return _fov; } set { _fov = value; } }
@@ -255,10 +342,9 @@ class RenderViewport {
     public int Viewport_Width { get { return _view_w; } set { _view_w = value; } }
     public int Viewport_Height { get { return _view_h; } set { _view_h = value; } }
 
-    private bool _bRasterMode = false;
-    private mat4 _savedProjection = mat4.identity();
+    private mat4 _savedProjection = mat4.Identity;
 
-    public Camera3D(string name, int w, int h, float near = 1, float far = 1000) : base(name)
+    public Camera3D(string name, int w, int h, float near = 1, float far = 1000) : base(name + "-cam")
     {
       //Do not select camera (at least not active camera) since we wont be able to hit anything else.
       //SelectEnabled = false;
@@ -270,33 +356,11 @@ class RenderViewport {
     {
       base.Update(world, dt, ref parentBoundBox);
       ProjectionMatrix = mat4.projection(FOV, Viewport_Width, Viewport_Height, Near, Far);
-      var p = this.WorldMatrix.extractTranslation();
+      var p = this.WorldMatrix.ExtractTranslation();
       ViewMatrix = mat4.getLookAt(p, new vec3(p + BasisZ), new vec3(0, 1, 0));
       Frustum.Update();
     }
-    public void BeginRender()
-    {
-      GL.Viewport(0, 0, Viewport_Width, Viewport_Height);
-      GL.Scissor(0, 0, Viewport_Width, Viewport_Height);
-    }
-    public void EndRender()
-    {
-    }
-    public void beginRaster()
-    {
-      //The second viewport call isn't necessary, however, this is "just in case'
-      GL.Viewport(0, 0, Viewport_Width, Viewport_Height);
-      GL.Scissor(0, 0, Viewport_Width, Viewport_Height);
-      //Enter orthorgraphic projection mode for drawing images directly to the screen.
-      _bRasterMode = true;
-      _savedProjection = ProjectionMatrix;
-      //Note: in the past the width/height of viewport has been off by -1 (math issue)
-      ProjectionMatrix = mat4.getOrtho(Viewport_X, (float)Viewport_Width, Viewport_Y, (float)Viewport_Height, -1.0f, 1.0f);
-    }
-    public void endRaster()
-    {
-      ProjectionMatrix = _savedProjection;
-    }
+
     //public override void Resize(Viewport vp) { }
     //public override void Update(double dt) { base.Update(dt); }
     //public override void Render(Renderer rm) { }

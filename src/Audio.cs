@@ -23,9 +23,13 @@ namespace PirateCraft
       _thread = new Thread(() =>
       {
         _device = ALC.OpenDevice("");
-        CheckALErrors();
         _context = ALC.CreateContext(_device, new int[] { });
-        CheckALErrors();
+        if (_context == null)
+        {
+          Gu.Log.Error("Failed to create OpenAL device");
+          ALC.CloseDevice(_device);
+          return;
+        }
         ALC.MakeContextCurrent(_context);
         CheckALErrors();
         AL.RegisterOpenALResolver();
@@ -70,12 +74,14 @@ namespace PirateCraft
     }
     public static void CheckALErrors()
     {
-      for (int i = 0; i < 100; ++i)
+      for (int i = 0; i < Gu.c_intMaxWhileTrueLoop; ++i)
       {
+        //NOTE: you can only call getError when there is an AL context.
         ALError e = AL.GetError();
         if (e != ALError.NoError)
         {
-          Gu.Log.Error("OpenAL Error: " + e);
+          string e_str = AL.GetErrorString(e);
+          Gu.Log.Error("OpenAL Error: " + e + " => " + e_str);
         }
         else
         {
@@ -133,7 +139,7 @@ namespace PirateCraft
     private vec3 _pos = new vec3(0, 0, 0);
     private List<PlayState> _commands = new List<PlayState>();
     private bool _loop = false;
-    public bool Loop { get { return _loop; } set { _loop = value; } } 
+    public bool Loop { get { return _loop; } set { _loop = value; } }
     public vec3 Position
     {
       get { return _pos; }

@@ -24,27 +24,28 @@ namespace PirateCraft
   //Note: this class initializes the data buffer when you create it. It requires a w/h
   public class Img32
   {
-    public enum PixelFormat
+    public enum ImagePixelFormat
     {
       Undefined,
-      RGB,
-      BGR,
-      RGBA,
-      BGRA,
+      RGB24ub,
+      BGR24ub,
+      RGBA32ub,
+      BGRA32ub,
     }
+    public string Name { get; private set; } = "img32-unnamed";
     public int Width { get; private set; } = 0;
     public int Height { get; private set; } = 0;
-    public byte[] Data { get; private set; }
+    public byte[] Data { get; private set; } = null;
     public int BytesPerPixel
     {
       get
       {
-        if (Format == PixelFormat.RGBA || Format == PixelFormat.BGRA)
+        if (Format == ImagePixelFormat.RGBA32ub || Format == ImagePixelFormat.BGRA32ub)
         {
           //In this system we should always return 4.
           return 4;
         }
-        else if (Format == PixelFormat.RGB || Format == PixelFormat.BGR)
+        else if (Format == ImagePixelFormat.RGB24ub || Format == ImagePixelFormat.BGR24ub)
         {
           //This isn't supported explicitly. STB image converts all images to RGBA.
           Gu.DebugBreak();
@@ -60,31 +61,42 @@ namespace PirateCraft
       {
       }
     }//Always 4BPP in our system.
-    public static Img32 Default1x1(byte r, byte g, byte b, byte a) { return new Img32(1, 1, new byte[] { r, g, b, a }, PixelFormat.RGBA); }
-    public PixelFormat Format { get; private set; } = PixelFormat.Undefined;
-    public Img32()
+    public ImagePixelFormat Format { get; private set; } = ImagePixelFormat.Undefined;
+
+
+    private Img32()
     {
+    }
+
+    public static Img32 Default1x1_RGBA32ub(byte r, byte g, byte b, byte a)
+    {
+      return new Img32("default1x1", 1, 1, new byte[] { r, g, b, a }, ImagePixelFormat.RGBA32ub);
+    }
+    public static Img32 Default1x1_RGBA32ub(vec4ub v4)
+    {
+      return Default1x1_RGBA32ub(v4.r, v4.g, v4.b, v4.a);
     }
     public Img32 Clone()
     {
       Img32 m = new Img32();
+      m.Name = Name;
       m.Width = Width;
       m.Height = Height;
-      m.BytesPerPixel = BytesPerPixel;
       m.Data = new byte[Data.Length];
+      m.BytesPerPixel = BytesPerPixel;
       m.Format = Format;
       Buffer.BlockCopy(Data, 0, m.Data, 0, Data.Length);
       return m;
     }
-    public Img32(int w, int h, PixelFormat sc = PixelFormat.RGBA)
+    public Img32(string name, int w, int h, ImagePixelFormat sc = ImagePixelFormat.RGBA32ub)
     {
       //Note if data is null data will still get allocated
-      init(w, h, null, sc);
+      init(name, w, h, null, sc);
     }
-    public Img32(int w, int h, byte[] data, PixelFormat sc = PixelFormat.RGBA)
+    public Img32(string name, int w, int h, byte[] data, ImagePixelFormat sc = ImagePixelFormat.RGBA32ub)
     {
       //Note if data is null data will still get allocated
-      init(w, h, data, sc);
+      init(name, w, h, data, sc);
     }
     public void FlipBR()
     {
@@ -122,11 +134,12 @@ namespace PirateCraft
       }
       Data = newData;
     }
-    public void init(int w, int h, byte[] data, PixelFormat sc)
+    public void init(string name, int w, int h, byte[] data, ImagePixelFormat sc)
     {
       Width = w;
       Height = h;
       Format = sc;
+      Name = name+"-img32";
       if (data == null)
       {
         data = new byte[w * h * BytesPerPixel];
@@ -138,7 +151,7 @@ namespace PirateCraft
     }
     public Img32 copySubImageTo(ivec2 off, ivec2 size)
     {
-      Img32 ret = new Img32(size.x, size.y, Format);
+      Img32 ret = new Img32("subimage-cpy", size.x, size.y, Format);
       // ret.init(size.x, size.y);//ret.create(size.x, size.y);
       ret.copySubImageFrom(new ivec2(0, 0), off, size, this);
       return ret;

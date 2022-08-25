@@ -1,52 +1,469 @@
-﻿using System.Runtime.InteropServices;
+﻿using System.ComponentModel;
+using System.Runtime.InteropServices;
 using System.Text;
 using OpenTK.Graphics.OpenGL4;
 
 namespace PirateCraft
 {
-  [StructLayout(LayoutKind.Sequential)]
-  public struct GpuShaderData
+  #region GPU Structs
+  public enum ShaderUniformName
   {
-    public GpuShaderData() { }
+    [Description("_ufGpuMaterial_s2Albedo")] _ufGpuMaterial_s2Albedo,
+    [Description("_ufGpuMaterial_s2Normal")] _ufGpuMaterial_s2Normal,
+    [Description("_ufGpuMaterial_s2Roughness")] _ufGpuMaterial_s2Roughness,
+    [Description("_ufGpuMaterial_s2Metalness")] _ufGpuMaterial_s2Metalness,
+    [Description("_ufGpuMaterial_s2Position")] _ufGpuMaterial_s2Position,
+    [Description("_ufGpuMaterial_Block")] _ufGpuMaterial_Block,
+    [Description("_ufGpuWorld_Block")] _ufGpuWorld_Block,
+    [Description("_ufGpuCamera_Block")] _ufGpuCamera_Block,
+    [Description("_ufGpuWorld_s2EnvironmentMap")] _ufGpuWorld_s2EnvironmentMap,
+    [Description("_ufGpuWorld_s2IrradianceMap")] _ufGpuWorld_s2IrradianceMap,
+    [Description("_ufGpuPointLights_Block")] _ufGpuPointLights_Block,
+    [Description("_ufGpuDirLights_Block")] _ufGpuDirLights_Block,
+    [Description("_ufGpuInstanceData_Block")] _ufGpuInstanceData_Block,
+    [Description("_m4Projection_Debug")] _m4Projection_Debug,
+    [Description("_m4View_Debug")] _m4View_Debug,
+    [Description("_m4Model_Debug")] _m4Model_Debug,
+  }
+  [StructLayout(LayoutKind.Sequential)]
+  public struct GpuInstanceData
+  {
+    public GpuInstanceData() { }
+    public mat4 _model = mat4.Identity;
+    public uvec2 _pickId = 0;
+    public float _pad0 = 0.0f;
+    public float _pad1 = 0.0f;
+  }
+  [StructLayout(LayoutKind.Sequential)]
+  public struct GpuPointLight
+  {
+    public GpuPointLight() { }
+    //
+    public vec3 _pos = new vec3(0, 0, 0);
+    public float _radius = 1;
+    //
+    public vec3 _color = new vec3(1, 1, 1);
+    public float _power = 1;
+  }
+  [StructLayout(LayoutKind.Sequential)]
+  public struct GpuDirLight
+  {
+    public GpuDirLight() { }
+    public vec3 _pos = new vec3(0, 0, 0);
+    public float _radius = 1000; // Radius=maxdist
+    //
+    public vec3 _color = new vec3(1, 1, 1);
+    public float _power = 10;
+    //
+    public vec3 _dir = new vec3(0, -1, 0);
+    public float _pad = 0;
+  }
+  [StructLayout(LayoutKind.Sequential)]
+  public struct GpuWorld
+  {
+    public GpuWorld() { }
+    //
     public float _fFogDamp = 2.8f;
     public float _fFogBlend = 0.56361f;
     public float _fFogDivisor = 1200.0f; //Begin of fog distance
-    public float _pad1 = 0;
+    public float _fFocalDepth = 0.0f;
     //
     public vec3 _vFogColor = new vec3(0.8407f, 0.89349f, 0.981054f);
-    public float _pad5 = 0;
+    public float _fFocalRange = 25.0f;
     //
     public int _iPointLightCount = 0;
-    public float _fHdrSampleExp = 1;   //Exponent to use converting input color textures to HDR
-    public float _fHdrToneMapExp = 1;  //Exponent to use when tone mapping back to LDR
-    public int _iShadowBoxCount = 0;
-    //
-    public vec3 _vViewPos = new vec3(0, 0, 0);//Camera position
     public int _iDirLightCount = 0;
+    public float _fHdrSampleExp = 1;
+    public float _fHdrToneMapExp = 1;
     //
-    public vec3 _vViewDir = new vec3(0, 0, -1);
+    public int _iShadowBoxCount = 0;
     public float _fTimeSeconds = 0;
+    public int _pad0 = 0;
+    public int _pad1 = 0;
     //
-    public vec3 _vAmbientColor = new vec3(0.24f, 0.26f, 0.261f);
-    public float _fAmbientIntensity = 0.5f;
-    //
-    public float _fFocalDepth = 0.0f;
-    public float _fFocalRange = 25.0f;
-    public float _pad2 = 0;
-    public float _pad3 = 0;
-  };
-  //stuff needed to render
-  public class DrawCall_UniformData
+    public vec3 _vAmbientColor = new vec3(1, 1, 1);
+    public float _fAmbientIntensity = 0.1f;
+  }
+  [StructLayout(LayoutKind.Sequential)]
+  public struct GpuCamera
   {
-    public double? dt = null;
-    public Camera3D cam = null;
-    public WorldObject ob = null;
-    public Material m = null;
-    public mat4[] instanceData = null;
-    public DayNightCycle dnc = null;
-    public Func<ShaderUniform, bool> customUniforms = null;//Input: a uniform variable name that you must bind to, output: true if you handled it, false if not
-    public Func<Shader, ShaderUniformBlock, bool> customUniformBlocks = null;//Input: a uniform variable name that you must bind to, output: true if you handled it, false if not
-    public GpuShaderData shaderData;
+    public GpuCamera() { }
+    //
+    public mat4 _m4View = mat4.Identity;
+    public mat4 _m4Projection = mat4.Identity;
+    //
+    public vec3 _vViewPos = vec3.Zero;
+    public float _pad0 = 0;
+    //
+    public vec3 _vViewDir = vec3.Zero;
+    public float _pad1 = 0;
+  }
+  [StructLayout(LayoutKind.Sequential)]
+  public struct GpuMaterial
+  {
+    public GpuMaterial() { }
+    //
+    public vec4 _vPBR_baseColor = new vec4(1, 1, 1, 1);
+    //
+    public float _fPBR_roughness = 0.01f;
+    public float _fPBR_metallic = 0.0f;
+    public float _fPBR_indexOfRefraction = 1.45f;
+    public float _fPBR_specular = 0.5f;
+  }
+  #endregion
+
+  public class ShaderControlVars
+  {
+    public ShaderControlVars() { }
+    public ShaderControlVars(PipelineStage stage, ShaderType type)
+    {
+      ShaderType = type;
+      PipelineStage = stage;
+    }
+    public ShaderType? ShaderType { get; private set; } = null;
+    public PipelineStage? PipelineStage { get; private set; } = null;
+    public int MaxPointLights { get; set; } = 8;
+    public int MaxDirLights { get; set; } = 2;
+    public int MaxCubeShadowSamples { get; set; } = 4;
+    public int MaxFrusShadowSamples { get; set; } = 4;
+    public int MaxInstances { get; set; } = 8;
+    public bool IsInstanced { get; set; } = true;  //this is, technically going to always be set now, but later we can add non-instanced for performance improvements.
+
+    public ShaderControlVars Clone(PipelineStage stage, ShaderType type)
+    {
+      var ret = new ShaderControlVars(stage, type);
+      ret.MaxPointLights = this.MaxPointLights;
+      ret.MaxDirLights = this.MaxDirLights;
+      ret.MaxCubeShadowSamples = this.MaxCubeShadowSamples;
+      ret.MaxFrusShadowSamples = this.MaxFrusShadowSamples;
+      return ret;
+    }
+    private void AddDef<T>(StringBuilder sb, string key, T val)
+    {
+      sb.Append("#define " + key + " " + val.ToString() + "\n");
+    }
+    private void AddDef(StringBuilder sb, string key)
+    {
+      sb.Append("#define " + key + "\n");
+    }
+    public override string ToString()
+    {
+      var sb = new StringBuilder();
+
+      AddDef(sb, "DEF_MAX_POINT_LIGHTS", MaxPointLights);
+      AddDef(sb, "DEF_MAX_DIR_LIGHTS", MaxDirLights);
+      AddDef(sb, "DEF_MAX_CUBE_SHADOW_SAMPLES", MaxCubeShadowSamples);
+      AddDef(sb, "DEF_MAX_FRUS_SHADOW_SAMPLES", MaxFrusShadowSamples);
+      AddDef(sb, "DEF_MAX_INSTANCES", MaxInstances);
+
+      if (IsInstanced)
+      {
+        AddDef(sb, "DEF_INSTANCED");
+      }
+
+      ShaderType st = this.ShaderType.Value;
+      PipelineStage ps = this.PipelineStage.Value;
+      if (st == OpenTK.Graphics.OpenGL4.ShaderType.FragmentShader || st == OpenTK.Graphics.OpenGL4.ShaderType.FragmentShaderArb) { AddDef(sb, "DEF_SHADER_STAGE_FRAGMENT"); }
+      else if (st == OpenTK.Graphics.OpenGL4.ShaderType.VertexShader || st == OpenTK.Graphics.OpenGL4.ShaderType.VertexShaderArb) { AddDef(sb, "DEF_SHADER_STAGE_VERTEX"); }
+      else if (st == OpenTK.Graphics.OpenGL4.ShaderType.GeometryShader) { AddDef(sb, "DEF_SHADER_STAGE_GEOMETRY"); }
+      else { Gu.BRThrowNotImplementedException(); }
+
+      //Ooh.thanks Description[]
+      AddDef(sb, ps.Description());
+
+      return sb.ToString();
+    }
+  }
+  public class WorldProps : DataBlock
+  {
+    #region Public:Members
+    //similar to "world" in Blender, Envmap + Volume
+    public Texture2D EnvironmentMap { get { return _environmentMap; } set { _environmentMap = value; SetModified(); } }
+    public Texture2D IrradianceMap { get { return _irradianceMap; } set { _irradianceMap = value; SetModified(); } }
+    public float FogDamp { get { return _fogDamp; } set { _fogDamp = value; SetModified(); } }
+    public float FogBlend { get { return _fogBlend; } set { _fogBlend = value; SetModified(); } }
+    public float FogDivisor { get { return _fogDivisor; } set { _fogDivisor = value; SetModified(); } }
+    public vec3 FogColor { get { return _fogColor; } set { _fogColor = value; SetModified(); } }
+    public vec3 Ambient { get { return _ambient; } set { _ambient = value; SetModified(); } }
+    public float AmbientIntensity { get { return _ambientIntensity; } set { _ambientIntensity = value; SetModified(); } }
+    public DayNightCycle DayNightCycle { get { return _dayNightCycle; } set { _dayNightCycle = value; SetModified(); } }
+    public ModifiedList<Light> Lights { get { return _lights; } set { _lights = value; SetModified(); } }
+    public GpuWorld GpuWorld { get { return _gpuWorld; } }
+    public GpuDirLight[] GpuDirLights { get { return _gpuDirLights; } }
+    public GpuPointLight[] GpuPointLights { get { return _gpuPointLights; } }
+
+    #endregion
+    #region Private: Members
+
+    private Texture2D _environmentMap = null;
+    private Texture2D _irradianceMap = null;
+    private float _fogDamp = 2.8f;
+    private float _fogBlend = 0.56361f;
+    private float _fogDivisor = 1200.0f; //Begin of fog distance
+    private vec3 _fogColor = new vec3(0.8407f, 0.89349f, 0.981054f);
+    private vec3 _ambient = new vec3(1, 1, 1);
+    private float _ambientIntensity = 0.1f;
+    private DayNightCycle _dayNightCycle = null;
+    private ModifiedList<Light> _lights = new ModifiedList<Light>();
+    private GpuWorld _gpuWorld = new GpuWorld();
+    private GpuDirLight[] _gpuDirLights = null;
+    private GpuPointLight[] _gpuPointLights = null;
+
+    #endregion
+
+    public void Reset()
+    {
+      _lights.Clear();
+      SetModified();
+    }
+
+    protected WorldProps() { }
+    public WorldProps(string name) : base(name+"-env") { }
+    public void CompileGpuData()
+    {
+      if (Modified || Lights.Modified || Gu.EngineConfig.AlwaysCompileAndReloadGpuUniformData)
+      {
+        _gpuWorld._fFogDamp = this._fogDamp;
+        _gpuWorld._fFogBlend = this._fogBlend;
+        _gpuWorld._fFogDivisor = this._fogDivisor;
+        _gpuWorld._vFogColor = this._fogColor;
+        _gpuWorld._vAmbientColor = this._ambient;
+        _gpuWorld._fAmbientIntensity = this._ambientIntensity;
+
+        _gpuWorld._iPointLightCount = 0;
+        _gpuWorld._iDirLightCount = 0;
+
+        IterateLights((light) => { _gpuWorld._iPointLightCount++; }, (light) => { _gpuWorld._iDirLightCount++; });
+
+        _gpuPointLights = new GpuPointLight[_gpuWorld._iPointLightCount];
+        _gpuDirLights = new GpuDirLight[_gpuWorld._iDirLightCount];
+
+        IterateLights(
+          (light) =>
+          {
+            _gpuPointLights[light]._color = _lights[light].Color;
+            _gpuPointLights[light]._pos = _lights[light].Position_World;
+            _gpuPointLights[light]._power = _lights[light].Power;
+            _gpuPointLights[light]._radius = _lights[light].Radius;
+          },
+          (light) =>
+          {
+            _gpuDirLights[light]._color = _lights[light].Color;
+            _gpuDirLights[light]._dir = _lights[light].Heading;
+            _gpuDirLights[light]._pos = _lights[light].Position_World;
+            _gpuDirLights[light]._power = _lights[light].Power;
+            _gpuDirLights[light]._radius = _lights[light].Radius;
+            _gpuWorld._iDirLightCount++;
+          });
+
+        _gpuWorld._fHdrSampleExp = 1;
+        _gpuWorld._fHdrToneMapExp = 1;
+        _gpuWorld._iShadowBoxCount = 0;
+        _gpuWorld._fTimeSeconds = (float)(Gu.Milliseconds() % 1000) / 1000.0f;
+        _gpuWorld._fFocalDepth = 0;
+        _gpuWorld._fFocalRange = 25.0f;
+
+        Modified = false;
+        Lights.Modified = false;
+      }
+    }
+    private void IterateLights(Action<int> point, Action<int> dir)
+    {
+      if (_lights != null)
+      {
+        //foreach (var light in _lights)
+        for (int iLight = 0; iLight < _lights.Count; iLight++)
+        {
+          var light = _lights[iLight];
+          if (light.Type == LightType.Point)
+          {
+            point(iLight);
+          }
+          else if (light.Type == LightType.Direction)
+          {
+            dir(iLight);
+          }
+          else
+          {
+            Gu.BRThrowNotImplementedException();
+          }
+        }
+      }
+    }
+  }
+  public class VisibleObjectInstances : MutableState
+  {
+    public List<WorldObject> Objects = null;
+    public GpuInstanceData[] GpuInstanceData = null;
+    public MeshData Mesh
+    {
+      get
+      {
+        if (Objects != null)
+        {
+          if (Objects.Count > 0)
+          {
+            return Objects[0].Mesh;
+          }
+        }
+        return null;
+      }
+    }
+    public void Add(WorldObject ob)
+    {
+      Objects = Objects.ConstructIfNeeded();
+      Objects.Add(ob);
+      SetModified();
+    }
+    public void CompileGpuData()
+    {
+      if (Modified || Gu.EngineConfig.AlwaysCompileAndReloadGpuUniformData)
+      {
+        Gu.Assert(Objects != null);
+        GpuInstanceData = new GpuInstanceData[Objects.Count];
+        for (int iob = 0; iob < Objects.Count; iob++)
+        {
+          Gu.Assert(Objects[iob] != null);
+          //we could have the objects also contain a GpuInstanceData themselves.. this may be too much extra data though
+          GpuInstanceData[iob]._model = Objects[iob].WorldMatrix;
+          GpuInstanceData[iob]._pickId.x = Objects[iob].PickId;
+        }
+        Modified = false;
+      }
+    }
+  }
+  public class VisibleObjects : MutableState
+  {
+    public Dictionary<Material, Dictionary<Int64, VisibleObjectInstances>> Objects { get; set; } = null;
+    public GpuMaterial GpuMaterial { get { return _gpuMaterial; } }
+
+    private GpuMaterial _gpuMaterial = new GpuMaterial();
+
+    public VisibleObjects()
+    {
+    }
+    public VisibleObjects(List<WorldObject> obs)
+    {
+      foreach (var ob in obs)
+      {
+        //This is inefficient we could do better.
+        Add(ob);
+      }
+    }
+    public void Draw(WorldProps wp, RenderView rv)
+    {
+      if (Objects != null)
+      {
+        CompileGpuData();
+
+        foreach (var mk in Objects)
+        {
+          var mat = mk.Key;
+          mat.GpuRenderState.SetState();
+          var cs = mat.Shader.GetShaderForCurrentContext();
+          cs.BeginRender(wp, rv, mat);
+          foreach (var ob_set in mk.Value)
+          {
+            ob_set.Value.CompileGpuData();
+            cs.BindInstanceUniforms(ob_set.Value.GpuInstanceData);
+
+            cs.CheckAllUniformsSet();
+
+            var mesh = ob_set.Value.Mesh;
+            Gu.Assert(mesh != null);
+            mesh.Draw(ob_set.Value.GpuInstanceData);
+          }
+          cs.EndRender();
+        }
+      }
+    }
+    public void CompileGpuData()
+    {
+      if (Modified || Gu.EngineConfig.AlwaysCompileAndReloadGpuUniformData)
+      {
+        if (Objects != null)
+        {
+          foreach (var mat_dic in Objects)
+          {
+            mat_dic.Key.CompileGpuData();
+            foreach (var type_instances in mat_dic.Value)
+            {
+              type_instances.Value.CompileGpuData();
+            }
+          }
+        }
+
+        Modified = false;
+      }
+    }
+    public void Clear()
+    {
+      if (Objects != null)
+      {
+        Objects.Clear();
+        SetModified();
+      }
+    }
+    public void Add(WorldObject ob)
+    {
+      Gu.Assert(ob.Material != null);
+
+      var typeId = ob.TypeID;
+      //**TEST
+      Objects = Objects.ConstructIfNeeded();
+      Dictionary<Int64, VisibleObjectInstances>? matList = null;
+      if (!Objects.TryGetValue(ob.Material, out matList))
+      {
+        matList = matList.ConstructIfNeeded();
+        Objects.Add(ob.Material, matList);
+      }
+      VisibleObjectInstances? objList = null;
+      if (!matList.TryGetValue(ob.TypeID, out objList))
+      {
+        objList = objList.ConstructIfNeeded();
+        matList.Add(ob.TypeID, objList);
+      }
+      objList.Add(ob);
+      SetModified();
+    }
+  }
+  //stuff needed to render
+  public class DrawCall
+  {
+    public double? Delta { get { return _delta; } set { _delta = value; } }
+    public VisibleObjects VisibleObjects { get { return _visibleObjects; } set { _visibleObjects = value; } }
+    public Func<ShaderUniform, bool> CustomUniforms = null;//Input: a uniform variable name that you must bind to, output: true if you handled it, false if not
+    public Func<ContextShader, ShaderUniformBlock, bool> CustomUniformBlocks = null;//Input: a uniform variable name that you must bind to, output: true if you handled it, false if not
+
+    private double? _delta = null;
+    private VisibleObjects _visibleObjects = new VisibleObjects();
+
+    public static void Draw(WorldProps p, RenderView rv, WorldObject ob)
+    {
+      DrawCall dc = new DrawCall();
+      dc.VisibleObjects.Add(ob);
+      dc.Draw(p, rv);
+    }
+
+    public DrawCall() { }
+    public void BeginCollectVisibleObjects()
+    {
+      _visibleObjects.Clear();
+    }
+    public void AddVisibleObject(WorldObject ob)
+    {
+      _visibleObjects = VisibleObjects.ConstructIfNeeded();
+      _visibleObjects.Add(ob);
+    }
+    public void Draw(WorldProps p, RenderView rv)
+    {
+      Gu.Assert(p != null);
+      Gu.Assert(rv != null);
+      if (_visibleObjects != null)
+      {
+        _visibleObjects.Draw(p, rv);
+      }
+    }
   }
   public enum ShaderLoadState
   {
@@ -58,7 +475,7 @@ namespace PirateCraft
   public class ShaderStage : OpenGLResource
   {
     public ShaderType ShaderType { get; private set; } = ShaderType.VertexShader;
-    public ShaderStage(ShaderType tt, string src)
+    public ShaderStage(string name, ShaderType tt, string src) : base(name+"-shr")
     {
       ShaderType = tt;
       _glId = GL.CreateShader(tt);
@@ -79,6 +496,7 @@ namespace PirateCraft
   }
   public class ShaderUniform
   {
+    public bool HasBeenSet { get; set; } = false;
     public int Location { get; private set; } = 0;
     public string Name { get; private set; } = "unset";
     public string Value { get; private set; } = "unset";
@@ -96,88 +514,43 @@ namespace PirateCraft
   }
   public class ShaderUniformBlock : OpenGLResource
   {
-    private int _iUboId = -2;
-    private int _iBlockIndex = -1;
-    private int _iBindingIndex = -1;
-    private bool _bHasBeenSet = false;
-
+    public int UboId { get; private set; } = -2;
+    public int BlockIndex { get; private set; } = -1;
+    public int BindingIndex { get; private set; } = -1;
+    public bool HasBeenSet { get; set; } = false;
     public bool Active { get; private set; } = false;
     public int BufferSizeBytes { get; private set; } = 0;
-    public string Name { get; private set; }
 
     public override void Dispose_OpenGL_RenderThread()
     {
-      GL.DeleteBuffer(_iUboId);
+      GL.DeleteBuffer(UboId);
     }
-    public ShaderUniformBlock(string name, int iBlockIndex, int iBindingIndex, int iBufferByteSize, bool active)
+    public ShaderUniformBlock(string name, int iBlockIndex, int iBindingIndex, int iBufferByteSize, bool active) : base(name+"-ubk")
     {
-      Name = name;
       BufferSizeBytes = iBufferByteSize;
-      _iBindingIndex = iBindingIndex;
-      _iBlockIndex = iBlockIndex;
+      BindingIndex = iBindingIndex;
+      BlockIndex = iBlockIndex;
       Active = active;
 
-      _iUboId = GL.GenBuffer();
-      GL.BindBuffer(BufferTarget.UniformBuffer, _iUboId);
+      UboId = GL.GenBuffer();
+      GL.BindBuffer(BufferTarget.UniformBuffer, UboId);
       Gpu.CheckGpuErrorsDbg();
       GL.BufferData(BufferTarget.UniformBuffer, BufferSizeBytes, IntPtr.Zero, BufferUsageHint.DynamicDraw);
       Gpu.CheckGpuErrorsDbg();
       GL.BindBuffer(BufferTarget.UniformBuffer, 0);
       Gpu.CheckGpuErrorsDbg();
     }
-    public void copyUniformData(IntPtr pData, int copySizeBytes)
-    {
-      //Copy to the shader buffer
-      Gu.Assert(copySizeBytes <= BufferSizeBytes);
-
-      //_pValue = pData;
-
-      Gpu.CheckGpuErrorsDbg();
-      GL.BindBuffer(BufferTarget.UniformBuffer, _iUboId);
-      Gpu.CheckGpuErrorsDbg();
-      //    void* pBuf =getContext()->glMapBuffer(GL_UNIFORM_BUFFER, GL_WRITE_ONLY);
-      //if(pBuf != nullptr) {
-      //    memcpy(pBuf, pData, copySizeBytes);
-      //    getContext()->glMapBuffer(GL_UNIFORM_BUFFER, 0);
-      //}
-      //else {
-      //    BroLogError("Uniform buffer could not be mapped.");
-      //}
-      //getContext()->glBufferData(GL_UNIFORM_BUFFER, copySizeBytes, (void*)_pValue, GL_DYNAMIC_DRAW);
-      GL.BufferSubData(BufferTarget.UniformBuffer, IntPtr.Zero, copySizeBytes, pData);
-      Gpu.CheckGpuErrorsDbg();
-
-      GL.BindBuffer(BufferTarget.UniformBuffer, 0);
-      Gpu.CheckGpuErrorsDbg();
-
-      _bHasBeenSet = true;
-    }
-    public void bindUniformFast()
-    {
-      if (_bHasBeenSet == false)
-      {
-        Gu.Log.Warn("Shader Uniform Block '" + Name + "' value was not set ");
-      }
-      GL.BindBufferBase(BufferRangeTarget.UniformBuffer, _iBindingIndex, _iUboId);
-      Gpu.CheckGpuErrorsDbg();
-      if (_iUboId == 0)
-      {
-        int x = 0;
-        x++;
-      }
-
-      GL.BindBuffer(BufferTarget.UniformBuffer, _iUboId);
-      Gpu.CheckGpuErrorsDbg();
-    }
-
-
   }
-  //Shader, program on the GPU.
-  public class Shader : OpenGLResource
+
+  //Shader, program on the GPU. Contextual.
+  public class ContextShader : OpenGLResource
   {
+    private static string c_strGlobalDefineString = "<GLSL_CONTROL_DEFINES_HERE>";
     private ShaderStage _vertexStage = null;
     private ShaderStage _fragmentStage = null;
     private ShaderStage _geomStage = null;
+
+    public PipelineStage PipelineStage { get; private set; } = PipelineStage.Unset;
 
     private Dictionary<string, ShaderUniform> _uniforms = new Dictionary<string, ShaderUniform>();
     private Dictionary<string, ShaderUniformBlock> _uniformBlocks = new Dictionary<string, ShaderUniformBlock>();
@@ -186,60 +559,46 @@ namespace PirateCraft
     //Technically this is a GL context thing. But it's ok for now.
     private Dictionary<TextureUnit, Texture2D> _boundTextures = new Dictionary<TextureUnit, Texture2D>();
 
-    public class TextureInput
-    {
-      public string UniformName { get; }
-      private TextureInput(string name) { UniformName = name; }
-      public static TextureInput Albedo { get; private set; } = new TextureInput("_ufTexture2D_Albedo");
-      public static TextureInput Albedo2 { get; private set; } = new TextureInput("_ufTexture2D_Albedo2");
-      public static TextureInput Normal { get; private set; } = new TextureInput("_ufTexture2D_Normal");
-    }
-
-    //Just debug stuff that will go away.
-    //public float GGX_X = .8f;
-    //public float GGX_Y = .8f;
-    //public int lightingModel = 2;
-    //public float nmap = 0.5f;
-
     private List<string> _shaderErrors = new List<string>();
 
     private ShaderLoadState State = ShaderLoadState.None;
 
-    private static Shader _defaultDiffuseShader = null;
-    private static Shader _defaultFlatColorShader = null;
+    private string Name = "";
 
-    public string Name { get; private set; } = "<unset>";
+    public ContextShader(string name, WindowContext ct, string vsSrc_raw = "", string psSrc_raw = "", string gsSrc_raw = "") : base(name+"-prog")
+    {
+      Gu.Assert(ct != null);
+      Gu.Assert(ct.Renderer != null);
+      Gu.Assert(ct.Renderer.PipelineStage != PipelineStage.Unset);
 
-    public static Shader DefaultFlatColorShader()
-    {
-      if (_defaultFlatColorShader == null)
-      {
-        _defaultFlatColorShader = Gu.Resources.LoadShader("v_v3", false, FileStorage.Embedded);
-      }
-      return _defaultFlatColorShader;
-    }
-    public static Shader DefaultDiffuse()
-    {
-      //Returns a basic v3 n3 x2 lambert+blinn-phong shader.
-      if (_defaultDiffuseShader == null)
-      {
-        _defaultDiffuseShader = Gu.Resources.LoadShader("v_v3n3x2", false, FileStorage.Embedded);
-      }
-      return _defaultDiffuseShader;
-    }
-
-    public Shader(string name, string vsSrc = "", string psSrc = "", string gsSrc = "")
-    {
       Name = name;
+      PipelineStage = ct.Renderer.PipelineStage;
       Gu.Log.Debug("Compiling shader '" + Name + "'");
+
       Gpu.CheckGpuErrorsDbg();
       {
         State = ShaderLoadState.Loading;
+
+        string vsSrc = ProcessShaderSource(ct, vsSrc_raw, ShaderType.VertexShader);
+        string gsSrc = ProcessShaderSource(ct, gsSrc_raw, ShaderType.GeometryShader);
+        string psSrc = ProcessShaderSource(ct, psSrc_raw, ShaderType.FragmentShader);
+
         CreateShaders(vsSrc, psSrc, gsSrc);
+
         CreateProgram();
+
+        //Just leave this on. Always save the copmiled shader source.
+        string v_src = GetReadableShaderSourceCode(vsSrc);
+        string g_src = GetReadableShaderSourceCode(gsSrc);
+        string f_src = GetReadableShaderSourceCode(psSrc);
+        SaveShaderSource(v_src, Name + ".vs.glsl", null);
+        SaveShaderSource(g_src, Name + ".gs.glsl", null);
+        SaveShaderSource(f_src, Name + ".fs.glsl", null);
+
         if (State != ShaderLoadState.Failed)
         {
           GL.UseProgram(_glId);
+          Gpu.CheckGpuErrorsRt();
 
           ParseUniforms();
 
@@ -247,38 +606,56 @@ namespace PirateCraft
         }
         else
         {
-          if (!String.IsNullOrEmpty(gsSrc))
+          string errors = String.Join(Environment.NewLine, _shaderErrors.ToArray());
+          string blip = "--------------------------------------------------------------------------------------";
+          string all_src_errs = "";
+          if (!String.IsNullOrEmpty(vsSrc))
           {
-            Gu.Log.Info(Environment.NewLine +
-              "--------------------------------------------------------------------------------------" + Environment.NewLine +
-            "--VERTEX SOURCE--" + Environment.NewLine +
-            "--------------------------------------------------------------------------------------" + Environment.NewLine +
-            GetReadableShaderSourceCode(vsSrc));
+            all_src_errs += Environment.NewLine + blip + Environment.NewLine + "--VERTEX SOURCE--" + Environment.NewLine + blip + Environment.NewLine + v_src + Environment.NewLine;
+            SaveShaderSource(v_src, Name + ".vs.glsl", errors);
           }
-          if (!String.IsNullOrEmpty(gsSrc))
+          if (!String.IsNullOrEmpty(gsSrc))/*  */
           {
-            Gu.Log.Info(Environment.NewLine +
-              "--------------------------------------------------------------------------------------" + Environment.NewLine +
-            "--GEOM SOURCE--" + Environment.NewLine +
-            "--------------------------------------------------------------------------------------" + Environment.NewLine +
-            GetReadableShaderSourceCode(gsSrc));
+            all_src_errs += Environment.NewLine + blip + Environment.NewLine + "--GEOM SOURCE--" + Environment.NewLine + blip + Environment.NewLine + g_src + Environment.NewLine;
+            SaveShaderSource(v_src, Name + ".gs.glsl", errors);
           }
           if (!String.IsNullOrEmpty(psSrc))
           {
-            Gu.Log.Info(Environment.NewLine +
-              "--------------------------------------------------------------------------------------" + Environment.NewLine +
-            "--FRAG SOURCE--" + Environment.NewLine +
-            "--------------------------------------------------------------------------------------" + Environment.NewLine +
-            GetReadableShaderSourceCode(psSrc));
+            all_src_errs += Environment.NewLine + blip + Environment.NewLine + "--FRAG SOURCE--" + Environment.NewLine + blip + Environment.NewLine + f_src + Environment.NewLine;
+            SaveShaderSource(v_src, Name + ".fs.glsl", errors);
           }
-          Gu.Log.Error("Failed to load shader '" + Name + "'." + Environment.NewLine + String.Join(Environment.NewLine, _shaderErrors.ToArray()));
-
+          Gu.Log.Info(all_src_errs);
+          Gu.Log.Error("Failed to load shader '" + Name + "'." + Environment.NewLine + errors);
           Gu.DebugBreak();
         }
       }
       Gpu.CheckGpuErrorsDbg();
+      SetObjectLabel();
     }
-
+    private void SaveShaderSource(string src, string filename, string? errors)
+    {
+      System.IO.File.WriteAllText(System.IO.Path.Combine(Gu.LocalCachePath, filename), src + Environment.NewLine + (errors == null ? "" : errors));
+    }
+    private string ProcessShaderSource(WindowContext ct, string src_raw, ShaderType type)
+    {
+      string src_cpy = src_raw;
+      if (StringUtil.IsNotEmpty(src_cpy))
+      {
+        if (src_cpy.Contains(ContextShader.c_strGlobalDefineString))
+        {
+          var vars = ct.Renderer.DefaultControlVars.Clone(ct.Renderer.PipelineStage, type);
+          var vars_string = vars.ToString();
+          src_cpy = src_cpy.Replace(ContextShader.c_strGlobalDefineString, vars_string);
+        }
+        else
+        {
+          string e = "" + Name + " (" + type.ToString() + "): Shader vars tag '" + c_strGlobalDefineString + "' was not found.";
+          _shaderErrors.Add(e);
+          State = ShaderLoadState.Failed;
+        }
+      }
+      return src_cpy;
+    }
     private string GetReadableShaderSourceCode(string vs)
     {
       StringBuilder stringBuilder = new StringBuilder();
@@ -287,6 +664,7 @@ namespace PirateCraft
       {
         string line = lines[iLine];
         string r = String.Format("{0,5}", (iLine + 1).ToString());
+        stringBuilder.Append("/*!!!COMPILED!!!*/ ");
         stringBuilder.Append(r);
         stringBuilder.Append("  ");
         stringBuilder.Append(line);
@@ -317,8 +695,7 @@ namespace PirateCraft
       }
       Gpu.CheckGpuErrorsDbg();
     }
-    //double dt, Camera3D cam, WorldObject ob, Material m, mat4[] instanceData, DayNightCycle dnc
-    public void BeginRender(DrawCall_UniformData dat)
+    public void BeginRender(WorldProps world, RenderView rv, Material mat)
     {
       //**Pre - render - update uniforms.
       Gpu.CheckGpuErrorsDbg();
@@ -328,7 +705,10 @@ namespace PirateCraft
         _boundTextures.Clear();
 
         Bind();
-        BindUniforms(dat);//dt, cam, ob, m, instanceData, dnc
+        BindUniformBlock(ShaderUniformName._ufGpuCamera_Block.Description(), new GpuWorld[] { world.GpuWorld });
+        BindViewUniforms(rv);
+        BindWorldUniforms(world);
+        BindMaterialUniforms(mat);
       }
       Gpu.CheckGpuErrorsDbg();
     }
@@ -352,11 +732,11 @@ namespace PirateCraft
     {
       Gpu.CheckGpuErrorsRt();
       {
-        _vertexStage = new ShaderStage(ShaderType.VertexShader, vs);
-        _fragmentStage = new ShaderStage(ShaderType.FragmentShader, ps);
+        _vertexStage = new ShaderStage(this.Name + "-VS", ShaderType.VertexShader, vs);
+        _fragmentStage = new ShaderStage(this.Name + "-FS", ShaderType.FragmentShader, ps);
         if (!string.IsNullOrEmpty(gs))
         {
-          _geomStage = new ShaderStage(ShaderType.GeometryShader, gs);
+          _geomStage = new ShaderStage(this.Name + "-GS", ShaderType.GeometryShader, gs);
         }
       }
       Gpu.CheckGpuErrorsRt();
@@ -382,7 +762,11 @@ namespace PirateCraft
 
         string programInfoLog = "";
         GL.GetProgramInfoLog(_glId, out programInfoLog);
-        _shaderErrors = programInfoLog.Split('\n').ToList();
+        if (_shaderErrors == null)
+        {
+          _shaderErrors = new List<string>();
+        }
+        _shaderErrors.AddRange(programInfoLog.Split('\n').ToList());
 
         if (_shaderErrors.Count > 0 && programInfoLog.ToLower().Contains("error"))
         {
@@ -431,7 +815,7 @@ namespace PirateCraft
             //But for what we're doing if it isn't a structure it should be used.
             Gu.DebugBreak();
           }
-          Gu.Log.Debug("Inactive uniform: " + u_name);
+          Gu.Log.Debug(Name + ": Inactive uniform: " + u_name);
           //Not necessarily an error
           //GetUniformLocation "This function returns -1 if name does not correspond to an active uniform variable in program,
           //if name starts with the reserved prefix "gl_", or if name is associated with an atomic counter or a named uniform block."
@@ -442,6 +826,10 @@ namespace PirateCraft
           //indicates a uniform variable array, the location of the first element of an array can be retrieved by using the name of the
           //array, or by using the name appended by "[0]".
         }
+        else
+        {
+          Gu.Log.Debug(Name + ": Active uniform: " + u_name);
+        }
 
         ShaderUniform su = new ShaderUniform(location, u_size, u_type, u_name, active);
         _uniforms.Add(u_name, su);
@@ -450,19 +838,19 @@ namespace PirateCraft
       int u_block_count = 0;
       GL.GetProgram(_glId, GetProgramParameterName.ActiveUniformBlocks, out u_block_count);
       Gpu.CheckGpuErrorsRt();
-      for (var i = 0; i < u_block_count; i++)
+      for (var iBlock = 0; iBlock < u_block_count; iBlock++)
       {
         int buffer_size_bytes = 0;
-        GL.GetActiveUniformBlock(GetGlId(), i, ActiveUniformBlockParameter.UniformBlockDataSize, out buffer_size_bytes);
+        GL.GetActiveUniformBlock(GetGlId(), iBlock, ActiveUniformBlockParameter.UniformBlockDataSize, out buffer_size_bytes);
         Gpu.CheckGpuErrorsRt();
 
         int binding = 0;
-        GL.GetActiveUniformBlock(GetGlId(), i, ActiveUniformBlockParameter.UniformBlockBinding, out binding);
+        GL.GetActiveUniformBlock(GetGlId(), iBlock, ActiveUniformBlockParameter.UniformBlockBinding, out binding);
         Gpu.CheckGpuErrorsRt();
 
         string u_name = "DEADDEADDEADDEADDEADDEADDEADDEADDEADDEADDEADDEADDEADDEADDEADDEAD";//idk.
         int u_name_len = 0;
-        GL.GetActiveUniformBlockName(GetGlId(), i, u_name.Length, out u_name_len, out u_name);
+        GL.GetActiveUniformBlockName(GetGlId(), iBlock, u_name.Length, out u_name_len, out u_name);
         Gpu.CheckGpuErrorsRt();
         u_name = u_name.Substring(0, u_name_len);
 
@@ -470,157 +858,104 @@ namespace PirateCraft
         if (binding < 0)
         {
           active = false;
-          Gu.Log.Debug("Inactive uniform: " + u_name);
+          Gu.Log.Debug(Name + ": Inactive uniform block: " + u_name);
+        }
+        else
+        {
+          Gu.Log.Debug(Name + ": Active Uniform block: " + u_name);
         }
 
-        ShaderUniformBlock su = new ShaderUniformBlock(u_name, i, binding, buffer_size_bytes, active);// u_size, u_type, u_name);
+        ShaderUniformBlock su = new ShaderUniformBlock(u_name, iBlock, binding, buffer_size_bytes, active);// u_size, u_type, u_name);
         _uniformBlocks.Add(u_name, su);
       }
     }
-    private void BindUniforms(DrawCall_UniformData dat)
+    private void BindWorldUniforms(WorldProps world)
     {
-      Gu.Assert(dat != null);
-      int dbg_n = 0;
-      //TODO: cache uniform values and avoid updating
-      foreach (var u in _uniforms.Values)
-      {
-        if (u.Active == false)
-        {
-          continue;
-        }
-        dbg_n++;
-        //bind uniforms based on name.
-        if (u.Name.Equals("_ufCamera_Position"))
-        {
-          Gu.Assert(dat.cam != null);
-          GL.ProgramUniform3(_glId, u.Location, dat.cam.Position_World.x, dat.cam.Position_World.y, dat.cam.Position_World.z);
-        }
-        else if (u.Name.Equals(TextureInput.Albedo.UniformName))
-        {
-          Gu.Assert(dat.m != null);
-          BindTexture(u, dat.m, TextureInput.Albedo);
-        }
-        else if (u.Name.Equals(TextureInput.Albedo2.UniformName))
-        {
-          Gu.Assert(dat.m != null);
-          BindTexture(u, dat.m, TextureInput.Albedo2);
-        }
-        else if (u.Name.Equals(TextureInput.Normal.UniformName))
-        {
-          Gu.Assert(dat.m != null);
-          BindTexture(u, dat.m, TextureInput.Normal);
-        }
-        else if (u.Name.Equals("_ufWorldObject_Color"))
-        {
-          GL.ProgramUniform4(_glId, u.Location, dat.ob.Color.x, dat.ob.Color.y, dat.ob.Color.z, dat.ob.Color.w);
-        }
-        else if (u.Name.Equals("_ufMatrix_Normal"))
-        {
-          Gu.Assert(dat.ob != null);
-          var n_mat_tk = dat.ob.WorldMatrix.inverseOf().ToOpenTK();
-          GL.UniformMatrix4(u.Location, false, ref n_mat_tk);
-        }
-        else if (u.Name.Equals("_ufMatrix_Model"))
-        {
-          var m_mat_tk = dat.ob.WorldMatrix.ToOpenTK();
-          GL.UniformMatrix4(u.Location, false, ref m_mat_tk);
-        }
-        else if (u.Name.Equals("_ufMatrix_View"))
-        {
-          Gu.Assert(dat.cam != null);
-          var v_mat_tk = dat.cam.ViewMatrix.ToOpenTK();
-          GL.UniformMatrix4(u.Location, false, ref v_mat_tk);
-        }
-        else if (u.Name.Equals("_ufMatrix_Projection"))
-        {
-          Gu.Assert(dat.cam != null);
-          var p_mat_tk = dat.cam.ProjectionMatrix.ToOpenTK();
-          GL.UniformMatrix4(u.Location, false, ref p_mat_tk);
-        }
-        else if (u.Name.Equals("_ufCamera_Basis_X"))
-        {
-          Gu.Assert(dat.cam != null);
-          GL.ProgramUniform3(_glId, u.Location, dat.cam.BasisX.x, dat.cam.BasisX.y, dat.cam.BasisX.z);
-        }
-        else if (u.Name.Equals("_ufCamera_Basis_Y"))
-        {
-          Gu.Assert(dat.cam != null);
-          GL.ProgramUniform3(_glId, u.Location, dat.cam.BasisY.x, dat.cam.BasisY.y, dat.cam.BasisY.z);
-        }
-        else if (u.Name.Equals("_ufCamera_Basis_Z"))
-        {
-          Gu.Assert(dat.cam != null);
-          GL.ProgramUniform3(_glId, u.Location, dat.cam.BasisZ.x, dat.cam.BasisZ.y, dat.cam.BasisZ.z);
-        }
-        else if (u.Name.Equals("_ufDayNightCycle_Blend"))
-        {
-          Gu.Assert(dat.dnc != null);
-          GL.ProgramUniform1(_glId, u.Location, (float)dat.dnc.StarOrCloud_Blend);
-        }
-        else if (dat.customUniforms != null && dat.customUniforms(u))
-        {
-          //Handled a custom uniform.
-        }
-        else
-        {
-          Gu.Log.WarnCycle("Unknown uniform variable '" + u.Name + "'.");
-        }
-        Gpu.CheckGpuErrorsDbg();
-
-      }
-      foreach (var u in _uniformBlocks.Values)
-      {
-        if (u.Active == false)
-        {
-          continue;
-        }
-        if (u.Name.Equals("_ufInstanceData_Block"))
-        {
-          //Gu.Assert(dat.instanceData != null);
-          //int m4size = Marshal.SizeOf(default(mat4));
-          //int num_bytes_to_copy = m4size * dat.instanceData.Length;
-          //if (num_bytes_to_copy > u.BufferSizeBytes)
-          //{
-          //  num_bytes_to_copy = u.BufferSizeBytes;
-          //  Gu.Log.WarnCycle("Exceeded max index count of " + u.BufferSizeBytes / m4size + " matrices. Tried to copy " + dat.instanceData.Length + " instance matrices.");
-          //}
-          //var handle = GCHandle.Alloc(dat.instanceData, GCHandleType.Pinned);
-          //u.copyUniformData(handle.AddrOfPinnedObject(), num_bytes_to_copy);
-          //handle.Free();
-
-          //u.bindUniformFast();
-
-          BindUniformBlock(u, dat.instanceData);
-        }
-        else if (u.Name.Equals("_ufGpuShaderData_Block"))
-        {
-          //if (dat.shaderData == null)
-          //{
-          //  Gu.Log.WarnCycle("Shader data was null, sending default data. This needs to be fixed.");
-          //dat.shaderData = new GpuShaderData();
-          dat.shaderData._vViewPos = dat.cam.Position_World;
-          dat.shaderData._vViewDir = dat.cam.BasisZ;
-          float blend = 1.0f;
-          if (dat.dnc != null)
-          {
-            dat.shaderData._vFogColor = (1 - blend) * dat.shaderData._vFogColor + (blend) * dat.dnc.SkyColor.ToVec3();
-          }
-          //}
-          BindUniformBlock(u, new GpuShaderData[] { dat.shaderData });
-        }
-        else if (dat.customUniformBlocks != null && dat.customUniformBlocks(this, u))
-        {
-          //Handled a custom uniform.
-        }
-        else
-        {
-          Gu.Log.WarnCycle("Unknown uniform block '" + u.Name + "'.");
-        }
-      }
-      //Check for errors.
-      Gpu.CheckGpuErrorsDbg();
+      Gu.Assert(world != null);
+      world.CompileGpuData();
+      BindUniformBlock(ShaderUniformName._ufGpuWorld_Block.Description(), new GpuWorld[] { world.GpuWorld });
+      BindTexture(ShaderUniformName._ufGpuWorld_s2EnvironmentMap.Description(), world.EnvironmentMap);
+      BindTexture(ShaderUniformName._ufGpuWorld_s2IrradianceMap.Description(), world.IrradianceMap);
+      BindUniformBlock(ShaderUniformName._ufGpuPointLights_Block.Description(), world.GpuPointLights);
+      BindUniformBlock(ShaderUniformName._ufGpuDirLights_Block.Description(), world.GpuDirLights);
     }
-    public void BindUniformBlock<T>(ShaderUniformBlock u, T[] items)
+    private void BindViewUniforms(RenderView rv)
+    {
+      Gu.Assert(rv != null);
+      rv.CompileGpuData();
+      BindUniformBlock(ShaderUniformName._ufGpuCamera_Block.Description(), new GpuCamera[] { rv.GpuCamera });
+    }
+    private void BindMaterialUniforms(Material mat)
+    {
+      Gu.Assert(mat != null);
+      mat.CompileGpuData();
+      BindUniformBlock(ShaderUniformName._ufGpuMaterial_Block.Description(), new GpuMaterial[] { mat.GpuMaterial });
+      BindTexture(ShaderUniformName._ufGpuMaterial_s2Albedo.Description(), mat.AlbedoSlot.GetTextureOrDefault());
+      BindTexture(ShaderUniformName._ufGpuMaterial_s2Normal.Description(), mat.NormalSlot.GetTextureOrDefault());
+      BindTexture(ShaderUniformName._ufGpuMaterial_s2Position.Description(), mat.PositionSlot.GetTextureOrDefault());
+      BindTexture(ShaderUniformName._ufGpuMaterial_s2Roughness.Description(), mat.RoughnessSlot.GetTextureOrDefault());
+      BindTexture(ShaderUniformName._ufGpuMaterial_s2Metalness.Description(), mat.MetalnessSlot.GetTextureOrDefault());
+    }
+    public void BindInstanceUniforms(GpuInstanceData[] inst)
+    {
+      Gu.Assert(inst != null);
+      if (!BindUniformBlock(ShaderUniformName._ufGpuInstanceData_Block.Description(), inst))
+      {
+        //Int he current system Instance data is required.
+        Gu.DebugBreak();
+      }
+
+      BindUniform_Mat4(ShaderUniformName._m4Model_Debug.Description(), inst[0]._model);
+    }
+    public void BindUniform_Mat4(string name, mat4 m)
+    {
+      if (_uniforms.TryGetValue(name, out var u))
+      {
+        var mat = m.ToOpenTK();
+        GL.UniformMatrix4(u.Location, false, ref mat);
+        u.HasBeenSet = true;
+      }
+    }
+    public void CheckAllUniformsSet()
+    {
+      string notset = "";
+      int n = 0;
+      foreach (var ub in this._uniformBlocks)
+      {
+        if (ub.Value.Active == true && ub.Value.HasBeenSet == false)
+        {
+          notset += " " + ub.Value.Name + ",";
+          n++;
+        }
+      }
+      foreach (var u in this._uniforms)
+      {
+        if (u.Value.Active == true && u.Value.HasBeenSet == false)
+        {
+          notset += " " + u.Value.Name + ",";
+          n++;
+        }
+      }
+      if (notset.Length > 0)
+      {
+        Gu.Log.Warn($"{Name}: {n} Uniforms were not set: {notset}");
+        Gu.DebugBreak();
+      }
+    }
+    private bool BindUniformBlock<T>(string uname, T[] items)
+    {
+      if (_uniformBlocks.TryGetValue(uname, out var block))
+      {
+        BindUniformBlock(block, items);
+        return true;
+      }
+      else
+      {
+        ReportUniformNotFound(uname, true);
+        return false;
+      }
+    }
+    private void BindUniformBlock<T>(ShaderUniformBlock u, T[] items)
     {
       Gu.Assert(items != null);
 
@@ -638,27 +973,85 @@ namespace PirateCraft
         Gu.Log.WarnCycle("Exceeded max index count of " + u.BufferSizeBytes / item_size + " matrices. Tried to copy " + items.Length + " block instances.");
       }
       var handle = GCHandle.Alloc(items, GCHandleType.Pinned);
-      u.copyUniformData(handle.AddrOfPinnedObject(), num_bytes_to_copy);
+      CopyUniformBlockData(u, handle.AddrOfPinnedObject(), num_bytes_to_copy);
       handle.Free();
 
-      u.bindUniformFast();
+      BindUniformBlockFast(u);
     }
-    private void BindTexture(ShaderUniform su, Material m, TextureInput tu)
+    public void CopyUniformBlockData(ShaderUniformBlock u, IntPtr pData, int copySizeBytes)
     {
-      GL.Uniform1(su.Location, (int)(_currUnit - TextureUnit.Texture0));
-      var tex = m.GetTextureOrDefault(tu);
+      //Copy to the shader buffer
+      Gu.Assert(copySizeBytes <= u.BufferSizeBytes);
 
-      if (tex != null)
+      Gpu.CheckGpuErrorsDbg();
+
+      GL.BindBuffer(BufferTarget.UniformBuffer, u.UboId);
+      Gpu.CheckGpuErrorsDbg();
+
+      GL.BufferSubData(BufferTarget.UniformBuffer, IntPtr.Zero, copySizeBytes, pData);
+      Gpu.CheckGpuErrorsDbg();
+
+      GL.BindBuffer(BufferTarget.UniformBuffer, 0);
+      Gpu.CheckGpuErrorsDbg();
+
+      if (u.HasBeenSet == true)
       {
-        tex.Bind(_currUnit);
-        _boundTextures.Add(_currUnit, tex);
+        Gu.Log.WarnCycle(this.Name + ": Uniform  " + u.Name + " was already set.");
+      }
+      u.HasBeenSet = true;
+    }
+    public void BindUniformBlockFast(ShaderUniformBlock u)
+    {
+      if (u.HasBeenSet == false)
+      {
+        Gu.Log.WarnCycle(this.Name + ": Shader Uniform Block '" + u.Name + "' value was not set before binding.");
+        Gu.DebugBreak();
+      }
+      GL.BindBufferBase(BufferRangeTarget.UniformBuffer, u.BindingIndex, u.UboId);
+      Gpu.CheckGpuErrorsDbg();
+      GL.BindBuffer(BufferTarget.UniformBuffer, u.UboId);
+      Gpu.CheckGpuErrorsDbg();
+    }
+    private void BindTexture(string uniform_name, Texture2D tex)
+    {
+      Gu.Assert(_uniforms != null);
+      if (_uniforms.TryGetValue(uniform_name, out var su))
+      {
+        if (tex != null)
+        {
+          if (su.HasBeenSet)
+          {
+            Gu.Log.WarnCycle(this.Name + ": Texture uniform " + su.Name + " has already been set.");
+          }
+          GL.Uniform1(su.Location, (int)(_currUnit - TextureUnit.Texture0));
+          tex.Bind(_currUnit);
+          _boundTextures.Add(_currUnit, tex);
+          su.HasBeenSet = true;
+        }
+        else
+        {
+          Gu.Log.WarnCycle(this.Name + ": Texture unit " + su.Name + " was not found in material and had no default.");
+        }
+
+        _currUnit++;
       }
       else
       {
-        Gu.Log.WarnCycle("Texture unit " + su.Name + " was not found in material and had no default.");
+        ReportUniformNotFound(uniform_name, false);
       }
+    }
+    private void ReportUniformNotFound(string uniform_name, bool is_block, bool error = false)
+    {
+      if (error)
+      {
+        Gu.Log.Error(this.Name + ": Unknown uniform " + (is_block ? "block " : "") + " '" + uniform_name + "' (possibly optimized out).");
+        Gu.DebugBreak();
+      }
+      else
+      {
+        Gu.Log.WarnCycle(this.Name + ": Unknown uniform " + (is_block ? "block " : "") + " '" + uniform_name + "' (possibly optimized out).");
 
-      _currUnit++;
+      }
     }
     private static string ParseIncludeLine(string line)
     {
@@ -681,782 +1074,198 @@ namespace PirateCraft
       }
       return filename;
     }
-    public static string ProcessFile(FileLoc loc, List<string> file_lines = null, int callnumber = 0)
+    public static string ProcessFile(FileLoc loc, List<string> errors)
     {
+      var file_lines = new StringBuilder();
+
+      ProcessFile(loc, file_lines, errors);
+
+      return file_lines.ToString();
+    }
+    private static void ProcessFile(FileLoc loc, StringBuilder file_lines, List<string> errors)
+    {
+      Gu.Assert(loc != null);
+      Gu.Assert(file_lines != null);
       //Returns the entire processed string on the first function invocation. 
       //Do not set file_lines if you want the return value
-      bool firstcall = false;
-      if (file_lines == null)
-      {
-        file_lines = new List<string>();
-        firstcall = true;
-      }
-      file_lines.Add("//" + new StringBuilder().Insert(0, "->", callnumber).ToString() + "BEGIN: " + loc.RawPath + " (" + loc.QualifiedPath + ")\n");
 
       string file_text = ResourceManager.ReadTextFile(loc);
       string[] lines = file_text.Split("\n");
-      foreach (string line in lines)
+      int iLine = 0;
+      for (iLine = 0; iLine < lines.Length; iLine++)
       {
         //Replace all \r
-        string line_proc = line.Replace("\r\n", "\n");
+        string line_proc = lines[iLine].Replace("\r\n", "\n");
         if (!line_proc.EndsWith("\n"))
         {
           line_proc += "\n";//Avoid the last line ending with \0
         }
+        lines[iLine] = line_proc;
+      }
 
-        if (line_proc.StartsWith("#include "))//note the space
+      //Try to Parse Includes First, note it's not an error to have includes later, but we technically shouldn't for simplicity.
+      for (iLine = 0; iLine < lines.Length; iLine++)
+      {
+        if (!CheckInclude(iLine, lines, loc, file_lines, errors))
         {
-          var inc = ParseIncludeLine(line_proc);
+          break;
+        }
+      }
 
-          string? dir = System.IO.Path.GetDirectoryName(loc.RawPath);
-          if (dir != null)
+      file_lines.Append("//\n");
+      file_lines.Append("// BEGIN: " + loc.RawPath + " (" + loc.QualifiedPath + ")\n");
+      file_lines.Append("//\n");
+
+      for (; iLine < lines.Length; iLine++)
+      {
+        if (CheckInclude(iLine, lines, loc, file_lines, errors))
+        {
+          errors.Add("File: '" + loc.RawPath + "': #include should be at the top of the file to avoid invalid file commenting (may not be a GLSL error).");
+        }
+        file_lines.Append(lines[iLine]);
+      }
+
+      file_lines.Append("//\n");
+      file_lines.Append("// END: " + loc.RawPath + " (" + loc.QualifiedPath + ")\n");
+      file_lines.Append("//\n");
+
+
+    }
+    private static bool CheckInclude(int iLine, string[] lines, FileLoc loc, StringBuilder file_lines, List<string> errors)
+    {
+      string line = lines[iLine];
+      if (line.StartsWith("#include "))//note the space
+      {
+        var inc = ParseIncludeLine(line);
+
+        string? dir = System.IO.Path.GetDirectoryName(loc.RawPath);
+        if (dir != null)
+        {
+          string fs = "";
+          if (!String.IsNullOrEmpty(dir))
           {
-            string fs = "";
-            if (!String.IsNullOrEmpty(dir))
-            {
-              fs = System.IO.Path.Combine(dir, inc);
-            }
-            else
-            {
-              fs = inc;
-            }
-
-            ProcessFile(new FileLoc(fs, loc.FileStorage), file_lines, callnumber + 1);
+            fs = System.IO.Path.Combine(dir, inc);
           }
           else
           {
-            Gu.BRThrowException("Directory name" + loc.RawPath + " was null");
+            fs = inc;
           }
+
+          ProcessFile(new FileLoc(fs, loc.FileStorage), file_lines, errors);
         }
         else
         {
-          file_lines.Add(line_proc);
+          Gu.BRThrowException("Directory name" + loc.RawPath + " was null");
         }
+        return true;
       }
-      file_lines.Add("//" + new StringBuilder().Insert(0, "->", callnumber).ToString() + "END: " + loc.RawPath + " (" + loc.QualifiedPath + ")\n");
-
-
-      string ret = "";
-      if (firstcall)
+      else
       {
-        foreach (string line in file_lines)
-        {
-          ret += line;
-        }
+        return false;
       }
-      return ret;
     }
   }
-  #endregion
-
-  #region ShaderCompiler 
-
-  public class ShaderCompiler
+  public class TextureInput : DataBlock
   {
-    //      typedef std::vector<ShaderIncludeRef> IncludeVec;
-    //      string_t c_strShaderFileVersion = "0.01";
-    //      std::shared_ptr<GLContext> _pContext = nullptr;
-    //      char** ySrcPtr;               // - The pointer to a the source code.
-    //      ShaderStatus::e _loadStatus;  //for temp errors
-    //      string_t _error;              //for temp errors
-    //      string_t _fileDir;
-
-    public ShaderCompiler()
+    public Texture2D Texture { get { return _texture; } set { _texture = value; SetModified(); } }
+    public Texture2D GetTextureOrDefault()
     {
+      if (Texture == null)
+      {
+        Gu.Assert(_default != null);//default shader inputs cant be null
+        return _default;
+      }
+      else
+      {
+        return Texture;
+      }
     }
-    //      /**
-    //      *  @fn fileToArray()
-    //      *  @brief I believe this turns a file into an array of lines.
-    //*/
-    //void ShaderCompiler::loadSource(std::shared_ptr<ShaderSubProgram> pSubProg)
-    //{
-    //   AssertOrThrow2(pSubProg != NULL);
 
-    //   _loadStatus = ShaderStatus::Uninitialized;
-    //   pSubProg->setStatus(ShaderStatus::Uninitialized);
-    //   pSubProg->getSourceLines().clear();
+    private Texture2D _default = null;
+    private Texture2D _texture = null;
 
-    //   time_t greatestModifyTime = 0;  //TIME_T_MIN;
-
-    //   // - First try to load the srouce
-    //   try
-    //   {
-    //      BRLogDebug("Loading source for Shader " + pSubProg->getSourceLocation());
-    //      loadSource_r(pSubProg, pSubProg->getSourceLocation(), pSubProg->getSourceLines(), greatestModifyTime, 0);
-    //   }
-    //   catch (const Exception&e) {
-    //      //pSubProg->debugPrintShaderSource();
-    //      _loadStatus = ShaderStatus::CompileError;
-    //      _error = e.what();
-    //   }
-
-    //   // - If shader is not uninitialized there was an error during loading.
-    //   if (_loadStatus != ShaderStatus::Uninitialized)
-    //   {
-    //      return;
-    //   }
-
-    //   // - Cache the modification time of the whole shader include hierarchy
-    //   pSubProg->setSourceLastGreatestModificationTime(greatestModifyTime);
-
-    //   pSubProg->setStatus(ShaderStatus::e::Loaded);
-    //   }
-    //   void ShaderCompiler::loadSource_r(std::shared_ptr < ShaderSubProgram > pSubProg, const string_t&location, std::vector<string_t> & lines, time_t & greatestModifyTime, int_fast32_t iIncludeLevel) {
-    //      time_t modTime;
-
-    //      if (pSubProg->getStatus() != ShaderStatus::e::Uninitialized && !ShaderMaker::isGoodStatus(pSubProg->getStatus()))
-    //      {
-    //         pSubProg->getGeneralErrors().push_back("Subprogram was not in good state.");
-    //         return;
-    //      }
-
-    //      if (!Gu::getPackage()->fileExists((string_t)location))
-    //      {
-    //         pSubProg->setStatus(ShaderStatus::e::CompileError);
-    //         Gu::debugBreak();
-    //         BRThrowException("Could not find shader file or #include file, " + location);
-    //      }
-
-    //      // Store the greater modify time for shader cache.
-    //      modTime = Gu::getPackage()->getLastModifyTime((string_t)location);
-    //      greatestModifyTime = MathUtils::brMax(modTime, greatestModifyTime);
-
-    //      // Load all source bytes
-    //      std::shared_ptr<BinaryFile> bf = std::make_shared<BinaryFile>(c_strShaderFileVersion);
-    //      loadSourceData(location, bf);
-
-    //      if (_loadStatus != ShaderStatus::Uninitialized)
-    //      {
-    //         return;
-    //      }
-
-    //      // Helps Identify files.
-    //      string_t nameHdr = Stz "// ----------- BEGIN " + FileSystem::getFileNameFromPath(location);
-    //      addSourceLineAt(0, lines, nameHdr);
-
-    //      // Parse Lines
-    //      parseSourceIntoLines(bf, lines);
-
-    //      string_t nameHdr2 = Stz "// ----------- END " + FileSystem::getFileNameFromPath(location);
-    //      addSourceLineAt(lines.size(), lines, nameHdr2);
-
-    //      //Indent
-    //      //This is probably not good to do (would mess with # directives).
-    //      // string_t indent = StringUtil::repeat("  ", iIncludeLevel);
-    //      // for (size_t iLine = 0; iLine < lines.size(); ++iLine) {
-    //      //   lines[iLine] = indent + lines[iLine];
-    //      // }
-
-    //      // Recursively do includes
-    //      searchIncludes(pSubProg, lines, greatestModifyTime, iIncludeLevel);
-    //   }
-    //         void ShaderCompiler::addSourceLineAt(size_t pos, std::vector<string_t> & vec, string_t line) {
-    //            string_t linemod = line;
-    //            linemod += '\n';
-    //            linemod += '\0';
-
-    //            vec.insert(vec.begin() + pos, linemod);
-    //         }
-    //         /**
-    //         *  @fn searchIncludes
-    //         *  @brief Includes files.
-    //*/
-    //         void ShaderCompiler::searchIncludes(std::shared_ptr < ShaderSubProgram > subProg, std::vector<string_t> & lines, time_t & greatestModifyTime, int_fast32_t iIncludeLevel) {
-    //            IncludeVec _includes;  //map of include offsets in the data to their source locations.
-    //            string_t locStr;
-    //            std::vector<string_t> includeLines;
-    //            IncludeVec::iterator ite2;
-    //            size_t includeOff;
-
-    //            _includes = getIncludes(lines);
-    //            IncludeVec::iterator ite = _includes.begin();
-
-    //            uint_fast32_t added_incl_off = 0;
-    //            // - Recursively parse all includes
-    //            for (; ite != _includes.end(); ++ite) {
-    //               includeOff = ite->lineNo;
-    //               locStr = *(ite->str);
-    //               locStr = FileSystem::combinePath(_fileDir, locStr);
-    //               includeLines.clear();
-
-    //               loadSource_r(subProg, locStr, includeLines, greatestModifyTime, iIncludeLevel + 1);
-
-    //               lines.insert(lines.begin() + includeOff, includeLines.begin(), includeLines.end());
-
-    //               ite2 = ite;
-    //               ite2++;
-    //               for (; ite2 != _includes.end(); ite2++) {
-    //                  ite2->lineNo += includeLines.size();
-    //               }
-
-    //               delete ite->str;  //delete the allocated string
-    //            }
-    //         }
-    //         /**
-    //         *    @fn getIncludes
-    //         *    @brief Compiles all includes in the source lines into a map of include to its line number
-    //*/
-    //         ShaderCompiler::IncludeVec ShaderCompiler::getIncludes(std::vector<string_t> & lines) {
-    //            IncludeVec _includes;  //map of include offsets in the data to their source locations.
-    //            string_t locStr;
-
-    //            for (size_t i = 0; i < lines.size(); ++i) {
-    //               //We're trimming now because we're indenting the files. NOTE this may be invalid 9/2020
-    //               locStr = StringUtil::trim(lines[i]);
-    //               locStr = locStr.substr(0, 8);
-    //               locStr = StringUtil::trim(locStr);
-    //               //this check is to make sure there is no space or comments before the include.
-    //               if (locStr.compare("#include") != 0) {
-    //                  continue;
-    //               }
-
-    //               // - Expand the include
-    //               // - Expand the include
-    //               // - Expand the include
-    //               locStr = StringUtil::trim(lines[i]);
-    //               lines.erase(lines.begin() + i);
-    //               i--;
-
-    //               // - Split our include data
-    //               std::vector<string_t> vs = StringUtil::split(locStr, ' ');
-    //               vs[0] = StringUtil::trim(vs[0]);
-
-    //               // error checking
-    //               if (vs.size() != 2) {
-    //                  _loadStatus = ShaderStatus::e::CompileError;
-    //                  _error = string_t("Compile Error -->\"") + vs[0] + string_t("\"");
-
-    //                  //free data
-    //                  IncludeVec::iterator ite = _includes.begin();
-    //                  for (; ite != _includes.end(); ite++)
-    //                     delete ite->str;
-    //                  BRThrowException("Compile Error -->\"Not enough arguments for include directive. \"");
-    //               }
-
-    //               if (vs[0].compare("#include") != 0) {
-    //                  _loadStatus = ShaderStatus::e::CompileError;
-    //                  _error = string_t("Compile Error -->\"") + vs[0] + string_t("\"");
-    //                  //free data
-    //                  IncludeVec::iterator ite = _includes.begin();
-    //                  for (; ite != _includes.end(); ite++)
-    //                     delete ite->str;
-    //                  BRThrowException("Compile Error -->\"Not enough arguments for include directive. \"");
-    //               }
-
-    //               vs[1] = StringUtil::trim(vs[1]);
-    //               vs[1] = StringUtil::stripDoubleQuotes(vs[1]);
-
-    //               // - Insert the include by its offset in our base data so we can go back and paste it in.
-    //               ShaderIncludeRef srf;
-    //               srf.str = new string_t(vs[1]);
-    //               srf.lineNo = i + 1;
-    //               _includes.push_back(srf);
-    //            }
-
-    //            return _includes;
-    //         }
-    //         void ShaderCompiler::loadSourceData(const string_t&location, std::shared_ptr<BinaryFile> __out_ sourceData) {
-    //            if (!Gu::getPackage()->fileExists(location)) {
-    //               sourceData = NULL;
-    //               _loadStatus = ShaderStatus::e::FileNotFound;
-    //               BRLogError("Shader Source File not found : " + location);
-    //               BRLogError(" CWD: " + FileSystem::getCurrentDirectory());
-    //               return;
-    //            }
-
-    //            Gu::getPackage()->getFile(location, sourceData, true);
-    //         }
-    //         /**
-    //          * @param data [in] The binary data.
-    //          * @param out_lines [inout] The source file lines.
-    //          */
-    //         void ShaderCompiler::parseSourceIntoLines(std::shared_ptr < BinaryFile > data, std::vector<string_t> & out_lines) {
-    //            // - Parse file into lines
-    //            string_t strTemp;
-    //            char* c = data->getData().ptr(), *d;
-    //            int len;
-    //            int temp_filesize = 0;
-    //            int filesize = (int)data->getData().count();
-
-    //            while (temp_filesize < (int)filesize) {
-    //               d = c;
-    //               len = 0;
-    //               strTemp.clear();
-    //               while (((temp_filesize + len) < filesize) && ((int)(*d)) && ((int)(*d) != ('\n')) && ((int)(*d) != ('\r'))) {
-    //                  len++;
-    //                  d++;
-    //               }
-
-    //               d = c;
-    //               len = 0;  // - Reuse of len.  It is not the length now but an index.
-    //               while (((temp_filesize + len) < filesize) && ((int)(*d)) && ((int)(*d) != ('\n')) && ((int)(*d) != ('\r'))) {
-    //                  strTemp += (*d);
-    //                  d++;
-    //               }
-
-    //               // - We want newlines. Also this removes the \r
-    //               if (((*d) == '\n') || ((*d) == '\r') || ((*d) == '\0')) {
-    //                  strTemp += '\n';
-    //               }
-
-    //               if (strTemp.length()) {
-    //                  strTemp += '\0';
-    //                  out_lines.push_back(strTemp);
-    //                  c += strTemp.length() - 1;
-    //                  temp_filesize += (int)strTemp.length() - 1;
-    //               }
-
-    //               // - Remove any file format garbage at the end (windows)
-    //               len = 0;
-    //               while (((temp_filesize + len) < filesize) && (((int)(*c) == ('\r')))) {
-    //                  len++;
-    //                  c++;
-    //               }
-
-    //               // increment the Newline. !important
-    //               if (((temp_filesize + len) < filesize) && (((int)(*c) == ('\n')))) {
-    //                  len++;
-    //                  c++;
-    //               }
-    //               temp_filesize += len;
-    //            }
-    //         }
-    //         /**
-    //         *  @fn compile
-    //         *  @brief Compile a shader.
-    //         *  @remarks Compiles a shader.
-    //*/
-    //         void ShaderCompiler::compile(std::shared_ptr < ShaderSubProgram > pSubProg) {
-    //            BRLogInfo("Compiling shader " + pSubProg->getSourceLocation());
-
-    //            //DOWNCAST:
-    //            // GLstd::shared_ptr<ShaderSubProgram> shader = dynamic_cast<GLstd::shared_ptr<ShaderSubProgram>>(pSubProg);
-    //            GLint b;
-
-    //            if (pSubProg->getStatus() != ShaderStatus::e::Loaded) {
-    //               BRThrowException("Shader was in an invalid state when trying to compile.");
-    //            }
-
-    //            GLchar** arg = new char*[pSubProg->getSourceLines().size()];
-    //            for (size_t i = 0; i < pSubProg->getSourceLines().size(); ++i) {
-    //               if (pSubProg->getSourceLines()[i].size()) {
-    //                  arg[i] = new char[pSubProg->getSourceLines()[i].size()];
-    //                  std::memcpy(arg[i], pSubProg->getSourceLines()[i].c_str(), pSubProg->getSourceLines()[i].size());
-    //                  //Windows..Error
-    //                  //memcpy_s(arg[i], pSubProg->getSourceLines()[i].size(), pSubProg->getSourceLines()[i].c_str(), pSubProg->getSourceLines()[i].size());
-    //               }
-    //            }
-
-    //            _pContext->glShaderSource(pSubProg->getGlId(), (GLsizei)pSubProg->getSourceLines().size(), (const GLchar**)arg, NULL);
-    //            _pContext->glCompileShader(pSubProg->getGlId());
-    //            _pContext->glGetShaderiv(pSubProg->getGlId(), GL_COMPILE_STATUS, &b);
-
-    //            // - Gets the Gpu's error list.  This may also include warnings and stuff.
-    //            pSubProg->getCompileErrors() = getErrorList(pSubProg);
-
-    //            //  if (EngineSetup::getSystemConfig()->getPrintShaderSourceOnError() == TRUE)
-    //            {
-    //               if (pSubProg->getCompileErrors().size() > 0) {
-    //                  string_t str = pSubProg->getHumanReadableErrorString();
-    //                  if (StringUtil::lowercase(str).find("error") != string_t::npos) {
-    //                     pSubProg->debugPrintShaderSource();
-    //                     BRLogErrorNoStack(str);
-    //                     Gu::debugBreak();
-    //                  }
-    //                  else {
-    //                     BRLogWarn(str);
-    //                  }
-    //               }
-    //            }
-
-    //            //OOPS you didn't delete arg[]
-    //            //6/10/21 - This needs to be tested. This is a memory leak.
-    //            // Gu::debugBreak();
-    //            for (size_t i = 0; i < pSubProg->getSourceLines().size(); ++i) {
-    //               if (pSubProg->getSourceLines()[i].size()) {
-    //                  delete[] arg[i];
-    //               }
-    //            }
-    //            delete[] arg;
-
-    //            if (!b) {
-    //               pSubProg->setStatus(ShaderStatus::CompileError);
-    //            }
-    //            else {
-    //               pSubProg->setStatus(ShaderStatus::Compiled);
-    //            }
-    //         }
-    //         /**
-    //         *    @fn getErrorList()
-    //         *    @brief Returns a list of strings that are the errors of the compiled shader source.
-    //*/
-    //         std::vector<string_t> ShaderCompiler::getErrorList(const std::shared_ptr<ShaderSubProgram> shader) const {
-    //            int buf_size = 16384;
-    //            char* log_out = (char*)GameMemoryManager::allocBlock(buf_size);
-    //            GLsizei length_out;
-
-    //            _pContext->glGetShaderInfoLog(shader->getGlId(), buf_size, &length_out, log_out);
-
-    //            std::vector<string_t> ret;
-    //            string_t tempStr;
-    //            char* c = log_out;
-
-    //            while ((*c)) {
-    //               while (((*c) != '\n') && ((*c))) {
-    //                  tempStr += (*c);
-    //                  c++;
-    //               }
-    //               ret.push_back(tempStr);
-    //               tempStr.clear();
-    //               c++;
-    //            }
-    //            GameMemoryManager::freeBlock(log_out);
-
-    //            return ret;
-    //         }
+    public TextureInput(Texture2D default_tex)
+    {
+      _default = default_tex;
+    }
 
   }
-  #endregion
-
-  #region ShaderCache
-
-  public class GLProgramBinary
+  //to make contexts transparent.
+  public class Shader : OpenGLContextDataManager<Dictionary<PipelineStage, ContextShader>>
   {
 
-    //  public GLProgramBinary(ShaderCache* cc, size_t binLength) : _pShaderCache(cc),
-    //                                                                   _binaryLength(binLength),
-    //                                                                   _binaryData(NULL),
-    //                                                                   _compileTime(0)
-    //   {
-    //      _binaryData = new char[binLength];
-    //   }
-    //   //GLProgramBinary::~GLProgramBinary()
-    //   //{
-    //   //   if (_binaryData)
-    //   //   {
-    //   //      delete[] _binaryData;
-    //   //   }
-    //   //   _binaryData = NULL;
-    //   //}
 
-    //   GLenum _glFormat;
-    //size_t _binaryLength;
-    //char* _binaryData;
-    //ShaderCache* _pShaderCache;
-    //time_t _compileTime;    // Time the binary was compiled.
-  };
+    public string Name { get; private set; } = "<unset>";
+    private string _vs = "", _fs = "", _gs = "";
+    private static Shader _defaultDiffuseShader = null;
+    private static Shader _defaultBillboardPoints = null;
+    private static Shader _defaultFlatColorShader = null;
 
-  /**
-  *  @class ShaderCache
-  *  @brief Caches shader binaries.
-*/
-  public class ShaderCache //: public GLFramework
-  {
-    //   bool _bCacheIsSupported = false;
-    //   std::vector<GLProgramBinary*> _vecBinaries;
-    //   string_t _strCacheDirectory;
+    public static Shader DefaultFlatColorShader()
+    {
+      if (_defaultFlatColorShader == null)
+      {
+        _defaultFlatColorShader = Gu.Resources.LoadShader("v_v3", false, FileStorage.Embedded);
+      }
+      return _defaultFlatColorShader;
+    }
+    public static Shader DefaultObjectShader()
+    {
+      //Returns a basic v3 n3 x2 lambert+blinn-phong shader.
+      if (_defaultDiffuseShader == null)
+      {
+        _defaultDiffuseShader = Gu.Resources.LoadShader("v_v3n3x2", false, FileStorage.Embedded);
+      }
+      return _defaultDiffuseShader;
+    }
+    public static Shader DefaultBillboardPoints()
+    {
+      //Returns a basic v3 n3 x2 lambert+blinn-phong shader.
+      if (_defaultBillboardPoints == null)
+      {
+        _defaultBillboardPoints = Gu.Resources.LoadShader("v_billboard_points", true, FileStorage.Embedded);
+      }
+      return _defaultBillboardPoints;
+    }
 
-    //      ShaderCache::ShaderCache(std::shared_ptr<GLContext> ct, string_t cacheDir) : GLFramework(ct)
-    //      {
-    //         _strCacheDirectory = cacheDir;
-    //         GLint n;
-    //         glGetIntegerv(GL_NUM_PROGRAM_BINARY_FORMATS, &n);
+    public Shader(string name, string vsSrc = "", string psSrc = "", string gsSrc = "")
+    {
+      Name = name;
+      _vs = vsSrc;
+      _fs = psSrc;
+      _gs = gsSrc;
+    }
+    public ContextShader GetShaderForCurrentContext()
+    {
+      return GetOrCreateShader(Gu.Context);
+    }
+    protected override Dictionary<PipelineStage, ContextShader> CreateNew()
+    {
+      return new Dictionary<PipelineStage, ContextShader>();
+    }
+    private ContextShader GetOrCreateShader(WindowContext ct)
+    {
+      Gu.Assert(ct != null);
+      PipelineStage stage = ct.Renderer.PipelineStage;
+      var dict = GetDataForContext(ct);
+      Gu.Assert(dict != null);
 
-    //         if (n <= 0)
-    //         {
-    //            BRLogWarn("[ShaderCache] Gpu does not support any program binary formats.");
-    //            _bCacheIsSupported = false;
-    //         }
-    //      }
-    //      ShaderCache::~ShaderCache()
-    //      {
-    //         for (size_t i = 0; i < _vecBinaries.size(); ++i)
-    //            delete _vecBinaries[i];
-    //         _vecBinaries.resize(0);
-    //      }
-    //      string_t ShaderCache::getBinaryNameFromProgramName(const string_t& progName) {
-    //  string_t fb = progName + ".sb";
-    //  return FileSystem::combinePath(_strCacheDirectory, fb);  //::appendCacheDirectory(fb);
-    //}
-    //   GLProgramBinary* ShaderCache::getBinaryFromGpu(std::shared_ptr<ShaderBase> prog)
-    //   {
-    //      GLint binBufSz = 0;
-    //      GLint outLen = 0;
+      ContextShader? shader = null;
+      if (!dict.TryGetValue(stage, out shader))
+      {
+        shader = new ContextShader(Name, ct, _vs, _fs, _gs);
+        dict.Add(stage, shader);
+      }
+      Gu.Assert(shader.PipelineStage == stage);
 
-    //      getContext()->glGetProgramiv(prog->getGlId(), GL_PROGRAM_BINARY_LENGTH, &binBufSz);
-    //      getContext()->chkErrRt();
+      return shader;
+    }
 
-    //      if (binBufSz == 0 || binBufSz > MemSize::e::MEMSZ_GIG2)
-    //      {
-    //         BRThrowException("Shader program binary was 0 or exceeded " + MemSize::e::MEMSZ_GIG2 + " bytes; actual: " + binBufSz);
-    //      }
-
-    //      GLProgramBinary* b = new GLProgramBinary(this, binBufSz);
-
-    //      getContext()->glGetProgramBinary(prog->getGlId(), binBufSz, &outLen, &(b->_glFormat), (void*)b->_binaryData);
-    //      getContext()->chkErrRt();
-
-    //      if (binBufSz != outLen)
-    //      {
-    //         delete b;
-    //         BRThrowException("GPU reported incorrect program size and returned a program with a different size.");
-    //      }
-
-    //      //Critical: set compile time.
-    //      b->_compileTime = prog->getCompileTime();
-
-    //      _vecBinaries.push_back(b);
-
-    //      return b;
-    //   }
-    //   /**
-    //   *  @fn getBinaryFromDisk
-    //   *  @brief Pass in the program name, not the name of the binary.
-    //   * 
-    //   * 
-    //   * Shader Binary Cache File Format
-    //   * 
-    //   * Extension: .sb
-    //   * 
-    //   *     compile time (int64)
-    //   *     shader format (int32)
-    //   *     binary size (int32)
-    //   *     binary (char*)
-    //   * 
-    //*/
-    //   GLProgramBinary* ShaderCache::getBinaryFromDisk(string_t& programName)
-    //   {
-    //      DiskFile df;
-    //      GLProgramBinary* pbin = nullptr;
-    //      GLenum glenum;
-    //      size_t binSz;
-    //      string_t binaryName = getBinaryNameFromProgramName(programName);
-
-    //      time_t compTime;
-
-    //      if (!FileSystem::fileExists(binaryName))
-    //      {
-    //         BRLogDebug(string_t("Program binary not found: ") + binaryName);
-
-    //         return nullptr;
-    //      }
-
-    //      BRLogDebug(string_t("Loading program binary ") + binaryName);
-    //      try
-    //      {
-    //         df.openForRead(DiskLoc(binaryName));
-    //         df.read((char*)&(compTime), sizeof(time_t));
-    //         df.read((char*)&(glenum), sizeof(glenum));
-    //         df.read((char*)&(binSz), sizeof(binSz));
-
-    //         // if we're too big - freak out
-    //         if ((binSz < 0) || (binSz > MemSize::e::MEMSZ_GIG2))
-    //         {
-    //            BRLogError("Invalid shader binary file size '" + binSz + "', recompiling binary.");
-    //            pbin = nullptr;
-    //         }
-    //         else
-    //         {
-    //            pbin = new GLProgramBinary(this, binSz);
-    //            pbin->_glFormat = glenum;
-    //            pbin->_compileTime = compTime;
-
-    //            df.read((char*)pbin->_binaryData, pbin->_binaryLength);
-    //            df.close();
-
-    //            _vecBinaries.push_back(pbin);
-    //         }
-    //      }
-    //      catch (const Exception&ex) {
-    //         //fail silently
-
-    //         BRLogError("Failed to load program binary " + binaryName + ex.what());
-    //         if (pbin)
-    //         {
-    //            delete pbin;
-    //         }
-    //         pbin = nullptr;
-    //      }
-
-    //      return pbin;
-    //      }
-    //      void ShaderCache::saveBinaryToDisk(const string_t&programName, GLProgramBinary* bin) {
-    //         DiskFile df;
-    //         string_t binaryName = getBinaryNameFromProgramName(programName);
-    //         string_t binPath = FileSystem::getDirectoryNameFromPath(binaryName);
-
-    //         BRLogInfo(" Shader program Bin path = " + binPath);
-
-    //         try
-    //         {
-    //            BRLogDebug(string_t("[ShaderCache] Caching program binary ") + binaryName);
-    //            FileSystem::createDirectoryRecursive(binPath);
-    //            df.openForWrite(DiskLoc(binaryName), FileWriteMode::Truncate);
-    //            df.write((char*)&(bin->_compileTime), sizeof(bin->_compileTime));
-    //            df.write((char*)&(bin->_glFormat), sizeof(bin->_glFormat));
-    //            df.write((char*)&(bin->_binaryLength), sizeof(bin->_binaryLength));
-    //            df.write((char*)bin->_binaryData, bin->_binaryLength);
-    //            df.close();
-    //         }
-    //         catch (const Exception&ex) {
-    //            BRLogError("Failed to save program binary " + binaryName + ex.what());
-    //         }
-    //         }
-    //         void ShaderCache::deleteBinaryFromDisk(const string_t&programName) {
-    //            string_t binaryName = getBinaryNameFromProgramName(programName);
-
-    //            if (!FileSystem::fileExists(binaryName))
-    //            {
-    //               BRLogError(string_t("Failed to delete file ") + binaryName);
-    //            }
-
-    //            FileSystem::deleteFile(binaryName);
-    //         }
-    //         void ShaderCache::freeLoadedBinary(GLProgramBinary * bin) {
-    //            _vecBinaries.erase(std::remove(_vecBinaries.begin(), _vecBinaries.end(), bin), _vecBinaries.end());
-    //            delete bin;
-    //         }
-    //         void ShaderCache::saveCompiledBinaryToDisk(std::shared_ptr < ShaderBase > pProgram) {
-    //            GLProgramBinary* bin = getBinaryFromGpu(pProgram);
-    //            saveBinaryToDisk(pProgram->getProgramName(), bin);
-    //         }
-    //         /**
-    //         *  @fn tryLoadCachedBinary
-    //         *  @brief Try to load a cached GLSL binary to the GPU.
-    //         *  @return false if the load failed or file was not found.
-    //         *  @return true if the program loaded successfully
-    //*/
-    //         std::shared_ptr<ShaderBase> ShaderCache::tryLoadCachedBinary(std::string programName, std::vector < string_t > shaderFiles) {
-    //            bool bSuccess = false;
-    //            GLProgramBinary* binary;
-    //            std::shared_ptr<ShaderBase> ret = nullptr;
-
-    //            binary = getBinaryFromDisk(programName);
-
-    //            if (binary != NULL)
-    //            {
-    //               time_t maxTime = 0;
-    //               for (string_t file : shaderFiles)
-    //               {
-    //                  FileInfo inf = FileSystem::getFileInfo(file);
-    //                  if (!inf._exists)
-    //                  {
-    //                     BRLogError("Shader source file '" + file + "' does not exist.");
-    //                     Gu::debugBreak();
-    //                  }
-    //                  else
-    //                  {
-    //                     maxTime = MathUtils::brMax(inf._modified, maxTime);
-    //                  }
-    //               }
-
-    //               if (binary->_compileTime >= maxTime)
-    //               {
-    //                  //pProgram has already asked GL for an ID.
-    //                  try
-    //                  {
-    //                     ret = loadBinaryToGpu(programName, binary);
-    //                     if (ret == nullptr)
-    //                     {
-    //                        BRLogInfo("Program binary for '" + programName + "' out of date.  Deleting from disk");
-    //                        deleteBinaryFromDisk(programName);
-    //                     }
-    //                  }
-    //                  catch (const Exception&e) {
-    //                     BRLogWarn("[ShaderCache] Loading program binary returned warnings/errors:\r\n");
-    //                     BRLogWarn(e.what());
-    //                     deleteBinaryFromDisk(programName);
-    //                  }
-    //                  }
-
-    //                  freeLoadedBinary(binary);
-    //               }
-
-    //               return ret;
-    //            }
-    //            /**
-    //            *  @fn loadBinaryToGpu
-    //            *  @brief Attaches the binary to the already created program object and loads it to the GPU. Prog must already have been created.
-    //            *  @return false if the program returned errors.
-    //*/
-    //            std::shared_ptr<ShaderBase> ShaderCache::loadBinaryToGpu(std::string programName, GLProgramBinary * bin) {
-    //               getContext()->chkErrRt();
-
-    //               std::shared_ptr<ShaderBase> pProgram = std::make_shared<ShaderBase>(getContext(), programName);
-    //               pProgram->init();
-    //               getContext()->chkErrRt();
-
-    //               GLboolean b1 = getContext()->glIsProgram(pProgram->getGlId());
-    //               if (b1 == false)
-    //               {
-    //                  BRLogWarn("[ShaderCache] Program was not valid before loading to GPU");
-    //                  return nullptr;
-    //               }
-    //               getContext()->chkErrRt();
-
-    //               BRLogDebug("[ShaderCache] Loading Cached Program Binary to GPU");
-    //               getContext()->glProgramBinary(pProgram->getGlId(), bin->_glFormat, (void*)bin->_binaryData, (GLsizei)bin->_binaryLength);
-    //               if (getContext()->chkErrRt(true, true))
-    //               {
-    //                  //If we have en error here, we failed to load the binary.
-    //                  BRLogWarn("[ShaderCache] Failed to load binary to GPU - we might be on a different platform.");
-    //                  return nullptr;
-    //               }
-
-    //               //Print Log
-    //               std::vector<string_t> inf;
-    //               pProgram->getProgramErrorLog(inf);
-    //               for (size_t i = 0; i < inf.size(); ++i)
-    //               {
-    //                  BRLogWarn("   " + inf[i]);
-    //               }
-
-    //               //validate program.
-    //               GLint iValid;
-    //               getContext()->glValidateProgram(pProgram->getGlId());
-    //               getContext()->chkErrRt();
-
-    //               getContext()->glGetProgramiv(pProgram->getGlId(), GL_VALIDATE_STATUS, (GLint*)&iValid);
-    //               getContext()->chkErrRt();
-
-    //               if (iValid == GL_FALSE)
-    //               {
-    //                  // Program load faiiled
-    //                  BRLogWarn("[ShaderCache] glValidateProgram says program binary load failed.  Check the above logs for errors.");
-    //                  return nullptr;
-    //               }
-
-    //               GLboolean b2 = getContext()->glIsProgram(pProgram->getGlId());
-    //               getContext()->chkErrRt();
-
-    //               if (b2 == false)
-    //               {
-    //                  BRThrowException("[ShaderCache] glIsProgram says program was not valid after loading to GPU");
-    //               }
-
-    //               pProgram->bind();
-    //               // - If the program failed to load it will raise an error after failing to bind.
-    //               GLenum e = glGetError();
-    //               if (e != GL_NO_ERROR)
-    //               {
-    //                  BRLogWarn("[ShaderCache], GL error " + StringUtil::toHex(e, true) + " , program was not valid after loading to GPU.");
-    //                  return nullptr;
-    //               }
-
-    //               //Save Name.
-    //               getContext()->setObjectLabel(GL_PROGRAM, pProgram->getGlId(), pProgram->getProgramName());
-
-    //               pProgram->unbind();
-    //               getContext()->chkErrRt();
-
-    //               return pProgram;
-    //            }
-
-
-
-  };
+  }
 
   #endregion
+
+  //TODO: shaderCompiler, ShaderCache
 
 
 

@@ -4,6 +4,15 @@ using System.Reflection;
 
 namespace PirateCraft
 {
+  public enum ActionState
+  {
+    Pause, Run, Stop
+  }
+  public enum LambdaBool
+  {
+    Break,
+    Continue
+  }
   public class MultiMap<TKey, TValue> : IEnumerable<KeyValuePair<TKey, TValue>> where TKey : notnull
   {
     public SortedDictionary<TKey, List<TValue>> _dict = new SortedDictionary<TKey, List<TValue>>();
@@ -54,9 +63,10 @@ namespace PirateCraft
       }
       return null;
     }
-    public void SetValueList(TKey key, List<TValue> val){
+    public void SetValueList(TKey key, List<TValue> val)
+    {
       _dict.Remove(key);
-      _dict.Add(key,val);
+      _dict.Add(key, val);
     }
     public bool Remove(KeyValuePair<TKey, TValue> val)
     {
@@ -108,59 +118,9 @@ namespace PirateCraft
     }
   }
 
-  //I couldn't figure how to implement this one. It didn't appear to work as intended.
-  //It could be faster than the other multimap (tuple vs kvp) would need testing
-  //public class Multimap<TKey, TValue> : SortedSet<Tuple<TKey, TValue>>
-  //This is a basic multimap implementation. Multiple keys to multiple values
-  // Note that you cannot add the same tuple itself (which is class type). Just call Add() to add new.
-  //  where TKey : IComparable
-  //{
-  //  public Multimap() : base(new MultimapComparer()) { }
-
-  //  private class MultimapComparer : Comparer<Tuple<TKey, TValue>>
-  //  {
-  //    public override int Compare(Tuple<TKey, TValue> x, Tuple<TKey, TValue> y)
-  //    {
-  //      if (x == null || y == null)
-  //      {
-  //        return 0;
-  //      }
-  //      if (x == y)
-  //      {
-  //        return 0;
-  //      }
-
-  //      var d = x.Item1.Equals(y.Item1) ? 1 : x.Item1.CompareTo(y.Item1);
-  //      return d;
-  //    }
-  //  }
-  //  public Multimap(Multimap<TKey, TValue> other) : base(other, new MultimapComparer())
-  //  {
-  //  }
-  //  public void Add(TKey key, TValue value)
-  //  {
-  //    Add(new Tuple<TKey, TValue>(key, value));
-  //  }
-  //  public void RemoveFirst(TKey key)
-  //  {
-  //    var d = this.First(x => x.Item1.Equals(key));
-  //    if (d != null)
-  //    {
-  //      Remove(d);
-  //    }
-  //  }
-  //  public List<Tuple<TKey, TValue>> FindAll(TKey key)
-  //  {
-  //    List<Tuple<TKey, TValue>> ret = new List<Tuple<TKey, TValue>>();
-  //    ret = this.Where(x => x.Item1.Equals(key)).ToList();
-  //    return ret;
-  //  }
-  //}
-  /// <summary>
-  /// FileLoc represents a virtual file location on disk, embed, or web
-  /// </summary>
   public class FileLoc
   {
+    /// FileLoc represents a virtual file location on disk, embed, or web
     //The name here has to be unique or it will cause conflicts.
     public static FileLoc Generated = new FileLoc("<generated>", FileStorage.Generated);
     public FileStorage FileStorage { get; private set; } = FileStorage.Disk;
@@ -291,7 +251,6 @@ namespace PirateCraft
         return a.QualifiedPath.GetHashCode();
       }
     }
-
   }
 
   public class Minimax<T>
@@ -332,8 +291,8 @@ namespace PirateCraft
     {
       //The purpose of this is to test for subtle changes to a string, say if we replace a number in the debug. So we don't need an entire LCS matrix, or remove all glyphs.
       //The greater the size of window() the less add/remove there will be, at the cost of algorithm time.
-      
-     // long msa = Gu.Microseconds();
+
+      // long msa = Gu.Microseconds();
 
       //int
       // - = remove char x from last
@@ -362,7 +321,7 @@ namespace PirateCraft
       int cb;
 
       bool exit = false;
-      for (int xx = 0; xx < 10000; xx++)//dummy infinite loop blocker
+      for (int xx = 0; xx < Gu.c_intMaxWhileTrueLoop; xx++)
       {
         //Find runs
         int change_none = 0;
@@ -500,5 +459,257 @@ namespace PirateCraft
     }
   }
 
+  public abstract class Cloneable<T>
+  {
+    public abstract T Clone(bool shallow = true);
+  }
+  public class MutableState
+  {
+    public bool Modified { get; protected set; } = false;
+    public void SetModified()
+    {
+      Modified = true;
+    }
+  }
+  public class DataBlock : MutableState
+  {
+    #region Members
 
+    private static int s_dataBlockIdGen = 1;
+    private static int s_dataBlockTypeIdGen = 1;
+    private string _name = "<Unnamed>";
+    private Int64 _typeId = 1; // When Clone() is called this gets duplicated
+    private Int64 _uniqueId = 0; //Never duplicated, unique for all objs
+
+    public string Name { get { return _name; } set { _name = value; SetModified(); } }
+    public Int64 UniqueID { get { return _uniqueId; } private set { _uniqueId = value; SetModified(); } }
+    public Int64 TypeID { get { return _typeId; } private set { _typeId = value; SetModified(); } }
+
+    #endregion
+    #region Public Static: Methods
+
+    public static int GetNewId()
+    {
+      return s_dataBlockIdGen++;
+    }
+    public static int GetNewType()
+    {
+      return s_dataBlockTypeIdGen++;
+    }
+
+    #endregion
+    #region Methods
+
+    protected DataBlock() { } //clone ctor
+    public DataBlock(string name)
+    {
+      _name = name;
+      _uniqueId = GetNewId();
+      _typeId = GetNewType();
+      SetModified();
+    }
+    public DataBlock Clone()
+    {
+      var d = new DataBlock();
+      Copy(d);
+      return d;
+    }
+    protected void Copy(DataBlock d)
+    {
+      d._name = this._name;
+      d._typeId = this._typeId;
+      d._uniqueId = s_dataBlockIdGen++;
+      d.SetModified();
+    }
+    public virtual void MakeUnique()
+    {
+      _typeId = GetNewType();
+      SetModified();
+    }
+    public void Serialize(BinaryWriter br)
+    {
+      br.Write(_name);
+      br.Write(_typeId);
+    }
+    public void Deserialize(BinaryReader br)
+    {
+      _name = br.ReadString();
+      _typeId = br.ReadInt64();
+    }
+
+    #endregion
+  }
+  public class ModifiedList<T> : List<T>
+  {
+    public bool Modified { get; set; } = false;
+
+    public ModifiedList() : base()
+    {
+    }
+    public ModifiedList(IEnumerable<T> collection) : base(collection)
+    {
+      Modified = true;
+    }
+    public ModifiedList(int capacity) : base(capacity)
+    {
+      Modified = true;
+    }
+    public new T this[int index]
+    {
+      get
+      {
+        return base[index];
+      }
+      set
+      {
+        base[index] = value;
+        Modified = true;
+      }
+    }
+    public new void Add(T item)
+    {
+      base.Add(item);
+      Modified = true;
+    }
+    public new void AddRange(IEnumerable<T> collection)
+    {
+      base.AddRange(collection);
+      Modified = true;
+    }
+    public new void Clear()
+    {
+      base.Clear();
+      Modified = true;
+    }
+    public new int Capacity
+    {
+      get
+      {
+        return base.Capacity;
+      }
+      set
+      {
+        base.Capacity = value;
+        Modified = true;
+      }
+    }
+    public new void Insert(int index, T item)
+    {
+      base.Insert(index, item);
+      Modified = true;
+    }
+    public new void InsertRange(int index, IEnumerable<T> collection)
+    {
+      base.InsertRange(index, collection);
+      Modified = true;
+    }
+    public bool Remove(T item)
+    {
+      return base.Remove(item);
+      Modified = true;
+    }
+    public int RemoveAll(Predicate<T> match)
+    {
+      return base.RemoveAll(match);
+      Modified = true;
+    }
+    public void RemoveAt(int index)
+    {
+      base.RemoveAt(index);
+      Modified = true;
+    }
+    public void RemoveRange(int index, int count)
+    {
+      base.RemoveRange(index, count);
+      Modified = true;
+    }
+    public void Reverse()
+    {
+      base.Reverse();
+      Modified = true;
+    }
+    public void Reverse(int index, int count)
+    {
+      base.Reverse(index, count);
+      Modified = true;
+    }
+    public void Sort(Comparison<T> comparison)
+    {
+      base.Sort(comparison);
+      Modified = true;
+    }
+    public void Sort(int index, int count, IComparer<T>? comparer)
+    {
+      base.Sort(index, count, comparer);
+      Modified = true;
+    }
+    public void Sort()
+    {
+      base.Sort();
+      Modified = true;
+    }
+    public void Sort(IComparer<T>? comparer)
+    {
+      base.Sort(comparer);
+      Modified = true;
+    }
+    public void TrimExcess()
+    {
+      base.TrimExcess();
+      Modified = true;
+    }
+
+  }
+
+  public class DeltaTimer : Cloneable<DeltaTimer>
+  {
+
+    public double Frequency { get; private set; } = 0;
+    public double Time { get; private set; } = 0;
+    public ActionState State { get; private set; } = ActionState.Stop;
+    public Action Action { get; set; } = null;
+    public bool Repeat { get; set; } = false;
+
+    private DeltaTimer() { }//clone
+    public DeltaTimer(double frequency_seconds, bool repeat, Action? act = null)
+    {
+      Frequency = frequency_seconds;
+      Repeat = repeat;
+      Action = act;
+    }
+    public int Update(double dt)
+    {
+      //Returns the number of times this timer fired, and executes optional action
+      int fires = 0;
+      if (State != ActionState.Stop)
+      {
+        Time += dt;
+        while (Time > Frequency)
+        {
+          Time -= Frequency;
+          Action?.Invoke();
+          fires++;
+        }
+      }
+      return fires;
+    }
+    public void Start()
+    {
+      State = ActionState.Run;
+    }
+    public void Stop()
+    {
+      State = ActionState.Stop;
+    }
+    public override DeltaTimer Clone(bool shallow = true)
+    {
+      DeltaTimer d = new DeltaTimer();
+      d.Frequency = this.Frequency;
+      d.Time = this.Time;
+      d.State = this.State;
+      d.Action = this.Action;
+      d.Repeat = this.Repeat;
+      return d;
+    }
+  }
 }

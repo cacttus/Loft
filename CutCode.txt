@@ -1044,3 +1044,459 @@
     public List<Beam> next = null;//next beam in the stack
     public List<Beam> prev = null;
   }
+
+
+
+public class Drome : DromeNode
+  // {
+  //   //Density / Block units / BVH Root
+
+  //   //public BeamGrid2 BeamGrid2 = null;
+  //   //public Grid3D<GRay> LightGrid = null;
+  //   public Grid3D<ushort> Blocks = new Grid3D<ushort>(World.DromeBlocksX, World.DromeBlocksY, World.DromeBlocksZ);
+
+  //   public int _lock = 0;
+  //   public bool Locked { get { return _lock > 0; } }
+  //   public void Lock() { _lock++; }
+  //   public void Unlock() { _lock--; }
+
+  //   private WeakReference<World> _world = null;
+  //   public BlockStats BlockStats = new BlockStats();
+  //   public RegionBlocks[] GlobRegionStates = null;
+  //   public ivec3 Pos = new ivec3(0, 0, 0);
+  //   public GenState GenState = GenState.Created; //Note C# integral types are atomic.
+  //   public static DromeNode Static_Hierarchy = null;
+
+  //   public vec3 OriginR3
+  //   {
+  //     get
+  //     {
+  //       vec3 r = new vec3(
+  //         (float)Pos.x * World.DromeWidthX,
+  //         (float)Pos.y * World.DromeWidthY,
+  //         (float)Pos.z * World.DromeWidthZ);
+  //       return r;
+  //     }
+  //   }
+  //   public vec3 CenterR3
+  //   {
+  //     get
+  //     {
+  //       return OriginR3 + new vec3(World.DromeWidthX * 0.5f,
+  //                                  World.DromeWidthY * 0.5f,
+  //                                  World.DromeWidthZ * 0.5f);
+  //     }
+  //   }
+  //   public int dbg_nCount_Empty_Leaves = 0;
+  //   public int dbg_nCountLeaves = 0;
+  //   public int dbg_nCountProcessed_Children = 0;
+  //   public int dbg_nCountCulled = 0;
+  //   public int dbg_nCountHave = 0;
+
+  //   public static Box3f GetDromeBox(ivec3 pos)
+  //   {
+  //     return new Box3f(
+  //       new vec3(
+  //         pos.x * World.DromeWidthX,
+  //         pos.y * World.DromeWidthY,
+  //         pos.z * World.DromeWidthZ),
+  //       new vec3(
+  //         (pos.x + 1) * World.DromeWidthX,
+  //         (pos.y + 1) * World.DromeWidthY,
+  //         (pos.z + 1) * World.DromeWidthZ
+  //       )
+  //       );
+  //   }
+  //   public Drome(World w, ivec3 pos, Int64 genframeStamp)
+  //   {
+  //     Pos = pos;
+  //     _world = new WeakReference<World>(w);
+
+  //     _box = GetDromeBox(pos);
+
+  //     if (Static_Hierarchy == null)
+  //     {
+  //       Static_Hierarchy = new DromeNode();
+  //       Static_Hierarchy.Subdivide_Static_Hierarchy(true);
+  //     }
+  //   }
+  //   public RegionBlocks GetRegionStateForDromeNodeLeaf(DromeNode d)
+  //   {
+  //     //We do not have any region states if we are an empty Drome.
+  //     //REturn the default "none" to signal to the system that we can cull everything.
+  //     if (GlobRegionStates == null)
+  //     {
+  //       return RegionBlocks.EmptyRegionState_Glob;
+  //     }
+  //     vec3 c = d.Box._min + (d.Box._max - d.Box._min) * 0.5f;
+  //     ivec3 gpos_global = World.R3toI3Glob(c);
+  //     ivec3 gpos_local = World.GlobGlobal_Z3_To_DromeLocal_Z3(gpos_global);
+  //     //we are a glob
+  //     var off = Drome.RegionStateOffset_FromLocalGlobPos(gpos_local);
+  //     Gu.Assert(off < Drome.DromeRegionStateCount);
+  //     var rs = GlobRegionStates[off];
+  //     return rs;
+  //   }
+  //   public static int BlockOffset(ivec3 local_block_pos_in_drome)
+  //   {
+  //     int ret = World.DromeBlocksX * World.DromeBlocksY * local_block_pos_in_drome.z +
+  //       World.DromeBlocksX * local_block_pos_in_drome.y +
+  //       local_block_pos_in_drome.x;
+  //     return ret;
+  //   }
+  //   public static int BlockOffset(int local_x, int local_y, int local_z)
+  //   {
+  //     int ret = World.DromeBlocksX * World.DromeBlocksY * local_z +
+  //       World.DromeBlocksX * local_y +
+  //       local_x;
+  //     return ret;
+  //   }
+  //   public static int RegionStateOffset_FromLocalBlockPos(ivec3 local_block_pos_in_drome)
+  //   {
+  //     int dx = local_block_pos_in_drome.x / World.GlobBlocksX;
+  //     int dy = local_block_pos_in_drome.y / World.GlobBlocksY;
+  //     int dz = local_block_pos_in_drome.z / World.GlobBlocksZ;
+  //     int ret = World.DromeGlobsX * World.DromeGlobsY * dz + World.DromeGlobsX * dy + dx;
+  //     return ret;
+  //   }
+  //   public static int RegionStateOffset_FromLocalGlobPos(ivec3 local_glob_pos_in_drome)
+  //   {
+  //     int dx = local_glob_pos_in_drome.x;
+  //     int dy = local_glob_pos_in_drome.y;
+  //     int dz = local_glob_pos_in_drome.z;
+  //     int ret = World.DromeGlobsX * World.DromeGlobsY * dz + World.DromeGlobsX * dy + dx;
+  //     return ret;
+  //   }
+  //   public static ivec3 R3toI3BlockLocal_Drome(vec3 R3)
+  //   {
+  //     ivec3 bpos = World.R3ToI3BlockLocal_Any(R3, World.DromeWidthX, World.DromeWidthY, World.DromeWidthZ);
+  //     if (bpos.x < 0 || bpos.y < 0 || bpos.z < 0 || bpos.x >= World.DromeBlocksX || bpos.y >= World.DromeBlocksY || bpos.z >= World.DromeBlocksZ)
+  //     {
+  //       Gu.DebugBreak();
+  //     }
+  //     return bpos;
+  //   }
+  //   public void Create_or_UpdateGlobForModifiedBlock(ModifiedBlock mb)
+  //   {
+  //     if (_world.TryGetTarget(out var w))
+  //     {
+  //       //Basically what this does is we drill down to the glob that was modified and create it.
+  //       //Then, the visibility update should catch the new glob and generate it.
+  //       DoLiterallyEverything(w, this, w.Camera, null, mb);
+  //       //**TODO: subdivide neighbors as as well when this block borders other globs.
+  //     }
+  //   }
+  //   public void DeleteGlobForModifiedBlock(ModifiedBlock mb)
+  //   {
+  //     if (_world.TryGetTarget(out var w))
+  //     {
+  //       //Same as above - we do a subdivision again. When we drill down to the given point, we'll determine if the glob is visible, or not.
+  //       //if it's not, it will get deleted automatically.
+  //       DoLiterallyEverything(w, this, w.Camera, null, mb);
+  //       //**TODO: subdivide neighbors as as well when this block borders other globs.
+  //     }
+  //   }
+  //   public const ushort InitialBlockValue = BlockItemCode.Air;
+  //   public const int DromeBlockCount = World.DromeBlocksX * World.DromeBlocksY * World.DromeBlocksZ;
+  //   public const int DromeRegionStateCount = World.DromeGlobsX * World.DromeGlobsY * World.DromeGlobsZ;
+  //   public void AllocateBlocks()
+  //   {
+  //     Blocks.Allocate(Drome.InitialBlockValue);
+  //   }
+  //   public void AllocateRegionStates()
+  //   {
+  //     GlobRegionStates = new RegionBlocks[Drome.DromeRegionStateCount];
+  //     //foreach(var g in GlobRegionStates)
+  //     for (int i = 0; i < GlobRegionStates.Length; i++)
+  //     {
+  //       GlobRegionStates[i].Init();
+  //     }
+  //   }
+  //   public bool HasBlockData()
+  //   {
+  //     return Blocks.Grid != null;
+  //   }
+  //   public void SetBlock(ivec3 local_block_pos_in_drome, ushort block_solidcode_liquid_or_both, bool bInitialGen_Dont_DivideGlob, BlockBits bits)
+  //   {
+  //     //Sets the actual block data code - does not account for what is in the block i.e. solid/liquid.. sets the whole code
+  //     //dontdivideglob - if this is false then we won't run the division routine to create a BVH, and queue affected nodes for update, set InitialGen to true when mining blocks 
+
+  //     //We may be empty, in which case we need to reallocate our data.
+  //     if (!HasBlockData())
+  //     {
+  //       //We cull blocks from empty globs to save memory.
+  //       AllocateBlocks();
+  //       AllocateRegionStates();
+  //     }
+
+  //     ushort old = GetBlock(local_block_pos_in_drome);
+  //     // ushort old_solid = Block.GetSolid(old);
+  //     // ushort old_liquid = Block.GetLiquid(old);
+
+  //     ushort block = old;
+  //     Block.SetBlock(ref block, block_solidcode_liquid_or_both, bits);
+
+  //     if (bits == BlockBits.Liquid)
+  //     {
+  //       int n = 0;
+  //       n++;
+  //     }
+
+  //     Blocks.Set(local_block_pos_in_drome, block);
+
+  //     //See comments on drome.
+  //     BlockStats.UpdateBlockModified(old, block);
+  //     GlobRegionStates[Drome.RegionStateOffset_FromLocalBlockPos(local_block_pos_in_drome)].UpdateBlockModified(old, block);
+
+  //     if (!bInitialGen_Dont_DivideGlob)
+  //     {
+
+  //       int region_off = Drome.RegionStateOffset_FromLocalBlockPos(local_block_pos_in_drome);
+
+  //       bool solid_before = GlobRegionStates[region_off].HasValues;
+  //       bool empty_before = GlobRegionStates[region_off].IsEmpty;
+
+  //       GlobRegionStates[region_off].UpdateBlockModified(old, block);
+
+  //       bool solid_after = GlobRegionStates[region_off].HasValues;
+  //       bool empty_after = GlobRegionStates[region_off].IsEmpty;
+
+  //       vec3 block_pos_r3 = OriginR3 + new vec3(
+  //           (float)local_block_pos_in_drome.x * World.BlockSizeX,
+  //           (float)local_block_pos_in_drome.y * World.BlockSizeY,
+  //           (float)local_block_pos_in_drome.z * World.BlockSizeZ
+  //           );
+
+  //       ModifiedBlock mb = new ModifiedBlock(block_pos_r3, old, block);
+  //       if (!empty_before && empty_after)
+  //       {
+  //         DeleteGlobForModifiedBlock(mb);
+  //       }
+  //       else
+  //       {
+  //         //we are solid
+  //         Create_or_UpdateGlobForModifiedBlock(mb);
+  //       }
+
+  //     }
+  //   }
+  //   public ushort GetBlock(ivec3 local_pos_drome, IndexMode im = IndexMode.Throw)
+  //   {
+  //     //If we are empty, then we have deleted our Block[] data to save space. Return an empty block
+  //     if (BlockStats.RegionState == RegionState.Empty_AndNoData)
+  //     {
+  //       return BlockItemCode.Air;
+  //     }
+  //     var b = Blocks.Get(local_pos_drome, im);
+  //     return b;
+  //   }
+  //   public ushort GetBlock(int local_x, int local_y, int local_z)
+  //   {
+  //     //If we are empty, then we have deleted our Block[] data to save space. Return an empty block
+  //     if (BlockStats.RegionState == RegionState.Empty_AndNoData)
+  //     {
+  //       return BlockItemCode.Air;
+  //     }
+  //     return Blocks.Get(local_x, local_y, local_z, IndexMode.Throw);
+  //   }
+  //   public void SetBlock(vec3 pos_r3, ushort solid_liquid_both, BlockBits bits)
+  //   {
+  //     ivec3 b_pos = R3toI3BlockLocal_Drome(pos_r3);
+  //     SetBlock(b_pos, solid_liquid_both, false, bits);
+  //   }
+
+
+  // }//class Drome
+
+
+    public class DromeKernel : List<Drome>
+  {
+    //Asynchronous generation for globs (mesh topologies within the drome)
+
+    private const int C27_Count = 27;
+    public DromeKernel()
+    {
+      for (int i = 0; i < C27_Count; ++i)
+      {
+        Add(null);
+      }
+    }
+    public void Set(int ddx, int ddy, int ddz, Drome d)
+    {
+      this[9 * ddz + 3 * ddy + ddx] = d;
+    }
+    public Drome Get(int ddx, int ddy, int ddz)
+    {
+      return this[9 * ddz + 3 * ddy + ddx];
+    }
+    public Drome Get(ivec3 idx)
+    {
+      return Get(idx.x, idx.y, idx.z);
+    }
+    public void Lock()
+    {
+      //Unlock our boys
+      foreach (var d in this)
+      {
+        if (d != null)
+        {
+          d.Lock();
+        }
+      }
+    }
+    public void Unlock()
+    {
+      //Unlock our boys
+      foreach (var d in this)
+      {
+        if (d != null)
+        {
+          d.Unlock();
+        }
+      }
+    }
+  }
+
+
+  public class QueuedGlobData_WithKernel
+  {
+    //public Drome drome;//keep this here to prevent drome from disappearing while iterating its blocks ** this willb e in locked droems
+    public Glob MyGlob;
+    //C27
+    //                  24 25 26
+    //         15 16 17 21 22 23
+    //06 07 08 12 13 14 18 19 20
+    //03 04 05 09 10 11 
+    //00 01 02
+    // x-->  ^y /z  Center (our drome) = 13
+
+    public DromeKernel ScalarFields = new DromeKernel();
+    public List<v_v3n3x2u1> async_verts = null;
+    public List<VisibleBlockFaceData> async_face_data = null;
+    public List<ushort> async_inds_op = null;
+    public List<ushort> async_inds_tp = null;
+    public Dictionary<BlockItem, List<vec3>> async_block_items = null;
+    public List<vec3> async_colors = null;
+
+    public double DistanceToPlayer = 0;//Sort key for generating
+    public ushort[] CopiedBlocks = null;//Note this is the block kernel of blocks + n
+
+    public void CreateBuffers()
+    {
+      if (async_verts == null)
+      {
+        async_verts = new List<v_v3n3x2u1>();
+      }
+      if (async_inds_op == null)
+      {
+        async_inds_op = new List<ushort>();
+      }
+      if (async_inds_tp == null)
+      {
+        async_inds_tp = new List<ushort>();
+      }
+      if (async_face_data == null)
+      {
+        async_face_data = new List<VisibleBlockFaceData>();
+      }
+      if (async_colors == null)
+      {
+        async_colors = new List<vec3>();
+      }
+    }
+    public void ReleaseBuffers()
+    {
+      async_verts?.Clear();
+      async_verts = null;
+      async_inds_op?.Clear();
+      async_inds_op = null;
+      async_inds_tp?.Clear();
+      async_inds_tp = null;
+      //async_face_data?.Clear(); //Note: Since we directly copy this stuff, it's not wise to clear it .. just in case we didn't set it to null
+      //async_face_data = null;
+      //async_block_items?.Clear();
+      //async_block_items = null;
+      async_colors?.Clear();
+      async_colors = null;
+    }
+    public static int Kernel_Offset(int dx, int dy, int dz)
+    {
+      int off = World.GlobBlocksX_Gen_Kernel * World.GlobBlocksY_Gen_Kernel * dz +
+                World.GlobBlocksX_Gen_Kernel * dy +
+                dx;
+      return off;
+    }
+    public ushort GetBlock_Kernel(int dx, int dy, int dz)
+    {
+      Gu.Assert(dx >= 0 && dx < World.GlobBlocksX_Gen_Kernel);
+      Gu.Assert(dy >= 0 && dy < World.GlobBlocksY_Gen_Kernel);
+      Gu.Assert(dz >= 0 && dz < World.GlobBlocksZ_Gen_Kernel);
+      //If we are empty, then we have deleted our Block[] data to save space. Return an empty block
+      int off = Kernel_Offset(dx, dy, dz);
+
+      return CopiedBlocks[off];
+    }
+    public ushort GetBlock_Glob_Drome(int dx, int dy, int dz)
+    {
+      //I am no longer using "Missing" in the assumption this will work.
+      ivec3 glocal = World.GlobGlobal_Z3_To_DromeLocal_Z3(MyGlob.Pos);
+
+      ivec3 c27_drome_idx = new ivec3(1, 1, 1);
+
+      int x = glocal.x * World.GlobBlocksX + dx;
+      int y = glocal.y * World.GlobBlocksY + dy;
+      int z = glocal.z * World.GlobBlocksZ + dz;
+
+      //Wrap
+      if (x < 0)
+      {
+        x = (x % World.DromeBlocksX) + World.DromeBlocksX;
+        c27_drome_idx.x -= 1;
+      }
+      else if (x >= World.DromeBlocksX)
+      {
+        x = (x % World.DromeBlocksX);
+        c27_drome_idx.x += 1;
+      }
+      if (y < 0)
+      {
+        y = (y % World.DromeBlocksY) + World.DromeBlocksY;
+        c27_drome_idx.y -= 1;
+      }
+      else if (y >= World.DromeBlocksY)
+      {
+        y = (y % World.DromeBlocksY);
+        c27_drome_idx.y += 1;
+      }
+      if (z < 0)
+      {
+        z = (z % World.DromeBlocksZ) + World.DromeBlocksZ;
+        c27_drome_idx.z -= 1;
+      }
+      else if (z >= World.DromeBlocksZ)
+      {
+        z = (z % World.DromeBlocksZ);
+        c27_drome_idx.z += 1;
+      }
+
+      var d = ScalarFields.Get(c27_drome_idx);
+
+      Gu.Assert(d != null);
+
+      if (d.Blocks.Grid == null)
+      {
+        return BlockItemCode.Air;
+      }
+
+      return d.Blocks.Get_Direct_Unsafe_But_Fast(x, y, z);
+    }
+  }
+  
+
+  public class QueuedDromeData
+  {
+    //Asynchronous generation data for dromes (scalar fields e.g. blocks as ushort)
+    public Drome drome = null;
+    public ivec3 gpos;
+    public double DistanceToPlayer = 0;
+  }

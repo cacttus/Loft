@@ -1,20 +1,15 @@
-﻿#include "v_glsl_version.glsl"
-//Do not include forward header for the final blit
+﻿#include "v_globals.glsl"
 
 in vec2 _tcoordOut;
 
-uniform sampler2D _ufTexture2D_Position;//position
-uniform sampler2D _ufTexture2D_Color;//color
-uniform sampler2D _ufTexture2D_Normal;//normals
-uniform sampler2D _ufTexture2D_Spec;//spec
-
-layout(location = 0) out vec4 _vColorOut_Texture_FBO;
-
 void main()
 {
-	vec4 diffuseTex = texture(_ufTexture2D_Color, vec2(_tcoordOut));
+  vec4 fragColor  = getMRT_Color(_tcoordOut);
+  vec3 fragNormal = getMRT_Normal(_tcoordOut).xyz;
+  vec3 fragPos    = getMRT_Position(_tcoordOut).xyz;
 
-	diffuseTex.w = 1.0f;
-	
-	_vColorOut_Texture_FBO = diffuseTex;
+  vec3 final_color = lightFragment(fragPos, fragColor, fragNormal, 0.2f, 0.5f, 1);
+
+	setOutput_Color(vec4(fragColor.rgb, 1));
+  setOutput_Pick(0);//TODO: we're going to create piieplien stages
 }

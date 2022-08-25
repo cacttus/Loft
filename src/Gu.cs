@@ -7,21 +7,20 @@ using OpenTK.Windowing.Desktop;
 
 namespace PirateCraft
 {
-  public static class Filesystem
-  {
-    public static string GetFilenameDateTimeNOW()
-    {
-      //return a windows safe filename with datenow
-      return DateTime.Now.ToString("yyyy.MM.dd.HH.mm.ss.fff");
-    }
-  }
-  // Global Utils. static Class
   public static class Gu
   {
-    private static Dictionary<GameWindow, WindowContext> Contexts = new Dictionary<GameWindow, WindowContext>();
+public static bool BreakRenderState=false;
 
-    //This will be gotten via current context if we have > 1
-    private static string _strExePath = "";
+    // Global Utils. static Class
+    #region Public: Constants
+
+    public const int c_intMaxWhileTrueLoop = 100000;//dummy infinite loop blocker
+
+    #endregion
+    #region Public: Static Members
+
+    public static bool AllowOpenTKFaults = false;//OpenTK's GL isn't fully implemented in a lot of places
+
     public static string ExePath
     {
       get
@@ -34,60 +33,155 @@ namespace PirateCraft
         return _strExePath;
       }
     }
+    public static Dictionary<UiWindowBase, WindowContext> Contexts { get; private set; } = new Dictionary<UiWindowBase, WindowContext>();
     public static CoordinateSystem CoordinateSystem { get; set; } = CoordinateSystem.Rhs;
     public static float CoordinateSystemMultiplier { get { return (Gu.CoordinateSystem == CoordinateSystem.Lhs ? -1 : 1); } }
     public static EngineConfig EngineConfig { get; set; } = new EngineConfig();
     public static Log Log { get; set; } = null;
-    public static WindowContext Context { get; private set; }
+    public static WindowContext Context { get; set; } = null;
     public static readonly string EmbeddedDataPath = "PirateCraft.data.";
-    public static World World = new World();
+    public static World World = null;
     public static PCMouse Mouse { get { return Context.PCMouse; } }
     public static PCKeyboard Keyboard { get { return Context.PCKeyboard; } }
     public static ResourceManager Resources { get; private set; } = null;
+    public static AudioManager Audio { get; private set; } = null;
+    public static string LocalCachePath { get; private set; } = "";
+    public static string SavePath { get; private set; } = "";
 
-    public static string LocalCachePath = "";
-    public static string SavePath = "";
+    #endregion
+    #region Private: Static Members
 
-    public static void Init_RenderThread_Only(MainWindow g)
+    private static string _strExePath = "";
+    private static List<UiWindowBase> toClose = new List<UiWindowBase>();
+
+    #endregion
+    #region Public: Static Methods
+
+    public static void InitGlobals()
     {
-      LocalCachePath = System.IO.Path.Combine(ExePath, "./data/cache");
+      //Paths
+      LocalCachePath = System.IO.Path.Combine(ExePath, "./cache");
       SavePath = System.IO.Path.Combine(ExePath, "./save");
 
-      //Create cache
+      //Config
+      EngineConfig.Load();
+
+      //Log
+      Log = new Log(Gu.LocalCachePath);
+      Gu.Log.Info("Initializing Globals");
+      Gu.Log.Info("CurrentDirectory =" + System.IO.Directory.GetCurrentDirectory());
+      Resources = new ResourceManager();
+
+      //Cache
       var dir = Path.GetDirectoryName(LocalCachePath);
       if (!Directory.Exists(dir))
       {
         Directory.CreateDirectory(dir);
       }
-
-      Log = new Log(Gu.LocalCachePath);
-      Gu.Log.Info("Initializing Globals");
-      Resources = new ResourceManager();
-
-      Gu.Log.Info("Base Dir=" + System.IO.Directory.GetCurrentDirectory());
-
-      Gu.Log.Info("Register Context");
-      var ctx = RegisterContext(g);
-      SetContext(g);
-      ctx.Init();
-    }
-    private static WindowContext RegisterContext(MainWindow g)
-    {
-      var ctx = new WindowContext(g);
-      Contexts.Add(g, ctx);
-      return ctx;
-    }
-    public static void SetContext(MainWindow g)
-    {
-      WindowContext c = null;
-      if (Contexts.TryGetValue(g, out c))
+      if (EngineConfig.ClearCacheOnStart)
       {
-        Context = c;
+        ResourceManager.ClearCache();
       }
-      else
+
+      //Audio
+      Audio = new AudioManager();
+    }
+    public static void Run()
+    {
+      try
       {
-        Gu.BRThrowException("Context for game window " + g.Title + " not found.");
+        while (true)
+        {
+          if (Contexts.Count == 0)
+          {
+            throw new Exception("No window has been created yet. Create window before calling Run()");
+          }
+          else
+          {
+            //Not sure how to typically do this
+            List<UiWindowBase> wins = new List<UiWindowBase>();
+            foreach (var ct in Contexts)
+            {
+              wins.Add(ct.Key);
+            }
+
+            foreach (var win in wins)
+            {
+              Gu.SetContext(win);
+              if (!win.IsLoaded)
+              {
+                win.Load();
+              }
+              win.ProcessEvents();
+              Gu.Context.Update();
+
+              if (Gu.World.UpdateContext == Gu.Context)
+              {
+                Gu.World.Update(Gu.Context.Delta);
+              }
+
+              win.UpdateAsync();
+              win.RenderAsync();
+            }
+
+            //Remove/Destroy windows / main window destroys app
+            foreach (var win in toClose)
+            {
+              win.Context.MakeNoneCurrent();
+              Contexts.Remove(win);
+              win.Close();
+              win.IsVisible = false;
+
+
+              if (Contexts.Count == 0 || win.IsMain)
+              {
+                break;
+              }
+            }
+            toClose.Clear();
+
+          }
+        }
       }
+      catch (Exception ex)
+      {
+        Gu.Log.Error("Fatal error: " + ex.ToString());
+      }
+    }
+    public static void CloseWindow(UiWindowBase win)
+    {
+      toClose.Add(win);
+
+    }
+    public static void CreateContext(UiWindowBase uw)
+    {
+      Gu.Log.Info("Registering Context: " + uw.Name);
+      var ct = Gu.Context;
+      var wd = new WindowContext(uw);
+      Contexts.Add(uw, wd);
+      Gu.SetContext(uw);
+      wd.Init();
+      if (ct != null)
+      {
+        //Set back in case we are not main window
+        Gu.SetContext(ct.GameWindow);
+      }
+    }
+    public static void SetContext(UiWindowBase g)
+    {
+      if (Contexts.TryGetValue(g, out var ct))
+      {
+        Context = ct;
+        g.Context.MakeCurrent();
+      }
+    }
+    public static WindowContext GetContextForWindow(UiWindowBase g)
+    {
+      if (Contexts.TryGetValue(g, out var ct))
+      {
+        return ct;
+      }
+      return null;
     }
     public static Int64 Nanoseconds()
     {
@@ -107,8 +201,13 @@ namespace PirateCraft
       f *= Math.PI * 2;
       return f;
     }
-    #region Debugging
-
+    public static void SaveFBOs()
+    {
+      foreach (var ct in Contexts)
+      {
+        ct.Value.Renderer.SaveFBOs();
+      }
+    }
     public static void BRThrowException(string msg)
     {
       throw new Exception("Error: " + msg);
@@ -130,7 +229,6 @@ namespace PirateCraft
     {
       Debugger.Break();
     }
-
     public static byte[] Compress(byte[] data)
     {
       MemoryStream output = new MemoryStream();
@@ -140,7 +238,6 @@ namespace PirateCraft
       }
       return output.ToArray();
     }
-
     public static byte[] Decompress(byte[] data)
     {
       MemoryStream input = new MemoryStream(data);
@@ -151,9 +248,6 @@ namespace PirateCraft
       }
       return output.ToArray();
     }
-
-    #endregion
-
     public static void TryLock(object ob, Action<object> act)
     {
       if (Monitor.TryEnter(ob))
@@ -167,8 +261,30 @@ namespace PirateCraft
           Monitor.Exit(ob);
         }
       }
-
     }
+    public static string GetAllException(Exception ex)
+    {
+      string ret = "";
+      Exception tmp = ex;
+      while (tmp != null)
+      {
+        ret += tmp.ToString() + Environment.NewLine;
+        tmp = tmp.InnerException;
+        if (tmp != null)
+        {
+          ret += "InnerException:" + Environment.NewLine;
+        }
+      }
+      return ret;
+    }
+    public static string GetFilenameDateTimeNOW()
+    {
+      //return a windows safe filename with datenow
+      return DateTime.Now.ToString("yyyy.MM.dd.HH.mm.ss.fff");
+    }
+
+    #endregion
+
 
 
   }

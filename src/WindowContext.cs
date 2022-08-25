@@ -2,14 +2,33 @@
 using System;
 
 namespace PirateCraft
-{ 
+{
+  //GL stuff that should be "static" in the context. Global textures..
+  public class StaticContextData<T> where T : class
+  {
+    Dictionary<WindowContext, T> _data = new Dictionary<WindowContext, T>();
+    public T Get()
+    {
+      var ct = Gu.Context;
+      _data.TryGetValue(ct, out var x);
+      return x;
+    }
+    public void Set(T x)
+    {
+      var ct = Gu.Context;
+      _data.Add(ct, x);
+    }
+  }
+
   //Graphics Contxt + Window Frame Sync
+  //Window specific data to the given context
+  //Buffers & screen &c not shared among other contexts
   public class WindowContext
   {
     private long _lastTime = Gu.Nanoseconds();
 
     public Gpu Gpu { get; private set; } = null;
-    public GameWindow GameWindow { get; set; } = null;
+    public UiWindowBase GameWindow { get; set; } = null;
     public PCKeyboard PCKeyboard = new PCKeyboard();
     public PCMouse PCMouse = new PCMouse();
     public Int64 FrameStamp { get; private set; }
@@ -19,10 +38,9 @@ namespace PirateCraft
     public double Delta { get; private set; } = 1 / 60;
     public Renderer Renderer { get; private set; } = null;
     public DebugDraw DebugDraw { get; private set; } = new DebugDraw();
-    public AudioManager Audio { get; private set; } = null;
     //public SynchronizationContext UpdateSyncContext{ get; private set; }
 
-    public WindowContext(GameWindow g)
+    public WindowContext(UiWindowBase g)
     {
       GameWindow = g;
     }
@@ -31,7 +49,6 @@ namespace PirateCraft
       Gpu = new Gpu();
       Renderer = new Renderer();
       Renderer.init(GameWindow.Size.X, GameWindow.Size.Y, null);
-      Audio = new AudioManager();
     }
     public void Update()
     {
@@ -50,7 +67,7 @@ namespace PirateCraft
 
       PCKeyboard.Update();
       PCMouse.Update();
-     // Audio.Update();
+      DebugDraw.BeginFrame();
     }
   }
 }

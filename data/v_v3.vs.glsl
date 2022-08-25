@@ -1,13 +1,9 @@
-﻿#include "v_glsl_version.glsl"
-
-//uniform Mat4f normal_matrix;            
-uniform mat4 _ufMatrix_Model;            
-uniform mat4 _ufMatrix_View;            
-uniform mat4 _ufMatrix_Projection;
+﻿#include "v_globals.glsl"
 
 layout(location = 0)in vec3 _v301;
-
+flat out uint _vsPickOut;
 void main(void)
 {
-    gl_Position =  (_ufMatrix_Projection* _ufMatrix_View * _ufMatrix_Model ) * vec4(_v301, 1) ;
+    gl_Position =  getPVMMatrix() * vec4(_v301, 1) ;
+    _vsPickOut = getPick();
 }

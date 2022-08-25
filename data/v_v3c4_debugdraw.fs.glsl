@@ -1,10 +1,10 @@
-﻿#include "v_glsl_version.glsl"
-#include "v_forward_header.glsl"
+﻿#include "v_globals.glsl"
 
 in vec4 _vsColorOut;
+flat in uint _vsPickOut;
 
 void main(void)
 {
-  setColorOutput(_vsColorOut);
-  setPickOutput(0);
+  setOutput_Color(_vsColorOut);
+  setOutput_Pick(_vsPickOut);
 }

@@ -1,10 +1,8 @@
-﻿#include "v_glsl_version.glsl"
-#include "v_forward_header.glsl"
+﻿#include "v_globals.glsl"
 
-uniform vec4 _ufWorldObject_Color;
-
+flat in uint _vsPickOut;
 void main(void)
 {
-  setColorOutput(_ufWorldObject_Color);
-  setPickOutput(0);
+  setOutput_Color(_ufGpuMaterial._vPBR_baseColor);
+  setOutput_Pick(_vsPickOut);
 }

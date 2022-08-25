@@ -1,9 +1,4 @@
-﻿#include "v_glsl_version.glsl"
-
-//uniform Mat4f normal_matrix;            
-uniform mat4 _ufMatrix_Model;
-uniform mat4 _ufMatrix_View;            
-uniform mat4 _ufMatrix_Projection;
+﻿#include "v_globals.glsl"
 
 layout(location = 0)in vec3 _v301;
 layout(location = 1)in vec3 _n301;
@@ -13,19 +8,15 @@ out vec3 _vsNormal;
 out vec2 _vsTcoords;
 out vec3 _vsVertex; //should be frag pos.
 
-#define MAX_INSTANCES 32
-layout(std140) uniform _ufInstanceData_Block {
-  mat4 _ufInstanceData[MAX_INSTANCES];
-};
 
 void main(void)
 {
   mat4 matrix_model;
-  if( gl_InstanceID >= MAX_INSTANCES ) {
+  if( gl_InstanceID >= DEF_MAX_INSTANCES ) {
     matrix_model = _ufMatrix_Model;
   }
   else {
-    matrix_model = _ufInstanceData[gl_InstanceID] * _ufMatrix_Model;
+    matrix_model = _ufGpuInstanceData[gl_InstanceID] * _ufMatrix_Model;
   }
 
   gl_Position =  (_ufMatrix_Projection* _ufMatrix_View * matrix_model ) * vec4(_v301, 1) ;

@@ -1,22 +1,18 @@
-﻿#include "v_glsl_version.glsl"
-#include "v_forward_header.glsl"
-
-uniform sampler2D _ufTexture2D_Albedo;
-
-uniform vec4 _ufWorldObject_Color;
-
-uniform vec3 _ufCamera_Basis_Z; //view normal
+﻿#include "v_globals.glsl"
 
 in vec2 _vsTcoords;
 in vec3 _vsVertex;
 
+flat in uint _vsPickOut;
+
 void main(void)
 {
   //This will be white if it isn't present. For now .. we'll add 'moon texture' later.
-  vec4 tx_albedo = texture(_ufTexture2D_Albedo, vec2(_vsTcoords));
+  vec4 tx_albedo = texture(_ufGpuMaterial_s2Albedo, vec2(_vsTcoords));
 
-  vec4 finalDiffuseColor = _ufWorldObject_Color;
+  vec4 finalDiffuseColor = _ufGpuMaterial._vPBR_baseColor;
 
-  setColorOutput(finalDiffuseColor *  tx_albedo);
-  setPickOutput(0);
+  setOutput_Color(finalDiffuseColor *  tx_albedo);
+  setOutput_Pick(_vsPickOut);
+  setOutput_Position(_vsVertex);
 }

@@ -1,13 +1,37 @@
-﻿namespace PirateCraft
+﻿using System.Collections.Generic;
+using OpenTK.Graphics.OpenGL4;
+using OpenTK.Windowing.GraphicsLibraryFramework;
+
+namespace PirateCraft
 {
+  #region Enums
+
   public enum ComponentState
   {
     Added,
     Initialized,
     Destroyed
   }
+  public enum KeyframeInterpolation
+  {
+    Constant,
+    Linear,
+    Ease,
+    Cubic,
+    Slerp,
+  }
+  public enum WorldObjectState
+  {
+    Created, Active, Destroyed
+  }
+
+  #endregion
+  #region Components
+
   public abstract class Component : Cloneable<Component>
   {
+    public bool Enabled { get; set; } = true;
+
     public Component()
     {
     }
@@ -15,37 +39,28 @@
     public abstract void OnCreate(WorldObject myObj); //called after the object is created
     public abstract void OnUpdate(double dt, WorldObject myObj); //update
     public abstract void OnDestroy(WorldObject myObj); //called before the object is destroyed.
+    public virtual void OnPick() { }
   }
   public class EventComponent : Component
   {
-    public ActionState State { get; private set; } = ActionState.Stop;
-    public double Frequency { get; private set; } = 0;
-    public double Time { get; private set; } = 0;
+    //Executes an action on an object for a given interval
+    public DeltaTimer Timer { get; private set; } = null;
     public Action<WorldObject>? Action { get; set; } = null;
-    public bool Repeat { get; set; } = false;
     private EventComponent() { }
     public EventComponent(Action<WorldObject>? action, double tick_seconds, bool repeat)
     {
-      Frequency = tick_seconds;
       Action = action;
-      Repeat = repeat;
+      Timer = new DeltaTimer(tick_seconds, repeat);
     }
     public override void OnCreate(WorldObject myObj)
     {
     }
     public override void OnUpdate(double dt, WorldObject myObj)
     {
-      if (State != ActionState.Stop)
+      int fires = Timer.Update(dt);
+      for (int x = 0; x < fires; x++)
       {
-        Time += dt;
-        while (Time > Frequency)
-        {
-          Time -= Frequency;
-          if (Action != null)
-          {
-            Action.Invoke(myObj);
-          }
-        }
+        Action?.Invoke(myObj);
       }
     }
     public override void OnDestroy(WorldObject myObj)
@@ -54,24 +69,22 @@
     public override Component Clone(bool shallow = true)
     {
       EventComponent other = new EventComponent();
-      other.State = this.State;
-      other.Frequency = this.Frequency;
-      other.Time = this.Time;
+      other.Timer = this.Timer.Clone();
       other.Action = this.Action;
-      other.Repeat = this.Repeat;
       return other;
     }
     public void Start()
     {
-      State = ActionState.Run;
+      Timer.Start();
     }
     public void Stop()
     {
-      State = ActionState.Stop;
+      Timer.Stop();
     }
   }
   public class PhysicsComponent : Component
   {
+    //Yup
     public vec3 Velocity = new vec3(0, 0, 0);
     public bool HasGravity = false;
     public bool Collides = false;
@@ -96,17 +109,10 @@
       return c;
     }
   }
-  public enum KeyframeInterpolation
-  {
-    Constant,
-    Linear,
-    Ease,
-    Cubic,
-    Slerp,
-  }
-  //This is a Q&D animation sys em for realtime animations.
   public class Keyframe : Cloneable<Keyframe>
   {
+    //This is a Q&D animation sys em for realtime matrix animations
+
     public double Time = 0;
     public quat Rot { get; set; } = quat.identity();
     public vec3 Pos { get; set; } = new vec3(0, 0, 0);
@@ -152,12 +158,9 @@
       return other;
     }
   }
-  public enum ActionState
-  {
-    Pause, Run, Stop
-  }
   public class AnimationComponent : Component
   {
+
     public ActionState AnimationState { get; private set; } = ActionState.Stop;
     public double Time { get; private set; } = 0;//Seconds
     public bool Repeat { get; set; } = false;
@@ -322,7 +325,6 @@
         Current.Pos = InterpolateV3(f1.PosInterp, f0.Pos, f1.Pos, slerpTime);
         Current.Scale = InterpolateV3(f1.SclInterp, f0.Scale, f1.Scale, slerpTime);
       }
-
     }
     private vec3 InterpolateV3(KeyframeInterpolation interp, vec3 f0, vec3 f1, double slerpTime)
     {
@@ -382,6 +384,178 @@
       return other;
     }
   }
+  public class InputComponent : Component
+  {
+    protected UiWindowBase Window { get; set; } = null;
+    public InputComponent(UiWindowBase win)
+    {
+      Window = win;
+    }
+    public override void OnCreate(WorldObject myObj)
+    {
+    }
+    public override void OnUpdate(double dt, WorldObject myObj)
+    {
+    }
+    public override void OnDestroy(WorldObject myObj)
+    {
+    }
+    public override Component Clone(bool shallow = true)
+    {
+      throw new NotImplementedException();
+    }
+  }
+  public class FPSInputComponent : InputComponent
+  {
+    private class FirstPersonMouseRotator
+    {
+      //Rotate camera via mouse on screen. Warp mouse.
+      private double rotX = 0;
+      private double rotY = 0;
+      private double warp_boundary = 0.001f;//the distance user can move mouse in window  until we warp. Warping every frame absolutely sucks.
+      private float rotations_per_width = 2.5f; // How many times we rotate 360 degrees width/Pixel.  if the user moves the cursor across the whole window width
+      private float half_rotations_per_height = 1f; // How many times we rotate 180 degrees height/Pixel  if the user moves the cursor across the whole window heihgt.
+
+      public void DoRotate(WorldObject obj, Camera3D cam)
+      {
+        //Rotate Camera
+        float width = cam.Viewport_Width;
+        float height = cam.Viewport_Height;
+
+        rotX += Math.PI * 2 * (Gu.Mouse.Delta.x / width) * rotations_per_width * Gu.CoordinateSystemMultiplier;
+        if (rotX >= Math.PI * 2.0f)
+        {
+          rotX = (float)(rotX % (Math.PI * 2.0f));
+        }
+        if (rotX <= 0)
+        {
+          rotX = (float)(rotX % (Math.PI * 2.0f));
+        }
+
+        rotY += Math.PI * 2 * (Gu.Mouse.Delta.y / height) * half_rotations_per_height * Gu.CoordinateSystemMultiplier;
+        if (rotY >= Math.PI / 2)
+        {
+          rotY = Math.PI / 2 - 0.001f;
+        }
+        if (rotY <= -Math.PI / 2)
+        {
+          rotY = -Math.PI / 2 + 0.001f;
+        }
+
+        quat qy = quat.fromAxisAngle(new vec3(0, 1, 0), (float)rotX).normalized();
+        quat qx = quat.fromAxisAngle(new vec3(1, 0, 0), (float)rotY).normalized();
+
+        obj.Rotation_Local = qy;
+        cam.Rotation_Local = qx;
+
+        if ((Gu.Mouse.Pos.x <= width * warp_boundary) || (Gu.Mouse.Pos.x >= width - width * warp_boundary))
+        {
+          Gu.Mouse.WarpMouse(true, false, true);
+        }
+        if ((Gu.Mouse.Pos.y <= height * warp_boundary) || (Gu.Mouse.Pos.y >= height - height * warp_boundary))
+        {
+          Gu.Mouse.WarpMouse(false, true, true);
+        }
+      }
+    }
+
+    public enum FPSCamMode
+    {
+      Playing, Flying
+    }
+    public FPSCamMode CamMode { get; set; } = FPSCamMode.Flying;
+    private const float Base_Speed = World.BlockSizeX * 0.10f;
+    private const float Run_Mul = 6;
+    private const float Base_Jump_Speed = World.BlockSizeY * 0.75f;
+    private const float MaxAirFriction = 10.0f;//friction percentage in velocity Units per second (1.0 means the velocity will reach 0 in one second) [0,1]. lower values result in less friction
+    private FirstPersonMouseRotator _FPSRotator = new FirstPersonMouseRotator();
+
+    public FPSInputComponent(UiWindowBase win) : base(win)
+    {
+    }
+    public override void OnCreate(WorldObject myObj)
+    {
+    }
+    public override void OnUpdate(double dt, WorldObject myObj)
+    {
+      if (!Window.IsFocused)
+      {
+        return;
+      }
+
+      base.OnUpdate(dt, myObj);
+
+      myObj.AirFriction = MaxAirFriction; //Movement Damping
+
+      vec3 basisX = vec3.Zero, basisY = vec3.Zero, basisZ = vec3.Zero;
+      if (CamMode == FPSCamMode.Flying)
+      {
+        basisX = this.Window.Camera.BasisX;
+        basisY = this.Window.Camera.BasisY;
+        basisZ = this.Window.Camera.BasisZ;
+      }
+      else if (CamMode == FPSCamMode.Playing)
+      {
+        basisX = this.Window.Camera.BasisX;
+        basisY = vec3.Zero; //no cheating
+        basisZ = this.Window.Camera.BasisZ;
+      }
+
+      //Modify speed multiplier based on state
+      float speedMul = 1; //normal speed
+      if (Gu.Keyboard.PressOrDown(Keys.LeftControl) || Gu.Keyboard.PressOrDown(Keys.RightControl))
+      {
+        speedMul = Run_Mul; // run speed
+      }
+      if (!myObj.OnGround && this.CamMode != FPSCamMode.Flying)
+      {
+        speedMul = 0.1f; // "in the air" movement. 
+      }
+
+      float final_run_speed = Base_Speed * speedMul;
+      if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.Q }))
+      {
+        myObj.Velocity += basisY * final_run_speed;
+      }
+      if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.E }))
+      {
+        myObj.Velocity -= basisY * final_run_speed;
+      }
+      if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.Up, Keys.W }))
+      {
+        myObj.Velocity += basisZ * final_run_speed;
+      }
+      if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.Down, Keys.S }))
+      {
+        myObj.Velocity -= basisZ * final_run_speed;
+      }
+      if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.Right, Keys.D }))
+      {
+        myObj.Velocity += basisX * final_run_speed;
+      }
+      if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.Left, Keys.A }))
+      {
+        myObj.Velocity -= basisX * final_run_speed;
+      }
+
+      if (myObj.OnGround && this.CamMode != FPSCamMode.Flying)
+      {
+        if (Gu.Keyboard.PressOrDown(Keys.Space))
+        {
+          myObj.Velocity += new vec3(0, Base_Jump_Speed, 0);
+        }
+      }
+
+      _FPSRotator.DoRotate(myObj, this.Window.Camera);
+    }
+    public override void OnDestroy(WorldObject myObj)
+    {
+    }
+  }
+
+  #endregion
+  #region Constraints
+
   public abstract class Constraint : Cloneable<Constraint>
   {
     public abstract void Apply(WorldObject ob);
@@ -410,7 +584,7 @@
     {
       if (FollowObj != null && FollowObj.TryGetTarget(out WorldObject obj))
       {
-        ob.Position_Local = obj.WorldMatrix.extractTranslation();
+        ob.Position_Local = obj.WorldMatrix.ExtractTranslation();
       }
       else
       {
@@ -480,39 +654,175 @@
   //    // self.Rotation = mm.ExtractRotation().ToAxisAngle();
   //  }
   //}
-  public enum WorldObjectState
-  {
-    Created, Active, Destroyed
-  }
-  /// <summary>
-  /// This is the main object that stores matrix for pos/rot/scale, and components for mesh, sound, script .. etc. GameObject in Unity.
-  /// </summary>
-  public class WorldObject : Cloneable<WorldObject>
-  {
-    //private mat4 _worldLast;
-    //private quat _rotationLast = new quat(0, 0, 0, 1); //Axis-Angle xyz,ang
-    //private vec3 _scaleLast = new vec3(1, 1, 1);
-    //private vec3 _positionLast = new vec3(0, 0, 0);
-    public object LoaderTempData = null;
 
-    public vec3 dbg_last_n = vec3.Zero;
+  #endregion
+
+  public class WorldObject : DataBlock
+  {
+    // main object that stores matrix for pos/rot/scale, and components for mesh, sound, script .. GameObject ..
+    #region Public:Members
+
+    public object LoaderTempData = null;
+    public bool DebugBreakRender = false;
+    public uint PickId { get { return _pickId; } }
+    public WorldObjectState State { get { return _state; } set { _state = value; } }
+    public bool TransformChanged { get { return _transformChanged; } private set { _transformChanged = value; } }
+    public bool Hidden { get { return _hidden; } private set { _hidden = value; } }
+
+    public OOBox3f BoundBoxMeshTransform { get { return _boundBoxTransform; } } //Transformed bound box
+    public Box3f BoundBox { get { return _boundBox; } } //Entire AABB with all meshes and children inside
+
+    public HashSet<WorldObject> Children { get { return _children; } private set { _children = value; } }
+
+    public vec3 Position_Local { get { return _position; } set { _position = value; SetTransformChanged(); } }
+    public quat Rotation_Local { get { return _rotation; } set { _rotation = value; SetTransformChanged(); } }//xyz,angle
+    public vec3 Scale_Local { get { return _scale; } set { _scale = value; SetTransformChanged(); } }
+
+    public vec3 Position_World { get { return _positionWorld; } private set { _positionWorld = value; } }
+    public quat Rotation_World { get { return _rotationWorld; } private set { _rotationWorld = value; } }
+    public vec3 Scale_World { get { return _scaleWorld; } private set { _scaleWorld = value; } }
+
+    public vec3 AnimatedPosition { get { return _animatedPosition; } set { _animatedPosition = value; SetTransformChanged(); } }
+    public quat AnimatedRotation { get { return _animatedRotation; } set { _animatedRotation = value; SetTransformChanged(); } }
+    public vec3 AnimatedScale { get { return _animatedScale; } set { _animatedScale = value; SetTransformChanged(); } }
+
+    public mat4 BindMatrix { get { return _bind; } } // Skinned Bind matrix
+    public mat4 InverseBindMatrix { get { return _inverse_bind; } } // Skinned Inverse Bind
+    public mat4 LocalMatrix { get { return _local; } }
+    public mat4 WorldMatrix { get { return _world; } }
+    public List<Component> Components { get { return _components; } private set { _components = value; } }
+    public List<Constraint> Constraints { get { return _constraints; } private set { _constraints = value; } }// *This is an ordered list they come in order
+
+    public vec3 BasisX { get { return _basisX; } }
+    public vec3 BasisY { get { return _basisY; } }
+    public vec3 BasisZ { get { return _basisZ; } }
+    public vec3 ForwardNormalVector { get { return _basisZ; } }
+    public vec3 Heading { get { return _basisZ; } }
+
+    public MeshData Mesh { get { return _meshData; } set { _meshData = value; } }
+    public Material Material { get { return _material; } set { _material = value; } }
+
+    public Action<WorldObject>? OnUpdate { get; set; } = null;
+    public Action<WorldObject>? OnAddedToScene { get; set; } = null;
+    public Action<WorldObject, RenderView>? OnView { get; set; } = null;
+    public Action<WorldObject>? OnDestroyed { get; set; } = null;
+
+    public bool HasPhysics { get { return _hasPhysics; } set { _hasPhysics = value; } }
+    public vec3 Velocity { get { return _velocity; } set { _velocity = value; } }
+    public bool OnGround { get { return _resting; } set { _resting = value; } }
+    public bool HasGravity { get { return _hasGravity; } set { _hasGravity = value; } }
+    public bool Collides { get { return _collides; } set { _collides = value; } }
+    public float AirFriction { get { return _airFriction; } set { _airFriction = value; } }
+
+    public WindowContext ExclusiveRenderContext { get; set; } = null; //ONLY render this object in THIS context, regardless of whether it is visible. This is for multiple-windows. If null: render in any context.
+    public WindowContext ExcludeFromRenderContext { get; set; } = null; //DO NOT render in THIS context. Used for an FPS seeing other characters.
+
+    public List<WorldObject> Instances = null;// To make an Instance's object data  unique call MakeUnique
+
+    #endregion
+    #region Public:Propfuncs
+
+    public static WorldObject Default
+    {
+      get
+      {
+        // if (_defaultWorldObject == null)
+        // {
+        //   _defaultWorldObject = new WorldObject("default");
+        // }
+        return new WorldObject(); //_defaultWorldObject;
+      }
+    }
+    public WorldObject RootParent
+    {
+      get
+      {
+        var thep = this;
+        for (int ip = 0; ip < Gu.c_intMaxWhileTrueLoop; ip++)
+        {
+          if (thep._parent.TryGetTarget(out var p))
+          {
+            thep = p;
+          }
+          else
+          {
+            break;
+          }
+        }
+        return thep;
+      }
+    }
+    public bool Pickable
+    {
+      get
+      {
+        return _pickable;
+      }
+      set
+      {
+        if ((_pickable == false && value == true) || _pickId == 0)
+        {
+          //NOTE: the pick IDs are from the context.. and they should be basd on eadch context.
+          // This is INVALID
+          _pickId = Gu.Context.Renderer.Picker.GenPickId();
+        }
+        else if (value == false)
+        {
+          _pickId = 0;
+        }
+        _pickable = value;
+      }
+    }
+    public Box3f BoundBoxMeshBind
+    {
+      get
+      {
+        if (Mesh != null)
+        {
+          //TODO: - apply animation bind matrix
+          return Mesh.BoundBox_Extent;
+        }
+        else
+        {
+          return Box3f.Default; // No mesh, return 1,1,1
+        }
+      }
+    }
+    public WorldObject Parent
+    {
+      get
+      {
+        if (_parent != null)
+        {
+          if (_parent.TryGetTarget(out var p))
+          {
+            return p;
+          }
+        }
+        return null;
+      }
+      private set
+      {
+        _parent = new WeakReference<WorldObject>(value);
+        SetTransformChanged();
+      }
+    }
+
+    #endregion
+    #region Private:Members
 
     private WorldObjectState _state = WorldObjectState.Created;
-    static int _idGen = 1;
-    private int _uniqueId = 0; //Never duplicated, unique for all objs
-    private int _typeId = 1; // When Clone() is called this gets duplicated
-    private string _name = "<Unnamed>";
     private quat _rotation = new quat(0, 0, 0, 1); //Axis-Angle xyz,ang
     private vec3 _scale = new vec3(1, 1, 1);
     private vec3 _position = new vec3(0, 0, 0);
     private quat _animatedRotation = quat.identity();
     private vec3 _animatedScale = new vec3(1, 1, 1);
     private vec3 _animatedPosition = new vec3(0, 0, 0);
-    private WorldObject _parent = null;
-    private mat4 _world = mat4.identity();
-    private mat4 _local = mat4.identity();
-    private mat4 _bind = mat4.identity();
-    private mat4 _inverse_bind = mat4.identity();
+    private WeakReference<WorldObject> _parent = null;
+    private mat4 _world = mat4.Identity;
+    private mat4 _local = mat4.Identity;
+    private mat4 _bind = mat4.Identity;
+    private mat4 _inverse_bind = mat4.Identity;
     private vec3 _basisX = new vec3(1, 0, 0);
     private vec3 _basisY = new vec3(0, 1, 0);
     private vec3 _basisZ = new vec3(0, 0, 1);
@@ -536,82 +846,29 @@
     private vec3 _positionWorld = vec3.Zero;
     private quat _rotationWorld = quat.Identity;
     private vec3 _scaleWorld = vec3.Zero;
+    private uint _pickId = 0;
+    private bool _pickable = true;
 
+    #endregion
+    #region Public:Methods
 
-    public string Name { get { return _name; } set { _name = value; } }
-    public int UniqueID { get { return _uniqueId; } private set { _uniqueId = value; } }
-    public int TypeID { get { return _typeId; } private set { _typeId = value; } }
-    public WorldObjectState State { get { return _state; } set { _state = value; } }
-    public vec4 Color { get { return _color; } set { _color = value; } }// Mesh color if no material
-    public bool TransformChanged { get { return _transformChanged; } private set { _transformChanged = value; } }
-    public bool Hidden { get { return _hidden; } private set { _hidden = value; } }
-    public Box3f BoundBoxMeshBind
+    protected WorldObject() { }//Clone ctor
+    public WorldObject(string name) : base(name + "-obj")
     {
-      get
+      Gu.Assert(Gu.Context != null);
+      Gu.Assert(Gu.Context.Renderer != null);
+      Gu.Assert(Gu.Context.Renderer.Picker != null);
+      //For now, everything gets a pick color. Debug reasons.
+      //NOTE: the pick IDs are from the context.. and they should be basd on eadch context.
+      // This is INVALID
+      if (_pickable)
       {
-        if (Mesh != null)
-        {
-          //TODO: - apply animation bind matrix
-          return Mesh.BoundBox_Extent;
-        }
-        else
-        {
-          return Box3f.Default; // No mesh, return 1,1,1
-        }
+        _pickId = Gu.Context.Renderer.Picker.GenPickId();
       }
-    }
-    public OOBox3f BoundBoxMeshTransform { get { return _boundBoxTransform; } } //Transformed bound box
-    public Box3f BoundBox { get { return _boundBox; } } //Entire AABB with all meshes and children inside
-    public WorldObject Parent { get { return _parent; } private set { _parent = value; SetTransformChanged(); } }
-    public HashSet<WorldObject> Children { get { return _children; } private set { _children = value; } }
-
-    public vec3 Position_Local { get { return _position; } set { _position = value; SetTransformChanged(); } }
-    public quat Rotation_Local { get { return _rotation; } set { _rotation = value; SetTransformChanged(); } }//xyz,angle
-    public vec3 Scale_Local { get { return _scale; } set { _scale = value; SetTransformChanged(); } }
-
-    public vec3 Position_World { get { return _positionWorld; } private set { _positionWorld = value; } }
-    public quat Rotation_World { get { return _rotationWorld; } private set { _rotationWorld = value; } }
-    public vec3 Scale_World { get { return _scaleWorld; } private set { _scaleWorld = value; } }
-
-    public vec3 AnimatedPosition { get { return _animatedPosition; } set { _animatedPosition = value; SetTransformChanged(); } }
-    public quat AnimatedRotation { get { return _animatedRotation; } set { _animatedRotation = value; SetTransformChanged(); } }
-    public vec3 AnimatedScale { get { return _animatedScale; } set { _animatedScale = value; SetTransformChanged(); } }
-
-    public mat4 BindMatrix { get { return _bind; } } // Skinned Bind matrix
-    public mat4 InverseBindMatrix { get { return _inverse_bind; } } // Skinned Inverse Bind
-    public mat4 LocalMatrix { get { return _local; } }
-    public mat4 WorldMatrix { get { return _world; } }
-    // public Int64 LastUpdate { get { }; private set; } = 0;
-    public List<Component> Components { get { return _components; } private set { _components = value; } }
-    public List<Constraint> Constraints { get { return _constraints; } private set { _constraints = value; } }// *This is an ordered list they come in order
-
-    public vec3 BasisX { get { return _basisX; } }
-    public vec3 BasisY { get { return _basisY; } }
-    public vec3 BasisZ { get { return _basisZ; } }
-    public vec3 ForwardNormalVector { get { return _basisZ; } }
-
-    public MeshData Mesh { get { return _meshData; } set { _meshData = value; } }
-    public Material Material { get { return _material; } set { _material = value; } }
-
-    public Action<WorldObject>? OnUpdate { get; set; } = null;
-    public Action<WorldObject>? OnAddedToScene { get; set; } = null;
-    public Action<WorldObject>? OnDestroyed { get; set; } =null;
-
-    public bool HasPhysics { get { return _hasPhysics; } set { _hasPhysics = value; } }
-    public vec3 Velocity { get { return _velocity; } set { _velocity = value; } }
-    public bool OnGround { get { return _resting; } set { _resting = value; } }
-    public bool HasGravity { get { return _hasGravity; } set { _hasGravity = value; } }
-    public bool Collides { get { return _collides; } set { _collides = value; } }
-    public float AirFriction { get { return _airFriction; } set { _airFriction = value; } }
-
-    private WorldObject() { }//Clone ctor
-    public WorldObject(string name)
-    {
-      Name = name;
       //For optimization, nothing shoudl be here. WorldObject is new'd a lot each frame.
       _color = Random.NextVec4(new vec4(0.2f, 0.2f, 0.2f, 1), new vec4(1, 1, 1, 1));
-      _uniqueId = _idGen++;
-      _typeId = _typeId++;
+      _meshData = MeshData.DefaultBox;
+      _material = Material.DefaultObjectMaterial;
     }
     public virtual void Update(World world, double dt, ref Box3f parentBoundBox)
     {
@@ -647,15 +904,97 @@
       }
       CalcBoundBox(ref parentBoundBox);
     }
-    public override WorldObject Clone(bool shallow = true)
+    private void UpdateComponents(double dt)
     {
-      Gu.Assert(shallow == true);//Not supported
-
-      //Create new wo WITHOUT THE PARENT but WITH ALL CLONED CHILDREN
-      //This really does need to be its own method
+      IterateComponentsSafe((cmp) =>
+      {
+        if (cmp.ComponentState == ComponentState.Added)
+        {
+          cmp.OnCreate(this);
+          cmp.ComponentState = ComponentState.Initialized;
+        }
+        if (cmp.Enabled)
+        {
+          cmp.OnUpdate(dt, this);
+        }
+        return LambdaBool.Continue;
+      });
+    }
+    public void Pick()
+    {
+      if (!Pickable)
+      {
+        return;
+      }
+      if (Gu.Context.Renderer.Picker.PickedObjectFrame != null)
+      {
+        //Picking is pixel perfect, so the first picked object is the exact object.
+        //However objects may have children, and components which can also be picked, and may not be in the global list.
+        //Obviously, a list of pickid->obj would be the fastest.
+        return;
+      }
+      if (_pickId != Picker.c_iInvalidPickId)
+      {
+        var pixid = Gu.Context.Renderer.Picker.GetSelectedPixelId();
+        if (pixid != 0)
+        {
+          if (pixid == this._pickId)
+          {
+            Gu.Context.Renderer.Picker.PickedWorldObjectFrame = this;
+          }
+        }
+      }
+      IterateComponentsSafe((cmp) =>
+      {
+        if (Gu.Context.Renderer.Picker.PickedObjectFrame != null)
+        {
+          return LambdaBool.Break;
+        }
+        cmp.OnPick();
+        if (Gu.Context.Renderer.Picker.PickedObjectFrame != null)
+        {
+          //The component (gui) picked something that it owns. Set the worldobject to this.
+          Gu.Context.Renderer.Picker.PickedWorldObjectFrame = this;
+          return LambdaBool.Break;
+        }
+        return LambdaBool.Continue;
+      });
+      foreach (var child in this.Children)
+      {
+        if (Gu.Context.Renderer.Picker.PickedObjectFrame == null)
+        {
+          child.Pick();
+        }
+        else
+        {
+          break;
+        }
+      }
+    }
+    public WorldObject Clone()
+    {
+      //Creates a shallow clone.
+      //MakeUnique will deep clone the resulting shallow object
       WorldObject other = new WorldObject();
-      other._name = this._name;
-      other._uniqueId = _idGen++;
+
+      Copy(other);
+
+      Instances.Add(other);
+
+      return other;
+    }
+    public override void MakeUnique()
+    {
+      base.MakeUnique();
+      _meshData = _meshData.Clone();
+      _material = _material.Clone();
+      _components = this._components.Clone(false);
+      _constraints = this._constraints.Clone(false);
+    }
+    protected void Copy(WorldObject other)
+    {
+      base.Copy(other);
+
       other._rotation = this._rotation;
       other._scale = this._scale;
       other._position = this._position;
@@ -675,7 +1014,6 @@
       other._color = this._color;
       other._transformChanged = this._transformChanged;
       other._hidden = this._hidden;
-      other._typeId = this._typeId;
       other._state = this._state;
       //other._treeDepth = this._treeDepth; //Do not clone
       other.OnUpdate = this.OnUpdate;
@@ -688,30 +1026,17 @@
       other._airFriction = this._airFriction;
       other._hasPhysics = this._hasPhysics;
 
-      if (shallow == false)
-      {
-        other._meshData = this._meshData.Clone();
-        other._material = this._material.Clone(shallow);
-      }
-      else
-      {
-        //Create an instance copy of the data blocks.
-        other._meshData = this._meshData;
-        other._material = this._material;
-      }
+      //Create an instance copy of the data blocks.
+      other._meshData = this._meshData;
+      other._material = this._material;
 
-      other._components = this._components.Clone(shallow);
-      other._constraints = this._constraints.Clone(shallow);
+      other._components = this._components.Clone(true);
+      other._constraints = this._constraints.Clone(true);
 
       foreach (var ch in this._children)
       {
-        WorldObject cc = ch.Clone(shallow);
-        other.AddChild(cc);
+        other.AddChild(ch.Clone());
       }
-
-
-
-      return other;
     }
     public void Destroy()
     {
@@ -719,15 +1044,18 @@
     }
     public AnimationComponent GrabFirstAnimation()
     {
+      AnimationComponent found = null;
       //Test - assume tool has just one component
-      foreach (var c in Components)
+      IterateComponentsSafe((c) =>
       {
         if (c is AnimationComponent)
         {
-          return c as AnimationComponent;
+          found = c as AnimationComponent;
+          return LambdaBool.Break;
         }
-      }
-      return null;
+        return LambdaBool.Continue;
+      });
+      return found;
     }
     public void SetTransformChanged()
     {
@@ -743,21 +1071,6 @@
       foreach (var c in Constraints)
       {
         c.Apply(this);
-      }
-    }
-    private void UpdateTreeDepth()
-    {
-      if (_parent == null)
-      {
-        _treeDepth = 0;
-      }
-      else
-      {
-        _treeDepth = _parent._treeDepth + 1;
-        foreach (var cc in Children)
-        {
-          cc.UpdateTreeDepth();
-        }
       }
     }
     public WorldObject AddChild(WorldObject child)
@@ -801,6 +1114,14 @@
         }
       }
 
+      //So for now, I'm saying every object has a mesh of some kind. This makes things simpler.
+      //If you don't want to draw it set Visible=false.
+      if (!_boundBox.Validate())
+      {
+        Gu.Log.ErrorCycle(this.Name + " BoundBox was invalid.");
+        Gu.DebugBreak();
+      }
+
       parent.genExpandByPoint(_boundBox._min);
       parent.genExpandByPoint(_boundBox._max);
     }
@@ -833,31 +1154,34 @@
         _world = _local;
       }
     }
-    public void UpdateComponents(double dt)
-    {
-      // TODO:
-      for (int c = Components.Count - 1; c >= 0; c--)
-      {
-        var cmp = Components[c];
-        if (cmp.ComponentState == ComponentState.Added)
-        {
-          cmp.OnCreate(this);
-          cmp.ComponentState = ComponentState.Initialized;
-        }
-        cmp.OnUpdate(dt, this);
-      }
-    }
     public T Component<T>() where T : class
     {
+      T found = null;
       //Gets the first component of the given template type
-      foreach (var c in Components)
+      IterateComponentsSafe((c) =>
       {
         if (c is T)
         {
-          return c as T;
+          found = c as T;
+          return LambdaBool.Break;
+        }
+        return LambdaBool.Continue;
+      });
+      return found;
+    }
+    public void IterateComponentsSafe(Func<Component, LambdaBool> act)
+    {
+      //If we remove components while iterating components..
+      for (int c = Components.Count - 1; c >= 0; c--)
+      {
+        if (c < Components.Count)
+        {
+          if (act(Components[c]) == LambdaBool.Break)
+          {
+            break;
+          }
         }
       }
-      return null;
     }
     public void Unlink()
     {
@@ -869,7 +1193,18 @@
       }
       Children.Clear();
       cpy.Clear();
-      _parent?.RemoveChild(this);
+      TryGetParent()?.RemoveChild(this);
+    }
+    public WorldObject TryGetParent()
+    {
+      if (_parent != null)
+      {
+        if (_parent.TryGetTarget(out var p))
+        {
+          return p;
+        }
+      }
+      return null;
     }
     public void Iterate(Action<WorldObject> act)
     {
@@ -880,5 +1215,103 @@
         c.Iterate(act);
       }
     }
+
+    #endregion
+    #region Private:Methods
+
+    private void UpdateTreeDepth()
+    {
+      if (Parent == null)
+      {
+        _treeDepth = 0;
+      }
+      else
+      {
+        _treeDepth = Parent._treeDepth + 1;
+        foreach (var cc in Children)
+        {
+          cc.UpdateTreeDepth();
+        }
+      }
+    }
+
+    #endregion
   }
-}
+
+  //*Note this is a test of billboarded quads.
+  //for optimiz, We need to use
+  // 1 single model matrix
+  // 2 instancing
+  // 3 megatex
+  public enum LightType
+  {
+    Point, Direction
+  }
+  public class Light : WorldObject
+  {
+    public Light(string name) : base(name + "-light")
+    {
+      Texture2D light = Gu.Resources.LoadTexture(new FileLoc("light.png", FileStorage.Embedded), true, TexFilter.Bilinear);
+      Pickable = true;
+    }
+    public float Radius { get; set; } = 100;//Distance in the case of directional light
+    public vec3 Color { get; set; } = vec3.One;
+    public float Power { get; set; } = 1;
+    public LightType Type { get; set; } = LightType.Point;
+
+    // public float _radius { get; set; } = 10;//Distance in the case of directional light
+    // public vec4 _color { get; set; } = vec4.One;
+    // public float _power { get; set; } = 1;
+    // public LightType _type = LightType.Point;
+
+    // private bool _bMustCompile = false;
+    // public void CompileGpuData()
+    // {
+    //   if (_bMustCompile)
+    //   {
+
+    //     _bMustCompile = false;
+    //   }
+    // }
+
+    public override void Update(World world, double dt, ref Box3f parentBoundBox)
+    {
+      //Bound box of entire light
+      parentBoundBox.genExpandByPoint(Position_Local - Radius);
+      parentBoundBox.genExpandByPoint(Position_Local + Radius);
+
+      base.Update(world, dt, ref parentBoundBox);
+      /*
+                              z,w
+          0------------ ----2
+          |               / |
+          |           /     |
+          |        c        |
+          |     /           |
+          |  /              |
+          1 ----------------3
+      x,y                   
+      */
+
+      //I want to use a shared mesh, but for now we'll just test this out
+      vec3 center = this.Position_Local;
+      vec3 right = this.BasisX;
+      vec3 up = this.BasisY;
+      vec3 n = new vec3(0, 1, 0);
+
+      var pts = new List<v_v3n3x2>()
+      {
+        new v_v3n3x2() { _v = center - right + up, _n = n, _x = new vec2(0, 1) },
+        new v_v3n3x2() { _v = center - right - up, _n = n, _x = new vec2(0, 0) },
+        new v_v3n3x2() { _v = center + right + up, _n = n, _x = new vec2(1, 1) },
+        new v_v3n3x2() { _v = center + right - up, _n = n, _x = new vec2(1, 0) }
+      };
+      var inds = new List<short>() { 0, 1, 2, 1, 2, 3 };
+      Mesh = new MeshData("TestBillboard", PrimitiveType.Triangles, Gpu.CreateVertexBuffer("TestBillboard", pts.ToArray()), Gpu.CreateIndexBuffer("TestBillboard", inds.ToArray()), false);
+
+
+    }
+  }
+
+
+}//ns 

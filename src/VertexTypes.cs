@@ -890,6 +890,7 @@ namespace PirateCraft
     public vec3 _v;
     public vec4 _c;
   }
+  //Base object vertex, with picking
   [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct v_v3n3x2
@@ -926,5 +927,15 @@ namespace PirateCraft
     public vec3 _v;
     public vec2 _x;
   };
+  //Billboard Quad Vert
+  // [StructLayout(LayoutKind.Sequential)]
+  // public struct v_v4v2c4x4u2
+  // {
+  //   public vec4 _v401;//pos
+  //   public vec2 _v201;//size
+  //   public vec4 _x401;//uv0, uv1
+  //   public uvec2 _u201;//pick_color
+  // };
+
 
 }
