@@ -306,6 +306,28 @@ namespace PirateCraft
           }
         }
       }
+      if (internalFmt == PixelInternalFormat.DepthComponent32f ||
+      internalFmt == PixelInternalFormat.DepthComponent32)
+      {
+        for (int iy = 0; iy < img.Height; iy++)
+        {
+          for (int ix = 0; ix < img.Width; ix++)
+          {
+            var p = img.getPixel32(ix, iy);
+            float f = BitConverter.ToSingle(new byte[]{p.r, p.g, p.b, p.a}, 0);
+            //r32ui is in agbr -> rgba
+            p.r = p.g = p.b = (byte)((f / 1.0f) * 255.0f);
+            p.a = 255;
+            img.setPixel32(ix, iy, p);
+          }
+        }
+      }
+      else if(internalFmt == PixelInternalFormat.DepthComponent16 ||
+      internalFmt == PixelInternalFormat.DepthComponent24)
+      {
+        Gu.Log.Error("save 16/24 bit depth texture not supported.");
+        Gu.DebugBreak();
+      }
 
 
       img.flip(false, true);

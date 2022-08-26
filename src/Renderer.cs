@@ -186,16 +186,18 @@ namespace PirateCraft
     public WorldObject DefaultObj = null;
     public string Name { get { return PipelineStageEnum.Description(); } }
     public Action<RenderView> BeginRenderAction = null;
+    public Action<RenderView> EndRenderAction = null;
 
     //So, cull, winding .. 
     public PipelineStage(PipelineStageEnum stage, ClearBufferMask mask, vec4 clear,
-    List<FramebufferAttachment> inputs, List<FramebufferAttachment> outputs, WorldObject defaultObj = null, Action<RenderView> beginRenderAction = null)
+    List<FramebufferAttachment> inputs, List<FramebufferAttachment> outputs, WorldObject defaultObj = null, Action<RenderView> beginRenderAction = null, Action<RenderView> endRenderAction = null)
     {
       ClearMask = mask;
       ClearColor = clear;
       DefaultObj = defaultObj;
       PipelineStageEnum = stage;
       BeginRenderAction = beginRenderAction;
+      EndRenderAction = endRenderAction;
       Inputs = inputs;
       Outputs = outputs;
       Validate(inputs, outputs);
@@ -410,8 +412,15 @@ namespace PirateCraft
         null,
         (rv) =>
         {
-          Picker.Update(rv);
           Gu.World.RenderDeferred(Gu.Context.Delta, rv);
+        },
+        (rv) =>
+        {
+          if (_requestSaveFBOs || Gu.EngineConfig.SaveFBOsEveryFrame)
+          {
+            //save fbo for each stage.
+            SaveCurrentStageFBOsImmediately();
+          }
         }
       );
 
@@ -425,12 +434,20 @@ namespace PirateCraft
       var forward = new PipelineStage(PipelineStageEnum.Forward,
         ClearBufferMask.None, ClearColor,
         new List<FramebufferAttachment>() { },
-        new List<FramebufferAttachment>() { albedo_fw, pick },
+        new List<FramebufferAttachment>() { albedo_fw, pick, depth },
         null,
         (rv) =>
         {
-          Picker.Update(rv);
           Gu.World.RenderForward(Gu.Context.Delta, rv);
+        },
+        (rv) =>
+        {
+          Picker.Update(rv);
+          if (_requestSaveFBOs || Gu.EngineConfig.SaveFBOsEveryFrame)
+          {
+            //save fbo for each stage.
+            SaveCurrentStageFBOsImmediately();
+          }
         }
        );
 
@@ -488,20 +505,12 @@ namespace PirateCraft
           {
             rv.BeginRaster2D();
             {
-              SetShadowEnv(/*lightman,*/ true);
-              {
-                if (_requestSaveFBOs || Gu.EngineConfig.SaveFBOsEveryFrame)
-                {
-                  //save fbo for each stage.
-                  SaveCurrentStageFBOsImmediately(ps.Name);
-                }
-                //    Gu.BreakRenderState = true;
-                DrawCall.Draw(Gu.World.WorldProps, rv, ps.DefaultObj);
-              }
-              SetShadowEnv(/*lightman,*/ false);  //Fix this, we should be able to clear the texture units before the next operation.
+              //    Gu.BreakRenderState = true;
+              DrawCall.Draw(Gu.World.WorldProps, rv, ps.DefaultObj);
             }
             rv.EndRaster2D();
           }
+          ps.EndRenderAction?.Invoke(rv);
           ps.EndRender();
         }
         CurrentStage = null;
@@ -589,213 +598,14 @@ namespace PirateCraft
 
       CheckMultisampleParams(samples);
     }
-    // private void CopyMsaaSamples(FramebufferGeneric msaa, FramebufferGeneric blitted)
-    // {
-    //   //Downsize the MSAA sample buffer.
-    //   if (_bMsaaEnabled)
-    //   {
-    //     GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, 0);
-    //     Gpu.CheckGpuErrorsDbg();
-
-    //     GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, msaa.GetGlId());
-    //     Gpu.CheckGpuErrorsDbg();
-    //     GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, blitted.GetGlId());
-    //     Gpu.CheckGpuErrorsDbg();
-
-    //     foreach (var inf in msaa.Bindings)
-    //     {
-    //       BlitFramebufferFilter blendMode;
-    //       ClearBufferMask bitMask;
-    //       if (inf._eTargetType == RenderTargetType.Depth)
-    //       {
-    //         //GL_LINEAR is only a valid interpolation method for the color buffer.
-    //         blendMode = BlitFramebufferFilter.Nearest;
-    //       }
-    //       else
-    //       {
-    //         GL.ReadBuffer((ReadBufferMode)inf.BindingIndex); // This is the same enum in most cases
-    //         Gpu.CheckGpuErrorsDbg();
-    //         GL.DrawBuffer((DrawBufferMode)inf.BindingIndex);
-    //         Gpu.CheckGpuErrorsDbg();
-    //         blendMode = BlitFramebufferFilter.Linear;
-    //       }
-
-    //       //GL_DEPTH_BUFFER_BIT 0x00000100
-    //       //GL_COLOR_BUFFER_BIT  0x00004000
-    //       bitMask = inf._eBlitBit;
-
-    //       //GL_DEPTH_BUFFER_BIT;
-    //       GL.BlitFramebuffer(0, 0, _iLastWidth, _iLastHeight, 0, 0, _iLastWidth, _iLastHeight, bitMask, blendMode);
-    //       Gpu.CheckGpuErrorsDbg();
-    //     }
-    //     Gpu.CheckGpuErrorsDbg();
-    //   }
-    // }
     private void releaseFbosAndMesh()
     {
       GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
       PipelineStages.Clear();
-
-      // _pBlittedDeferred = null;
-      // _pBlittedForward = null;
-      // _pBlittedDepth = null;
-      // if (_bMsaaEnabled)
-      // {
-      //   _pMsaaForward = null;
-      //   _pMsaaDeferred = null;
-      //   _pMsaaDepth = null;
-      // }
-
-      //  _pShadowBoxFboMaster = null;
-      //  _pShadowFrustumMaster = null;
     }
     private void SetShadowEnv(/*LightManager lightman, */bool bSet)
     {
-      //@param bSet - Set Shadow Textures and Uniforms, and ENV map for the GBUFFER. False: Clear texture slots.
-      //Set Shadow and Environment map Uniforms.
-      // int iMaxTexs = getContext().maxGLTextureUnits();
 
-      ////TEST
-      ////This is to get the lights to work again.
-      //BRLogTODO("Disabling ALL Shadowboxes here...");
-      //bool DISABLE_ALL_SHADOW_BOXES_AND_SUCH = true;
-      ////TEST
-
-      //int iIndex = 0;
-
-      ////We loop this way because we MUST fill all texture units used by the GPU.
-      //List<GLint> boxSamples;
-      //List<GLint> frustSamples;
-      //int iNumGpuShadowBoxes = Gu::getEngineConfig().getMaxCubeShadowSamples();
-      //int iNumGpuShadowFrustums = Gu::getEngineConfig().getMaxFrustShadowSamples();
-
-      //if (lightman.getGpuShadowBoxes().size() > iNumGpuShadowBoxes)
-      //{
-      //  Gu.Log.WarnCycle("More than " + iNumGpuShadowBoxes + " boxes - some shadows will not show.");
-      //}
-      //for (int iShadowBox = 0; iShadowBox < iNumGpuShadowBoxes; ++iShadowBox)
-      //{
-      //  //Starting after the textures in the GBuffer.
-      //  int iTextureIndex = _pMsaaDeferred.getNumNonDepthTargets() + iIndex;
-
-      //  if (iTextureIndex < iMaxTexs)
-      //  {
-      //    //Ok, so we are using textureSize in the pixel shader to indicate that the shadow here is "used"
-      //    GLuint texId = 0;  // Leave to zero to clear the texture slot
-      //    if (bSet)
-      //    {
-      //      if (!DISABLE_ALL_SHADOW_BOXES_AND_SUCH && iShadowBox < lightman.getGpuShadowBoxes().size())
-      //      {
-      //        ShadowBox pBox = lightman.getGpuShadowBoxes()[iShadowBox];
-      //        if (pBox != null)
-      //        {
-      //          texId = pBox.getGlTexId();
-      //        }
-      //        else
-      //        {
-      //          texId = Gu::getTexCache().getDummy1x1TextureCube();
-      //        }
-      //      }
-      //      else
-      //      {
-      //        texId = Gu::getTexCache().getDummy1x1TextureCube();
-      //      }
-      //      boxSamples.push_back(iTextureIndex);
-      //    }
-      //    GL.ActiveTexture(GL_TEXTURE0 + iTextureIndex);
-      //    Gu::checkErrorsDbg();
-      //    GL.BindTexture(GL_TEXTURE_CUBE_MAP, texId);
-      //    Gu::checkErrorsDbg();
-      //    iIndex++;
-      //  }
-      //  else
-      //  {
-      //    Gu.Log.Warn("Deferred Step: Too many textures bound: " + iTextureIndex);
-      //  }
-      //}
-      //if (bSet)
-      //{
-      //  _pDeferredShader.setUf("_ufShadowBoxSamples", boxSamples.data(), (GLint)boxSamples.size());
-      //  Gu::checkErrorsDbg();
-      //}
-      ////We loop this way because we MUST fill all texture units used by the GPU.
-      //if (lightman.getGpuShadowBoxes().size() > iNumGpuShadowFrustums)
-      //{
-      //  Gu.Log.WarnCycle("More than " + iNumGpuShadowFrustums + " frustum - some shadows will not show.");
-      //}
-      //for (int iShadowFrustum = 0; iShadowFrustum < iNumGpuShadowFrustums; ++iShadowFrustum)
-      //{
-      //  int iTextureIndex = _pMsaaDeferred.getNumNonDepthTargets() + iIndex;
-      //  if (iTextureIndex < iMaxTexs)
-      //  {
-      //    GLuint texId = 0;
-      //    if (bSet)
-      //    {
-      //      if (!DISABLE_ALL_SHADOW_BOXES_AND_SUCH && iShadowFrustum < lightman.getGpuShadowFrustums().size())
-      //      {
-      //        ShadowFrustum pFrust = lightman.getGpuShadowFrustums()[iShadowFrustum];
-      //        if (pFrust != null)
-      //        {
-      //          texId = pFrust.getGlTexId();
-      //        }
-      //        else
-      //        {
-      //          texId = Gu::getTexCache().getDummy1x1Texture2D();
-      //        }
-      //      }
-      //      else
-      //      {
-      //        texId = Gu::getTexCache().getDummy1x1Texture2D();
-      //      }
-      //      frustSamples.push_back(iTextureIndex);
-      //    }
-
-      //    GL.ActiveTexture(GL_TEXTURE0 + iTextureIndex);
-      //    Gu::checkErrorsDbg();
-      //    GL.BindTexture(GL_TEXTURE_2D, texId);
-      //    Gu::checkErrorsDbg();
-      //    iIndex++;
-      //  }
-      //  else
-      //  {
-      //    Gu.Log.Warn("Deferred Step: Too many textures bound: " + iTextureIndex);
-      //  }
-      //}
-      //if (bSet)
-      //{
-      //  _pDeferredShader.setUf("_ufShadowFrustumSamples", frustSamples.data(), (GLint)frustSamples.size());
-      //  Gu::checkErrorsDbg();
-      //}
-
-      //Set Mirror Environment map.
-      //if (_pEnvTex != null)
-      //{
-      //  int iTextureIndex = _pMsaaDeferred.getNumNonDepthTargets() + iIndex;
-      //  if (iTextureIndex < iMaxTexs)
-      //  {
-      //    GL.ActiveTexture(GL_TEXTURE0 + iTextureIndex);
-      //    if (bSet)
-      //    {
-      //      GL.BindTexture(GL_TEXTURE_2D, _pEnvTex.getGlId());
-      //      _pDeferredShader.setUf("_ufTexEnv0", (GLvoid*)&iTextureIndex);
-      //    }
-      //    else
-      //    {
-      //      GL.BindTexture(GL_TEXTURE_2D, 0);
-      //    }
-      //    iIndex++;
-      //  }
-      //  else
-      //  {
-      //    Gu.Log.Warn("Deferred Step: Too many textures bound: " + iTextureIndex);
-      //  }
-      //}
-      //else
-      //{
-      //  Gu.Log.Warn("You didn't set the enviro texture.");
-      //  Gu::debugBreak();
-      //}
-      //Gu::checkErrorsDbg();
     }
     private void SetInitialGpuRenderState()
     {
@@ -836,7 +646,7 @@ namespace PirateCraft
       }
       return x;
     }
-    private void SaveCurrentStageFBOsImmediately(string stage = "")
+    private void SaveCurrentStageFBOsImmediately(string tag = "")
     {
       string ctxName = Gu.Context.GameWindow.Name;
 
@@ -893,16 +703,15 @@ namespace PirateCraft
       //}
 
 
-      string prefix = Gu.GetFilenameDateTimeNOW() + "_" + stage + "_context-" + ctxName;
-
+      string prefix = Gu.GetFilenameDateTimeNOW() + "_" + this.CurrentStage.Name + "_" + tag + "_context-" + ctxName;
 
       //ok so pick isn't getting savd..
       //GetAllUniqueAttachments();
 
-//using input framebuffer as we call saveFBOs in the blit routine (which, uses inputs)
-      if (this.CurrentStage.InputFramebuffer != null)
+      //using input framebuffer as we call saveFBOs in the blit routine (which, uses inputs)
+      if (this.CurrentStage.OutputFramebuffer != null)
       {
-        foreach (var bind in this.CurrentStage.InputFramebuffer.Bindings)// atts)
+        foreach (var bind in this.CurrentStage.OutputFramebuffer.Bindings)// atts)
         {
           var pTarget = bind.Attachment;
           string fname = prefix + "_" + pTarget.Texture.Name + "_" + bind.LayoutIndex + "_.png";//names may be the same

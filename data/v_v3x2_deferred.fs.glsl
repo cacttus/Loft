@@ -10,6 +10,6 @@ void main()
 
   vec3 final_color = lightFragment(fragPos, fragColor, fragNormal, 0.2f, 0.5f, 1);
 
+	//setOutput_Color(vec4(final_color.rgb, 1));
 	setOutput_Color(vec4(fragColor.rgb, 1));
-  setOutput_Pick(0);//TODO: we're going to create piieplien stages
 }

@@ -1258,21 +1258,6 @@ namespace PirateCraft
     public float Power { get; set; } = 1;
     public LightType Type { get; set; } = LightType.Point;
 
-    // public float _radius { get; set; } = 10;//Distance in the case of directional light
-    // public vec4 _color { get; set; } = vec4.One;
-    // public float _power { get; set; } = 1;
-    // public LightType _type = LightType.Point;
-
-    // private bool _bMustCompile = false;
-    // public void CompileGpuData()
-    // {
-    //   if (_bMustCompile)
-    //   {
-
-    //     _bMustCompile = false;
-    //   }
-    // }
-
     public override void Update(World world, double dt, ref Box3f parentBoundBox)
     {
       //Bound box of entire light
@@ -1280,34 +1265,6 @@ namespace PirateCraft
       parentBoundBox.genExpandByPoint(Position_Local + Radius);
 
       base.Update(world, dt, ref parentBoundBox);
-      /*
-                              z,w
-          0------------ ----2
-          |               / |
-          |           /     |
-          |        c        |
-          |     /           |
-          |  /              |
-          1 ----------------3
-      x,y                   
-      */
-
-      //I want to use a shared mesh, but for now we'll just test this out
-      vec3 center = this.Position_Local;
-      vec3 right = this.BasisX;
-      vec3 up = this.BasisY;
-      vec3 n = new vec3(0, 1, 0);
-
-      var pts = new List<v_v3n3x2>()
-      {
-        new v_v3n3x2() { _v = center - right + up, _n = n, _x = new vec2(0, 1) },
-        new v_v3n3x2() { _v = center - right - up, _n = n, _x = new vec2(0, 0) },
-        new v_v3n3x2() { _v = center + right + up, _n = n, _x = new vec2(1, 1) },
-        new v_v3n3x2() { _v = center + right - up, _n = n, _x = new vec2(1, 0) }
-      };
-      var inds = new List<short>() { 0, 1, 2, 1, 2, 3 };
-      Mesh = new MeshData("TestBillboard", PrimitiveType.Triangles, Gpu.CreateVertexBuffer("TestBillboard", pts.ToArray()), Gpu.CreateIndexBuffer("TestBillboard", inds.ToArray()), false);
-
 
     }
   }
