@@ -9,40 +9,55 @@ using OpenTK.Windowing.GraphicsLibraryFramework;
 
 namespace PirateCraft
 {
-  #region Enums
-
-  public enum InputState
-  {
-    Play, //User is moving inw orld.
-    Edit //User has inventory window open.
-  }
-
-  #endregion
-
   public class UiWindowBase : NativeWindow
   {
     #region Public:Members
 
     public bool IsMain { get; private set; } = false;
     public string Name { get; private set; } = "unset";
-    public InputState InputState = InputState.Play;
     public bool IsLoaded { get; private set; } = false;
     public List<RenderView> RenderViews { get; set; } = new List<RenderView>();
-    public Camera3D Camera
+    protected int iActiveView { get; set; } = 0;
+    public int Width { get; private set; } = 1;//Do not use Size.X, Y There is currently an OpenTK bug where it does not update on Resize
+    public int Height { get; private set; } = 1;
+    public new OpenTK.Mathematics.Vector2i Size
     {
       get
       {
-        Gu.Assert(RenderViews != null);
-        Gu.Assert(RenderViews.Count > 0);
-        return RenderViews[0].Camera;
+        Gu.Log.Error("Do not use Size, it is incorrect in OpenTK.");
+        Gu.DebugBreak();
+        return base.Size;
       }
     }
-    #endregion
-    #region Protected:Members
-
-    protected WorldObject DefaultPlayer { get; set; } = null;
-    protected GuiComponent Gui { get; private set; } = null;
-
+    public RenderView ActiveView
+    {
+      get
+      {
+        if (iActiveView >= RenderViews.Count || iActiveView < 0)
+        {
+          return null;
+        }
+        return this.RenderViews[iActiveView];
+      }
+    }
+    public Camera3D ActiveViewCamera
+    {
+      //returns the camera for the given active view, or null if there is
+      // 1. no active view
+      // 2. the active view has no camera attached.
+      get
+      {
+        var v = ActiveView;
+        if (v != null)
+        {
+          if (v.Camera != null & v.Camera.TryGetTarget(out var cm))
+          {
+            return cm;
+          }
+        }
+        return null;
+      }
+    }
     #endregion
     #region Private:Members
 
@@ -51,7 +66,7 @@ namespace PirateCraft
     #endregion
     #region Public:Methods
 
-    public UiWindowBase(string name, bool isMain, float scale, WindowBorder border, bool visible, IGLFWGraphicsContext sharedCtx = null) : base(
+    public UiWindowBase(string name, bool isMain, ivec2 pos, ivec2 size, vec2 scale, WindowBorder border, bool visible, IGLFWGraphicsContext sharedCtx = null) : base(
        new NativeWindowSettings()
        {
          Profile = ContextProfile.Core,
@@ -63,8 +78,8 @@ namespace PirateCraft
          StartVisible = visible,
          WindowState = WindowState.Normal,
          WindowBorder = border,
-         Location = new OpenTK.Mathematics.Vector2i(200, 200),
-         Size = new OpenTK.Mathematics.Vector2i((int)(1920 * scale), (int)(1080 * scale)),
+         Location = new OpenTK.Mathematics.Vector2i(pos.x, pos.y),
+         Size = new OpenTK.Mathematics.Vector2i((int)(size.x * scale.x), (int)(size.y * scale.y)),
          NumberOfSamples = 0, //TODO:
          StencilBits = 8,
          DepthBits = 24,
@@ -80,19 +95,65 @@ namespace PirateCraft
       IsMain = isMain;
       Title += ": OpenGL Version: " + GL.GetString(StringName.Version);
 
+      Width = base.Size.X;
+      Height = base.Size.Y;
       //Register this window with the system. We load all window data in the main loop.
       CreateContext();
     }
+    private void CreateCameraView(vec2 xy, vec2 wh)
+    {
+      string viewname = "renderview-" + RenderViews.Count;
+      //Create View
+      var v = new RenderView(viewname, xy, wh, this.Width, this.Height);
+      RenderViews.Add(v);
+
+      //Create Camera
+      var c = Gu.World.CreateCamera("cam-def-" + viewname, v, vec3.Zero);
+      c.Far = 4000.0f;
+      c.Position_Local = new vec3(0, .5f, 0);
+
+      if (Gu.Resources.LoadObject(new FileLoc("camera.glb", FileStorage.Embedded), out var cmod))
+      {
+        //sword.Rotation_Local *= quat.fromAxisAngle(new vec3(1, 0, 1).normalized(), MathUtils.M_PI_2 * 0.125f);
+        cmod.ExcludeFromRenderView = new WeakReference<RenderView>(v);
+        c.AddChild(cmod);
+      }
+
+      //Create View Player & Input (ViewPlayer)
+      var p = Gu.World.CreateAndAddObject("player-empty-" + viewname, null, null);
+      p.Collides = false;
+      p.HasPhysics = true;
+      p.HasGravity = false;
+      p.Position_Local = new vec3(0, 10, 0);
+      p.AddChild(c);
+      p.Components.Add(new FPSInputComponent(v));
+
+      Gu.World.AddObject(p);
+
+      //Set the view Camera
+      v.Camera = new WeakReference<Camera3D>(c);
+
+      //Do Callbacks
+      OnCreateEditGUI(v);
+      OnCreateGameGUI(v);
+      OnCreateCamera(c);
+    }
     public virtual void Load()
     {
-      var c = CreateDefaultCameraView(true);
-      DefaultPlayer = CreateFPSPlayerView(c);
-      Gu.World.AddObject(DefaultPlayer);
-      RenderViews.Add(new RenderView(c, 0, 0, this.Size.X, this.Size.Y));
-
-      CreateGUI();
-
+      SetGameMode(Gu.World.GameMode);
       IsLoaded = true;
+    }
+    public void SetActiveView()
+    {
+      if (iActiveView >= 0 && iActiveView < RenderViews.Count)
+      {
+        RenderViews[iActiveView].SetCurrent();
+      }
+      else
+      {
+        //   Gu.Log.Debug("TODO: fix this");
+        //Camera.View = null;
+      }
     }
     public void UpdateAsync()
     {
@@ -100,21 +161,111 @@ namespace PirateCraft
       OnUpdateFrame();
       foreach (var rv in RenderViews)
       {
+        rv.SetCurrent();
+        if (IsFocused)
+        {
+          rv.ActiveGui?.Pick();
+        }
         OnView(rv);
+        rv.ActiveGui?.Update(Gu.Context.Delta);
       }
     }
     public void RenderAsync()
     {
-      foreach (var v in this.RenderViews)
+      Gu.Context.Renderer.BeginRenderToWindow();
+      foreach (var rv in this.RenderViews)
       {
-        CullFrame(v);
-        RenderFrame(v);
+        Gu.Assert(rv != null);
+        Gu.Assert(rv.Camera != null);
+
+        rv.SetCurrent();
+        CullView(rv);
+
+        Gu.Context.Renderer.RenderViewToWindow(rv, new Dictionary<PipelineStageEnum, Action<double, RenderView>>() { });
       }
+      Gu.Context.Renderer.EndRenderToWindow();
+      Gu.Context.DebugDraw.EndFrame();
+      Gu.Context.GameWindow.Context.SwapBuffers();
+      Gu.Context.Gpu.ExecuteCallbacks_RenderThread(Gu.Context);
     }
 
     #endregion
     #region Protected:Methods
 
+    protected void SetGameMode(GameMode g)
+    {
+      //Global Game mode
+      Gu.World.GameMode = g;
+
+      //Destroy all views / cams
+      foreach (var rv in RenderViews)
+      {
+        if (rv.Camera != null && rv.Camera.TryGetTarget(out var c))
+        {
+          if (c.RootParent != null)
+          {
+            Gu.World.DestroyObject(c.RootParent);
+          }
+        }
+      }
+      RenderViews.Clear();
+      GC.Collect();
+
+      //Create new view
+      if (Gu.World.GameMode == GameMode.Edit)
+      {
+        //1
+        //CreateCameraView(new vec2(0.0f, 0.0f), new vec2(1.0f, 1.0f));
+
+        //4-up
+        CreateCameraView(new vec2(0.0f, 0.0f), new vec2(0.5f, 0.5f));
+        CreateCameraView(new vec2(0.5f, 0.0f), new vec2(1.0f, 0.5f));
+        CreateCameraView(new vec2(0.0f, 0.5f), new vec2(0.5f, 1.0f));
+        CreateCameraView(new vec2(0.5f, 0.5f), new vec2(1.0f, 1.0f));
+
+        //2
+        //CreateCameraView(new vec2(0.0f, 0.0f), new vec2(0.5f, 1.0f));
+        //CreateCameraView(new vec2(0.5f, 0.0f), new vec2(1.0f, 1.0f));
+      }
+      else if (Gu.World.GameMode == GameMode.Play)
+      {
+        CreateCameraView(new vec2(0.0f, 0.0f), new vec2(1.0f, 1.0f));
+      }
+
+      //Set / Update GUI
+      foreach (var rv in RenderViews)
+      {
+        if (g == GameMode.Play)
+        {
+          rv.ActiveGui = rv.GameGui;
+        }
+        else if (g == GameMode.Edit)
+        {
+          rv.ActiveGui = rv.EditGui;
+        }
+        else
+        {
+          Gu.BRThrowNotImplementedException();
+        }
+
+        rv.ActiveGui?.Screen?.SetLayoutChanged();
+      }
+    }
+    protected void ToggleGameMode()
+    {
+      if (Gu.World.GameMode == GameMode.Edit)
+      {
+        SetGameMode(GameMode.Play);
+      }
+      else if (Gu.World.GameMode == GameMode.Play)
+      {
+        SetGameMode(GameMode.Edit);
+      }
+      else
+      {
+        Gu.BRThrowNotImplementedException();
+      }
+    }
     protected virtual void OnUpdateFrame()
     {
     }
@@ -131,37 +282,43 @@ namespace PirateCraft
     }
     protected override void OnResize(ResizeEventArgs e)
     {
-      if (Camera != null)
-      {
-        // this event comes at random in the pipeline, Swap back context when the buffers changed.
-        var ct = Gu.Context;
+      Gu.Log.Info("Resize Window " + this.Name + " " + e.Width + "," + e.Height);
 
-        Gu.SetContext(this);
-        Camera.Viewport_Width = e.Width;
-        Camera.Viewport_Height = e.Height;
-        if (Camera.Viewport_Width <= 0 || Camera.Viewport_Height <= 0)
-        {
-          Gu.Log.Error("Window width and height are zero (OnResize), setting to 1");
-          Camera.Viewport_Width = (Camera.Viewport_Width == 0) ? 1 : Camera.Viewport_Width;
-          Camera.Viewport_Height = (Camera.Viewport_Height == 0) ? 1 : Camera.Viewport_Height;
-        }
-        Gu.Context.Renderer.ResizeScreenBuffers(Camera.Viewport_Width, Camera.Viewport_Height);
-        if (ct != null)
-        {
-          Gu.SetContext(ct.GameWindow);
-        }
+      // this event comes at random in the pipeline, Swap back context when the buffers changed.
+      var ct = Gu.Context;
+      Gu.SetContext(this);
+
+      Width = e.Width;
+      Height = e.Height;
+      if (Width <= 0 || Height <= 0)
+      {
+        Gu.Log.Error("Window width and height are zero (OnResize), setting to 1");
+        if (Width <= 0) Width = 1;
+        if (Height <= 0) Height = 1;
+      }
+
+      foreach (var rv in RenderViews)
+      {
+        rv.OnResize(Width, Height);
+      }
+      Gu.Context.Renderer.ResizeScreenBuffers(Width, Height);
+
+      if (ct != null)
+      {
+        Gu.SetContext(ct.GameWindow);
       }
     }
-    protected virtual void CreateGUI()
+    protected virtual void OnCreateEditGUI(RenderView rv)
     {
-      Gui = new GuiComponent(this.Camera);
-
-      //Create the gui "object" and put it in front of the player so it doesn't get culled.
-      var guiobj = Gu.World.CreateObject("guiobj", null, null);
-      guiobj.Position_Local = new vec3(0, 0, 10);
-      guiobj.ExclusiveRenderContext = Gu.Context;//Only render in this context. e.g. just for this window
-      guiobj.Components.Add(Gui);
-      Camera.AddChild(guiobj);
+    }
+    protected virtual void OnCreateGameGUI(RenderView rv)
+    {
+    }
+    protected virtual void OnCreateCamera(Camera3D c)
+    {
+    }
+    protected virtual void CreateGUI2DEBUG(RenderView rv)
+    {
     }
     protected virtual void OnUpdateInput()
     {
@@ -175,18 +332,20 @@ namespace PirateCraft
         Gu.CloseWindow(this);
       }
       DebugKeyboard();
-      Menu();
     }
     private void DebugKeyboard()
     {
       if (Gu.Keyboard.Press(Keys.O))
       {
-        Camera.RootParent.Position_Local = new vec3(0, 0, 0);
-        Camera.RootParent.Velocity = vec3.Zero;
+        if (ActiveViewCamera != null)
+        {
+          ActiveViewCamera.RootParent.Position_Local = new vec3(0, 0, 0);
+          ActiveViewCamera.RootParent.Velocity = vec3.Zero;
+        }
       }
       if (Gu.Keyboard.Press(Keys.F1))
       {
-        Gu.Context.DebugDraw.DrawBoundBoxes = !Gu.Context.DebugDraw.DrawBoundBoxes;
+        ToggleGameMode();
       }
       if (Gu.Keyboard.Press(Keys.F2))
       {
@@ -205,18 +364,22 @@ namespace PirateCraft
           _polygonMode = 0;
         }
       }
+      if (Gu.Keyboard.Press(Keys.F4))
+      {
+        Gu.Context.DebugDraw.DrawBoundBoxes = !Gu.Context.DebugDraw.DrawBoundBoxes;
+      }
       if (Gu.Keyboard.Press(Keys.F5))
       {
-        Box3f.nugs = (Box3f.nugs + 1) % Box3f.maxnugs;
+        //Box3f.nugs = (Box3f.nugs + 1) % Box3f.maxnugs;
         //Material.DefaultDiffuse().Shader.GGX_X = (Material.DefaultDiffuse().Shader.GGX_X + 0.01f) % 3.0f;
       }
-      if (Gu.Keyboard.PressOrDown(Keys.F6))
+      if (Gu.Keyboard.Press(Keys.F6))
       {
         Gu.SaveFBOs();
       }
       if (Gu.Keyboard.Press(Keys.F7))
       {
-        var w = new UiWindowBase("ui_popup" + Gu.Contexts.Count, false, 0.125f, WindowBorder.Resizable, true, this.Context);
+        var w = new UiWindowBase("ui_popup" + Gu.Contexts.Count, false, new ivec2(100, 100), new ivec2(500, 500), new vec2(1, 1), WindowBorder.Resizable, true, this.Context);
       }
       if (Gu.Keyboard.Press(Keys.F8))
       {
@@ -227,6 +390,11 @@ namespace PirateCraft
         // Player.HasGravity = !Player.HasGravity;
         // Player.AirFriction = MaxAirFriction - Player.AirFriction;// ; //Movement Damping
       }
+      if (Gu.Keyboard.Press(Keys.F9))
+      {
+        iActiveView = (iActiveView + 1) % (RenderViews.Count + 1); //So we mod it by +1 in order to allow the view to be zero and the mouse to move free
+      }
+
       if (Gu.Keyboard.Press(Keys.F10))
       {
         OperatingSystem.ToggleShowConsole();
@@ -244,86 +412,14 @@ namespace PirateCraft
       }
 
     }
-    private void Menu()
-    {
-      if (Gu.Keyboard.Press(Keys.I))
-      {
-        if (InputState == InputState.Play)
-        {
-          //Stop rotating mouse. And let the super user take over
-          InputState = InputState.Edit;
-          CursorVisible = true;
-
-        }
-        else if (InputState == InputState.Edit)
-        {
-          InputState = InputState.Play;
-          CursorVisible = false;
-        }
-      }
-    }
-    protected virtual void CullFrame(RenderView rv)
+    protected virtual void CullView(RenderView rv)
     {
       //TODO: you can have any number of cameras / areas in a window
       Gu.World.BuildAndCull(rv);
     }
-    protected virtual void RenderFrame(RenderView rv)
-    {
-      Gu.Assert(rv != null);
-      Gu.Assert(rv.Camera != null);
-
-      Gu.Context.Renderer.Render(rv, new Dictionary<PipelineStageEnum,Action<double,RenderView>>(){});
-      // Gu.Context.Renderer.BeginEverything_New(rv);
-      // {
-      //   Gu.Context.Renderer.BeginRenderDeferred();
-      //   {
-      //     Gu.World.RenderDeferred(Gu.Context.Delta, rv);
-      //   }
-      //   Gu.Context.Renderer.EndRenderDeferred();
-      //   Gu.Context.Renderer.BlitDeferredRender(rv);
-
-      //   Gu.Context.Renderer.BeginRenderForward();
-      //   {
-      //     Gu.World.RenderForward(Gu.Context.Delta, rv);
-      //     Gu.World.RenderDebug(Gu.Context.Delta, rv);
-      //   }
-      //   Gu.Context.Renderer.EndRenderForward();
-      //   Gu.Context.Renderer.BlitFinalRender(rv);
-      // }
-      // Gu.Context.Renderer.EndEverything_New(rv);
-
-      Gu.Context.Gpu.ExecuteCallbacks_RenderThread(Gu.Context);
-    }
     protected void CreateContext()
     {
       Gu.CreateContext(this);
-    }
-    protected Camera3D CreateDefaultCameraView(bool withModel)
-    {
-      var c = Gu.World.CreateCamera("default" + this.Name, this.Size.X, this.Size.Y, vec3.Zero);
-      c.Far = 4000.0f;
-      c.Position_Local = new vec3(0, .5f, 0);
-
-      if (withModel)
-      {
-        if (Gu.Resources.LoadObject(new FileLoc("camera.glb", FileStorage.Embedded), out var cmod))
-        {
-          //sword.Rotation_Local *= quat.fromAxisAngle(new vec3(1, 0, 1).normalized(), MathUtils.M_PI_2 * 0.125f);
-          cmod.ExcludeFromRenderContext = Gu.Context;
-          c.AddChild(cmod);
-        }
-      }
-      return c;
-    }
-    protected WorldObject CreateFPSPlayerView(Camera3D cam)
-    {
-      var p = Gu.World.CreateAndAddObject("player-empty", null, null);
-      p.Collides = false;
-      p.HasPhysics = true;
-      p.HasGravity = false;
-      p.AddChild(cam);
-      p.Components.Add(new FPSInputComponent(this));
-      return p;
     }
 
     #endregion
@@ -346,8 +442,6 @@ namespace PirateCraft
     private WorldObject sword = null;
     private WorldObject left_hand = null;
     private WorldObject right_hand = null;
-    private UiElement _lblDebugInfo = null;
-    private UiElement _buttonTest = null;
     private Material[] testobjs = new Material[3];
     private vec3 second_y_glob = new vec3(2.5f, 2.0f, 2.5f);
 
@@ -355,7 +449,7 @@ namespace PirateCraft
 
     #region Public:Methods
 
-    public MainWindow() : base("main", true, scale, WindowBorder.Resizable, true)
+    public MainWindow(ivec2 pos, ivec2 size, vec2 scale) : base("main", true, pos, size, scale, WindowBorder.Resizable, true)
     {
       Title += ": OpenGL Version: " + GL.GetString(StringName.Version);
     }
@@ -405,9 +499,16 @@ namespace PirateCraft
 #if DEBUG
       build = "Debug";
 #endif
+      vec3 cpos = vec3.Zero;
+      if (rv.Camera != null && rv.Camera.TryGetTarget(out var cm))
+      {
+        cpos = cm.Position_World;
+      }
+
       var info = ""
+          + $"{rv.Name}\n"
           + $"{build}\n"
-          + $"(Cam = {rv.Camera.Position_World.ToString(2)})\n"
+          + $"(Cam = {cpos.ToString(2)})\n"
           + $"FPS: {(int)Gu.Context.Fps}\n"
           + $"nyugs b: {Box3f.nugs}\n"
           + $"Globs: {Gu.World.NumGlobs}\n"
@@ -417,77 +518,107 @@ namespace PirateCraft
           + $"OBs culled:{Gu.World.NumCulledObjects}\n"
           + $"Mouse:{Gu.Mouse.Pos.x},{Gu.Mouse.Pos.y}\n"
           + $"Memory:{StringUtil.FormatPrec((float)System.Diagnostics.Process.GetCurrentProcess().PrivateMemorySize64 / 1024 / 1024, 2)}MB\n"
-          + $"UI Update:{Gui.Screen.UpdateMs}ms\n"
-          + $"UI pick:{Gui.Screen.PickMs}ms\n"
-          + $"UI mesh:{Gui.Screen.MeshMs}ms\n"
-          + $"UI obj events:{Gui.Screen.ObjectEventsMs}ms\n"
-          + $"UI window events:{Gui.Screen.WindowEventsMs}ms\n"
-          + $"UI tot:{Gui.Screen.MeshMs + Gui.Screen.UpdateMs + Gui.Screen.PickMs}ms\n"
+          + $"UI Update:{rv.ActiveGui?.Screen.UpdateMs}ms\n"
+          + $"UI pick:{rv.ActiveGui?.Screen.PickMs}ms\n"
+          + $"UI mesh:{rv.ActiveGui?.Screen.MeshMs}ms\n"
+          + $"UI obj events:{rv.ActiveGui?.Screen.ObjectEventsMs}ms\n"
+          + $"UI window events:{rv.ActiveGui?.Screen.WindowEventsMs}ms\n"
+          + $"UI tot:{rv.ActiveGui?.Screen.MeshMs + rv.ActiveGui?.Screen.UpdateMs + rv.ActiveGui?.Screen.PickMs}ms\n"
           + $"Picked Ob:{Gu.Context.Renderer.Picker.PickedObjectName}\n"
           + $"Picked World Ob:{Gu.Context.Renderer.Picker.PickedWorldObjectName}\n"
           ;
 
       //UI Test
-      if (_lblDebugInfo != null)
+      if (rv.DebugInfo != null)
       {
-        _lblDebugInfo.Text = info;
+        rv.DebugInfo.Text = info;
       }
     }
-    protected override void CreateGUI()
-    {
-      base.CreateGUI();
 
-      var tb = Gui.CreatePanel("tb", null, null);
+    protected override void CreateGUI2DEBUG(RenderView rv)
+    {
+      if (rv.ActiveGui != null)
+      {
+        var gui = rv.ActiveGui;
+        var showdb = gui.CreateButton("opts", null, "BIG AAASSSSSS", (i, e, m) =>
+        {
+        });
+        gui.Screen.AddChild(showdb);
+        rv.DebugInfo = gui.CreateLabel("debugInfo", null, "testxx", false, FontFace.Mono, 25);
+        gui.Screen.AddChild(rv.DebugInfo);
+      }
+    }
+    private List<FileLoc> GetSharedGUIResources()
+    {
+      return new List<FileLoc>(){
+       FontFace.Fancy
+      ,FontFace.Mono
+      ,FontFace.Pixel
+      ,FontFace.Entypo
+      , new FileLoc("mclovin.jpg",FileStorage.Embedded)
+      };
+    }
+    protected override void OnCreateGameGUI(RenderView rv)
+    {
+      rv.GameGui = new Gui2d(Gu.Gui2dManager.GetOrCreateGui2d(GetSharedGUIResources()), rv);
+      var gui = rv.EditGui;
+    }
+    protected override void OnCreateEditGUI(RenderView rv)
+    {
+      rv.EditGui = new Gui2d(Gu.Gui2dManager.GetOrCreateGui2d(GetSharedGUIResources()), rv);
+      var gui = rv.EditGui;
+
+      var tb = gui.CreatePanel("tb", null, null);
       tb.InlineStyle.MinWHPX = new vec2(0, 25);
       tb.InlineStyle.SizeModeWidth = UiSizeMode.Expand;
       tb.InlineStyle.Color = vec4.rgba_ub(35, 47, 62, 255);
 
-      var file = Gui.CreateButton("tbb1", null, "File", (i, e, m) =>
+      var file = gui.CreateButton("tbb1", null, "File", (i, e, m) =>
       {
         e.InlineStyle.BorderRadius += 5;
       });
       file.InlineStyle.DisplayMode = UiDisplayMode.Inline;
 
-      var options = Gui.CreateButton("tbb2", null, "Options", (i, e, m) => { });
+      var options = gui.CreateButton("tbb2", null, "Options", (i, e, m) => { });
       options.InlineStyle.DisplayMode = UiDisplayMode.Inline;
 
-      var showdb = Gui.CreateButton("opts", null, "ShowDbg", (i, e, m) =>
+      var showdb = gui.CreateButton("opts", null, "ShowDbg", (i, e, m) =>
       {
-        Gui.Screen.DebugDraw.DisableClip = !Gui.Screen.DebugDraw.DisableClip;
-        Gui.Screen.DebugDraw.ShowOverlay = !Gui.Screen.DebugDraw.ShowOverlay;
+        gui.Screen.DebugDraw.DisableClip = !gui.Screen.DebugDraw.DisableClip;
+        gui.Screen.DebugDraw.ShowOverlay = !gui.Screen.DebugDraw.ShowOverlay;
       });
       showdb.InlineStyle.DisplayMode = UiDisplayMode.Inline;
 
       tb.AddChild(file);
       tb.AddChild(options);
       tb.AddChild(showdb);
-      tb.AddChild(Gui.CreateButton("rough+", null, "rough+", (i, e, m) =>
+      tb.AddChild(gui.CreateButton("rough+", null, "rough+", (i, e, m) =>
             {
               testobjs[0].Roughness = Math.Min(testobjs[0].Roughness + 0.1f, 0.9999f);
               testobjs[1].Roughness = Math.Min(testobjs[1].Roughness + 0.1f, 0.9999f);
               testobjs[2].Roughness = Math.Min(testobjs[2].Roughness + 0.1f, 0.9999f);
             }));
-      tb.AddChild(Gui.CreateButton("rough-", null, "rough-", (i, e, m) =>
+      tb.AddChild(gui.CreateButton("rough-", null, "rough-", (i, e, m) =>
             {
               testobjs[0].Roughness = Math.Max(testobjs[0].Roughness - 0.1f, 0.0001f);
               testobjs[1].Roughness = Math.Max(testobjs[1].Roughness - 0.1f, 0.0001f);
               testobjs[2].Roughness = Math.Max(testobjs[2].Roughness - 0.1f, 0.0001f);
             }));
-      tb.AddChild(Gui.CreateButton("spec+", null, "spec+", (i, e, m) =>
-{
-  testobjs[0].Specular = Math.Min(testobjs[0].Specular + 0.1f, 0.9999f);
-  testobjs[1].Specular = Math.Min(testobjs[1].Specular + 0.1f, 0.9999f);
-  testobjs[2].Specular = Math.Min(testobjs[2].Specular + 0.1f, 0.9999f);
-}));
-      tb.AddChild(Gui.CreateButton("spec-", null, "spec-", (i, e, m) =>
+      tb.AddChild(gui.CreateButton("spec+", null, "spec+", (i, e, m) =>
+            {
+              testobjs[0].Specular = Math.Min(testobjs[0].Specular + 0.1f, 0.9999f);
+              testobjs[1].Specular = Math.Min(testobjs[1].Specular + 0.1f, 0.9999f);
+              testobjs[2].Specular = Math.Min(testobjs[2].Specular + 0.1f, 0.9999f);
+            }));
+      tb.AddChild(gui.CreateButton("spec-", null, "spec-", (i, e, m) =>
             {
               testobjs[0].Specular = Math.Max(testobjs[0].Specular - 0.1f, 0.0001f);
               testobjs[1].Specular = Math.Max(testobjs[1].Specular - 0.1f, 0.0001f);
               testobjs[2].Specular = Math.Max(testobjs[2].Specular - 0.1f, 0.0001f);
             }));
-      Gui.Screen.AddChild(tb);
+      gui.Screen.AddChild(tb);
 
-      var dragpanel = Gui.CreateLabel("drag", new vec2(400, 400), "DragMe", true, FontFace.Fancy, 35, vec4.rgba_ub(8, 70, 100, 255));
+      var dragpanel = gui.CreateLabel("drag", new vec2(400, 400), "DragMe", true, FontFace.Fancy, 35, vec4.rgba_ub(8, 70, 100, 255));
       dragpanel.InlineStyle.MaxWHPX = new vec2(100, 100);
       dragpanel.InlineStyle.Border = 2;
       dragpanel.InlineStyle.BorderRadius = 10;
@@ -502,17 +633,19 @@ namespace PirateCraft
         dragpanel.InlineStyle.Top += v.y;
         dragpanel.Text = "Thanks for dragging.";
       });
-      Gui.Screen.AddChild(dragpanel);
-      Gui.Screen.AddChild(_lblDebugInfo = Gui.CreateLabel("debugInfo", null, "testxx", false, FontFace.Mono, 25));
+      gui.Screen.AddChild(dragpanel);
+      rv.DebugInfo = gui.CreateLabel("debugInfo", null, "testxx", false, FontFace.Mono, 25);
+      gui.Screen.AddChild(rv.DebugInfo);
 
-      var test = Gui.CreateLabel("scrollva", null, "Scroll Val:", true, FontFace.Pixel, 25, vec4.rgba_ub(18, 70, 90, 255));
-      Gui.Screen.AddChild(test);
+      var test = gui.CreateLabel("scrollva", null, "Scroll Val:", true, FontFace.Pixel, 25, vec4.rgba_ub(18, 70, 90, 255));
+      gui.Screen.AddChild(test);
 
-      var cont = Gui.CreateScrollbar("scrollbar", false, (f) =>
+      var cont = gui.CreateScrollbar("scrollbar", false, (f) =>
       {
         test.Text = "Scroll Val:" + f;
       });
-      Gui.Screen.AddChild(cont);
+      gui.Screen.AddChild(cont);
+
     }
 
     #endregion
@@ -527,17 +660,19 @@ namespace PirateCraft
 #endif
       Title = "Slaver " + VersionId.ToString();
 
-      DefaultPlayer.Position_Local = second_y_glob;
       Gu.World.Initialize("MyWorld", DELETE_WORLD_START_FRESH, 2);
       Gu.Context.DebugDraw.DrawBoundBoxes = false;
 
       TestCreateDebugObjects();
-      InitHandObjects();
-      CreateCrosshair();
       CreateSky();
       CreateLight();
 
       CursorVisible = true;
+    }
+    protected void OnCreateCamera(Camera3D c)
+    {
+      InitHandObjects(c);
+      CreateCrosshair(c);
     }
     private void CreateLight()
     {
@@ -548,7 +683,7 @@ namespace PirateCraft
       Gu.World.AddObject(l);
 
     }
-    private void InitHandObjects()
+    private void InitHandObjects(Camera3D c)
     {
       vec3 right_pos = new vec3(3.0f, -2.1f, 4.5f);
       vec3 left_pos = new vec3(-3.0f, -2.1f, 4.5f);
@@ -572,7 +707,7 @@ namespace PirateCraft
         cmp.KeyFrames.Add(new Keyframe(t_seconds / kf_count * 2, mat3.getRotation(raxis, (float)(MathUtils.M_PI_2 - 0.002)).toQuat())); ;
         pick.Components.Add(cmp);
 
-        this.Camera.AddChild(pick);
+        c.AddChild(pick);
       }
       objs = Gu.Resources.LoadObjects(new FileLoc("sword.glb", FileStorage.Embedded));
       if (objs?.Count > 0)
@@ -582,10 +717,10 @@ namespace PirateCraft
         sword.Scale_Local *= new vec3(0.7f, 0.7f, 0.7f);
         sword.Rotation_Local *= quat.fromAxisAngle(new vec3(1, 0, 1).normalized(), MathUtils.M_PI_2 * 0.125f);
 
-        this.Camera.AddChild(sword);
+        c.AddChild(sword);
       }
     }
-    private void CreateCrosshair()
+    private void CreateCrosshair(Camera3D c)
     {
       vec4 ch_c = new vec4(0.31f, 0, 0, .1f);
       float size = 0.08f;
@@ -603,10 +738,12 @@ namespace PirateCraft
       crosshair_mat.GpuRenderState.DepthTest = false;//Disable depth test.
       crosshair_mat.GpuRenderState.Blend = true;
       Crosshair.Material = crosshair_mat;
-      this.Camera.AddChild(Crosshair);
+      c.AddChild(Crosshair);
     }
     private void CreateSky()
     {
+      var that = this;
+
       Texture2D tx_sky = Gu.Resources.LoadTexture(new FileLoc("hdri_sky2.jpg", FileStorage.Embedded), true, TexFilter.Trilinear);
       Texture2D tx_sky_stars = Gu.Resources.LoadTexture(new FileLoc("hdri_stars.jpg", FileStorage.Embedded), true, TexFilter.Trilinear);
       Texture2D tx_sun = Gu.Resources.LoadTexture(new FileLoc("tx64_sun.png", FileStorage.Embedded), true, TexFilter.Trilinear);
@@ -617,8 +754,8 @@ namespace PirateCraft
       //, tx_sky_stars -- TODO:
       // Gu.Resources.LoadShader("v_sky", false, FileStorage.Embedded)
       Material sky_mat = new Material("sky", Shader.DefaultObjectShader(), tx_sky);
+      sky_mat.Flat = true;
       sky_mat.GpuRenderState.DepthTest = false;//Disable depth test.
-      //TODO: flat shade thing.
       var sky = Gu.World.CreateAndAddObject("sky", MeshData.GenSphere(DayNightCycle.SkyRadius, 128, 128, true, true), sky_mat);
       sky.Mesh.DrawOrder = DrawOrder.First;
       sky.Mesh.DrawMode = DrawMode.Deferred;
@@ -633,9 +770,12 @@ namespace PirateCraft
           (float)Gu.World.WorldProps.DayNightCycle.SkyColor.z,
           1
           );
-        vec3 pe = DefaultPlayer.WorldMatrix.ExtractTranslation();
-        obj.Position_Local = pe;
 
+        if (that.ActiveViewCamera != null)
+        {
+          var vp = that.ActiveViewCamera.RootParent;
+          obj.Position_Local = vp.WorldMatrix.ExtractTranslation();
+        }
         //TODO:
         //sky_mat.SetUniform("_ufSkyBlend")
       };
@@ -647,8 +787,11 @@ namespace PirateCraft
         double ang = Gu.World.WorldProps.DayNightCycle.DayTime_Seconds / Gu.World.WorldProps.DayNightCycle.DayLength_Seconds * Math.PI * 2.0;
         obj.Rotation_Local = quat.fromAxisAngle(new vec3(0, 0, 1), (float)ang);
 
-        vec3 pe = rv.Camera.Position_World;//.WorldMatrix.ExtractTranslation();
-        obj.Position_Local = pe;
+        if (that.ActiveViewCamera != null)
+        {
+          vec3 pe = that.ActiveViewCamera.Position_World;//.WorldMatrix.ExtractTranslation();
+          obj.Position_Local = pe;
+        }
       };
       Gu.World.AddObject(sun_moon_empty);
       /*
@@ -656,8 +799,6 @@ namespace PirateCraft
       for all ob
       ob.OnUpdateForView(rv)
       ob.OnBeforeRender()
-
-
       */
       Material sun_moon_mat = new Material("sunmoon", Gu.Resources.LoadShader("v_sun_moon", false, FileStorage.Embedded));
       sun_moon_mat.GpuRenderState.DepthTest = false;//Disable depth test.
@@ -687,13 +828,17 @@ namespace PirateCraft
       sun_bloom.Mesh.DrawOrder = DrawOrder.First;
       sun_bloom.OnUpdate = (obj) =>
       {
-        vec3 dir = Gu.World.WorldProps.DayNightCycle.MoonDir.ToVec3();
-        //ease multiplier so that the glare does not show on the horizon.
-        float horizon_mul = (float)MathUtils.Ease(0, 1, (double)dir.dot(new vec3(0, 1, 0)));
-        float bloom_dp = dir.dot(this.Camera.BasisZ);
-        float bloom_dp_pw = (float)Math.Pow(bloom_dp, 64);
-        bloom_mat.BaseColor = new vec4(sun_mat.BaseColor.x, sun_mat.BaseColor.y, sun_mat.BaseColor.z, bloom_dp_pw * horizon_mul * 0.9413f);
-        obj.Scale_Local = new vec3(1.1f + bloom_dp * 30.0f, 0, 1.1f + bloom_dp * 30.0f);
+        if (that.ActiveViewCamera != null)
+        {
+          vec3 dir = Gu.World.WorldProps.DayNightCycle.MoonDir.ToVec3();
+          //ease multiplier so that the glare does not show on the horizon.
+          float horizon_mul = (float)MathUtils.Ease(0, 1, (double)dir.dot(new vec3(0, 1, 0)));
+          float bloom_dp = dir.dot(that.ActiveViewCamera.BasisZ);
+          float bloom_dp_pw = (float)Math.Pow(bloom_dp, 64);
+          bloom_mat.BaseColor = new vec4(sun_mat.BaseColor.x, sun_mat.BaseColor.y, sun_mat.BaseColor.z, bloom_dp_pw * horizon_mul * 0.9413f);
+          obj.Scale_Local = new vec3(1.1f + bloom_dp * 30.0f, 0, 1.1f + bloom_dp * 30.0f);
+        }
+
       };
       sun.AddChild(sun_bloom);
 
@@ -716,13 +861,16 @@ namespace PirateCraft
       moon_bloom.Mesh.DrawOrder = DrawOrder.First;
       moon_bloom.OnUpdate = (obj) =>
       {
-        vec3 dir = Gu.World.WorldProps.DayNightCycle.MoonDir.ToVec3() * -1.0f;
-        //ease multiplier so that the glare does not show on the horizon.
-        float horizon_mul = (float)MathUtils.Ease(0, 1, (double)dir.dot(new vec3(0, 1, 0)));
-        float bloom_dp = dir.dot(this.Camera.BasisZ);
-        float bloom_dp_pw = (float)Math.Pow(bloom_dp, 64);
-        obj.Material.BaseColor = new vec4(moon_mat.BaseColor.x, moon_mat.BaseColor.y, moon_mat.BaseColor.z, bloom_dp_pw * horizon_mul * 0.3f);
-        obj.Scale_Local = new vec3(1.1f + bloom_dp * 4.0f, 0, 1.1f + bloom_dp * 4.0f);
+        if (that.ActiveViewCamera != null)
+        {
+          vec3 dir = Gu.World.WorldProps.DayNightCycle.MoonDir.ToVec3() * -1.0f;
+          //ease multiplier so that the glare does not show on the horizon.
+          float horizon_mul = (float)MathUtils.Ease(0, 1, (double)dir.dot(new vec3(0, 1, 0)));
+          float bloom_dp = dir.dot(that.ActiveViewCamera.BasisZ);
+          float bloom_dp_pw = (float)Math.Pow(bloom_dp, 64);
+          obj.Material.BaseColor = new vec4(moon_mat.BaseColor.x, moon_mat.BaseColor.y, moon_mat.BaseColor.z, bloom_dp_pw * horizon_mul * 0.3f);
+          obj.Scale_Local = new vec3(1.1f + bloom_dp * 4.0f, 0, 1.1f + bloom_dp * 4.0f);
+        }
       };
       moon.AddChild(moon_bloom);
 
@@ -748,7 +896,7 @@ namespace PirateCraft
       //{
       //  Gu.World.RemoveObject("BoxMesh-" + i.ToString());
       //}
-      Gu.World.CreateAndAddObject("TextureFront", MeshData.GenTextureFront(this.Camera, 0, 0, this.Size.X, this.Size.Y), new Material("texturefront", Shader.DefaultObjectShader(), tx_peron));
+      //   Gu.World.CreateAndAddObject("TextureFront", MeshData.GenTextureFront(this.Camera, 0, 0, this.W9idth, this.Height), new Material("texturefront", Shader.DefaultObjectShader(), tx_peron));
       Gu.World.CreateAndAddObject("Plane.", MeshData.GenPlane(10, 10), new Material("plane", Shader.DefaultObjectShader(), tx_grass));
       //  _boxMeshThing = Gu.World.FindObject("BoxMesh");
       //_boxMeshThing.Position = new vec3(0, _boxMeshThing.BoundBoxMeshBind.Height() * 0.5f, 0);
@@ -782,25 +930,25 @@ namespace PirateCraft
       //Some fun parenting stuff.
       //  Sphere_Rotate_Quat_Test.AddChild(Sphere_Rotate_Quat_Test2.AddChild(Sphere_Rotate_Quat_Test3.AddChild(_boxMeshThing)));
     }
-    private vec2 Get_Interaction_Pos()
-    {
-      //Depending on game mode
-      //Returns either world editing projection position, or, the mouse position if we are in inventory
-      vec2 projec_pos = new vec2(0, 0);
-      if (this.InputState == InputState.Edit)
-      {
-        projec_pos = Gu.Mouse.Pos;
-      }
-      else if (this.InputState == InputState.Play)
-      {
-        projec_pos = new vec2(this.Camera.Viewport_Width * 0.5f, this.Camera.Viewport_Height * 0.5f);
-      }
-      else
-      {
-        Gu.Log.Error("Invalid projection position for raycast blocks.");
-      }
-      return projec_pos;
-    }
+    // private vec2 Get_Interaction_Pos()
+    // {
+    //   //Depending on game mode
+    //   //Returns either world editing projection position, or, the mouse position if we are in inventory
+    //   vec2 projec_pos = new vec2(0, 0);
+    //   if (this.InputState == InputState.Edit)
+    //   {
+    //     projec_pos = Gu.Mouse.Pos;
+    //   }
+    //   else if (this.InputState == InputState.Play)
+    //   {
+    //     projec_pos = new vec2(this.Camera.Viewport.Width * 0.5f, this.Camera.Viewport.Height * 0.5f);
+    //   }
+    //   else
+    //   {
+    //     Gu.Log.Error("Invalid projection position for raycast blocks.");
+    //   }
+    //   return projec_pos;
+    // }
 
     #endregion
 

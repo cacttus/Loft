@@ -52,29 +52,32 @@ namespace PirateCraft
     }
     public void Update()
     {
-      if (_camera.TryGetTarget(out Camera3D cam))
+      if (_camera != null && _camera.TryGetTarget(out Camera3D cam))
       {
-        //Frustum
-        float tanfov2 = MathUtils.tanf(cam.FOV / 2.0f);
-        float ar = (float)cam.Viewport_Width / (float)cam.Viewport_Height;
+        if (cam.View != null && cam.View.TryGetTarget(out var view))
+        {
+          //Frustum
+          float tanfov2 = MathUtils.tanf(cam.FOV / 2.0f);
+          float ar = (float)view.Viewport.Width / (float)view.Viewport.Height;
 
-        //tan(fov2) = w2/near
-        //tan(fov2) * near = w2
-        //w/h = w2/h2
-        //(w/h)*h2 = w2
-        //w2/(w/h) = h2
-        _widthNear = tanfov2 * cam.Near * 2;
-        _heightNear = _widthNear / ar;
-        _widthFar = tanfov2 * cam.Far * 2;
-        _heightFar = _widthFar / ar;
+          //tan(fov2) = w2/near
+          //tan(fov2) * near = w2
+          //w/h = w2/h2
+          //(w/h)*h2 = w2
+          //w2/(w/h) = h2
+          _widthNear = tanfov2 * cam.Near * 2;
+          _heightNear = _widthNear / ar;
+          _widthFar = tanfov2 * cam.Far * 2;
+          _heightFar = _widthFar / ar;
 
-        NearCenter = cam.Position_World + cam.BasisZ * cam.Near;
-        FarCenter = cam.Position_World + cam.BasisZ * cam.Far;
-        //X is right in RHS
-        NearTopLeft = NearCenter - cam.BasisX * _widthNear * 0.5f + cam.BasisY * _heightNear * 0.5f;
-        FarTopLeft = FarCenter - cam.BasisX * _widthFar * 0.5f + cam.BasisY * _heightFar * 0.5f;
+          NearCenter = cam.Position_World + cam.BasisZ * cam.Near;
+          FarCenter = cam.Position_World + cam.BasisZ * cam.Far;
+          //X is right in RHS
+          NearTopLeft = NearCenter - cam.BasisX * _widthNear * 0.5f + cam.BasisY * _heightNear * 0.5f;
+          FarTopLeft = FarCenter - cam.BasisX * _widthFar * 0.5f + cam.BasisY * _heightFar * 0.5f;
 
-        ConstructPointsAndPlanes(FarCenter, NearCenter, cam.BasisY, cam.BasisX, _widthNear, _widthFar, _heightNear, _heightFar);
+          ConstructPointsAndPlanes(FarCenter, NearCenter, cam.BasisY, cam.BasisX, _widthNear, _widthFar, _heightNear, _heightFar);
+        }
       }
     }
     public Line3f ScreenToWorld(vec2 point_on_screen_topleftorigin, TransformSpace space = TransformSpace.World, float additionalZDepthNear = 0, float maxDistance = -1)
@@ -82,36 +85,40 @@ namespace PirateCraft
       //Note it is good to Set maxDistance to what you need instead of using the whole frustum. A long ray can affect physics accuracy.
       Line3f pt = new Line3f();
 
-      if (_camera.TryGetTarget(out Camera3D cam))
+      if (_camera != null && _camera.TryGetTarget(out Camera3D cam))
       {
-        float left_pct = (float)point_on_screen_topleftorigin.x / (float)cam.Viewport_Width;
-        float top_pct = (float)point_on_screen_topleftorigin.y / (float)cam.Viewport_Height;
-
-        if (space == TransformSpace.Local)
+        if (cam.View != null && cam.View.TryGetTarget(out var view))
         {
-          //Transform in local coordinates.
-          vec3 localX = new vec3(1, 0, 0);
-          vec3 localY = new vec3(0, 1, 0);
-          vec3 localZ = new vec3(0, 0, 1);
-          vec3 near_center_local = localZ * cam.Near;
-          vec3 far_center_local = localZ * cam.Far;
-          vec3 ntl = near_center_local - localX * _widthNear + localY * _heightNear;
-          vec3 ftl = far_center_local - localX * _widthFar + localY * _heightFar;
-          pt.p0 = ntl + localX * _widthNear * left_pct + localY * _heightNear * top_pct;
-          pt.p1 = ftl + localX * _widthFar * left_pct + localY * _heightFar * top_pct;
-          pt.p0 += localZ * additionalZDepthNear;
-        }
-        else
-        {
-          pt.p0 = NearTopLeft + cam.BasisX * _widthNear * left_pct - cam.BasisY * _heightNear * top_pct;
-          pt.p1 = FarTopLeft + cam.BasisX * _widthFar * left_pct - cam.BasisY * _heightFar * top_pct;
-          pt.p0 += cam.BasisZ * additionalZDepthNear;
 
-          if (maxDistance > 0)
+          float left_pct = (float)point_on_screen_topleftorigin.x / (float)view.Viewport.Width;
+          float top_pct = (float)point_on_screen_topleftorigin.y / (float)view.Viewport.Height;
+
+          if (space == TransformSpace.Local)
           {
-            pt.p1 = pt.p0 + (pt.p1 - pt.p0).normalize() * (maxDistance - additionalZDepthNear);
+            //Transform in local coordinates.
+            vec3 localX = new vec3(1, 0, 0);
+            vec3 localY = new vec3(0, 1, 0);
+            vec3 localZ = new vec3(0, 0, 1);
+            vec3 near_center_local = localZ * cam.Near;
+            vec3 far_center_local = localZ * cam.Far;
+            vec3 ntl = near_center_local - localX * _widthNear + localY * _heightNear;
+            vec3 ftl = far_center_local - localX * _widthFar + localY * _heightFar;
+            pt.p0 = ntl + localX * _widthNear * left_pct + localY * _heightNear * top_pct;
+            pt.p1 = ftl + localX * _widthFar * left_pct + localY * _heightFar * top_pct;
+            pt.p0 += localZ * additionalZDepthNear;
           }
+          else
+          {
+            pt.p0 = NearTopLeft + cam.BasisX * _widthNear * left_pct - cam.BasisY * _heightNear * top_pct;
+            pt.p1 = FarTopLeft + cam.BasisX * _widthFar * left_pct - cam.BasisY * _heightFar * top_pct;
+            pt.p0 += cam.BasisZ * additionalZDepthNear;
 
+            if (maxDistance > 0)
+            {
+              pt.p1 = pt.p0 + (pt.p1 - pt.p0).normalize() * (maxDistance - additionalZDepthNear);
+            }
+
+          }
         }
       }
       return pt;
@@ -120,7 +127,7 @@ namespace PirateCraft
     {
       //Project point in world onto screen
       //Note point may not be within the frustum.
-      if (_camera.TryGetTarget(out var cam))
+      if (_camera != null && _camera.TryGetTarget(out var cam))
       {
         vec3 campos = cam.Position_World;
 
@@ -243,6 +250,8 @@ namespace PirateCraft
 
   public class Viewport
   {
+    //Viewport is in TOP LEFT coordinates.
+    // OpenGL = bottom left, we convert this in the renderer
     public int X { get; set; } = 0;
     public int Y { get; set; } = 0;
     public int Width { get; set; } = 1;
@@ -250,19 +259,10 @@ namespace PirateCraft
     public Viewport() { }
     public Viewport(int x, int y, int w, int h)
     {
-      X = X;
+      X = x;
       Y = y;
       Width = w;
       Height = h;
-    }
-    public void SetupViewport()
-    {
-      // A render area of zero pixels raises an error.
-      Gu.Assert(X < Width);
-      Gu.Assert(Y < Height);
-
-      GL.Viewport(X, Y, Width, Height);
-      GL.Scissor(X, Y, Width, Height);
     }
     public bool ContainsPoint_WindowRelative(int x, int y)
     {
@@ -272,109 +272,170 @@ namespace PirateCraft
 
   public class RenderView : MutableState
   {
-    public Camera3D Camera { get; set; } = null;
+    //RenderView: The part of the window in which to render.
+    //RenderView needs to use a percentage of the screen not exact coords, since resizing the screen we don't know how big to make the view.
+    public WeakReference<Camera3D> Camera { get; set; } = null;
     public Viewport Viewport { get; set; } = null;
     public mat4 ProjectionMatrix { get; private set; } = mat4.Identity;
     public GpuCamera GpuCamera { get { return _gpuCamera; } private set { _gpuCamera = value; } }
+    public int Id { get; private set; } = 0;
+    private static int s_idGen = 0;
+    public Gui2d ActiveGui { get; set; } = null;
+    public Gui2d EditGui { get; set; } = null;
+    public Gui2d GameGui { get; set; } = null;
+    public UiElement DebugInfo { get; set; } = null;
 
+    private mat4 _projLast = mat4.Identity;
     private GpuCamera _gpuCamera = new GpuCamera();
+    private vec2 _uv0 = vec2.Zero;
+    private vec2 _uv1 = vec2.Zero;
+    public string Name { get; private set; } = "";
 
-    public RenderView(Camera3D cam, int x, int y, int w, int h)
+    public RenderView(string name, vec2 uv0, vec2 uv1, int sw, int sh)
     {
-      Camera = cam;
-      Viewport = new Viewport(x, y, w, h);
+      Name = name;
+      //note: xy is bottom left in opengl
+      Id = s_idGen++;
+
+      _uv0 = uv0;
+      _uv1 = uv1;
+      Gu.Assert(_uv0.x < _uv1.x);
+      Gu.Assert(_uv0.y < _uv1.y);
+      OnResize(sw, sh);
+      SetModified();
     }
-    public void BeginRender3D()
+    public void SetCurrent()
     {
-      Viewport.SetupViewport();
-      ProjectionMatrix = Camera.ProjectionMatrix;
+      //***TODO: change
+      //***TODO: change
+      //***TODO: change
+      //***TODO: change
+      //***TODO: change
+      //***TODO: change
+      //***TODO: change
+      //This will change.. camera viewport will be separate
+      //Cameras may be shared by different renderviews so we need to update it if we are on the current view
+      //The reason for chagne is that cameras will have sub-views within a window's renderview area (black bars)
+      //But of course, I mean, we could just change the dimensions of the renderview itself..right?
+      if (Camera != null && Camera.TryGetTarget(out var c))
+      {
+        c.View = new WeakReference<RenderView>(this);
+      }
+      SetModified();
+    }
+    public bool BeginRender3D()
+    {
+      //Return false if the camera for this view isn't set.
+      if (Camera != null && Camera.TryGetTarget(out var c))
+      {
+        //Viewport.SetupViewport();
+        _projLast = ProjectionMatrix;
+        ProjectionMatrix = mat4.projection(c.FOV, Viewport.Width, Viewport.Height, c.Near, c.Far);
+
+        SetCurrent();
+        return true;
+      }
+      return false;
     }
     public void EndRender3D()
     {
-      ProjectionMatrix = mat4.Identity;
+      ProjectionMatrix = _projLast;
+      SetModified();
     }
-    public void BeginRaster2D()
+    public void BeginRender2D(mat4? customProj)
     {
-      Viewport.SetupViewport();
+      //Viewport.SetupViewport();
       //Enter orthorgraphic projection mode for drawing images directly to the screen.
       //Note: in the past the width/height of viewport has been off by -1 (math issue)
-      ProjectionMatrix = mat4.getOrtho((float)Viewport.X, (float)Viewport.Width, (float)Viewport.Y, (float)Viewport.Height, -1.0f, 1.0f);
+      _projLast = ProjectionMatrix;
+      if (customProj != null)
+      {
+        ProjectionMatrix = customProj.Value;
+      }
+      else
+      {
+        ProjectionMatrix = mat4.getOrtho((float)Viewport.X, (float)Viewport.Width, (float)Viewport.Y, (float)Viewport.Height, -1.0f, 1.0f);
+      }
+      SetModified();
     }
-    public void EndRaster2D()
+    public void EndRender2D()
     {
-      ProjectionMatrix = Camera.ProjectionMatrix;
+      ProjectionMatrix = _projLast;
+      SetModified();
+    }
+    public void OnResize(int sw, int sh)
+    {
+      int x = (int)(Math.Round(_uv0.x * (float)sw));
+      int y = (int)(Math.Round(_uv0.y * (float)sh));
+      int w = (int)(Math.Round((_uv1.x - _uv0.x) * (float)sw));
+      int h = (int)(Math.Round((_uv1.y - _uv0.y) * (float)sh));
+
+      Gu.Log.Info("Resize View " + Name + ": " + x + "," + y + " " + w + "," + h);
+
+      if (w <= 0 || h <= 0)
+      {
+        Gu.Log.Error("Resize View " + Name + " w/h was zero, setting to 1");
+        if (w <= 0) w = 1;
+        if (h <= 0) h = 1;
+      }
+
+      Viewport = new Viewport(x, y, w, h);
+      ActiveGui?.OnResize();
     }
     public void CompileGpuData()
     {
       if (Modified || Gu.EngineConfig.AlwaysCompileAndReloadGpuUniformData)
       {
         Gu.Assert(Camera != null);
-        _gpuCamera._vViewPos = Camera.Position_World;
-        _gpuCamera._vViewDir = Camera.Heading;
-        _gpuCamera._m4View = Camera.ViewMatrix;
+        if (Camera != null && Camera.TryGetTarget(out var c))
+        {
+          _gpuCamera._vViewPos = c.Position_World;
+          _gpuCamera._vViewDir = c.Heading;
+          _gpuCamera._m4View = c.ViewMatrix;
+        }
         _gpuCamera._m4Projection = ProjectionMatrix;//Could be orthographic, or perspective depending
+        _gpuCamera._fWindowWidth = Gu.Context.GameWindow.Width;
+        _gpuCamera._fWindowHeight = Gu.Context.GameWindow.Height;
+        _gpuCamera._vWindowViewport.x = Viewport.X;
+        _gpuCamera._vWindowViewport.y = Viewport.Y;
+        _gpuCamera._vWindowViewport.z = Viewport.Width;
+        _gpuCamera._vWindowViewport.w = Viewport.Height;
       }
     }
-
   }
 
+  //Camera is loosely tied to the render viewport
+  // RenderViewport: Area of the window to render to. Could be whole window, or part of a window.
+  // Camera defines a sub-area of the viewport (e.g. blender->view camera)
+  // The camera viewport needs separate e.g. Our window is 16:9 but we only want to render to a 4:3 game.. then.. black bars.
   public class Camera3D : WorldObject
   {
-    float _fov = MathUtils.ToRadians(70.0f);
-    float _near = 1;
-    float _far = 1000;
-
     public Frustum Frustum { get; private set; } = null;
-    mat4 _projectionMatrix = mat4.Identity;
-    mat4 _viewMatrix = mat4.Identity;
-    //ProjectionMode ProjectionMode = ProjectionMode.Perspective;
-
     public float FOV { get { return _fov; } set { _fov = value; } }
     public float Near { get { return _near; } set { _near = value; } }
     public float Far { get { return _far; } set { _far = value; } }
-
-    public mat4 ProjectionMatrix { get { return _projectionMatrix; } private set { _projectionMatrix = value; } }
     public mat4 ViewMatrix { get { return _viewMatrix; } private set { _viewMatrix = value; } }
+    public WeakReference<RenderView> View { get; set; } = null;//This may be null if the camera is not being viewed.
 
-    private int _view_x = 0, _view_y = 0, _view_w = 800, _view_h = 600;
-    public int Viewport_X { get { return _view_x; } set { _view_x = value; } }
-    public int Viewport_Y { get { return _view_y; } set { _view_y = value; } }
-    public int Viewport_Width { get { return _view_w; } set { _view_w = value; } }
-    public int Viewport_Height { get { return _view_h; } set { _view_h = value; } }
+    private mat4 _viewMatrix = mat4.Identity;
+    private float _fov = MathUtils.ToRadians(70.0f);
+    private float _near = 1;
+    private float _far = 1000;
 
-    private mat4 _savedProjection = mat4.Identity;
-
-    public Camera3D(string name, int w, int h, float near = 1, float far = 1000) : base(name + "-cam")
+    public Camera3D(string name, RenderView rv, float near = 1, float far = 1000) : base(name + "-cam")
     {
-      //Do not select camera (at least not active camera) since we wont be able to hit anything else.
-      //SelectEnabled = false;
-      _view_w = w;
-      _view_h = h;
+      _near = near;
+      _far = far;
+      View = new WeakReference<RenderView>(rv);
       Frustum = new Frustum(this);
     }
     public override void Update(World world, double dt, ref Box3f parentBoundBox)
     {
       base.Update(world, dt, ref parentBoundBox);
-      ProjectionMatrix = mat4.projection(FOV, Viewport_Width, Viewport_Height, Near, Far);
       var p = this.WorldMatrix.ExtractTranslation();
       ViewMatrix = mat4.getLookAt(p, new vec3(p + BasisZ), new vec3(0, 1, 0));
       Frustum.Update();
     }
-
-    //public override void Resize(Viewport vp) { }
-    //public override void Update(double dt) { base.Update(dt); }
-    //public override void Render(Renderer rm) { }
-    //public override void Free() { }
-    //public override void UpdateBoundBox()
-    //{
-    //    //BoundBoxComputed._vmax = BoundBoxComputed._vmin = Pos;
-    //    //BoundBoxComputed._vmax.x += _mainVolume._radius;
-    //    //BoundBoxComputed._vmax.y += _mainVolume._radius;
-    //    //BoundBoxComputed._vmax.z += _mainVolume._radius;
-    //    //BoundBoxComputed._vmin.x += -_mainVolume._radius;
-    //    //BoundBoxComputed._vmin.y += -_mainVolume._radius;
-    //    //BoundBoxComputed._vmin.z += -_mainVolume._radius;
-    //}
 
 
   }

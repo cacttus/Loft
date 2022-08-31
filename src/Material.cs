@@ -17,6 +17,7 @@ namespace PirateCraft
     public float Metallic { get { return _metallic; } set { _metallic = value; SetModified(); } }
     public float Specular { get { return _specular; } set { _specular = value; SetModified(); } }
     public float IndexOfRefraction { get { return _indexOfRefraction; } set { _indexOfRefraction = value; SetModified(); } }
+    public bool Flat { get { return _flat; } set { _flat = value; SetModified(); } }
 
     public TextureInput AlbedoSlot { get { return _albedoSlot; } private set { _albedoSlot = value; SetModified(); } }
     public TextureInput NormalSlot { get { return _normalSlot; } private set { _normalSlot = value; SetModified(); } }
@@ -54,6 +55,7 @@ namespace PirateCraft
     private TextureInput _roughnessSlot = null;
     private TextureInput _metalnessSlot = null;
     private TextureInput _positionSlot = null;
+    private bool _flat = false;
 
     private Dictionary<TextureInput, Texture2D> _textures = new Dictionary<TextureInput, Texture2D>();
 
@@ -74,7 +76,7 @@ namespace PirateCraft
         _gpuMaterial._fPBR_metallic = _metallic;
         _gpuMaterial._fPBR_indexOfRefraction = _indexOfRefraction;
         _gpuMaterial._fPBR_specular = _specular;
-
+        _gpuMaterial._flat = this._flat ? 1 : 0;
         _bMustCompile = false;
       }
     }
@@ -119,6 +121,7 @@ namespace PirateCraft
       other._roughnessSlot = this._roughnessSlot;
       other._metalnessSlot = this._metalnessSlot;
       other._positionSlot = this._positionSlot;
+      other._flat = this._flat;
       other.AlphaMode = this.AlphaMode;
     }
     public static Material DefaultFlatColor
@@ -129,7 +132,7 @@ namespace PirateCraft
         if (_defaultFlatColorMaterial == null)
         {
           _defaultFlatColorMaterial = new Material("DefaultFlatColorMaterial", Shader.DefaultFlatColorShader());
-          _defaultObjectMaterial.AlbedoSlot.Texture = Texture2D.Default1x1ColorPixel_RGBA32ub(new vec4ub(255,255,255,255));
+          _defaultObjectMaterial.AlbedoSlot.Texture = Texture2D.Default1x1ColorPixel_RGBA32ub(new vec4ub(255, 255, 255, 255));
         }
         return _defaultFlatColorMaterial;
       }
@@ -142,7 +145,7 @@ namespace PirateCraft
         if (_defaultObjectMaterial == null)
         {
           _defaultObjectMaterial = new Material("DefaultObjectMaterial", Shader.DefaultObjectShader());
-          _defaultObjectMaterial.AlbedoSlot.Texture = Texture2D.Default1x1ColorPixel_RGBA32ub(new vec4ub(255,0,255,255));
+          _defaultObjectMaterial.AlbedoSlot.Texture = Texture2D.Default1x1ColorPixel_RGBA32ub(new vec4ub(255, 0, 255, 255));
         }
         return _defaultObjectMaterial;
       }

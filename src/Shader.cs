@@ -104,10 +104,12 @@ namespace PirateCraft
     public mat4 _m4Projection = mat4.Identity;
     //
     public vec3 _vViewPos = vec3.Zero;
-    public float _pad0 = 0;
+    public float _fWindowWidth = 0;
     //
     public vec3 _vViewDir = vec3.Zero;
-    public float _pad1 = 0;
+    public float _fWindowHeight = 0;
+    //
+    public vec4 _vWindowViewport = vec4.Zero;
   }
   [StructLayout(LayoutKind.Sequential)]
   public struct GpuMaterial
@@ -120,6 +122,11 @@ namespace PirateCraft
     public float _fPBR_metallic = 0.0f;
     public float _fPBR_indexOfRefraction = 1.45f;
     public float _fPBR_specular = 0.5f;
+    //
+    public float _flat =0;
+    public float _pad0 =0;
+    public float _pad1 =0;
+    public float _pad2 =0;
   }
   #endregion
 
@@ -205,7 +212,7 @@ namespace PirateCraft
       if (PipelineStage.OutputFramebuffer == null)
       {
         SetOutputString(sb, 0, "vec4", "Color");//default fbo
-          Gu.Assert(unique_outputs.Remove("Color"));//output must be in the global outputs array
+        Gu.Assert(unique_outputs.Remove("Color"));//output must be in the global outputs array
       }
       else
       {
@@ -1077,7 +1084,7 @@ namespace PirateCraft
 
       if (u.HasBeenSet == true)
       {
-        Gu.Log.WarnCycle(this.Name + ": Uniform  " + u.Name + " was already set.");
+        Gu.Log.WarnCycle(this.Name + ": Uniform  " + u.Name + " was already set.", 120*10);
       }
       u.HasBeenSet = true;
     }
@@ -1102,7 +1109,7 @@ namespace PirateCraft
         {
           if (su.HasBeenSet)
           {
-            Gu.Log.WarnCycle(this.Name + ": Texture uniform " + su.Name + " has already been set.");
+            Gu.Log.WarnCycle(this.Name + ": Texture uniform " + su.Name + "  was already set.", 120*10);
           }
           GL.Uniform1(su.Location, (int)(_currUnit - TextureUnit.Texture0));
           tex.Bind(_currUnit);
@@ -1130,7 +1137,7 @@ namespace PirateCraft
       }
       else
       {
-        Gu.Log.WarnCycle(this.Name + ": Unknown uniform " + (is_block ? "block " : "") + " '" + uniform_name + "' (possibly optimized out).");
+         Gu.Log.WarnCycle(this.Name + ": Unknown uniform " + (is_block ? "block " : "") + " '" + uniform_name + "' (possibly optimized out).", 120*10);
 
       }
     }

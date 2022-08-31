@@ -355,6 +355,8 @@ namespace PirateCraft
       y = (float)p.Y;
     }
     public float x, y;
+    public static vec2 Zero { get { return new vec2(0, 0); } }
+    public static vec2 One { get { return new vec2(1, 1); } }
     public vec2 construct(float a, float b) { x = a; y = b; return this; }
     public vec2(OpenTK.Mathematics.Vector2 dxy) { x = dxy.X; y = dxy.Y; }
     public vec2(vec2 dxy) { x = dxy.x; y = dxy.y; }
@@ -4072,21 +4074,6 @@ namespace PirateCraft
       }
 
       return len;
-    }
-    public float FrustumDistance_2_Exact(Camera3D cam)
-    {
-      //**THis is untested. May not be needed
-      vec4 v = cam.ProjectionMatrix * new vec4(center(), 1.0f);
-
-      PickRay3D pr = new PickRay3D(new Line3f(center(), v.xyz()));
-      BoxAAHit bh = new BoxAAHit();
-      LineOrRayIntersectInclusive_EasyOut(pr, ref bh);
-      if (bh.IsHit)
-      {
-        float len = ((center() - v.xyz()) * (float)bh._t1).length2();
-        return len;
-      }
-      return -1.0f;
     }
     public bool nugs4(PickRay3D ray, ref BoxAAHit bh)
     {

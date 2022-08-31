@@ -44,7 +44,7 @@ namespace PirateCraft
     }
 
     private FramebufferAttachment() { }
-    public string OutputName {get; private set; } = "<unset>";
+    public string OutputName { get; private set; } = "<unset>";
     public FramebufferAttachment(string outputName, RenderTargetType eTargetType, int w, int h, int nMsaaSamples)
     {
       OutputName = outputName;
@@ -169,7 +169,7 @@ namespace PirateCraft
     public const int c_iMaxAttachments = 64;
 
     public List<FramebufferBinding> Bindings { get; private set; } = new List<FramebufferBinding>();
-    public FramebufferState State {get; private set; }= FramebufferState.Not_Initialized;
+    public FramebufferState State { get; private set; } = FramebufferState.Not_Initialized;
 
     public FramebufferGeneric(string label, List<FramebufferAttachment> attachments) : base(label)
     {
@@ -282,6 +282,19 @@ namespace PirateCraft
     public void Unbind(FramebufferTarget target)
     {
       GL.BindFramebuffer(target, 0);
+      Gpu.CheckGpuErrorsDbg();
+    }
+    public void BindReadBuffer(RenderTargetType target)
+    {
+      var pick = GetBinding(target);
+      Gu.Assert(pick != null);
+      var readbufferMode = FramebufferGeneric.AttachmentIndexToReadBufferMode((OpenTK.Graphics.OpenGL4.FramebufferAttachment)pick.BindingIndex);
+      GL.ReadBuffer(readbufferMode);
+      Gpu.CheckGpuErrorsDbg();
+    }
+    public void UnbindReadBuffer()
+    {
+      GL.ReadBuffer(ReadBufferMode.None);
       Gpu.CheckGpuErrorsDbg();
     }
     public static void UnbindRenderbuffer()

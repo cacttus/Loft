@@ -5,6 +5,33 @@ using System.Text;
 
 namespace PirateCraft
 {
+  #region Enums
+
+  public enum GenState
+  {
+    Created, Queued, GenStart, GenEnd, Ready, Deleted,
+  }
+  public enum GameMode
+  {
+    Play,
+    Edit
+  }
+  public enum TileImage
+  {
+    Grass, GrassSide, Dirt, Plank, Brick, Brick2, Gravel, Sand, Cedar,
+    Cedar_Needles, Cedar_Top, Feldspar,
+    Tussock, Tussock2, Tussock_Stalk_Bot, Tussock_Stalk_Mid, Tussock_Stalk_Top,
+
+    Blank, Dandilion, Cracks1, Cracks2, Cracks3, Cracks4, Feldspar_Coal, Marble_White, Marble_Green, Water, Seaweed, Clay, RedClay, RosePink, RoseRed,
+    Oak_Top, Oak, Oak_Leaves,
+  }
+  public enum BlockSide
+  {
+    Left = 0, Right = 1, Bottom = 2, Top = 3, Back = 4, Front = 5
+  }
+
+  #endregion
+
   public class PickedTri
   {
     //A picked block from a raycast or other
@@ -22,23 +49,7 @@ namespace PirateCraft
     public bool AddPickedBlockBoxes_Debug = false;
     public RaycastResult RaycastResult = RaycastResult.Unset;
   }
-  public enum GenState
-  {
-    Created, Queued, GenStart, GenEnd, Ready, Deleted,
-  }
-  public enum TileImage
-  {
-    Grass, GrassSide, Dirt, Plank, Brick, Brick2, Gravel, Sand, Cedar,
-    Cedar_Needles, Cedar_Top, Feldspar,
-    Tussock, Tussock2, Tussock_Stalk_Bot, Tussock_Stalk_Mid, Tussock_Stalk_Top,
 
-    Blank, Dandilion, Cracks1, Cracks2, Cracks3, Cracks4, Feldspar_Coal, Marble_White, Marble_Green, Water, Seaweed, Clay, RedClay, RosePink, RoseRed,
-    Oak_Top, Oak, Oak_Leaves,
-  }
-  public enum BlockSide
-  {
-    Left = 0, Right = 1, Bottom = 2, Top = 3, Back = 4, Front = 5
-  }
   public class BlockTileUVSide
   {
     public const int Top = 0;
@@ -502,6 +513,7 @@ namespace PirateCraft
     public float GenerateDistance { get { return (GenRadiusShell * (float)_currentShell); } } //distance under which things are generated
     public float RenderDistance { get { return (GenRadiusShell) * _maxShells; /* (GlobWidthX * 16) * (GlobWidthX * 16); */ } }
     public WindowContext UpdateContext { get { return _updateContext; } }
+    public GameMode GameMode { get; set; } = GameMode.Edit;
 
     #endregion
     #region Private:Members
@@ -530,7 +542,7 @@ namespace PirateCraft
     private string _worldName = "";
     private Material _worldMaterial_Op = null;
     private Material _worldMaterial_Tp = null;
-    private MegaTex _worldMegatex = new MegaTex("tex", true, 0);
+    private MegaTex _worldMegatex = new MegaTex("world-megatex", true, 0);
     private Material _blockObjectMaterial = null;
     private double _autoSaveTimeoutSeconds = 2;
     private double _autoSaveTimeout = 0;
@@ -547,6 +559,8 @@ namespace PirateCraft
       _worldName = worldName;
       LimitYAxisGeneration = limit_y_axis;
       _worldProps = new WorldProps("WorldProps");
+
+      GameMode = Gu.EngineConfig.StartInEditMode ? GameMode.Edit : GameMode.Play;
 
       if (!MathUtils.IsPowerOfTwo(GlobBlocksX) || !MathUtils.IsPowerOfTwo(GlobBlocksY) || !MathUtils.IsPowerOfTwo(GlobBlocksZ))
       {
@@ -581,6 +595,13 @@ namespace PirateCraft
       //* UpdateLiterallyEverything_Blockish(Camera); // This will generate the globs
       //* WaitForAllGlobsToGenerate();
     }
+    public void View(RenderView rv)
+    {
+      foreach (var obj in this._objects)
+      {
+        obj.Value.View(rv);
+      }
+    }
     public void Update(double dt)
     {
       if (_updateContext != Gu.Context)
@@ -599,9 +620,13 @@ namespace PirateCraft
     }
     public void BuildAndCull(RenderView rv)
     {
-      BuildGrid(rv.Camera.Position_World, GenerateDistance);
-      CollectVisibleGlobs(rv.Camera);
-      CollectVisibleObjects(rv);
+      if (rv.Camera != null && rv.Camera.TryGetTarget(out var cm))
+      {
+        BuildGrid(cm.Position_World, GenerateDistance);
+        View(rv);
+        CollectVisibleGlobs(cm);
+        CollectVisibleObjects(rv, cm);
+      }
     }
 
     #region Objects
@@ -612,13 +637,12 @@ namespace PirateCraft
       _objects.TryGetValue(name, out obj);
       return obj;
     }
-    public Camera3D CreateCamera(string name, int w, int h, vec3 pos)
+    public Camera3D CreateCamera(string name, RenderView rv, vec3 pos)
     {
-      Camera3D c = new Camera3D(name, w, h);
+      Camera3D c = new Camera3D(name, rv);
       c.Position_Local = pos;
       Box3f dummy = Box3f.Zero;
       c.Update(this, 0, ref dummy);
-      //   AddObject(c);
       return c;
     }
 
@@ -635,20 +659,23 @@ namespace PirateCraft
     {
       return AddObject(CreateObject(name, mesh, material, pos));
     }
-    private void DestroyObject(string name)
+    public void DestroyObject(WorldObject wo)
+    {
+      wo.Unlink();
+      wo.OnDestroyed?.Invoke(wo);
+      wo.IterateComponentsSafe((cmp) =>
+      {
+        cmp.OnDestroy(wo);
+        return LambdaBool.Continue;
+      });
+    }
+    public void DestroyObject(string name)
     {
       //To destroy you should call the WorldObject's Destroy method
       if (_objects.TryGetValue(name, out WorldObject wo))
       {
-        wo.Unlink();
+        DestroyObject(wo);
         _objects.Remove(name);
-        wo.OnDestroyed?.Invoke(wo);
-        wo.IterateComponentsSafe((cmp) =>
-        {
-          cmp.OnDestroy(wo);
-          return LambdaBool.Continue;
-        });
-        wo = null;
       }
       else
       {
@@ -931,7 +958,7 @@ namespace PirateCraft
       ret._t1 = ret._t2 = 9999;
       return ret;
     }
-    private void CollectVisibleObjects(RenderView rv)
+    private void CollectVisibleObjects(RenderView rv, Camera3D cm)
     {
       //TODO: objects will coincide with collected globs.
       // foreach (var layer in _visible_objects_ordered)
@@ -949,7 +976,7 @@ namespace PirateCraft
 
       _worldProps.Reset();
 
-      CollectObjects(rv.Camera, SceneRoot);
+      CollectObjects(rv, cm, SceneRoot);
     }
     private void CollectVisibleGlobs(Camera3D cam)
     {
@@ -1154,17 +1181,16 @@ namespace PirateCraft
         DrawCall.Draw(_worldProps, rv, _debugDrawPoints);
       }
     }
-    private void CollectObjects(Camera3D cam, WorldObject ob)
+    private void CollectObjects(RenderView rv, Camera3D cam, WorldObject ob)
     {
       Gu.Assert(ob != null);
 
-      if (ob.ExclusiveRenderContext != null && ob.ExclusiveRenderContext != Gu.Context)
+      if (ob.ExcludeFromRenderView != null && ob.ExcludeFromRenderView.TryGetTarget(out var obrv))
       {
-        return;
-      }
-      if (ob.ExcludeFromRenderContext != null && ob.ExcludeFromRenderContext == Gu.Context)
-      {
-        return;
+        if (obrv == rv)
+        {
+          return;
+        }
       }
 
       if (ob.Mesh != null)
@@ -1217,7 +1243,7 @@ namespace PirateCraft
 
       foreach (var c in ob.Children)
       {
-        CollectObjects(cam, c);
+        CollectObjects(rv, cam, c);
       }
     }
 

@@ -314,7 +314,7 @@ namespace PirateCraft
           for (int ix = 0; ix < img.Width; ix++)
           {
             var p = img.getPixel32(ix, iy);
-            float f = BitConverter.ToSingle(new byte[]{p.r, p.g, p.b, p.a}, 0);
+            float f = BitConverter.ToSingle(new byte[] { p.r, p.g, p.b, p.a }, 0);
             //r32ui is in agbr -> rgba
             p.r = p.g = p.b = (byte)((f / 1.0f) * 255.0f);
             p.a = 255;
@@ -322,7 +322,7 @@ namespace PirateCraft
           }
         }
       }
-      else if(internalFmt == PixelInternalFormat.DepthComponent16 ||
+      else if (internalFmt == PixelInternalFormat.DepthComponent16 ||
       internalFmt == PixelInternalFormat.DepthComponent24)
       {
         Gu.Log.Error("save 16/24 bit depth texture not supported.");
@@ -357,17 +357,15 @@ namespace PirateCraft
     {
       Tx ret = null;
       dict.TryGetValue(loc, out var tex);
-      if (tex != null)
+
+      if (tex != null && tex.TryGetTarget(out var tex_target))
       {
-        if (tex.TryGetTarget(out var tex_target))
-        {
-          ret = tex_target;
-        }
-        else
-        {
-          //Remove the std::weak_reference item as it is no longer used
-          dict.Remove(loc);
-        }
+        ret = tex_target;
+      }
+      else
+      {
+        //Remove the std::weak_reference item as it is no longer used
+        dict.Remove(loc);
       }
       return ret;
     }

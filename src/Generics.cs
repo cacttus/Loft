@@ -120,12 +120,84 @@ namespace PirateCraft
 
   public class FileLoc
   {
+    #region Public: Members
+
     /// FileLoc represents a virtual file location on disk, embed, or web
     //The name here has to be unique or it will cause conflicts.
     public static FileLoc Generated = new FileLoc("<generated>", FileStorage.Generated);
     public FileStorage FileStorage { get; private set; } = FileStorage.Disk;
     public string RawPath { get; private set; } = "";
+    public string QualifiedPath
+    {
+      //Returns the full path with base storage location (disk/embed..)
+      get
+      {
+        string path = RawPath;
+        if (FileStorage == FileStorage.Embedded)
+        {
+          path = Gu.EmbeddedDataPath + path;
+        }
+        else if (FileStorage == FileStorage.Disk)
+        {
+          //noop
+        }
+        else
+        {
+          Gu.BRThrowNotImplementedException();
+        }
+        return path;
+      }
+    }
+    public bool Exists
+    {
+      get
+      {
+        if (FileStorage == FileStorage.Embedded)
+        {
+          bool exist = Assembly.GetExecutingAssembly().GetManifestResourceNames().Contains(QualifiedPath);
+          return exist;
+        }
+        else if (FileStorage == FileStorage.Disk)
+        {
+          return File.Exists(QualifiedPath);
+        }
+        else
+        {
+          Gu.BRThrowNotImplementedException();
+        }
+        return false;
+      }
+    }
 
+    #endregion
+    #region Public: Methods
+
+    public FileLoc(string path, FileStorage storage)
+    {
+      RawPath = path;
+      FileStorage = storage;
+    }
+    public override bool Equals(object? obj)
+    {
+      FileLoc other = obj as FileLoc;
+      if (other != null)
+      {
+        return other.RawPath.Equals(RawPath) && other.FileStorage.Equals(FileStorage);
+      }
+      else
+      {
+        // other was not a file loc I guess
+        Gu.BRThrowNotImplementedException();
+      }
+      return false;
+    }
+    public void AssertExists()
+    {
+      if (!Exists)
+      {
+        throw new Exception("File " + QualifiedPath + " does not exist.");
+      }
+    }
     public byte[] GetBytes()
     {
       byte[] bytes = null;
@@ -170,75 +242,6 @@ namespace PirateCraft
       }
       return null;
     }
-
-    public string QualifiedPath
-    {
-      //Returns the full path with base storage location (disk/embed..)
-      get
-      {
-        string path = RawPath;
-        if (FileStorage == FileStorage.Embedded)
-        {
-          path = Gu.EmbeddedDataPath + path;
-        }
-        else if (FileStorage == FileStorage.Disk)
-        {
-          //noop
-        }
-        else
-        {
-          Gu.BRThrowNotImplementedException();
-        }
-        return path;
-      }
-    }
-    public bool Exists
-    {
-      get
-      {
-        if (FileStorage == FileStorage.Embedded)
-        {
-          bool exist = Assembly.GetExecutingAssembly().GetManifestResourceNames().Contains(QualifiedPath);
-          return exist;
-        }
-        else if (FileStorage == FileStorage.Disk)
-        {
-          return File.Exists(QualifiedPath);
-        }
-        else
-        {
-          Gu.BRThrowNotImplementedException();
-        }
-        return false;
-      }
-    }
-
-    public FileLoc(string path, FileStorage storage)
-    {
-      RawPath = path;
-      FileStorage = storage;
-    }
-    public override bool Equals(object? obj)
-    {
-      FileLoc other = obj as FileLoc;
-      if (other != null)
-      {
-        return other.RawPath.Equals(RawPath) && other.FileStorage.Equals(FileStorage);
-      }
-      else
-      {
-        // other was not a file loc I guess
-        Gu.BRThrowNotImplementedException();
-      }
-      return false;
-    }
-    public void AssertExists()
-    {
-      if (!Exists)
-      {
-        throw new Exception("File " + QualifiedPath + " does not exist.");
-      }
-    }
     public class Comparer : IEqualityComparer<FileLoc>
     {
       public bool Equals(FileLoc a, FileLoc b)
@@ -251,6 +254,8 @@ namespace PirateCraft
         return a.QualifiedPath.GetHashCode();
       }
     }
+
+    #endregion
   }
 
   public class Minimax<T>

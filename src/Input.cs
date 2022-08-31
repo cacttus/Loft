@@ -136,9 +136,14 @@ namespace PirateCraft
     private vec2 _pos = new vec2(0, 0);
     public vec2 Last { get { return _last; } }
     public vec2 Pos { get { return _pos; } } //Position relative to Top Left corner of window client area (excluding borders and titlebar)
-    public vec2 PosAbsolute { get { 
-      Gu.BRThrowNotImplementedException();
-      return _pos; } } //Position on screen
+    public vec2 PosAbsolute
+    {
+      get
+      {
+        Gu.BRThrowNotImplementedException();
+        return _pos;
+      }
+    } //Position on screen
     public vec2 Delta { get { return _pos - _last; } }
 
     public bool ShowCursor
@@ -165,34 +170,35 @@ namespace PirateCraft
     {
       return _deviceState.IsButtonDown(button);
     }
-    public void WarpMouse(bool warpX, bool warpY, bool zeroDelta = true)
+    public void WarpMouse(Viewport vp, bool warpX, bool warpY, bool zeroDelta = true)
     {
+      //Mouse is relative to top left of window
       //Warp mouse to center of screen
-      //ZeroDelta - if true then we set last to the current position to avoid re-rotating back for First person camera movement.
+      //ZeroDelta - set delta to zero after warp, to avoid the system thinking the mouse warp is a valid user movement.
       var w = Gu.Context.GameWindow;
       if (w != null)
       {
         if (w.IsFocused)
         {
-          var pt = new OpenTK.Mathematics.Vector2i((int)(w.Size.X / 2), (int)(w.Size.Y / 2));
-          var pt_win = pt;// w.PointToScreen(pt);
+          int w2 = (int)(vp.Width * 0.5f);
+          int h2 = (int)(vp.Height * 0.5f);
 
           if (warpX)
           {
-            w.MousePosition = new OpenTK.Mathematics.Vector2i(pt_win.X, (int)_pos.y);
-            _pos.x = (float)pt_win.X;
+            _pos.x = (float)(vp.X + w2);
           }
           if (warpY)
           {
-            w.MousePosition = new OpenTK.Mathematics.Vector2i((int)_pos.x, pt_win.Y);
-            _pos.y = (float)pt_win.Y;
+            _pos.y = (float)(vp.Y + h2);
           }
           if (warpX && warpY)
           {
-            w.MousePosition = new OpenTK.Mathematics.Vector2i(pt_win.X, pt_win.Y);
-            _pos.x = (float)pt_win.X;
-            _pos.y = (float)pt_win.Y;
+            _pos.x = (float)(vp.X + w2);
+            _pos.y = (float)(vp.Y + h2);
           }
+
+          //Do not use TK.MousePosition after setting it. It does not update immediately.
+          w.MousePosition = new OpenTK.Mathematics.Vector2i((int)_pos.x, (int)_pos.y);
 
           if (zeroDelta)
           {

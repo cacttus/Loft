@@ -207,7 +207,7 @@ namespace PirateCraft
           {
             errmsg += Environment.NewLine + " -> shader: " + shaderName;
           }
-          errmsg += Gpu.DebugGetRenderState();
+          errmsg += GpuDebug.DebugGetRenderState();
           Gu.Log.Error(errmsg);
         }
 
@@ -379,7 +379,7 @@ namespace PirateCraft
           _bPrintingGPULog = true;
           //This isn't necessary. We can just add it above. what's happening is calling renderstate() resets the glError.
           // Also the GL Error automatically resets.
-          strRenderState = (severity == DebugSeverity.DebugSeverityNotification) ? "" : Gpu.DebugGetRenderState(true, false, false);
+          strRenderState = (severity == DebugSeverity.DebugSeverityNotification) ? "" : GpuDebug.DebugGetRenderState(true, false, false);
           strStackInfo = "";//(type ==GLenum.GL_DEBUG_TYPE_ERROR || type ==GLenum.GL_DEBUG_SEVERITY_NOTIFICATION) ? "" : DebugHelper::getStackTrace();  //error prints stack.
           _bPrintingGPULog = false;
         }
@@ -752,7 +752,7 @@ namespace PirateCraft
       else if (internalFormat == PixelInternalFormat.DepthComponent16)
       {
         calculatedFmt = PixelFormat.DepthComponent;
-        calculatedType = PixelType.Float;;
+        calculatedType = PixelType.Float; ;
         bufsiz_bytes = w * h * 4;//4 for ui? 
       }
       else
@@ -885,6 +885,14 @@ namespace PirateCraft
     {
       return CreateBuffer(name + "-index", BufferTarget.ElementArrayBuffer, inds);
     }
+
+
+
+  }//Gpu
+
+
+  public class GpuDebug
+  {
     private static bool _bGettingRenderState = false;
     public static string DebugGetRenderState(bool bForceRun = false, bool bPrintToStdout = true, bool bSaveFramebufferTexture = false) //DebugGetGpuState
     {
@@ -948,6 +956,9 @@ namespace PirateCraft
 
       return strState.ToString();
     }
+
+    #region Private
+
     private static void DebugPrintGLGetInteger(StringBuilder strState, GetPName pname)
     {
       //deosnt work in some cases due to dupes
@@ -955,6 +966,10 @@ namespace PirateCraft
       GL.GetInteger(GetPName.Blend, out val);
       strState.AppendLine(((GLenum)pname).Description() + ": " + ((GLenum)val).Description());
       Gpu.CheckGpuErrorsRt();
+    }
+    private static string EnabledString(int val)
+    {
+      return ((val > 0) ? ("Enabled") : ("Disabled"));
     }
     private static void DebugGetLegacyViewAndMatrixStack(StringBuilder strState)
     {
@@ -964,37 +979,41 @@ namespace PirateCraft
 
       int val = 0;
       GL.GetInteger(GetPName.Blend, out val);
-      strState.AppendLine("Blending: " + ((GLenum)val).Description());
-      Gpu.CheckGpuErrorsRt();
-
-      GL.GetInteger(GetPName.Blend, out val);
-      strState.AppendLine("Blending: " + ((GLenum)val).Description());
+      strState.AppendLine("Blending: " + EnabledString(val));
       Gpu.CheckGpuErrorsRt();
 
       GL.GetInteger(GetPName.CullFace, out val);
-      strState.AppendLine("Culling: " + ((GLenum)val).Description());
+      strState.AppendLine("Culling: " + EnabledString(val));
       Gpu.CheckGpuErrorsRt();
 
       GL.GetInteger(GetPName.CullFaceMode, out val);
-      strState.AppendLine("CullMode: " + ((GLenum)val).Description());
+      strState.AppendLine("CullMode: " + EnabledString(val));
       Gpu.CheckGpuErrorsRt();
 
       GL.GetInteger(GetPName.FrontFace, out val);
-      strState.AppendLine("FrontFace: " + ((GLenum)val).Description());
+      strState.AppendLine("FrontFace: " + EnabledString(val));
       Gpu.CheckGpuErrorsRt();
 
       GL.GetInteger(GetPName.DepthTest, out val);
-      strState.AppendLine("Depth Test: " + ((GLenum)val).Description());
+      strState.AppendLine("Depth Test: " + EnabledString(val));
       Gpu.CheckGpuErrorsRt();
 
+      GL.GetInteger(GetPName.ScissorTest, out val);
+      strState.AppendLine("Scissor Test: " + EnabledString(val));
+      Gpu.CheckGpuErrorsRt();
 
       // View Bounds (Legacy)
       GL.GetInteger(GetPName.ScissorBox, iScissorBox);
       GL.GetInteger(GetPName.Viewport, iViewportBox);
       //GL.GetInteger(GL_SCISSOR_BOX, (int*)iScissorBox);
       //GL.GetInteger(GL_VIEWPORT, (int*)iViewportBox);
-      strState.AppendLine("Scissor: " + iScissorBox[0] + "," + iScissorBox[1] + "," + iScissorBox[2] + "," + iScissorBox[3]);
-      strState.AppendLine("Viewport: " + iViewportBox[0] + "," + iViewportBox[1] + "," + iViewportBox[2] + "," + iViewportBox[3]);
+      strState.AppendLine("Scissor Box (GL 0,0=bl): " + iScissorBox[0] + "," + iScissorBox[1] + "," + iScissorBox[2] + "," + iScissorBox[3]);
+      strState.AppendLine("Viewport Box (GL 0,0=bl): " + iViewportBox[0] + "," + iViewportBox[1] + "," + iViewportBox[2] + "," + iViewportBox[3]);
+
+      GL.GetInteger(GetPName.MaxViewportDims, iViewportBox);
+      strState.AppendLine("Viewport max dims: " + iViewportBox[0] + "," + iViewportBox[1]);
+
+
       // TODO: legacy matrix array state.
       Gpu.CheckGpuErrorsRt();
     }
@@ -1015,11 +1034,11 @@ namespace PirateCraft
       GL.GetInteger(GetPName.CurrentProgram, out iCurrentProgram);
       Gpu.CheckGpuErrorsRt();
 
-      strState.AppendLine("Bound Shader Program: " + GetObjectLabel(ObjectLabelIdentifier.Program, iCurrentProgram));
+      strState.AppendLine("Bound Shader Program: " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Program, iCurrentProgram));
       Gpu.CheckGpuErrorsRt();
-      strState.AppendLine("Bound Vertex Array Buffer (VBO): " + GetObjectLabel(ObjectLabelIdentifier.Buffer, iBoundBuffer));
+      strState.AppendLine("Bound Vertex Array Buffer (VBO): " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Buffer, iBoundBuffer));
       Gpu.CheckGpuErrorsRt();
-      strState.AppendLine("Bound Element Array Buffer (IBO): " + GetObjectLabel(ObjectLabelIdentifier.Buffer, iElementArrayBufferBinding));
+      strState.AppendLine("Bound Element Array Buffer (IBO): " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Buffer, iElementArrayBufferBinding));
       Gpu.CheckGpuErrorsRt();
       strState.AppendLine("Bound Shader Storage Buffer (SSBO): Not avialable in opentk?");
       // List<int> binds = new List<int>();
@@ -1029,10 +1048,10 @@ namespace PirateCraft
       // {
       //   int iUniformBufferBindingxx = 0;
       //   GL.GetInteger(GetIndexedPName.UniformBufferBinding, xxx, out iUniformBufferBindingxx);
-      //   strState.AppendLine("Bound Uniform Buffer (UBO): " + GetObjectLabel(ObjectLabelIdentifier.Buffer, iUniformBufferBindingxx));
+      //   strState.AppendLine("Bound Uniform Buffer (UBO): " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Buffer, iUniformBufferBindingxx));
       // }
       Gpu.CheckGpuErrorsRt();
-      strState.AppendLine("Bound Vertex Array Object (VAO): " + GetObjectLabel(ObjectLabelIdentifier.VertexArray, iVertexArrayBinding));
+      strState.AppendLine("Bound Vertex Array Object (VAO): " + Gpu.GetObjectLabel(ObjectLabelIdentifier.VertexArray, iVertexArrayBinding));
       Gpu.CheckGpuErrorsRt();
 
       if (iCurrentProgram > 0)
@@ -1142,7 +1161,7 @@ namespace PirateCraft
         // }
       }
     }
-    public static void DebugGetAttribState(StringBuilder strState)
+    private static void DebugGetAttribState(StringBuilder strState)
     {
       //// - print bound attributes
       // int iMaxAttribs;
@@ -1201,61 +1220,61 @@ namespace PirateCraft
         GL.GetInteger(GetPName.TextureBinding1D, out iTextureId);
         if (iTextureId > 0)
         {
-          strState.AppendLine("     1D: " + GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
+          strState.AppendLine("     1D: " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
         }
         iTextureId = 0;
         GL.GetInteger(GetPName.TextureBinding1DArray, out iTextureId);
         if (iTextureId > 0)
         {
-          strState.AppendLine("     1D_ARRAY: " + GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
+          strState.AppendLine("     1D_ARRAY: " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
         }
         iTextureId = 0;
         GL.GetInteger(GetPName.TextureBinding2D, out iTextureId);
         if (iTextureId > 0)
         {
-          strState.AppendLine("     2D: " + GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
+          strState.AppendLine("     2D: " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
         }
         iTextureId = 0;
         GL.GetInteger(GetPName.TextureBinding1DArray, out iTextureId);
         if (iTextureId > 0)
         {
-          strState.AppendLine("     2D_ARRAY: " + GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
+          strState.AppendLine("     2D_ARRAY: " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
         }
         iTextureId = 0;
         GL.GetInteger(GetPName.TextureBinding2DMultisample, out iTextureId);
         if (iTextureId > 0)
         {
-          strState.AppendLine("     2D_MULTISAMPLE: " + GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
+          strState.AppendLine("     2D_MULTISAMPLE: " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
         }
         iTextureId = 0;
         GL.GetInteger(GetPName.TextureBinding2DMultisampleArray, out iTextureId);
         if (iTextureId > 0)
         {
-          strState.AppendLine("     2D_MULTISAMPLE_ARRAY: " + GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
+          strState.AppendLine("     2D_MULTISAMPLE_ARRAY: " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
         }
         iTextureId = 0;
         GL.GetInteger(GetPName.TextureBinding3D, out iTextureId);
         if (iTextureId > 0)
         {
-          strState.AppendLine("     3D: " + GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
+          strState.AppendLine("     3D: " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
         }
         iTextureId = 0;
         GL.GetInteger(GetPName.TextureBindingBuffer, out iTextureId);
         if (iTextureId > 0)
         {
-          strState.AppendLine("     BUFFER: " + GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
+          strState.AppendLine("     BUFFER: " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
         }
         iTextureId = 0;
         GL.GetInteger(GetPName.TextureBindingCubeMap, out iTextureId);
         if (iTextureId > 0)
         {
-          strState.AppendLine("     CUBE_MAP: " + GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
+          strState.AppendLine("     CUBE_MAP: " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
         }
         iTextureId = 0;
         GL.GetInteger(GetPName.TextureBindingRectangle, out iTextureId);
         if (iTextureId > 0)
         {
-          strState.AppendLine("     RECTANGLE: " + GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
+          strState.AppendLine("     RECTANGLE: " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
         }
         Gpu.CheckGpuErrorsRt();
       }
@@ -1270,7 +1289,7 @@ namespace PirateCraft
 
       GL.ActiveTexture(TextureUnit.Texture0);
 
-      string texName = GetObjectLabel(ObjectLabelIdentifier.Texture, iTexId);
+      string texName = Gpu.GetObjectLabel(ObjectLabelIdentifier.Texture, iTexId);
       Gpu.CheckGpuErrorsRt();
 
       int tex_target;
@@ -1483,9 +1502,9 @@ namespace PirateCraft
 
 
       //strState.AppendLine(" Max Fragment Texture Image Units: " + maxFragmentTextureImageUnits);
-      strState.AppendLine("Current Bound Framebuffer: " + GetObjectLabel(ObjectLabelIdentifier.Framebuffer, boundFramebuffer));
-      strState.AppendLine("Current Draw Framebuffer Binding: " + GetObjectLabel(ObjectLabelIdentifier.Framebuffer, iDrawFramebufferBinding));
-      strState.AppendLine("Current Read Framebuffer Binding: " + GetObjectLabel(ObjectLabelIdentifier.Framebuffer, iReadFramebufferBinding));
+      strState.AppendLine("Current Bound Framebuffer: " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Framebuffer, boundFramebuffer));
+      strState.AppendLine("Current Draw Framebuffer Binding: " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Framebuffer, iDrawFramebufferBinding));
+      strState.AppendLine("Current Read Framebuffer Binding: " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Framebuffer, iReadFramebufferBinding));
       if (iDrawFramebufferBinding != iReadFramebufferBinding)
       {
         strState.AppendLine("   NOTE: Draw and Read framebuffers are bound different!");
@@ -1548,7 +1567,7 @@ namespace PirateCraft
         GL.GetFramebufferAttachmentParameter(FramebufferTarget.Framebuffer, attachment, FramebufferParameterName.FramebufferAttachmentObjectName, out attachmentName);
         Gpu.CheckGpuErrorsRt();
         strState.AppendLine("    Type: " + "GL_RENDERBUFFER");
-        strState.AppendLine("    Name: " + GetObjectLabel(ObjectLabelIdentifier.Renderbuffer, attachmentName));
+        strState.AppendLine("    Name: " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Renderbuffer, attachmentName));
       }
       else if (attachmentType == 0x1702)//GL_TEXTURE
       {
@@ -1581,7 +1600,7 @@ namespace PirateCraft
         GL.GetFramebufferAttachmentParameter(FramebufferTarget.Framebuffer, attachment, FramebufferParameterName.FramebufferAttachmentTextureLevel, out mipmapLevel);
         Gpu.CheckGpuErrorsRt();
         strState.AppendLine("    Type: " + "GL_TEXTURE");
-        strState.AppendLine("    Name: " + GetObjectLabel(ObjectLabelIdentifier.Texture, attachmentName));
+        strState.AppendLine("    Name: " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Texture, attachmentName));
         strState.AppendLine("    Mipmap Level: " + mipmapLevel);
       }
     }
@@ -1593,7 +1612,7 @@ namespace PirateCraft
       GL.GetInteger(GetPName.MaxVertexAttribs, out nMaxAttribs);
       GL.GetInteger(GetPName.VertexArrayBinding, out iVertexArrayBinding);
 
-      strState.AppendLine("Bound Vertex Array Id (VAO): " + GetObjectLabel(ObjectLabelIdentifier.VertexArray, iVertexArrayBinding) + " (" + iVertexArrayBinding + ")");
+      strState.AppendLine("Bound Vertex Array Id (VAO): " + Gpu.GetObjectLabel(ObjectLabelIdentifier.VertexArray, iVertexArrayBinding) + " (" + iVertexArrayBinding + ")");
       strState.AppendLine("Max Allowed Atribs: " + nMaxAttribs);
 
       int nact = 0;
@@ -1649,42 +1668,49 @@ namespace PirateCraft
           continue;
         }
 
-        strState.AppendLine("    Array Buffer Binding: " + GetObjectLabel(ObjectLabelIdentifier.Buffer, iArrayBufferBinding));
+        strState.AppendLine("    Array Buffer Binding: " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Buffer, iArrayBufferBinding));
         strState.AppendLine("    Size: " + iAttribArraySize);
         strState.AppendLine("    Stride: " + iAttribArrayStride);
         strState.AppendLine("    Is Integer: " + (iAttribArrayInteger > 0 ? "Y" : "N"));
         strState.AppendLine("    Normalized: " + (iAttribArrayNormalized > 0 ? "Y" : "N"));
         strState.AppendLine("    Type: " + ((GLenum)(iAttribArrayType)).Description());
 
-        //if (iAttrib != 0)
-        {
 
-          //2022 - this seems like not an issue anymore
-          // Generic vertex attribute 0 is unique in that it has no current state,
-          // so an error will be generated if index is 0. The initial value for all
-          // other generic vertex attributes is (0,0,0,1).
-          unsafe
+        // https://registry.khronos.org/OpenGL-Refpages/gl4/html/glGetVertexAttrib.xhtml
+        // Generic vertex attribute 0 is unique in that it has no current state,
+        // so an error will be generated if index is 0. The initial value for all
+        // other generic vertex attributes is (0,0,0,1).
+        if (iAttrib != 0)
+        {
+          // unsafe
           {
+            int[] attri = new int[4];
+            //int[] attr = new int[4];
+            float[] attrf = new float[4];
+            double[] attrd = new double[4];
             //We recommend using Span<T> or ReadOnlySpan<T> types to work with stack allocated memory whenever possible. MSDN
-            float* fCurAttrib = stackalloc float[4];
-            int* iCurAttrib = stackalloc int[4];
-            uint* uiCurAttrib = stackalloc uint[4];
             switch (iAttribArrayType)
             {
               case (int)GLenum.GL_INT:
-                GL.GetVertexAttribI(iAttrib, (VertexAttribParameter)GLenum.GL_CURRENT_VERTEX_ATTRIB, (int*)iCurAttrib);
+                GL.GetVertexAttrib(iAttrib, (VertexAttribParameter)GLenum.GL_CURRENT_VERTEX_ATTRIB, attri);
                 Gpu.CheckGpuErrorsRt();
-                strState.AppendLine("    Cur Value(int): " + iCurAttrib[0] + "," + iCurAttrib[1] + "," + iCurAttrib[2] + "," + iCurAttrib[3]);
+                strState.AppendLine("    Cur Value(int): " + attri[0] + "," + attri[1] + "," + attri[2] + "," + attri[3]);
                 break;
               case (int)GLenum.GL_UNSIGNED_INT:
-                //GL.GetVertexAttribI(iAttrib, (VertexAttribParameter)GLenum.GL_CURRENT_VERTEX_ATTRIB, (uint*)uiCurAttrib);
-                //Gpu.CheckGpuErrorsRt();
-                strState.AppendLine("    Cur Value(uint): not working.. " /*+ uiCurAttrib[0] + "," + uiCurAttrib[1] + "," + uiCurAttrib[2] + "," + uiCurAttrib[3]*/);
+                //May be wrong. OpenTK doesn't suupport uint specifically
+                GL.GetVertexAttrib(iAttrib, (VertexAttribParameter)GLenum.GL_CURRENT_VERTEX_ATTRIB, attri);
+                Gpu.CheckGpuErrorsRt();
+                strState.AppendLine("    Cur Value(uint): " + (uint)attri[0] + "," + (uint)attri[1] + "," + (uint)attri[2] + "," + (uint)attri[3]);
                 break;
               case (int)GLenum.GL_FLOAT:
-                GL.GetVertexAttrib(iAttrib, (VertexAttribParameter)GLenum.GL_CURRENT_VERTEX_ATTRIB, (float*)fCurAttrib);
+                GL.GetVertexAttrib(iAttrib, (VertexAttribParameter)GLenum.GL_CURRENT_VERTEX_ATTRIB, attrf);
                 Gpu.CheckGpuErrorsRt();
-                strState.AppendLine("    Cur Value(float): " + fCurAttrib[0] + "," + fCurAttrib[1] + "," + fCurAttrib[2] + "," + fCurAttrib[3]);
+                strState.AppendLine("    Cur Value(float): " + attrf[0] + "," + attrf[1] + "," + attrf[2] + "," + attrf[3]);
+                break;
+              case (int)GLenum.GL_DOUBLE:
+                GL.GetVertexAttrib(iAttrib, (VertexAttribParameter)GLenum.GL_CURRENT_VERTEX_ATTRIB, attrd);
+                Gpu.CheckGpuErrorsRt();
+                strState.AppendLine("    Cur Value(double): " + attrd[0] + "," + attrd[1] + "," + attrd[2] + "," + attrd[3]);
                 break;
               default:
                 strState.AppendLine("    Cur Value:  NOT SUPPORTED****** TODO:::: ");
@@ -1705,6 +1731,8 @@ namespace PirateCraft
       strState.AppendLine($"Supported GL: {GL.GetString​(StringName.Version)}");
       strState.AppendLine($"Supported GLSL: {GL.GetString​(StringName.ShadingLanguageVersion)}");
       strState.AppendLine($"Window Title: {Gu.Context.GameWindow.Title.ToString()}");
+      strState.AppendLine($"Window Dims: {Gu.Context.GameWindow.Width}x{Gu.Context.GameWindow.Height}");
+      //strState.AppendLine($"Screen Dims: {Gu.Context.GameWindow.monitor}x{Gu.Context.GameWindow.Height}");
       //strState.AppendLine($"This API: {Gu.Context.GameWindow.API.ToString()}");
       strState.AppendLine($"Window GL Profile: {Gu.Context.GameWindow.Profile.ToString()}");
       strState.AppendLine($"Window GL Version: {Gu.Context.GameWindow.APIVersion.ToString()}");
@@ -1760,7 +1788,7 @@ namespace PirateCraft
       Gpu.CheckGpuErrorsRt();
     }
 
+    #endregion
 
-
-  }
+  }//GpuRenderSTate
 }

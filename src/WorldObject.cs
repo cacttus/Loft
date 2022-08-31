@@ -40,6 +40,7 @@ namespace PirateCraft
     public abstract void OnUpdate(double dt, WorldObject myObj); //update
     public abstract void OnDestroy(WorldObject myObj); //called before the object is destroyed.
     public virtual void OnPick() { }
+    public virtual void OnView(WorldObject ob, RenderView rv) { }
   }
   public class EventComponent : Component
   {
@@ -386,10 +387,10 @@ namespace PirateCraft
   }
   public class InputComponent : Component
   {
-    protected UiWindowBase Window { get; set; } = null;
-    public InputComponent(UiWindowBase win)
+    protected RenderView View { get; set; } = null;
+    public InputComponent(RenderView win)
     {
-      Window = win;
+      View = win;
     }
     public override void OnCreate(WorldObject myObj)
     {
@@ -418,45 +419,51 @@ namespace PirateCraft
 
       public void DoRotate(WorldObject obj, Camera3D cam)
       {
-        //Rotate Camera
-        float width = cam.Viewport_Width;
-        float height = cam.Viewport_Height;
+        if (cam.View != null && cam.View.TryGetTarget(out var view))
+        {
+          //Rotate Camera
+          float width = view.Viewport.Width;
+          float height = view.Viewport.Height;
+          float mpx_rel = Gu.Mouse.Pos.x - view.Viewport.X;
+          float mpy_rel = Gu.Mouse.Pos.y - view.Viewport.Y;
 
-        rotX += Math.PI * 2 * (Gu.Mouse.Delta.x / width) * rotations_per_width * Gu.CoordinateSystemMultiplier;
-        if (rotX >= Math.PI * 2.0f)
-        {
-          rotX = (float)(rotX % (Math.PI * 2.0f));
-        }
-        if (rotX <= 0)
-        {
-          rotX = (float)(rotX % (Math.PI * 2.0f));
-        }
+          rotX += Math.PI * 2 * (Gu.Mouse.Delta.x / width) * rotations_per_width * Gu.CoordinateSystemMultiplier;
+          if (rotX >= Math.PI * 2.0f)
+          {
+            rotX = (float)(rotX % (Math.PI * 2.0f));
+          }
+          if (rotX <= 0)
+          {
+            rotX = (float)(rotX % (Math.PI * 2.0f));
+          }
 
-        rotY += Math.PI * 2 * (Gu.Mouse.Delta.y / height) * half_rotations_per_height * Gu.CoordinateSystemMultiplier;
-        if (rotY >= Math.PI / 2)
-        {
-          rotY = Math.PI / 2 - 0.001f;
-        }
-        if (rotY <= -Math.PI / 2)
-        {
-          rotY = -Math.PI / 2 + 0.001f;
-        }
+          rotY += Math.PI * 2 * (Gu.Mouse.Delta.y / height) * half_rotations_per_height * Gu.CoordinateSystemMultiplier;
+          if (rotY >= Math.PI / 2)
+          {
+            rotY = Math.PI / 2 - 0.001f;
+          }
+          if (rotY <= -Math.PI / 2)
+          {
+            rotY = -Math.PI / 2 + 0.001f;
+          }
 
-        quat qy = quat.fromAxisAngle(new vec3(0, 1, 0), (float)rotX).normalized();
-        quat qx = quat.fromAxisAngle(new vec3(1, 0, 0), (float)rotY).normalized();
+          quat qy = quat.fromAxisAngle(new vec3(0, 1, 0), (float)rotX).normalized();
+          quat qx = quat.fromAxisAngle(new vec3(1, 0, 0), (float)rotY).normalized();
 
-        obj.Rotation_Local = qy;
-        cam.Rotation_Local = qx;
+          obj.Rotation_Local = qy;
+          cam.Rotation_Local = qx;
 
-        if ((Gu.Mouse.Pos.x <= width * warp_boundary) || (Gu.Mouse.Pos.x >= width - width * warp_boundary))
-        {
-          Gu.Mouse.WarpMouse(true, false, true);
-        }
-        if ((Gu.Mouse.Pos.y <= height * warp_boundary) || (Gu.Mouse.Pos.y >= height - height * warp_boundary))
-        {
-          Gu.Mouse.WarpMouse(false, true, true);
+          if ((mpx_rel <= width * warp_boundary) || (mpx_rel >= width - width * warp_boundary))
+          {
+            Gu.Mouse.WarpMouse(view.Viewport, true, false, true);
+          }
+          if ((mpy_rel <= height * warp_boundary) || (mpy_rel >= height - height * warp_boundary))
+          {
+            Gu.Mouse.WarpMouse(view.Viewport, false, true, true);
+          }
         }
       }
+
     }
 
     public enum FPSCamMode
@@ -470,7 +477,7 @@ namespace PirateCraft
     private const float MaxAirFriction = 10.0f;//friction percentage in velocity Units per second (1.0 means the velocity will reach 0 in one second) [0,1]. lower values result in less friction
     private FirstPersonMouseRotator _FPSRotator = new FirstPersonMouseRotator();
 
-    public FPSInputComponent(UiWindowBase win) : base(win)
+    public FPSInputComponent(RenderView view) : base(view)
     {
     }
     public override void OnCreate(WorldObject myObj)
@@ -478,27 +485,36 @@ namespace PirateCraft
     }
     public override void OnUpdate(double dt, WorldObject myObj)
     {
-      if (!Window.IsFocused)
+      if (!Gu.Context.GameWindow.IsFocused)
       {
         return;
       }
-
+      if (this.View != Gu.Context.GameWindow.ActiveView)
+      {
+        return;
+      }
+      Camera3D cam = null;
+      if (!View.Camera.TryGetTarget(out cam))
+      {
+        return;
+      }
       base.OnUpdate(dt, myObj);
 
       myObj.AirFriction = MaxAirFriction; //Movement Damping
 
       vec3 basisX = vec3.Zero, basisY = vec3.Zero, basisZ = vec3.Zero;
+
       if (CamMode == FPSCamMode.Flying)
       {
-        basisX = this.Window.Camera.BasisX;
-        basisY = this.Window.Camera.BasisY;
-        basisZ = this.Window.Camera.BasisZ;
+        basisX = cam.BasisX;
+        basisY = cam.BasisY;
+        basisZ = cam.BasisZ;
       }
       else if (CamMode == FPSCamMode.Playing)
       {
-        basisX = this.Window.Camera.BasisX;
+        basisX = cam.BasisX;
         basisY = vec3.Zero; //no cheating
-        basisZ = this.Window.Camera.BasisZ;
+        basisZ = cam.BasisZ;
       }
 
       //Modify speed multiplier based on state
@@ -546,7 +562,7 @@ namespace PirateCraft
         }
       }
 
-      _FPSRotator.DoRotate(myObj, this.Window.Camera);
+      _FPSRotator.DoRotate(myObj, cam);
     }
     public override void OnDestroy(WorldObject myObj)
     {
@@ -594,7 +610,7 @@ namespace PirateCraft
     public override Constraint Clone(bool shallow = true)
     {
       FollowConstraint cc = null;
-      if (FollowObj.TryGetTarget(out var wo))
+      if (FollowObj != null && FollowObj.TryGetTarget(out var wo))
       {
         cc = new FollowConstraint(wo, Mode, DriftSpeed);
       }
@@ -672,7 +688,7 @@ namespace PirateCraft
     public OOBox3f BoundBoxMeshTransform { get { return _boundBoxTransform; } } //Transformed bound box
     public Box3f BoundBox { get { return _boundBox; } } //Entire AABB with all meshes and children inside
 
-    public HashSet<WorldObject> Children { get { return _children; } private set { _children = value; } }
+    public List<WorldObject> Children { get { return _children; } private set { _children = value; } }
 
     public vec3 Position_Local { get { return _position; } set { _position = value; SetTransformChanged(); } }
     public quat Rotation_Local { get { return _rotation; } set { _rotation = value; SetTransformChanged(); } }//xyz,angle
@@ -703,8 +719,8 @@ namespace PirateCraft
     public Material Material { get { return _material; } set { _material = value; } }
 
     public Action<WorldObject>? OnUpdate { get; set; } = null;
-    public Action<WorldObject>? OnAddedToScene { get; set; } = null;
     public Action<WorldObject, RenderView>? OnView { get; set; } = null;
+    public Action<WorldObject>? OnAddedToScene { get; set; } = null;
     public Action<WorldObject>? OnDestroyed { get; set; } = null;
 
     public bool HasPhysics { get { return _hasPhysics; } set { _hasPhysics = value; } }
@@ -714,8 +730,9 @@ namespace PirateCraft
     public bool Collides { get { return _collides; } set { _collides = value; } }
     public float AirFriction { get { return _airFriction; } set { _airFriction = value; } }
 
-    public WindowContext ExclusiveRenderContext { get; set; } = null; //ONLY render this object in THIS context, regardless of whether it is visible. This is for multiple-windows. If null: render in any context.
-    public WindowContext ExcludeFromRenderContext { get; set; } = null; //DO NOT render in THIS context. Used for an FPS seeing other characters.
+    //public WindowContext ExclusiveRenderContext { get; set; } = null; //ONLY render this object in THIS context, regardless of whether it is visible. This is for multiple-windows. If null: render in any context.
+    //public WindowContext ExcludeFromRenderContext { get; set; } = null; //DO NOT render in THIS context. Used for an FPS seeing other characters.
+    public WeakReference<RenderView> ExcludeFromRenderView { get; set; } = null; //DO NOT render in THIS context. Used for an FPS seeing other characters.
 
     public List<WorldObject> Instances = null;// To make an Instance's object data  unique call MakeUnique
 
@@ -726,23 +743,23 @@ namespace PirateCraft
     {
       get
       {
-        // if (_defaultWorldObject == null)
-        // {
-        //   _defaultWorldObject = new WorldObject("default");
-        // }
-        return new WorldObject(); //_defaultWorldObject;
+        return new WorldObject();
       }
     }
     public WorldObject RootParent
     {
+      //Return root object parent that is NOT the scene. E.g., the root of the given object
       get
       {
         var thep = this;
         for (int ip = 0; ip < Gu.c_intMaxWhileTrueLoop; ip++)
         {
-          if (thep._parent.TryGetTarget(out var p))
+          if (thep._parent != null && thep._parent.TryGetTarget(out var p))
           {
-            thep = p;
+            if (p != Gu.World.SceneRoot)
+            {
+              thep = p;
+            }
           }
           else
           {
@@ -792,12 +809,9 @@ namespace PirateCraft
     {
       get
       {
-        if (_parent != null)
+        if (_parent != null && _parent.TryGetTarget(out var p))
         {
-          if (_parent.TryGetTarget(out var p))
-          {
-            return p;
-          }
+          return p;
         }
         return null;
       }
@@ -827,13 +841,13 @@ namespace PirateCraft
     private vec3 _basisY = new vec3(0, 1, 0);
     private vec3 _basisZ = new vec3(0, 0, 1);
     private OOBox3f _boundBoxTransform = new OOBox3f(new vec3(0, 0, 0), new vec3(1, 1, 1));
-    private Box3f _boundBox = new Box3f(new vec3(0, 0, 0), new vec3(1, 1, 1));
+    protected Box3f _boundBox = new Box3f(new vec3(0, 0, 0), new vec3(1, 1, 1));
     private MeshData _meshData = null;
     private Material _material = null;
     private vec4 _color = new vec4(1, 1, 1, 1);
     private List<Component> _components = new List<Component>();
     private List<Constraint> _constraints = new List<Constraint>();
-    private HashSet<WorldObject> _children = new HashSet<WorldObject>();
+    private List<WorldObject> _children = new List<WorldObject>();
     private bool _transformChanged = false;
     private bool _hidden = false;
     private int _treeDepth = 0; //used to check for DAG cycles
@@ -958,7 +972,7 @@ namespace PirateCraft
         }
         return LambdaBool.Continue;
       });
-      foreach (var child in this.Children)
+      IterateChildrenSafe((child) =>
       {
         if (Gu.Context.Renderer.Picker.PickedObjectFrame == null)
         {
@@ -966,9 +980,11 @@ namespace PirateCraft
         }
         else
         {
-          break;
+          return LambdaBool.Break;
         }
-      }
+        return LambdaBool.Continue;
+      });
+
     }
     public WorldObject Clone()
     {
@@ -1032,10 +1048,27 @@ namespace PirateCraft
       other._components = this._components.Clone(true);
       other._constraints = this._constraints.Clone(true);
 
-      foreach (var ch in this._children)
+      IterateChildrenSafe((ch) =>
       {
         other.AddChild(ch.Clone());
-      }
+        return LambdaBool.Continue;
+      });
+    }
+    public void View(RenderView rv)
+    {
+      OnView?.Invoke(this, rv);
+      var that = this;
+      IterateComponentsSafe((cmp) =>
+      {
+        cmp.OnView(that, rv);
+        return LambdaBool.Continue;
+      });
+
+      IterateChildrenSafe((child) =>
+      {
+        child.View(rv);
+        return LambdaBool.Continue;
+      });
     }
     public void Destroy()
     {
@@ -1102,6 +1135,7 @@ namespace PirateCraft
     }
     public void CalcBoundBox(ref Box3f parent)
     {
+
       if (Mesh != null)
       {
         _boundBoxTransform = new OOBox3f(BoundBoxMeshBind._min, BoundBoxMeshBind._max);
@@ -1111,6 +1145,10 @@ namespace PirateCraft
           _boundBoxTransform.Verts[vi] = v.xyz();
           _boundBox.genExpandByPoint(_boundBoxTransform.Verts[vi]);
         }
+      }
+      else
+      {
+        _boundBox.genExpandByPoint(this.Position_World);
       }
 
       //So for now, I'm saying every object has a mesh of some kind. This makes things simpler.
@@ -1182,39 +1220,39 @@ namespace PirateCraft
         }
       }
     }
+    public void IterateChildrenSafe(Func<WorldObject, LambdaBool> act)
+    {
+      //If we remove components while iterating components..
+      for (int c = _children.Count - 1; c >= 0; c--)
+      {
+        if (c < _children.Count)
+        {
+          if (act(_children[c]) == LambdaBool.Break)
+          {
+            break;
+          }
+        }
+      }
+    }
     public void Unlink()
     {
       //Unlink object for destroy
-      HashSet<WorldObject> cpy = new HashSet<WorldObject>(Children);
-      foreach (var c in cpy)
+      IterateChildrenSafe((c) =>
       {
         c.Unlink();
-      }
+        return LambdaBool.Continue;
+      });
       Children.Clear();
-      cpy.Clear();
       TryGetParent()?.RemoveChild(this);
     }
     public WorldObject TryGetParent()
     {
-      if (_parent != null)
+      if (_parent != null && _parent.TryGetTarget(out var p))
       {
-        if (_parent.TryGetTarget(out var p))
-        {
-          return p;
-        }
+        return p;
       }
       return null;
     }
-    public void Iterate(Action<WorldObject> act)
-    {
-      //Run an action on all children.
-      act(this);
-      foreach (var c in Children)
-      {
-        c.Iterate(act);
-      }
-    }
-
     #endregion
     #region Private:Methods
 
@@ -1227,10 +1265,11 @@ namespace PirateCraft
       else
       {
         _treeDepth = Parent._treeDepth + 1;
-        foreach (var cc in Children)
+        IterateChildrenSafe((cc) =>
         {
           cc.UpdateTreeDepth();
-        }
+          return LambdaBool.Continue;
+        });
       }
     }
 
@@ -1260,12 +1299,9 @@ namespace PirateCraft
 
     public override void Update(World world, double dt, ref Box3f parentBoundBox)
     {
-      //Bound box of entire light
-      parentBoundBox.genExpandByPoint(Position_Local - Radius);
-      parentBoundBox.genExpandByPoint(Position_Local + Radius);
-
       base.Update(world, dt, ref parentBoundBox);
-
+      this._boundBox.genExpandByPoint(Position_Local - Radius);
+      this._boundBox.genExpandByPoint(Position_Local + Radius);
     }
   }
 

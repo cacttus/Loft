@@ -606,16 +606,16 @@ namespace PirateCraft
       {
         return true;
       }
-      if (boundsSS._max.y > b2ClipRect._min.y)
-      {  //**Norte we flipped Y's </> here - because GL min/max runs the oppostie direction in the Y axis
+      if (boundsSS._max.y < b2ClipRect._min.y)
+      {
         return true;
       }
       if (boundsSS._min.x > b2ClipRect._max.x)
       {
         return true;
       }
-      if (boundsSS._min.y < b2ClipRect._max.y)
-      {  //**Norte we flipped Y's </> here - because GL min/max runs the oppostie direction in the Y axis
+      if (boundsSS._min.y > b2ClipRect._max.y)
+      {
         return true;
       }
       return false;
@@ -668,16 +668,16 @@ namespace PirateCraft
         {
           ret._min.x = b._min.x;
         }
-        if (b._min.y < ret._min.y)
-        {  //**Norte we flipped Y's </> here - because GL min/max runs the oppostie direction in the Y axis
+        if (b._min.y > ret._min.y)
+        {
           ret._min.y = b._min.y;
         }
         if (b._max.x < ret._max.x)
         {
           ret._max.x = b._max.x;
         }
-        if (b._max.y > ret._max.y)
-        {  //**Norte we flipped Y's </> here - because GL min/max runs the oppostie direction in the Y axis
+        if (b._max.y < ret._max.y)
+        {
           ret._max.y = b._max.y;
         }
         // Make sure it's valid
@@ -685,8 +685,8 @@ namespace PirateCraft
         {
           ret._min.x = ret._max.x;
         }
-        if (ret._max.y > ret._min.y)
-        {  //**Norte we flipped Y's </> here - because GL min/max runs the oppostie direction in the Y axis
+        if (ret._max.y < ret._min.y)
+        {
           ret._max.y = ret._min.y;
         }
       }
@@ -786,14 +786,20 @@ namespace PirateCraft
       vc._rect.w = rasterQuad._max.y;
 
       // Clip Rect.  For discard
-      vc._clip = MakeClipRectForRender(b2ClipRect);
       if (dd.DisableClip)
       {
-        // Disable clip
+        //We are only flipping Y in the shader now
         vc._clip.x = -999999;
         vc._clip.y = -999999;
         vc._clip.z = 999999;
         vc._clip.w = 999999;
+      }
+      else
+      {
+        vc._clip.x = b2ClipRect._min.x;
+        vc._clip.y = b2ClipRect._min.y;
+        vc._clip.z = b2ClipRect._max.x;
+        vc._clip.w = b2ClipRect._max.y;
       }
 
     }
@@ -867,8 +873,6 @@ namespace PirateCraft
         SetVertexPickAndColor(ref dbgv, dd.OverlayColor, rootPickId);
         verts.Add(dbgv);
 
-
-
       }
     }
     private void SetVertexPickAndColor(ref v_v4v4v4v2u2v4v4 vc, vec4 color, uint rootPickId)
@@ -881,18 +885,6 @@ namespace PirateCraft
           ((uint)(color.z * 255.0f) << 8) |
           ((uint)(color.w * 255.0f) << 0)
       );
-    }
-    private vec4 MakeClipRectForRender(Box2f b2ClipRect)
-    {
-      vec4 clipRect;
-
-      // we have a parent, and parent hides stuff
-      clipRect.x = b2ClipRect._min.x;
-      clipRect.y = b2ClipRect._max.y;  // Note the swap of y here, for OpenGl texture coords
-      clipRect.z = b2ClipRect._max.x;
-      clipRect.w = b2ClipRect._min.y;
-
-      return clipRect;
     }
     private Box2f GetPickableQuad()
     {
@@ -1035,7 +1027,7 @@ namespace PirateCraft
         SizeElement(maxWH, contentWH);
       }
     }
-    protected void PerformLayout_PositionElements(vec2 viewport_wh, bool bForce)
+    protected void PerformLayout_PositionElements(bool bForce)
     {
       //Position elements after size calculated
       if (LayoutChanged || bForce)
@@ -1047,8 +1039,8 @@ namespace PirateCraft
             UiElement ele = p.Value;
             if (ele.LayoutVisible)
             {
-              LayoutEleQuads(viewport_wh, ele);
-              ele.PerformLayout_PositionElements(viewport_wh, bForce);
+              LayoutEleQuads(ele);
+              ele.PerformLayout_PositionElements(bForce);
             }
           }
         }
@@ -1118,7 +1110,7 @@ namespace PirateCraft
       {
         if (this._parent != null && this._parent.TryGetTarget(out var par))
         {
-          _props._width = par._props._width - _props._left;
+          _props._width = par._props._width;// - _props._left;
         }
       }
       else
@@ -1133,12 +1125,17 @@ namespace PirateCraft
       {
         if (this._parent != null && this._parent.TryGetTarget(out var par))
         {
-          _props._height = par._props._height - _props._top;
+          _props._height = par._props._height;// - _props._top;
         }
       }
       else
       {
         Gu.BRThrowNotImplementedException();
+      }
+      if (_props._width < 0 || _props._height < 0)
+      {
+        int n = 0;
+        n++;
       }
 
     }
@@ -1311,7 +1308,7 @@ namespace PirateCraft
 
       ValidateQuad();
     }
-    private void LayoutEleQuads(vec2 viewport_wh, UiElement ele)
+    private void LayoutEleQuads(UiElement ele)
     {
       //Add the child to the parent.
       float t, r, b, l;
@@ -1330,14 +1327,14 @@ namespace PirateCraft
       rbr = ele._props._borderBotRightRadius.Value;
       rbl = ele._props._borderBotLeftRadius.Value;
 
-      ComputeQuads(viewport_wh, t + bt, r - br, b - bb, l + bl, rtl, rtr, rbr, rbl, ele._renderOffset, ele._contentArea);
+      ComputeQuads(t + bt, r - br, b - bb, l + bl, rtl, rtr, rbr, rbl, ele._renderOffset, ele._contentArea);
 
       if (ele._borderArea != null)
       {
-        ComputeQuads(viewport_wh, t, r, b, l, rtl, rtr, rbr, rbl, ele._renderOffset, ele._borderArea);
+        ComputeQuads(t, r, b, l, rtl, rtr, rbr, rbl, ele._renderOffset, ele._borderArea);
       }
     }
-    protected static void ComputeQuads(vec2 viewport_wh, float top, float right, float bot, float left, float rtl, float rtr, float rbr, float rbl, Box2f? offset, Quads quads)
+    protected static void ComputeQuads(float top, float right, float bot, float left, float rtl, float rtr, float rbr, float rbl, Box2f? offset, Quads quads)
     {
       // Layout Quad (for picking, debug)/*  */
       float w1 = 1.0f, h1 = 1.0f;
@@ -1346,13 +1343,13 @@ namespace PirateCraft
 
       if (left > right)
       {
-        left = right;
         Gu.DebugBreak();
+        left = right;
       }
       if (top > bot)
       {
-        top = bot;
         Gu.DebugBreak();
+        top = bot;
       }
 
       quads._b2ComputedQuad._min.y = top;
@@ -1381,38 +1378,20 @@ namespace PirateCraft
       quads._b2LayoutQuad._max.x = quads._b2OffsetQuad._max.x * w1;
       quads._b2LayoutQuad._max.y = quads._b2OffsetQuad._max.y * h1;
 
-      ComputeRasterQuad(viewport_wh, quads._b2LayoutQuad, ref quads._b2RasterQuad);
+      ComputeRasterQuad(quads._b2LayoutQuad, ref quads._b2RasterQuad);
       if (offset != null)
       {
-        ComputeRasterQuad(viewport_wh, quads._b2ComputedQuad, ref quads._b2PreOffsetRasterQuad);
+        ComputeRasterQuad(quads._b2ComputedQuad, ref quads._b2PreOffsetRasterQuad);
       }
-      quads._rtl = new vec2(rtl / (float)viewport_wh.x * 0.5f, rtl / (float)viewport_wh.y * 0.5f);
-      quads._rtr = new vec2(rtr / (float)viewport_wh.x * 0.5f, rtr / (float)viewport_wh.y * 0.5f);
-      quads._rbr = new vec2(rbr / (float)viewport_wh.x * 0.5f, rbr / (float)viewport_wh.y * 0.5f);
-      quads._rbl = new vec2(rbl / (float)viewport_wh.x * 0.5f, rbl / (float)viewport_wh.y * 0.5f);
+      quads._rtl = rtl;// new vec2(rtl / (float)viewport_wh.x * 0.5f, rtl / (float)viewport_wh.y * 0.5f);
+      quads._rtr = rtr;// new vec2(rtr / (float)viewport_wh.x * 0.5f, rtr / (float)viewport_wh.y * 0.5f);
+      quads._rbr = rbr;// new vec2(rbr / (float)viewport_wh.x * 0.5f, rbr / (float)viewport_wh.y * 0.5f);
+      quads._rbl = rbl;// new vec2(rbl / (float)viewport_wh.x * 0.5f, rbl / (float)viewport_wh.y * 0.5f);
     }
-    private static void ComputeRasterQuad(vec2 viewport_wh, Box2f _b2LayoutQuad, ref Box2f _b2RasterQuad)
+    private static void ComputeRasterQuad(Box2f _b2LayoutQuad, ref Box2f _b2RasterQuad)
     {
-      // Layout quad is in pixel screen coordinates relative to the window/screen Top Left
-      // The resulting coordinates for the GPU are -0.5 +0.5 in both axes with the center being in the center of the screen
-      // Translate a 2D screen quad to be rendered in a shader.
-      // So* our quad is from TOP Left - OpenGL is Bottom Left - this fixes this.
-      float w = (float)viewport_wh.x;
-      float w2 = w * 0.5f;
-      float h = (float)viewport_wh.y;
-      float h2 = h * 0.5f;
-
+      //TODO: remove raster, use layout
       _b2RasterQuad = _b2LayoutQuad;
-
-      // Subtract from viewport center
-      _b2RasterQuad._min.x -= w2;
-      _b2RasterQuad._max.x -= w2;
-
-      // Invert text to show rightsize up and divide by perspective
-      _b2RasterQuad._min.x = _b2RasterQuad._min.x / w2;
-      _b2RasterQuad._min.y = (h2 - _b2RasterQuad._min.y - 1) / h2;
-      _b2RasterQuad._max.x = _b2RasterQuad._max.x / w2;
-      _b2RasterQuad._max.y = (h2 - _b2RasterQuad._max.y - 1) / h2;
     }
     private void CreateGlyphs(MegaTex mt, bool replaceChangedGlyphs)
     {
@@ -1622,13 +1601,17 @@ namespace PirateCraft
   }
   public class UiScreen : UiElement
   {
-    private WeakReference<Camera3D> _camera = new WeakReference<Camera3D>(null);
+    private WeakReference<RenderView> _renderView = new WeakReference<RenderView>(null);
     public UiDebugDraw DebugDraw { get; set; } = new UiDebugDraw();
     private UiDragInfo _dragInfo = new UiDragInfo();
 
-    public UiScreen(Camera3D cam)
+#if DEBUG
+    private v_v4v4v4v2u2v4v4[] _debug_pt = new v_v4v4v4v2u2v4v4[3]; //save 3 points to see what they are (debug)
+#endif
+
+    public UiScreen(RenderView cam)
     {
-      _camera = new WeakReference<Camera3D>(cam);
+      _renderView = new WeakReference<RenderView>(cam);
       int designWidth = 1920;
       int designHeight = 1080;
       _props.SetDefault();
@@ -1663,31 +1646,37 @@ namespace PirateCraft
       // Mnemonic wich gves you the base sort layer, provided n will return additional layers.
       return c_BaseLayerSort + n;
     }
-    public void Update(MegaTex mt, WorldObject wo, WindowContext ct)
+    public void Update(MegaTex mt, WindowContext ct, Gui2d g)
     {
-      if (_camera.TryGetTarget(out var cam))
+      if (_renderView != null && _renderView.TryGetTarget(out var rv))
       {
         long a = Gu.Milliseconds();
-        SetExtentsToViewport(cam);
-        UpdateLayout(mt, wo, ct.PCMouse, cam);
+        SetExtentsToViewport(rv);
+        UpdateLayout(mt, ct.PCMouse, rv);
         this.UpdateMs = Gu.Milliseconds() - a;
 
         a = Gu.Milliseconds();
-        RegenMesh(wo, mt);
+        RegenMesh(rv, g, mt);
         this.MeshMs = Gu.Milliseconds() - a;
       }
     }
-    private void SetExtentsToViewport(Camera3D cam)
+    private void SetExtentsToViewport(RenderView rv)
     {
-      _props._top = cam.Viewport_Y;
-      _props._left = cam.Viewport_X;
-      _props._width = cam.Viewport_Width - cam.Viewport_X - 1;
-      _props._height = cam.Viewport_Height - cam.Viewport_Y - 1;
-      _props._maxWHPX = new vec2(cam.Viewport_Width, cam.Viewport_Height);//Make sure stuff doesn't go off the screen.
-      _props._minWHPX = new vec2(cam.Viewport_X, cam.Viewport_Y);
+      _props._top = rv.Viewport.Y;
+      _props._left = rv.Viewport.X;
+      _props._width = rv.Viewport.Width;
+      _props._height = rv.Viewport.Height;
+      _props._maxWHPX = new vec2(rv.Viewport.Width, rv.Viewport.Height);//Make sure stuff doesn't go off the screen.
+      _props._minWHPX = new vec2(0, 0);
     }
     public void Pick(WindowContext ct)
     {
+      //See WorldObject->Pick
+      if (Gu.Context.Renderer.Picker.PickedObjectFrame != null)
+      {
+        return;
+      }
+
       //Update picked state
       var picker = Gu.Context.Renderer.Picker;
       if (picker.PickedObjectFrameLast != null)
@@ -1701,8 +1690,8 @@ namespace PirateCraft
       //Do Pick
       Pick(ct.PCMouse, ct.FrameStamp);
 
-      long a = Gu.Milliseconds();
       //Fire events
+      long a = Gu.Milliseconds();
       if (picker.PickedObjectFrameLast != null)
       {
         if (picker.PickedObjectFrameLast is UiElement)
@@ -1722,18 +1711,18 @@ namespace PirateCraft
       }
       this.ObjectEventsMs = Gu.Milliseconds() - a;
 
-      a = Gu.Milliseconds();
       //Window events
+      a = Gu.Milliseconds();
       DoMouseEvents(ct.PCMouse, true);
       this.WindowEventsMs = Gu.Milliseconds() - a;
     }
     private vec2 _viewport_wh_last = new vec2(1, 1);
-    private void UpdateLayout(MegaTex mt, WorldObject wo, PCMouse mouse, Camera3D cam)
+    private void UpdateLayout(MegaTex mt, PCMouse mouse, RenderView rv)
     {
       if (LayoutChanged)
       {
         bool force = false;
-        vec2 viewport_wh = new vec2(cam.Viewport_Width, cam.Viewport_Height);
+        vec2 viewport_wh = new vec2(rv.Viewport.Width, rv.Viewport.Height);
         if ((int)viewport_wh.x != (int)_viewport_wh_last.x || (int)viewport_wh.y != (int)_viewport_wh_last.y)
         {
           force = true;
@@ -1741,13 +1730,12 @@ namespace PirateCraft
         }
 
         // Gui2d doesn't have a parent, so we have to compute the quads to create a valid clip region.
-        ComputeQuads(viewport_wh,
-        _props._top.Value, _props._right.Value, _props._bottom.Value, _props._left.Value,
+        ComputeQuads(_props._top.Value, _props._right.Value, _props._bottom.Value, _props._left.Value,
         _props._borderTopLeftRadius.Value, _props._borderTopRightRadius.Value, _props._borderBotRightRadius.Value, _props._borderBotLeftRadius.Value,
         _renderOffset, _contentArea);
 
         PerformLayout_SizeElements(mt, force, this._props._maxWHPX.Value);
-        PerformLayout_PositionElements(viewport_wh, force);
+        PerformLayout_PositionElements(force);
 
       }
     }
@@ -1756,7 +1744,7 @@ namespace PirateCraft
     public long PickMs { get; private set; } = 0;
     public long ObjectEventsMs { get; private set; } = 0;
     public long WindowEventsMs { get; private set; } = 0;
-    private void RegenMesh(WorldObject wo, MegaTex mt)
+    private void RegenMesh(RenderView rv, Gui2d g, MegaTex mt)
     {
       Box2f b = GetScreenSpaceClipQuad();
       List<v_v4v4v4v2u2v4v4> verts = new List<v_v4v4v4v2u2v4v4>();
@@ -1764,13 +1752,22 @@ namespace PirateCraft
       Gu.Assert(mt.DefaultPixel != null);
       RegenMesh(verts, mt.DefaultPixel, b, 0, DebugDraw);
 
-      wo.Mesh = new MeshData("gui_mesh", OpenTK.Graphics.OpenGL4.PrimitiveType.Points,
-      Gpu.CreateVertexBuffer("gui_mesh", verts.ToArray()),
+#if DEBUG
+      if (verts.Count > 0)
+        _debug_pt[0] = verts[0];
+      if (verts.Count > 1)
+        _debug_pt[1] = verts[1];
+      if (verts.Count > 2)
+        _debug_pt[2] = verts[2];
+#endif
+
+      g.Mesh = new MeshData(rv.Name + "gui-mesh", OpenTK.Graphics.OpenGL4.PrimitiveType.Points,
+      Gpu.CreateVertexBuffer(rv.Name + "gui-mesh", verts.ToArray()),
       false
       );
-      wo.Mesh.DrawMode = DrawMode.Forward;
-      wo.Mesh.DrawOrder = DrawOrder.Last;
-        //wo.Mesh.DebugBreakRender = true;
+      g.Mesh.DrawMode = DrawMode.Forward;
+      g.Mesh.DrawOrder = DrawOrder.Last;
+      //wo.Mesh.DebugBreakRender = true;
 
     }
   }
@@ -1935,7 +1932,7 @@ namespace PirateCraft
 
     public void Compile(UiStyle sub = null)
     {
-      if (_bMustCompile || Gu.EngineConfig.AlwaysCompileAndReloadGpuUniformData)
+      if (_bMustCompile)
       {
         _compiled = _props.Clone();
         if (_super != null)
@@ -2099,85 +2096,58 @@ namespace PirateCraft
       }
       return ret;
     }
-  }
-  public class GuiComponent : Component
+  }//UiStyleSheet
+  public class Gui2d
   {
-    private Shader _shader = null;
-    private MegaTex _megaTex = null;
-    private UiStyleSheet _styleSheet = null;
-
+    //Gui2d instance for a view.
+    //Separate screen but shared MegaTex (if given)
     public UiScreen Screen { get; private set; } = null;
+    private Gui2dShared _shared = null;
+    public MeshData Mesh { get; set; } = null;
 
-    public MtFont GetFont(FileLoc loc)
+    public Gui2d(Gui2dShared shared, RenderView rv)
     {
-      return _megaTex.GetFont(loc);
+      _shared = shared;
+      Screen = new UiScreen(rv);
     }
-    public GuiComponent(Camera3D cam)
+    public void Update(double dt)
     {
-      _megaTex = new MegaTex("gui_megatex", true);
-      _styleSheet = new UiStyleSheet(_megaTex);
-
-      GetFont(FontFace.Fancy);
-      GetFont(FontFace.Mono);
-      GetFont(FontFace.Pixel);
-      GetFont(FontFace.Entypo);
-
-      Screen = new UiScreen(cam);
+      Screen.Update(_shared.MegaTex, Gu.Context, this);
     }
-    public override void OnCreate(WorldObject myObj)
+    public void OnResize()
     {
-      //When the component is create. Compile texture.
-      //Linear filtering makes text look very smooth. 
-      //Do not use mipmaps in the UI, it messes up the fonts. Or, we must use a separate font texture if we choose to use mipmaps (or custom mipmaps).
-
-      _megaTex.LoadImages();
-      MegaTex.CompiledTextures tx = _megaTex.Compile(MegaTex.MtClearColor.DebugRainbow, false, TexFilter.Linear, false);
-      if (tx != null)
-      {
-        _shader = Gu.Resources.LoadShader("v_gui", true, FileStorage.Embedded);
-        myObj.Material = new Material("GuiMT", _shader);
-        myObj.Material.GpuRenderState.DepthTest = false;
-        myObj.Material.GpuRenderState.Blend = true;
-        myObj.Material.AlbedoSlot.Texture = tx.Albedo;
-      }
-      else
-      {
-        Gu.Log.Error("Failed to compile mega tex " + _megaTex.Name);
-      }
+      Screen.SetLayoutChanged();
     }
-    public override void OnUpdate(double dt, WorldObject obj)
+    public void Render(RenderView rv)
     {
-      Screen.Update(_megaTex, obj, Gu.Context);
+      //Swap out the mesh for this instance's mesh
+      _shared.Dummy.Mesh = Mesh;
+      DrawCall.Draw(Gu.World.WorldProps, rv, _shared.Dummy);
     }
-    public override void OnPick()
+    public void Pick()
     {
       Screen.Pick(Gu.Context);
     }
-    public override void OnDestroy(WorldObject myObj)
-    {
-    }
-    public override Component Clone(bool shallow = true)
-    {
-      Gu.BRThrowNotImplementedException();
-      return null;
-    }
+
+    #region Public : Create
+
     public MtTex DefaultPixel()
     {
-      return _megaTex.DefaultPixel;
+      return _shared.MegaTex.DefaultPixel;
     }
     private UiElement CreateDefaultStyledElement(string name)
     {
       UiElement e = new UiElement(name);
-      if (_styleSheet != null)
+      if (_shared.StyleSheet != null)
       {
-        e.StyleClass = _styleSheet.GetClass(UiStyleSheet.DefaultStyle);
+        e.StyleClass = _shared.StyleSheet.GetClass(UiStyleSheet.DefaultStyle);
       }
       return e;
     }
     public UiElement CreatePanel(string name, vec2? pos, vec2? wh)
     {
       UiElement e = CreateDefaultStyledElement(name);
-      e.InlineStyle.Texture = new UiRef<MtTex>(_megaTex.DefaultPixel);
+      e.InlineStyle.Texture = new UiRef<MtTex>(_shared.MegaTex.DefaultPixel);
       if (pos != null)
       {
         e.InlineStyle.Pos = pos.Value;
@@ -2192,7 +2162,7 @@ namespace PirateCraft
     public UiElement CreateButton(string name, vec2? pos, string text, Action<UiEventId, UiElement, PCMouse> onClick = null)
     {
       UiElement e = CreateDefaultStyledElement(name);
-      e.InlineStyle.Texture = new UiRef<MtTex>(_megaTex.DefaultPixel);
+      e.InlineStyle.Texture = new UiRef<MtTex>(_shared.MegaTex.DefaultPixel);
       if (pos != null)
       {
         e.InlineStyle.Pos = pos.Value;
@@ -2212,7 +2182,7 @@ namespace PirateCraft
       e.InlineStyle.FontColor = vec4.rgba_ub(255, 255, 255, 255);
       e.InlineStyle.AddEvent(UiEventId.Mouse_Lmb_Release, (eid, uie, m) =>
       {
-        e.StyleClass = _styleSheet.GetClass(UiStyleSheet.DefaultHoverStyle);
+        e.StyleClass = _shared.StyleSheet.GetClass(UiStyleSheet.DefaultHoverStyle);
         e.InlineStyle.FontColor = vec4.rgba_ub(255, 255, 255, 255);
       });
       e.InlineStyle.AddEvent(UiEventId.Mouse_Enter, (eid, uie, m) =>
@@ -2239,7 +2209,7 @@ namespace PirateCraft
     public UiElement CreateLabel(string name, vec2? pos, string text, bool showbackground = true, FontFace? font = null, float fontSize = 12, vec4? fontColor = null, UiFontStyle fontstyle = UiFontStyle.Normal, float lineheight = 1.0f)
     {
       UiElement e = CreateDefaultStyledElement(name);
-      e.InlineStyle.Texture = new UiRef<MtTex>(showbackground ? _megaTex.DefaultPixel : null);
+      e.InlineStyle.Texture = new UiRef<MtTex>(showbackground ? _shared.MegaTex.DefaultPixel : null);
       if (pos != null)
       {
         e.InlineStyle.Pos = pos.Value;
@@ -2277,6 +2247,7 @@ namespace PirateCraft
       thumb.InlineStyle.PositionMode = UiPositionMode.RelativeConstrainXY;
       thumb.InlineStyle.Top = 0;
       thumb.InlineStyle.Left = 0;
+      thumb.IsPickRoot = true;
 
       UiElement cont = CreateDefaultStyledElement(name);
       cont.Name = name;
@@ -2321,8 +2292,83 @@ namespace PirateCraft
 
     }
 
+    #endregion
 
-  }//class Gui
+  }//class Gui2d
+  public class Gui2dShared
+  {
+    //Shared data between Gui2d instances for each context
+    public UiStyleSheet StyleSheet { get; private set; } = null;
+    public WorldObject Dummy { get; private set; } = null;
+    public MegaTex MegaTex { get; private set; } = null;
+
+    public MtFont GetFont(FileLoc loc)
+    {
+      return MegaTex.GetFont(loc);
+    }
+    public Gui2dShared(List<FileLoc> resources)
+    {
+      MegaTex = new MegaTex("gui_megatex", true);
+      StyleSheet = new UiStyleSheet(MegaTex);
+
+      foreach (var x in resources)
+      {
+        var e = System.IO.Path.GetExtension(x.QualifiedPath);
+        if (StringUtil.Equals(e, ".ttf"))
+        {
+          MegaTex.GetFont(x);
+        }
+        else if (StringUtil.Equals(e, ".png") || StringUtil.Equals(e, ".jpg") || StringUtil.Equals(e, ".bmp") || StringUtil.Equals(e, ".tga"))
+        {
+          MegaTex.GetTex(x);
+        }
+        else
+        {
+          Gu.Log.Error("Invalid file type for the GUi: " + x.QualifiedPath);
+          Gu.DebugBreak();
+        }
+      }
+
+      MegaTex.LoadImages();
+      MegaTex.CompiledTextures tx = MegaTex.Compile(MegaTex.MtClearColor.DebugRainbow, false, TexFilter.Linear, false);
+      if (tx != null)
+      {
+        var shader = Gu.Resources.LoadShader("v_gui", true, FileStorage.Embedded);
+        Dummy = new WorldObject("gui");
+        Dummy.Material = new Material("GuiMT", shader);
+        Dummy.Material.GpuRenderState.DepthTest = false;
+        Dummy.Material.GpuRenderState.Blend = true;
+        Dummy.Material.AlbedoSlot.Texture = tx.Albedo;
+      }
+      else
+      {
+        Gu.Log.Error("Failed to compile mega tex " + MegaTex.Name);
+      }
+    }
+
+  }//Gui2dShared
+  public class Gui2dManager : OpenGLContextDataManager<Dictionary<ulong, Gui2dShared>>
+  {
+    //Shared GUI data for each context
+    protected override Dictionary<ulong, Gui2dShared> CreateNew()
+    {
+      return new Dictionary<ulong, Gui2dShared>();
+    }
+    public Gui2dShared GetOrCreateGui2d(List<FileLoc> resources)
+    {
+      var qualifiedPaths = resources.ConvertAll((x) => { return x.QualifiedPath; });
+      var hash = Gu.HashStringArray(qualifiedPaths);
+
+      Gui2dShared? g = null;
+      var dict = GetDataForContext(Gu.Context);
+      if (!dict.TryGetValue(hash, out g))
+      {
+        g = new Gui2dShared(resources);
+        dict.Add(hash, g);
+      }
+      return g;
+    }
+  }//Gui2dManager
 
   #endregion
 

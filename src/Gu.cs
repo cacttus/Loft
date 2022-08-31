@@ -9,7 +9,7 @@ namespace PirateCraft
 {
   public static class Gu
   {
-public static bool BreakRenderState=false;
+    public static bool BreakRenderState = false;
 
     // Global Utils. static Class
     #region Public: Constants
@@ -47,7 +47,7 @@ public static bool BreakRenderState=false;
     public static AudioManager Audio { get; private set; } = null;
     public static string LocalCachePath { get; private set; } = "";
     public static string SavePath { get; private set; } = "";
-
+public static Gui2dManager Gui2dManager{get;private set;}  =null;
     #endregion
     #region Private: Static Members
 
@@ -83,8 +83,9 @@ public static bool BreakRenderState=false;
         ResourceManager.ClearCache();
       }
 
-      //Audio
+      //Manager
       Audio = new AudioManager();
+      Gui2dManager = new Gui2dManager();
     }
     public static void Run()
     {
@@ -113,6 +114,7 @@ public static bool BreakRenderState=false;
                 win.Load();
               }
               win.ProcessEvents();
+              win.SetActiveView();//make sure the view<->camera is updated to the active view of the window.
               Gu.Context.Update();
 
               if (Gu.World.UpdateContext == Gu.Context)
@@ -281,6 +283,20 @@ public static bool BreakRenderState=false;
     {
       //return a windows safe filename with datenow
       return DateTime.Now.ToString("yyyy.MM.dd.HH.mm.ss.fff");
+    }
+    public static ulong HashStringArray(List<string> strrings)
+    {
+      //I don't claim to know anything about maths
+      //https://stackoverflow.com/questions/19250374/fastest-way-to-make-a-hashkey-of-multiple-strings
+      unchecked
+      {
+        ulong hash = 17;
+        foreach (var s in strrings)
+        {
+          hash = hash * 23 + s == null ? 0 : (ulong)s.GetHashCode();
+        }
+        return hash;
+      }
     }
 
     #endregion

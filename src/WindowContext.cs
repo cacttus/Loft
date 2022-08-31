@@ -48,7 +48,7 @@ namespace PirateCraft
     {
       Gpu = new Gpu();
       Renderer = new Renderer();
-      Renderer.init(GameWindow.Size.X, GameWindow.Size.Y, null);
+      Renderer.init(GameWindow.Width, GameWindow.Height, null);
     }
     public void Update()
     {

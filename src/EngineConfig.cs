@@ -22,6 +22,15 @@ namespace PirateCraft
     public bool BreakOnGraphicsError = true;
     public bool ShowGuiBoxesAndDisableClipping = false;
     public bool SaveSTBFontImage = true; //saves raw generated font images
+    public bool StartInEditMode = true;//Set this to false to start the engine in game mode.
+
+    public int WindowInitX = 200;
+    public int WindowInitY = 200;
+    public int WindowInitW = 1920;
+    public int WindowInitH = 1080;
+    public float WindowInitScaleW = 0.75f;
+    public float WindowInitScaleH = 0.75f;
+
     public EngineConfig()
     {
     }

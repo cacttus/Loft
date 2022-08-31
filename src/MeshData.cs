@@ -78,7 +78,7 @@ namespace PirateCraft
     public string Name { get; protected set; }
 
     private static StaticContextData<MeshData> _defaultBox = new StaticContextData<MeshData>();
-    public static MeshData DefaultBox
+    public static MeshData DefaultBox//DefaultCube
     {
       get
       {
@@ -186,7 +186,7 @@ namespace PirateCraft
       //*****
       if (Gu.BreakRenderState || DebugBreakRender)
       {
-        Gpu.DebugGetRenderState(true);
+        GpuDebug.DebugGetRenderState(true);
         Gu.DebugBreak();
         Gu.BreakRenderState = false;
       }
@@ -560,11 +560,8 @@ namespace PirateCraft
       inds = GenerateQuadIndices(verts.Length / 4, !flip_tris);
 
     }
-    public static MeshData CreateScreenQuadMesh(int w, int h)
+    public static MeshData CreateScreenQuadMesh(float fw, float fh)
     {
-      float fw = (float)w;
-      float fh = (float)h;
-
       v_v3x2[] verts = new v_v3x2[] {
         new v_v3x2() { _v = new vec3(0, 0, 0), _x = new vec2(0, 1) } ,
         new v_v3x2() { _v = new vec3(fw, 0, 0), _x = new vec2(1, 1)} ,

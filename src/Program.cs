@@ -16,7 +16,11 @@ namespace PirateCraft
       try
       {
         Gu.InitGlobals();
-        var win = new MainWindow();
+        var win = new MainWindow(
+          new ivec2(Gu.EngineConfig.WindowInitX, Gu.EngineConfig.WindowInitY),
+          new ivec2(Gu.EngineConfig.WindowInitW, Gu.EngineConfig.WindowInitH),
+          new vec2(Gu.EngineConfig.WindowInitScaleW, Gu.EngineConfig.WindowInitScaleH)
+          );
         Gu.Run();
       }
       catch (Exception ex)
