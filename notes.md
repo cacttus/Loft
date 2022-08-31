@@ -1,7 +1,18 @@
 ﻿
+1. resizing window messes up gui
+2. scale buffers in renderer
+
+F1 - toggle game mode
+
+seems fixed by rmoving scissor from blit stage we need to test out th GUI functionality on both inputs
+
+ok found the problem - we are blittin the previous renderview's deferred render to the current forward render so basically we
+are skipping all other renderview forward renders.
+
+gui needs relative on screen not absolute as it can be rendered in the same camera but diferent vie w
+
 we need to add the lighting code and test out lights.
 fix the "modified" data in uniforms.
-
 
 not all graphics drivers support sharing context data. we can create a "virtual" context and render everything offscreen and send this to the other window context
 this works to prevent having to clone all the data..several times.. just a waste.
@@ -9,7 +20,6 @@ this works to prevent having to clone all the data..several times.. just a waste
 dropdown area .. new window
 
 we need the ability to have padding on positionconstrain element for scrollbar. so we need to split positiomode to x , y
-
 
 world will only have 1 drome
 drome size expands when we go outside the region.

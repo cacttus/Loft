@@ -35,10 +35,12 @@ struct GpuCamera {
   mat4 _m4Projection;
   //
   vec3 _vViewPos;
-  float _pad0;
+  float _fWindowWidth;
   //
   vec3 _vViewDir;
-  float _pad1;
+  float _fWindowHeight;
+//
+  vec4 _vWindowViewport;//x,y,w,h
 };
 layout(std140, binding = 1) uniform _ufGpuCamera_Block {
   GpuCamera _ufGpuCamera;
@@ -54,6 +56,11 @@ struct GpuMaterial {
   float _fPBR_metallic;
   float _fPBR_indexOfRefraction;
   float _fPBR_specular; 
+//
+  float _flat;
+  float _pad0;
+  float _pad1;
+  float _pad2;
 };
 layout(std140, binding = 2) uniform _ufGpuMaterial_Block {
   GpuMaterial _ufGpuMaterial;
@@ -68,9 +75,7 @@ uniform sampler2D _ufGpuMaterial_s2Position;   //
 vec4 getMRT_Color(vec2 tcoord)    { return texture(_ufGpuMaterial_s2Albedo, vec2(tcoord)); }   
 vec4 getMRT_Normal(vec2 tcoord)   { return texture(_ufGpuMaterial_s2Normal, vec2(tcoord)); }   
 vec4 getMRT_Position(vec2 tcoord) { return texture(_ufGpuMaterial_s2Position, vec2(tcoord)); } 
-vec4 getMRT_Rough(vec2 tcoord)    { return texture(_ufGpuMaterial_s2Roughness, vec2(tcoord)); }
-
-
+vec4 getMRT_Material(vec2 tcoord) { return texture(_ufGpuMaterial_s2Metalness, vec2(tcoord)); }
 
 struct GpuPointLight {
   vec3 _pos;

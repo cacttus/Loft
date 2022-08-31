@@ -120,51 +120,82 @@ mat3 getLightMatrix(in vec3 planeNormal, in vec3 planeVertex){
 	
 	return mat3(tangent, planeNormal, bitangent);
 }
-vec3 lightFragment(vec3 vert_pos, vec4 albedo,vec3 surface_normal, float rough, float spec, float IOR) {
+vec3 lightFragmentCookTorrence(in vec3 in_vpos, in vec4 in_albedo, in vec3 in_normal, in float in_rough, in float in_spec, in float in_IOR) {
 
   vec3 finalColor = vec3(0,0,0);
 
-  for(int iLight=0; iLight<_ufGpuWorld._iPointLightCount; iLight++) {
+  for(int iLight = 0; iLight < _ufGpuWorld._iPointLightCount; iLight++) {
     vec3 vLightPos = _ufGpuPointLights[iLight]._pos;
 
-    vec3 eye_vector = normalize(_ufGpuCamera._vViewPos - vert_pos);
-    vec3 light_vector = normalize(_ufGpuPointLights[iLight]._pos - vert_pos);
+    vec3 eye_vector = normalize(_ufGpuCamera._vViewPos - in_vpos);
+    vec3 light_vector = normalize(_ufGpuPointLights[iLight]._pos - in_vpos);
     vec3 half_vector = (light_vector + eye_vector) / length(light_vector + eye_vector);
 
-    float Dpow = 2.0 / pow(rough, 2.0) - 2.0;
-    float D = 1.0 / (M_PI * pow(rough, 2.0)) * pow( dot(half_vector, surface_normal), Dpow);
+    //Cook-Torrence
+    float Dpow = 2.0 / pow(in_rough, 2.0) - 2.0;
+    float D = 1.0 / (M_PI * pow(in_rough, 2.0)) * pow( dot(half_vector, in_normal), Dpow);
 
-    float Ga = 2 * dot(half_vector, surface_normal) * dot(surface_normal , eye_vector)  / dot(eye_vector, half_vector);
-    float Gb = 2 * dot(half_vector, surface_normal) * dot(surface_normal , light_vector) / dot(eye_vector, half_vector);
+    float Ga = 2 * dot(half_vector, in_normal) * dot(in_normal , eye_vector)  / dot(eye_vector, half_vector);
+    float Gb = 2 * dot(half_vector, in_normal) * dot(in_normal , light_vector) / dot(eye_vector, half_vector);
     float G = min(1.0, min(Ga,Gb));
 
-    float F0 = pow(IOR - 1.0, 2.0) / pow(IOR + 1.0, 2.0); //"Schlick's" approximation
+    float F0 = pow(in_IOR - 1.0, 2.0) / pow(in_IOR + 1.0, 2.0); //"Schlick's" approximation
     float F = F0 + (1.0 - F0) * pow( 1.0 - dot(eye_vector, half_vector), 5.0 );
+    
+    F = 1;//DEBUGGING
+    G = 1;
 
-    //DEBUGGING
-    //F = 1;
-    //G = 1;
+    float rs = (D * G * F) / (4.0 * dot(light_vector, in_normal) * dot(eye_vector, in_normal) );
 
-    float rs = (D * G * F) / (4.0 * dot(light_vector, surface_normal) * dot(eye_vector, surface_normal) );
+    float spec = rs * (in_spec);
 
-    float spec = rs * (spec);
-
-    vec3 diffuse = (albedo.rgb  * _ufGpuMaterial._vPBR_baseColor.rgb) * (1.0-spec); //kd,  d = 1-s, s = 1-d
+    vec3 diffuse = (in_albedo.rgb  * _ufGpuMaterial._vPBR_baseColor.rgb) * (1.0-spec); //kd,  d = 1-s, s = 1-d
     
     //Attenuation
-    float fFragToLightDistance = distance(_ufGpuPointLights[iLight]._pos, vert_pos);
+    float fFragToLightDistance = distance(_ufGpuPointLights[iLight]._pos, in_vpos);
     float power = clamp(_ufGpuPointLights[iLight]._power, 0.000001f, 0.999999f);
     float fQuadraticAttenuation = 1- pow(clamp(fFragToLightDistance/_ufGpuPointLights[iLight]._radius, 0, 1),(power)/(1-power)); //works well: x^(p/(1-p)) where x is pos/radius
 
-    finalColor += _ufGpuPointLights[iLight]._color * dot(surface_normal , light_vector) *  (diffuse + spec) ;
+    finalColor += _ufGpuPointLights[iLight]._color * dot(in_normal , light_vector) *  (diffuse + spec) ;
   } 
 
-  //TODO:
-  //ka = Ambient
-  finalColor += vec3(0.01,0.01,0.01); 
+  finalColor += _ufGpuWorld._vAmbientColor * _ufGpuWorld._fAmbientIntensity;
 
   return finalColor;
 }
+vec3 lightFragmentBlinnPhong(in vec3 in_vpos, in vec4 in_albedo, in vec3 in_normal) {
+    
+  vec3 finalColor = vec3(0,0,0);
+
+  for(int iLight = 0; iLight <  _ufGpuWorld._iPointLightCount; iLight++) {
+    vec3 vLightPos = _ufGpuPointLights[iLight]._pos;
+
+    vec3 eye_vector = normalize(_ufGpuCamera._vViewPos - in_vpos);
+    vec3 light_vector = normalize(_ufGpuPointLights[iLight]._pos - in_vpos);    
+    vec3 half_vector = (light_vector + eye_vector) / length(light_vector + eye_vector);
+
+    float power = 100;
+    float dist = pow(length(_ufGpuPointLights[iLight]._pos - in_vpos),2);
+
+    //Blinn-Phong
+
+    float lambert = max(dot(light_vector, in_normal), 0.0);
+    float spec = pow(max(dot(normalize(light_vector + eye_vector), in_normal), 0.0), 100);
+
+    //Attenuation
+    //float fFragToLightDistance = distance(_ufGpuPointLights[iLight]._pos, in_vpos);
+    //float power = clamp(_ufGpuPointLights[iLight]._power, 0.000001f, 0.999999f);
+    //float fQuadraticAttenuation = 1- pow(clamp(fFragToLightDistance/_ufGpuPointLights[iLight]._radius, 0, 1),(power)/(1-power)); //works well: x^(p/(1-p)) where x is pos/radius
+    
+    //Final
+    finalColor += (in_albedo.rgb * lambert + vec3(1,1,1) * spec) * _ufGpuPointLights[iLight]._color *power / dist;
+  }
+
+  finalColor += _ufGpuWorld._vAmbientColor * _ufGpuWorld._fAmbientIntensity;
+
+  return finalColor;
+}
+
 
 #endif//DEF_SHADER_STAGE_FRAGMENT
 

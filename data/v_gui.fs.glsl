@@ -11,10 +11,12 @@ flat in vec4 _rbr_rbl;
 flat in vec4 _rect;
 
 void main(){
-  vec2 bl = vec2(_rect.x, _rect.w);//"min"
-  vec2 tr = vec2(_rect.z, _rect.y);//"max"
+  //We flip everything in the VS
+  vec2 bl = vec2(_rect.x, _rect.y);//"min"
+  vec2 tr = vec2(_rect.z, _rect.w);//"max"
   vec2 tl = vec2(bl.x, tr.y);
   vec2 br = vec2(tr.x, bl.y);
+
   vec2 cxy = bl+(tr-bl)*0.5;
   float h2 = abs(tr.y - bl.y)/2.0;
   float w2 = abs(tr.x - bl.x)/2.0;
@@ -48,31 +50,41 @@ void main(){
   float ebl = pow( (clamp(_vert.x - cbl.x, -9999999, 0 )) / rbl.x, 2.0) + 
               pow( (clamp(_vert.y - cbl.y, -9999999, 0 )) / rbl.y, 2.0);
 
+  //round corner. check for vertex outside of ellipse boundaries.
+  // Kind of ugly. We could enable border smoothing by muting a very small pixel radius.
+
   if(
     (etr > 1.0) || (ebr>1.0) || (etl>1.0) || (ebl>1.0)
     || _vert.x < _clip.x 
-    || _vert.y < _clip.y 
+    || _vert.y < _clip.y
     || _vert.x > _clip.z 
     || _vert.y > _clip.w) { 
     discard; 
   }
-  
+
   //Texture Scaling
   //We need texpos here = p + mod(a-p, siz);
   vec2 texmod;
   texmod.x = _texPos.x + mod(_tex.x - _texPos.x, _texSiz.x);
   texmod.y = _texPos.y + mod(_tex.y - _texPos.y, _texSiz.y);
   
-  vec4 tx = texture(_ufGpuMaterial_s2Albedo, vec2(texmod));
-  if(tx.a < 0.001){
-  	discard;
-  } 
-  
   float r = float((_pick_color.y>>24) & 0xFF) / 255.0;
   float g = float((_pick_color.y>>16) & 0xFF) / 255.0;
   float b = float((_pick_color.y>>8) & 0xFF) / 255.0;
   float a = float((_pick_color.y>>0) & 0xFF) / 255.0;
+
+  vec4 tx = texture(_ufGpuMaterial_s2Albedo, vec2(texmod));
+  if(tx.a * a < 0.001) {
+  	discard;
+  } 
   
   setOutput_Color(tx * vec4(r, g, b, a));
   setOutput_Pick(_pick_color.x);
+
+  //  setOutput_Color(albedo);
+  //setOutput_Pick(_vsPick);
+  setOutput_Normal(vec4(0,1,0,1));
+  setOutput_Position(vec4(0,0,0,1));
+  setOutput_Plane(vec4(0,1,0,1));
+
 }
