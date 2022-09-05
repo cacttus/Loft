@@ -1,15 +1,27 @@
 
-# A Minecraft Clone in OpenTK and C#
+# Slaver Game 
 
-![Preview](./screenshot4.png)
+### Controls:
 
-# Setup
-* Make sure to install OpenAL 
+* F1 - Toggle game/edit mode
+  
+  * 1,2,3,4 - Viewport
+  * F9 - Switch viewport.
+
+* F2 - Disable Vsync
+
+* F6 - Save GBuffer to ./cache
+
+
+* F11 - Fullscreen
+
+### Setup
+* Install OpenAL 
 	* Windows google the openAL installer and run the installer
 	* Linux install via package manager
 		* TODO: add the DLL here for windows 
 
-# How to Run
+### How to Run
 
 * Note: MonoDevelop is no longer working for this. Use VSCode or Mono on Linux
 

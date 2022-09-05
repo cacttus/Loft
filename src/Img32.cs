@@ -35,7 +35,9 @@ namespace PirateCraft
     public string Name { get; private set; } = "img32-unnamed";
     public int Width { get; private set; } = 0;
     public int Height { get; private set; } = 0;
+    public float SizeRatio { get { return Height != 0 ? Width / Height : 1; } }
     public byte[] Data { get; private set; } = null;
+
     public int BytesPerPixel
     {
       get
@@ -63,11 +65,9 @@ namespace PirateCraft
     }//Always 4BPP in our system.
     public ImagePixelFormat Format { get; private set; } = ImagePixelFormat.Undefined;
 
-
     private Img32()
     {
     }
-
     public static Img32 Default1x1_RGBA32ub(byte r, byte g, byte b, byte a)
     {
       return new Img32("default1x1", 1, 1, new byte[] { r, g, b, a }, ImagePixelFormat.RGBA32ub);
@@ -139,7 +139,7 @@ namespace PirateCraft
       Width = w;
       Height = h;
       Format = sc;
-      Name = name+"-img32";
+      Name = name + "-img32";
       if (data == null)
       {
         data = new byte[w * h * BytesPerPixel];
@@ -204,13 +204,13 @@ namespace PirateCraft
         Buffer.BlockCopy(pOtherImage.Data, srcff, Data, dstff, scanLineByteSize);
       }
     }
-    public int vofftos(int row, int col, int items_per_row)
+    private int vofftos(int row, int col, int items_per_row)
     {
       return (col * items_per_row + row);
     }
-
-    public Img32 createNormalMap()
+    public Img32 CreateNormalMap()
     {
+      //This is too slow for C# //TODO: put on GPU
       if (Data == null)
       {
         return null;
@@ -221,17 +221,17 @@ namespace PirateCraft
       {
         for (int i = 0; i < ret.Width; ++i)
         {
-          ret.setPixel32(i, j, normalizePixel32(i, j));
+          ret.SetPixel32(i, j, normalizePixel32(i, j));
         }
       }
 
       return ret;
     }
-    byte toGray(Pixel4ub pix)
+    private byte toGray(Pixel4ub pix)
     {
       return (byte)((11 * pix.r + 16 * pix.g + 5 * pix.b) / 32);
     }
-    public Pixel4ub getPixel32(int x, int y)
+    public Pixel4ub GetPixel32(int x, int y)
     {
       Pixel4ub pix;
 
@@ -243,7 +243,7 @@ namespace PirateCraft
 
       return pix;
     }
-    public void flip(bool fliph, bool flipv)
+    public void Flip(bool fliph, bool flipv)
     {
       byte[] st = new byte[this.Data.Length];
 
@@ -272,13 +272,14 @@ namespace PirateCraft
 
       this.Data = st;
     }
-    public void setPixel32(int x, int y, Pixel4ub pix)
+    public void SetPixel32(int x, int y, Pixel4ub pix)
     {
       int off = vofftos(x, y, Width) * BytesPerPixel;  //StaticBufffer is a char array so we must scale the size
       Data[off + 0] = pix.r;
       Data[off + 1] = pix.g;
       Data[off + 2] = pix.b;
       Data[off + 3] = pix.a;
+      //Modify...
     }
     int hwrap(int off)
     {
@@ -302,9 +303,9 @@ namespace PirateCraft
       int Gh = 0, Gv = 0, i;
       float len;
       int[] mat = {
-            toGray(getPixel32(hwrap(x - 1), vwrap(y - 1))), toGray(getPixel32(hwrap(x - 0), vwrap(y - 1))), toGray(getPixel32(hwrap(x + 1), vwrap(y - 1))),
-            toGray(getPixel32(hwrap(x - 1), vwrap(y + 0))), toGray(getPixel32(hwrap(x - 0), vwrap(y + 0))), toGray(getPixel32(hwrap(x + 1), vwrap(y + 0))),
-            toGray(getPixel32(hwrap(x - 1), vwrap(y + 1))), toGray(getPixel32(hwrap(x - 0), vwrap(y + 1))), toGray(getPixel32(hwrap(x + 1), vwrap(y + 1)))};
+            toGray(GetPixel32(hwrap(x - 1), vwrap(y - 1))), toGray(GetPixel32(hwrap(x - 0), vwrap(y - 1))), toGray(GetPixel32(hwrap(x + 1), vwrap(y - 1))),
+            toGray(GetPixel32(hwrap(x - 1), vwrap(y + 0))), toGray(GetPixel32(hwrap(x - 0), vwrap(y + 0))), toGray(GetPixel32(hwrap(x + 1), vwrap(y + 0))),
+            toGray(GetPixel32(hwrap(x - 1), vwrap(y + 1))), toGray(GetPixel32(hwrap(x - 0), vwrap(y + 1))), toGray(GetPixel32(hwrap(x + 1), vwrap(y + 1)))};
       int[] sobel_v = {
             -1, -2, -1,
 

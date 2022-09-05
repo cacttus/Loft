@@ -123,10 +123,10 @@ namespace PirateCraft
     public float _fPBR_indexOfRefraction = 1.45f;
     public float _fPBR_specular = 0.5f;
     //
-    public float _flat =0;
-    public float _pad0 =0;
-    public float _pad1 =0;
-    public float _pad2 =0;
+    public float _flat = 0;
+    public float _pad0 = 0;
+    public float _pad1 = 0;
+    public float _pad2 = 0;
   }
   #endregion
 
@@ -712,7 +712,7 @@ namespace PirateCraft
     }
     private void SaveShaderSource(string src, string filename, string? errors)
     {
-      System.IO.File.WriteAllText(System.IO.Path.Combine(Gu.LocalCachePath, filename), src + Environment.NewLine + (errors == null ? "" : errors));
+      System.IO.File.WriteAllText(System.IO.Path.Combine(Gu.LocalTmpPath, filename), src + Environment.NewLine + (errors == null ? "" : errors));
     }
     private string ProcessShaderSource(WindowContext ct, string src_raw, ShaderType type)
     {
@@ -1001,6 +1001,7 @@ namespace PirateCraft
       {
         var mat = m.ToOpenTK();
         GL.UniformMatrix4(u.Location, false, ref mat);
+        Gpu.CheckGpuErrorsDbg();
         u.HasBeenSet = true;
       }
     }
@@ -1084,7 +1085,7 @@ namespace PirateCraft
 
       if (u.HasBeenSet == true)
       {
-        Gu.Log.WarnCycle(this.Name + ": Uniform  " + u.Name + " was already set.", 120*10);
+        Gu.Log.WarnCycle(this.Name + ": Uniform  " + u.Name + " was already set.", 120 * 10);
       }
       u.HasBeenSet = true;
     }
@@ -1109,9 +1110,11 @@ namespace PirateCraft
         {
           if (su.HasBeenSet)
           {
-            Gu.Log.WarnCycle(this.Name + ": Texture uniform " + su.Name + "  was already set.", 120*10);
+            Gu.Log.WarnCycle(this.Name + ": Texture uniform " + su.Name + "  was already set.", 120 * 10);
           }
+          Gpu.CheckGpuErrorsDbg();
           GL.Uniform1(su.Location, (int)(_currUnit - TextureUnit.Texture0));
+          Gpu.CheckGpuErrorsDbg();
           tex.Bind(_currUnit);
           _boundTextures.Add(_currUnit, tex);
           su.HasBeenSet = true;
@@ -1137,7 +1140,7 @@ namespace PirateCraft
       }
       else
       {
-         Gu.Log.WarnCycle(this.Name + ": Unknown uniform " + (is_block ? "block " : "") + " '" + uniform_name + "' (possibly optimized out).", 120*10);
+        Gu.Log.WarnCycle(this.Name + ": Unknown uniform " + (is_block ? "block " : "") + " '" + uniform_name + "' (possibly optimized out).", 120 * 10);
 
       }
     }

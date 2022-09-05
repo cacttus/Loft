@@ -13,8 +13,8 @@ namespace PirateCraft
   }
   public enum GameMode
   {
-    Play,
-    Edit
+    Play
+    , Edit
   }
   public enum TileImage
   {
@@ -81,6 +81,7 @@ namespace PirateCraft
 
     public static Dictionary<TileImage, FileLoc> TileImages = new Dictionary<TileImage, FileLoc>() {
             { TileImage.Grass, new FileLoc("tx64_grass.png", FileStorage.Embedded) },
+            //LOAD FASTER
             { TileImage.GrassSide, new FileLoc("tx64_grass_side.png", FileStorage.Embedded) },
             { TileImage.Dirt, new FileLoc("tx64_dirt.png", FileStorage.Embedded) },
             { TileImage.Plank, new FileLoc("tx64_plank.png", FileStorage.Embedded) },
@@ -470,6 +471,12 @@ namespace PirateCraft
 
   }
 
+  public class EditState
+  {
+    public int EditView { get; set; } = 1;
+    public const int c_MaxEditViews = 4;
+  }
+
   public class World
   {
     #region Public:Constants
@@ -513,7 +520,19 @@ namespace PirateCraft
     public float GenerateDistance { get { return (GenRadiusShell * (float)_currentShell); } } //distance under which things are generated
     public float RenderDistance { get { return (GenRadiusShell) * _maxShells; /* (GlobWidthX * 16) * (GlobWidthX * 16); */ } }
     public WindowContext UpdateContext { get { return _updateContext; } }
-    public GameMode GameMode { get; set; } = GameMode.Edit;
+    public GameMode GameMode
+    {
+      get { return _eGameMode; }
+      set
+      {
+        _eGameMode = value;
+        if (_eGameMode == GameMode.Edit & EditState == null)
+        {
+          EditState = new EditState();//this may end up having a ton of data, only construct it if we need it
+        }
+      }
+    }
+    public EditState EditState { get; private set; } = null;
 
     #endregion
     #region Private:Members
@@ -542,11 +561,12 @@ namespace PirateCraft
     private string _worldName = "";
     private Material _worldMaterial_Op = null;
     private Material _worldMaterial_Tp = null;
-    private MegaTex _worldMegatex = new MegaTex("world-megatex", true, 0);
+    private MegaTex _worldMegatex = null;
     private Material _blockObjectMaterial = null;
     private double _autoSaveTimeoutSeconds = 2;
     private double _autoSaveTimeout = 0;
     private WindowContext _updateContext = null;
+    private GameMode _eGameMode = GameMode.Edit;
 
     #endregion
 
@@ -684,6 +704,16 @@ namespace PirateCraft
     }
     public WorldObject AddObject(WorldObject ob)
     {
+      //TODO: optimize (hash map or something)
+      foreach (var ob2 in _objects.Values)
+      {
+        if (ob == ob2)
+        {
+          Gu.Log.Error("Tried to add Object " + ob.Name + " twice. Clone instance if duplicate needed.");
+          Gu.DebugBreak();
+          return ob;
+        }
+      }
       //Use a suffix if there is a duplicate object
       int suffix = 0;
       string name_suffix = ob.Name;
@@ -1315,37 +1345,37 @@ namespace PirateCraft
     {
       //Create the atlas.
       //Must be called after context is set.
+      _worldMegatex = new MegaTex("world-megatex", true, MegaTex.MtClearColor.BlackNoAlpha, true, TexFilter.Nearest, true);
+
       foreach (var resource in WorldStaticData.TileImages)
       {
-        MtTexPatch p = _worldMegatex.GetTex(resource.Value);
+        MtFile mf = _worldMegatex.AddResource(resource.Value);
+      }
 
-        if (p == null)
+      _worldMegatex.AddResource(FontFace.EmilysCandy);
+
+      var cmp = _worldMegatex.Compile();
+
+      cmp.Albedo.SetFilter(TextureMinFilter.NearestMipmapLinear, TextureMagFilter.Nearest);
+      foreach (var resource in WorldStaticData.TileImages)
+      {
+        foreach (var mf in _worldMegatex.Files)
         {
-          Gu.Log.Error("Tex patch " + resource.Value.QualifiedPath + " was not found in the megatex. Check the filename, and make sure it's embedded (or on disk).");
-          Gu.DebugBreak();
-        }
-        else if (p.GetTexs().Count > 0)
-        {
-          MtTex mtt = p.GetTexs()[0];
-          if (_blockTiles != null)
+          if (mf == null)
           {
-            foreach (var block in _blockTiles)
+            Gu.Log.Error("Tex patch " + resource.Value.QualifiedPath + " was not found in the megatex. Check the filename, and make sure it's embedded (or on disk).");
+            Gu.DebugBreak();
+          }
+          else if (mf.Texs.Count > 0)
+          {
+            MtTex mtt = mf.Texs[0];
+            if (_blockTiles != null)
             {
-              //Block Faces
-              Gu.Assert(block.Value.FaceInfos != null && block.Value.FaceInfos.Length == 3);
-              foreach (var fi in block.Value.FaceInfos)
+              foreach (var block in _blockTiles)
               {
-                //This is a special comparision with a qualified path.
-                if (fi.Image == resource.Value)
-                {
-                  fi.UV = mtt;
-                }
-              }
-
-              //Growth Infos - changes to block faces for growing plants.
-              if (block.Value.Growth_Infos_Side != null)
-              {
-                foreach (var fi in block.Value.Growth_Infos_Side)
+                //Block Faces
+                Gu.Assert(block.Value.FaceInfos != null && block.Value.FaceInfos.Length == 3);
+                foreach (var fi in block.Value.FaceInfos)
                 {
                   //This is a special comparision with a qualified path.
                   if (fi.Image == resource.Value)
@@ -1353,24 +1383,30 @@ namespace PirateCraft
                     fi.UV = mtt;
                   }
                 }
+
+                //Growth Infos - changes to block faces for growing plants.
+                if (block.Value.Growth_Infos_Side != null)
+                {
+                  foreach (var fi in block.Value.Growth_Infos_Side)
+                  {
+                    //This is a special comparision with a qualified path.
+                    if (fi.Image == resource.Value)
+                    {
+                      fi.UV = mtt;
+                    }
+                  }
+                }
               }
             }
           }
+          else
+          {
+            Gu.Log.Warn("Megatex resource generated no textures.");
+            Gu.DebugBreak();
+          }
         }
-        else
-        {
-          Gu.Log.Warn("Megatex resource generated no textures.");
-          Gu.DebugBreak();
-        }
-
       }
 
-      _worldMegatex.GetFont(new FileLoc("EmilysCandy-Regular.ttf", FileStorage.Embedded));
-
-      _worldMegatex.LoadImages();
-      var cmp = _worldMegatex.Compile(MegaTex.MtClearColor.BlackNoAlpha, true, TexFilter.Nearest, true);
-
-      cmp.Albedo.SetFilter(TextureMinFilter.NearestMipmapLinear, TextureMagFilter.Nearest);
 
       return cmp;
     }
@@ -1688,7 +1724,7 @@ namespace PirateCraft
       }
       catch (Exception ex)
       {
-        Gu.Log.Error("Glob " + fn + " had an error loading. " + ex.ToString());
+        Gu.Log.Error("Glob " + fn + " had an error loading. ", ex);
         return null;
       }
       return g;

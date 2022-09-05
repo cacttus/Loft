@@ -341,7 +341,7 @@ namespace PirateCraft
   }
   public class VorbisStream
   {
-    static Dictionary<FileLoc, InMemorySongData> _cache = new Dictionary<FileLoc, InMemorySongData>(new FileLoc.Comparer());
+    static Dictionary<FileLoc, InMemorySongData> _cache = new Dictionary<FileLoc, InMemorySongData>(new FileLoc.EqualityComparer());
     //If the vorbis file is sufficiently small we can just load it  into memory. 
 
     //private Stream _stream = null;

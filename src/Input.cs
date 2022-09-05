@@ -130,6 +130,12 @@ namespace PirateCraft
       return _deviceState.IsKeyDown(button);
     }
   }
+  public enum WarpMode
+  {
+    Center,
+    Wrap,
+    Clamp
+  }
   public class PCMouse : ButtonInputDevice<OpenTK.Windowing.GraphicsLibraryFramework.MouseState, OpenTK.Windowing.GraphicsLibraryFramework.MouseButton>
   {
     private vec2 _last = new vec2(0, 0);
@@ -144,8 +150,14 @@ namespace PirateCraft
         return _pos;
       }
     } //Position on screen
-    public vec2 Delta { get { return _pos - _last; } }
-
+    public vec2 PosDelta { get { return _pos - _last; } }
+    public vec2 ScrollDelta
+    {
+      get
+      {
+        return new vec2(this._deviceState.ScrollDelta.X, this._deviceState.ScrollDelta.Y);
+      }
+    }
     public bool ShowCursor
     {
       get
@@ -170,40 +182,85 @@ namespace PirateCraft
     {
       return _deviceState.IsButtonDown(button);
     }
-    public void WarpMouse(Viewport vp, bool warpX, bool warpY, bool zeroDelta = true)
+    private float Warpx_or_y(float ms_x_or_y, float vp_x_or_y, float vp_w_or_h, WarpMode warpMode, float boundary = 0)//warp_boundary < [0,1]
     {
-      //Mouse is relative to top left of window
-      //Warp mouse to center of screen
-      //ZeroDelta - set delta to zero after warp, to avoid the system thinking the mouse warp is a valid user movement.
+      //Warp X or Y
+      float ret = ms_x_or_y;
+      float ms_rel = ms_x_or_y - vp_x_or_y;
+      if (warpMode == WarpMode.Center)
+      {
+        if ((ms_rel <= vp_w_or_h * boundary) || (ms_rel >= vp_w_or_h - vp_w_or_h * boundary))
+        {
+          ret = vp_x_or_y + (int)(vp_w_or_h * 0.5f);
+        }
+      }
+      else if (warpMode == WarpMode.Clamp)
+      {
+        if (ms_rel <= vp_w_or_h * boundary)
+        {
+          ret = vp_x_or_y + vp_w_or_h * boundary;
+        }
+        else if (ms_rel >= vp_w_or_h - vp_w_or_h * boundary)
+        {
+          ret = vp_x_or_y + vp_w_or_h - vp_w_or_h * boundary;
+        }
+      }
+      else if (warpMode == WarpMode.Wrap)
+      {
+        if (ms_rel <= vp_w_or_h * boundary)
+        {
+          ret = vp_x_or_y + vp_w_or_h - vp_w_or_h * boundary;
+        }
+        else if (ms_rel >= vp_w_or_h - vp_w_or_h * boundary)
+        {
+          ret = vp_x_or_y + vp_w_or_h * boundary;
+        }
+      }
+      else
+      {
+        Gu.BRThrowNotImplementedException();
+      }
+      return ret;
+    }
+    long _stamp = 0;
+    public void WarpMouse(RenderView vp, WarpMode warpMode, float boundary = 0, bool zeroDelta = true)
+    {
+      //@note Mouse is relative to top left of window
+      //@note RenderView can be anywhere in the window
+      //@param warpMode: Center - center of screen
+      //           Wrap - wrap around to other side of screen.
+      //@param boundary [0,1]: the amount of padding from edge. Default is zero (exact edge of screen)
+      //@param ZeroDelta: set delta to zero after warp, to avoid the system thinking the mouse warp is a valid user movement.
       var w = Gu.Context.GameWindow;
       if (w != null)
       {
         if (w.IsFocused)
         {
-          int w2 = (int)(vp.Width * 0.5f);
-          int h2 = (int)(vp.Height * 0.5f);
+          float px = Warpx_or_y(_pos.x, vp.Viewport.X, vp.Viewport.Width, warpMode, boundary);
+          float py = Warpx_or_y(_pos.y, vp.Viewport.Y, vp.Viewport.Height, warpMode, boundary);
 
-          if (warpX)
+          if ((int)_pos.x != (float)px || (int)_pos.y != (float)py)
           {
-            _pos.x = (float)(vp.X + w2);
-          }
-          if (warpY)
-          {
-            _pos.y = (float)(vp.Y + h2);
-          }
-          if (warpX && warpY)
-          {
-            _pos.x = (float)(vp.X + w2);
-            _pos.y = (float)(vp.Y + h2);
+            _pos.x = px;
+            _pos.y = py;
+            //Do not use TK.MousePosition after setting it. It does not update immediately.
+
+            if (_stamp == Gu.Context.FrameStamp)
+            {
+              Gu.Log.Warn("Mouse warped multiple times in single frame. This may be a bug, and will definitely cause mouse 'wrap' feature to not work.");
+              Gu.DebugBreak();
+            }
+            _stamp = Gu.Context.FrameStamp;
+
+            w.MousePosition = new OpenTK.Mathematics.Vector2i((int)_pos.x, (int)_pos.y);
+
+            if (zeroDelta)
+            {
+              _last = _pos;
+            }
           }
 
-          //Do not use TK.MousePosition after setting it. It does not update immediately.
-          w.MousePosition = new OpenTK.Mathematics.Vector2i((int)_pos.x, (int)_pos.y);
 
-          if (zeroDelta)
-          {
-            _last = _pos;
-          }
         }
       }
       else

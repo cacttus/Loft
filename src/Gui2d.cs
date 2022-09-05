@@ -7,6 +7,7 @@ using OpenTK.Windowing.GraphicsLibraryFramework;
 namespace PirateCraft
 {
   #region Enums
+
   public enum UiFontStyle
   {
     Normal,
@@ -16,10 +17,12 @@ namespace PirateCraft
   public class FontFace : FileLoc
   {
     protected FontFace(FileLoc loc) : base(loc.RawPath, loc.FileStorage) { }
-    public static FontFace Fancy = new FontFace(new FileLoc("Parisienne-Regular.ttf", FileStorage.Embedded));
-    public static FontFace Mono = new FontFace(new FileLoc("RobotoMono-Regular.ttf", FileStorage.Embedded));
-    public static FontFace Pixel = new FontFace(new FileLoc("PressStart2P-Regular.ttf", FileStorage.Embedded));
+    public static FontFace Parisienne = new FontFace(new FileLoc("Parisienne-Regular.ttf", FileStorage.Embedded));
+    public static FontFace RobotoMono = new FontFace(new FileLoc("RobotoMono-Regular.ttf", FileStorage.Embedded));
+    public static FontFace PressStart2P = new FontFace(new FileLoc("PressStart2P-Regular.ttf", FileStorage.Embedded));
     public static FontFace Entypo = new FontFace(new FileLoc("Entypo.ttf", FileStorage.Embedded));
+    public static FontFace Calibri = new FontFace(new FileLoc("calibri.ttf", FileStorage.Embedded));
+    public static FontFace EmilysCandy = new FontFace(new FileLoc("EmilysCandy-Regular.ttf", FileStorage.Embedded));
   }
   public enum UiDisplayMode
   {
@@ -55,17 +58,21 @@ namespace PirateCraft
     Mouse_Lmb_Hold,
     Mouse_Lmb_Release,
     Mouse_Lmb_None,
+
     Mouse_Rmb_Up,
     Mouse_Rmb_Press,
-    Mouse_Rmb_Down,
+    Mouse_Rmb_Hold,
     Mouse_Rmb_Release,
     Mouse_Rmb_None,
+
     Mouse_Mmb_Up,
     Mouse_Mmb_Press,
-    Mouse_Mmb_Down,
+    Mouse_Mmb_Hold,
     Mouse_Mmb_Release,
     Mouse_Mmb_None,
+
     Scrollbar_Pos_Change,
+
     Mouse_Enter,
     Mouse_Move,
     Mouse_Leave,
@@ -96,8 +103,10 @@ namespace PirateCraft
     Hold,  // hover + hold
     Up   // hover + release
   }
+
   #endregion
   #region Helpers
+
   public class UiDebugDraw
   {
     public bool DisableClip = false;
@@ -117,7 +126,7 @@ namespace PirateCraft
       _borderColor = new vec4(1, 1, 1, 1);
       _fontStyle = UiFontStyle.Normal;
       _fontColor = new vec4(0, 0, 0, 1);
-      _fontFace = new UiRef<FontFace>(FontFace.Mono);
+      _fontFace = new UiRef<FontFace>(FontFace.RobotoMono);
       _imageTilingX = UiImageTiling.Expand;
       _imageTilingY = UiImageTiling.Expand;
       _displayMode = UiDisplayMode.Block;
@@ -202,9 +211,7 @@ namespace PirateCraft
     }
     public void ApplySubclass(UiStyleProps sub)
     {
-      //****TODO****
-      // Only copy attributes that have changed
-      // So we need like one frameId for each .. or a property bag.. 
+      Gu.Assert(sub != null);
 
       if (sub._texture != null) { this._texture = sub._texture; }
       if (sub._color != null) { this._color = sub._color; }
@@ -288,6 +295,52 @@ namespace PirateCraft
     public float? _borderBotRightRadius = null;
     public float? _borderBotLeftRadius = null;
     public UiRef<Dictionary<UiEventId, MultiMap<string, Action<UiEventId, UiElement, PCMouse>>>> _events = null;
+
+    public new string ToString()
+    {
+      StringBuilder sb = new StringBuilder();
+      sb.AppendLine($"_texture                {this._texture.ToString()}");
+      sb.AppendLine($"_color                  {this._color.ToString()}");
+      sb.AppendLine($"_borderColor            {this._borderColor.ToString()}");
+      sb.AppendLine($"_fontStyle              {this._fontStyle.ToString()}");
+      sb.AppendLine($"_fontColor              {this._fontColor.ToString()}");
+      sb.AppendLine($"_fontFace               {this._fontFace.ToString()}");
+      sb.AppendLine($"_imageTilingX           {this._imageTilingX.ToString()}");
+      sb.AppendLine($"_imageTilingY           {this._imageTilingY.ToString()}");
+      sb.AppendLine($"_displayMode            {this._displayMode.ToString()}");
+      sb.AppendLine($"_minWHPX                {this._minWHPX.ToString()}");
+      sb.AppendLine($"_maxWHPX                {this._maxWHPX.ToString()}");
+      sb.AppendLine($"_positionMode           {this._positionMode.ToString()}");
+      sb.AppendLine($"_overflowMode           {this._overflowMode.ToString()}");
+      sb.AppendLine($"_sizeModeWidth          {this._sizeModeWidth.ToString()}");
+      sb.AppendLine($"_sizeModeHeight         {this._sizeModeHeight.ToString()}");
+      sb.AppendLine($"_fontSize               {this._fontSize.ToString()}");
+      sb.AppendLine($"_lineHeight             {this._lineHeight.ToString()}");
+      sb.AppendLine($"_top                    {this._top.ToString()}");
+      sb.AppendLine($"_left                   {this._left.ToString()}");
+      sb.AppendLine($"_width                  {this._width.ToString()}");
+      sb.AppendLine($"_height                 {this._height.ToString()}");
+      sb.AppendLine($"_padTop                 {this._padTop.ToString()}");
+      sb.AppendLine($"_padRight               {this._padRight.ToString()}");
+      sb.AppendLine($"_padBot                 {this._padBot.ToString()}");
+      sb.AppendLine($"_padLeft                {this._padLeft.ToString()}");
+      sb.AppendLine($"_marTop                 {this._marTop.ToString()}");
+      sb.AppendLine($"_marRight               {this._marRight.ToString()}");
+      sb.AppendLine($"_marBot                 {this._marBot.ToString()}");
+      sb.AppendLine($"_marLeft                {this._marLeft.ToString()}");
+      sb.AppendLine($"_borderTop              {this._borderTop.ToString()}");
+      sb.AppendLine($"_borderRight            {this._borderRight.ToString()}");
+      sb.AppendLine($"_borderBot              {this._borderBot.ToString()}");
+      sb.AppendLine($"_borderLeft             {this._borderLeft.ToString()}");
+      sb.AppendLine($"_events                 {this._events.ToString()}");
+      sb.AppendLine($"_borderTopLeftRadius    {this._borderTopLeftRadius.ToString()}");
+      sb.AppendLine($"_borderTopRightRadius   {this._borderTopRightRadius.ToString()}");
+      sb.AppendLine($"_borderBotRightRadius   {this._borderBotRightRadius.ToString()}");
+      sb.AppendLine($"_borderBotLeftRadius    {this._borderBotLeftRadius.ToString()}");
+      sb.AppendLine($"_width                  {this._width.ToString()}");
+      sb.AppendLine($"_height                 {this._height.ToString()}");
+      return sb.ToString();
+    }
   }
   public class UiDragInfo
   {
@@ -349,8 +402,9 @@ namespace PirateCraft
 
     }
   }
+
   #endregion
-  #region Classes
+
   public class UiElement
   {
     private class UiLine
@@ -378,9 +432,11 @@ namespace PirateCraft
       public vec2 _rbr = new vec2(0, 0);
       public vec2 _rbl = new vec2(0, 0);
     }
+
     #region Public: Members
 
     public string Name { get { return _name; } set { _name = value; } }
+    public string Tag { get; set; } = "";
     public string Text
     {
       get { return _strText; }
@@ -446,18 +502,21 @@ namespace PirateCraft
     public bool LayoutVisible { get { return _layoutVisible; } set { _layoutVisible = value; SetLayoutChanged(); } }
     public bool RenderVisible { get { return _renderVisible; } set { _renderVisible = value; SetLayoutChanged(); } }
     public UiStyleProps Props { get { return _props; } }
+
     #endregion
     #region Private: Members
 
+    protected const int c_AllSortLayers = -1;
     protected const int c_BaseLayerSort = 1000;
     protected const int c_GlyphLayerSort = 2000;
+    public const int c_ContextMenuSort = 3000;
     protected UiStyleProps _props = new UiStyleProps();
     protected UiStyle _inlineStyle = null;      //Inline style
     protected UiStyle _styleClass = null;      //class styles
     protected UiStyle _glyphStyle = null; //Style for glyphs, in case this has text.
     protected MultiMap<int, UiElement> _children { get; set; } = null;
     private WeakReference<UiElement> _parent = null;
-    private MtFont _cachedFont = null;
+    private MtFontLoader _cachedFont = null;
     private bool _isPickRoot = false;
     private bool _pickEnabled = true;
     private bool _layoutVisible = true;
@@ -475,13 +534,24 @@ namespace PirateCraft
     protected string _strText = "";
     private string _strTextLast = "";
     protected string _name = "";
+    private long _iCompiledParentClassFrameId = 0;
     private long _iCompiledClassFrameId = 0;
     private long _iCompiledInlineFrameId = 0;
     private bool _bMustRedoTextBecauseOfStyle = false;
 
     int _char; //debug -- for text;
+
     #endregion
     #region Public: Methods
+
+    public void Hide()
+    {
+      _layoutVisible = _renderVisible = false;
+    }
+    public void Show()
+    {
+      _layoutVisible = _renderVisible = true;
+    }
 
     public UiElement()
     {
@@ -511,6 +581,12 @@ namespace PirateCraft
     }
     public void AddChild(UiElement e, int sort = c_BaseLayerSort)
     {
+      //SEt child style if it is not present (e.g. cascading styles) 
+      //Actually no, we should compile the style, and not actually set a new one.
+      // if (this.StyleClass != null && e.StyleClass == null)
+      // {
+      //   e.StyleClass = this.StyleClass;
+      // }
       if (e._parent != null && e._parent.TryGetTarget(out UiElement p))
       {
         p.RemoveChild(e);
@@ -544,7 +620,34 @@ namespace PirateCraft
       //could not remove.
       return false;
     }
-
+    public void ClearChildren(int sort = c_AllSortLayers)
+    {
+      _children?.Clear();
+    }
+    // public void IterateChildrenSafe(Func<UiElement, LambdaBool> act)
+    // {
+    //   //If we remove components while iterating components..
+    //   for (int c = _children.Keys.Count - 1; c >= 0; c--)
+    //   {
+    //     if (c < _children.Keys.Count)
+    //     {
+    //       var list = _children[c];
+    //       if (list != null)
+    //       {
+    //         for (int li = list.Count - 1; li >= 0; li--)
+    //         {
+    //           if (li < list.Count)
+    //           {
+    //             if (act(list[li]) == LambdaBool.Break)
+    //             {
+    //               break;
+    //             }
+    //           }
+    //         }
+    //       }
+    //     }
+    //   }
+    // }
     public void EnableDrag(Action<vec2> func)
     {
       DragEnabled = true;
@@ -572,6 +675,7 @@ namespace PirateCraft
 
     #endregion
     #region Private: and Protected: Methods
+
     public void SetLayoutChanged()
     {
       if (LayoutChanged == false)
@@ -954,10 +1058,10 @@ namespace PirateCraft
         DoMouseButtonEvent(mouse, UiEventId.Mouse_Lmb_Press, eLmb, ButtonState.Press);
         DoMouseButtonEvent(mouse, UiEventId.Mouse_Lmb_Release, eLmb, ButtonState.Release);
 
-        DoMouseButtonEvent(mouse, UiEventId.Mouse_Lmb_Up, eRmb, ButtonState.Up);
-        DoMouseButtonEvent(mouse, UiEventId.Mouse_Lmb_Hold, eRmb, ButtonState.Hold);
-        DoMouseButtonEvent(mouse, UiEventId.Mouse_Lmb_Press, eRmb, ButtonState.Press);
-        DoMouseButtonEvent(mouse, UiEventId.Mouse_Lmb_Release, eRmb, ButtonState.Release);
+        DoMouseButtonEvent(mouse, UiEventId.Mouse_Rmb_Up, eRmb, ButtonState.Up);
+        DoMouseButtonEvent(mouse, UiEventId.Mouse_Rmb_Hold, eRmb, ButtonState.Hold);
+        DoMouseButtonEvent(mouse, UiEventId.Mouse_Rmb_Press, eRmb, ButtonState.Press);
+        DoMouseButtonEvent(mouse, UiEventId.Mouse_Rmb_Release, eRmb, ButtonState.Release);
       }
       else if (_bPickedPreviousFrame)
       {
@@ -985,12 +1089,12 @@ namespace PirateCraft
         }
       }
     }
-    protected virtual void PerformLayout_SizeElements(MegaTex mt, bool bForce, vec2 parentMaxWH)
+    protected virtual void PerformLayout_SizeElements(MegaTex mt, bool bForce, vec2 parentMaxWH, UiStyle st)
     {
       //Build the UI depth-first. Children elements are sized. Then we got hrough again and position them from the top.
       if (LayoutChanged || bForce)
       {
-        ComputeStyle();
+        ComputeStyle(st);
         UpdateBorder();
 
         //in HTML all elements default to zero width without any contents.
@@ -1017,7 +1121,7 @@ namespace PirateCraft
             UiElement ele = p.Value;
             if (ele.LayoutVisible)
             {
-              ele.PerformLayout_SizeElements(mt, bForce, maxWH);
+              ele.PerformLayout_SizeElements(mt, bForce, maxWH, StyleClass);
             }
           }
 
@@ -1047,14 +1151,28 @@ namespace PirateCraft
         LayoutChanged = false;
       }
     }
-    private void ComputeStyle()
+    private void ComputeStyle(UiStyle parentStyle)
     {
-      if (Name == "drag")
-      {
-        int n = 0;
-        n++;
-      }
       //Compute Style, update "_props"
+      // 1 apply parent's compiled style, to the child's style (if present)
+      // 2 compile style and sub-classes (if present)
+      // 3 apply child's inline style. (if present)
+      // --> _props
+
+      //Assu;ming: parent's class is already compiled since we go top->down
+      //** Parent style thing is messing stuff up **
+      //** Parent style thing is messing stuff up **
+      //** Parent style thing is messing stuff up **
+      // UiScreen for example would end up with a textured style. 
+      if (parentStyle != null)
+      {
+        if (parentStyle.ChangedFrameId >= _iCompiledParentClassFrameId)
+        {
+          _props.ApplySubclass(parentStyle.Compiled);
+          _iCompiledParentClassFrameId = Gu.Context.FrameStamp;
+          _bMustRedoTextBecauseOfStyle = true;
+        }
+      }
       if (_styleClass != null)
       {
         _styleClass.Compile();
@@ -1403,7 +1521,7 @@ namespace PirateCraft
       }
 
       //Get the font if it isn't already got.
-      MtFont font = null;
+      MtFontLoader font = null;
       if (_cachedFont == null || mt.GetFont(_props._fontFace.Value) != _cachedFont)
       {
         font = mt.GetFont(_props._fontFace.Value);
@@ -1411,6 +1529,11 @@ namespace PirateCraft
       else
       {
         font = _cachedFont;
+      }
+      if (font == null)
+      {
+        Gu.Log.ErrorCycle("Font loader could not be found for " + _props._fontFace.Value.QualifiedPath + " font possibly loaded with error", 500);
+        return;
       }
 
       float fontHeight = _props._fontSize.Value;
@@ -1529,7 +1652,7 @@ namespace PirateCraft
         }
       }
     }
-    private void DoGlyph(UiElement e, int index, string text, MtFont font, FontPatchInfo patch, float fontHeight)
+    private void DoGlyph(UiElement e, int index, string text, MtFontLoader font, MtFontPatchInfo patch, float fontHeight)
     {
       int cc = _strText[index];
       int ccNext = (index + 1) < _strText.Length ? _strText[index + 1] : 0;
@@ -1540,7 +1663,7 @@ namespace PirateCraft
         n++;
       }
 
-      CachedCharData ccd = new CachedCharData();
+      MtCachedCharData ccd = new MtCachedCharData();
       patch.GetChar(cc, fontHeight, out ccd);
 
       //TODO: this should be UiElementBase, for simplicity. UiElement is too huge.
@@ -1548,7 +1671,7 @@ namespace PirateCraft
       e._pickEnabled = false;
       e._renderOffset = new Box2f(new vec2(ccd.left, ccd.top), new vec2(ccd.right, ccd.bot));
       e._props.SetDefault();
-      e._props._texture = new UiRef<MtTex>(new MtTex(null, 0));
+      e._props._texture = new UiRef<MtTex>(new MtTex());
       e._props._texture.Value.SetWH(patch.TextureWidth, patch.TextureHeight);
       e._props._texture.Value.uv0 = ccd.uv0;
       e._props._texture.Value.uv1 = ccd.uv1;
@@ -1593,25 +1716,256 @@ namespace PirateCraft
     {
     }
   }
-  public class UiDropdown : UiElement
+  public class UiMenuItem : UiButtonBase
   {
-    public UiDropdown()
+    public UiMenuItem(string name, string text, Action<UiEventId, UiElement, PCMouse> onClick = null, UiStyle styleClass = null) : base(name, text, null, styleClass)
     {
+      if (onClick != null)
+      {
+        this.InlineStyle.AddEvent(UiEventId.Mouse_Lmb_Release, onClick);
+      }
+    }
+    public UiMenuItem AddMenuItem(UiMenuItem item)
+    {
+      AddChild(item);
+      return this;
+    }
+    public UiMenuItem AddMenuItems(List<UiMenuItem> items)
+    {
+      foreach (var item in items)
+      {
+        AddMenuItem(item);
+      }
+      return this;
     }
   }
-  public class UiScreen : UiElement
+  public class UiToolbar : UiElement
   {
-    private WeakReference<RenderView> _renderView = new WeakReference<RenderView>(null);
-    public UiDebugDraw DebugDraw { get; set; } = new UiDebugDraw();
-    private UiDragInfo _dragInfo = new UiDragInfo();
+    public UiToolbar(string name, vec2? pos, vec2? wh, UiStyle style = null) : base(name, style)
+    {
+      this.InlineStyle.Texture = Gui2d.SolidColorTexture;
+      this.InlineStyle.MinWHPX = new vec2(0, 25);
+      this.InlineStyle.SizeModeWidth = UiSizeMode.Expand;
+      this.InlineStyle.SizeModeHeight = UiSizeMode.Shrink;
+      this.InlineStyle.Color = vec4.rgba_ub(220, 220, 230, 100);
+      this.InlineStyle.Padding = 5;
+      if (pos != null)
+      {
+        this.InlineStyle.Pos = pos.Value;
+        this.InlineStyle.PositionMode = UiPositionMode.Relative;
+      }
+      if (wh != null)
+      {
+        this.InlineStyle.Extent = wh.Value;
+      }
+    }
+  }
+  public class UiLabel : UiElement
+  {
+    public UiLabel(string name, vec2? pos, string text, bool showbackground = true, FontFace? font = null, float fontSize = 12, vec4? fontColor = null, UiFontStyle fontstyle = UiFontStyle.Normal, float lineheight = 1.0f)
+    {
+      if (pos != null)
+      {
+        this.InlineStyle.Pos = pos.Value;
+        this.InlineStyle.PositionMode = UiPositionMode.Relative;
+      }
+      this.Text = text;
+      if (showbackground)
+      {
+        this.InlineStyle.Texture = Gui2d.SolidColorTexture;
+      }
+      this.InlineStyle.FontFace = new UiRef<FontFace>(font != null ? font : FontFace.RobotoMono);
+      this.InlineStyle.FontSize = fontSize;
+      this.InlineStyle.FontColor = fontColor != null ? fontColor.Value : new vec4(1, 1, 1, 1);
+      this.InlineStyle.FontStyle = fontstyle;
+      this.InlineStyle.LineHeight = lineheight;
+      this.InlineStyle.Padding = 15;
+      this.InlineStyle.PadBot = 10;
+      this.InlineStyle.PadTop = 10;
+      this.InlineStyle.PadLeft = 10;
+      this.InlineStyle.PadRight = 10;
+      this.IsPickRoot = true;
+    }
+  }
+  public class UiButtonBase : UiElement
+  {
+    public UiButtonBase(string name, string text, vec2? pos = null, UiStyle styleClass = null) : base(name, styleClass)
+    {
+      this.Text = text;
+      this.IsPickRoot = true;
 
+      if (pos != null)
+      {
+        this.InlineStyle.Pos = pos.Value;
+        this.InlineStyle.PositionMode = UiPositionMode.Relative;
+      }
+      this.InlineStyle.Texture = Gui2d.SolidColorTexture;
+      this.InlineStyle.DisplayMode = UiDisplayMode.Inline;
+      this.InlineStyle.MaxWHPX = new vec2(100, 200);
+      this.InlineStyle.Border = 0;
+      this.InlineStyle.BorderRadius = 3;
+      this.InlineStyle.BorderColor = vec4.rgba_ub(90, 120, 240, 255);
+      this.InlineStyle.Color = vec4.rgba_ub(35 + 90, 47 + 90, 62 + 90, 255);
+      this.InlineStyle.Padding = 3;
+      this.InlineStyle.PadRight = 7;
+      this.InlineStyle.PadLeft = 7;
+      this.InlineStyle.Margin = 2;
+      this.InlineStyle.FontColor = vec4.rgba_ub(255, 255, 255, 255);
+      this.InlineStyle.AddEvent(UiEventId.Mouse_Lmb_Release, (eid, uie, m) =>
+      {
+        this.InlineStyle.FontColor = vec4.rgba_ub(255, 255, 255, 255);
+      });
+      this.InlineStyle.AddEvent(UiEventId.Mouse_Enter, (eid, uie, m) =>
+      {
+        this.InlineStyle.Border = 2;
+        this.InlineStyle.BorderColor = vec4.rgba_ub(255, 255, 255, 255);
+      });
+      this.InlineStyle.AddEvent(UiEventId.Mouse_Leave, (eid, uie, m) =>
+      {
+        this.InlineStyle.Border = 0;
+      });
+      this.InlineStyle.AddEvent(UiEventId.Mouse_Lmb_Press, (eid, uie, m) =>
+      {
+        this.InlineStyle.FontColor = vec4.rgba_ub(200, 200, 200, 255);
+      });
+
+    }
+  }
+  public class UiButton : UiButtonBase
+  {
+    public UiButton(string name, string text, vec2? pos = null, Action<UiEventId, UiElement, PCMouse> onClick = null, UiStyle styleClass = null) : base(name, text, pos, styleClass)
+    {
+      if (onClick != null)
+      {
+        this.InlineStyle.AddEvent(UiEventId.Mouse_Lmb_Release, onClick);
+      }
+    }
+  }
+
+  public class UiScrollbar : UiElement
+  {
+    public UiScrollbar(string name, Action<float> scrollFunc, bool horizontal = false, UiStyle styleClass = null) : base(name, styleClass)
+    {
+      UiElement thumb = new UiElement(name + "-thumb", styleClass);
+      //thumb.InlineStyle.Texture = new UiRef<MtTex>(null);//this.DefaultPixel());
+      thumb.InlineStyle.PadBot = thumb.InlineStyle.PadLeft = thumb.InlineStyle.PadTop = thumb.InlineStyle.PadRight = 15;// Fonts are messed up right now 
+      thumb.InlineStyle.PadBot = 5;
+      thumb.InlineStyle.PadTop = 5;
+      thumb.InlineStyle.PadLeft = 5;
+      thumb.InlineStyle.PadRight = 5;
+      thumb.InlineStyle.MaxWHPX = new vec2(999999, 999999);
+      thumb.InlineStyle.MinWHPX = new vec2(5, 5);
+      thumb.InlineStyle.Border = 1;
+      thumb.InlineStyle.BorderColor = vec4.rgba_ub(200, 200, 220);
+      thumb.IsPickRoot = true;
+      thumb.InlineStyle.PositionMode = UiPositionMode.RelativeConstrainXY;
+      thumb.InlineStyle.Top = 0;
+      thumb.InlineStyle.Left = 0;
+      thumb.IsPickRoot = true;
+
+      //UiElement cont = new UiElement(name, styleClass);//CreateDefaultStyledElement(name);
+      // cont.Name = name;
+      // cont.InlineStyle.Texture = new UiRef<MtTex>(null);//this.DefaultPixel());
+      this.InlineStyle.Padding = 3;
+      if (horizontal)
+      {
+        this.InlineStyle.MaxWHPX = new vec2(999999, 20);
+        this.InlineStyle.MinWHPX = new vec2(20, 20);
+        this.InlineStyle.SizeModeWidth = UiSizeMode.Expand;
+      }
+      else
+      {
+        this.InlineStyle.MaxWHPX = new vec2(20, 999999);
+        this.InlineStyle.MinWHPX = new vec2(20, 20);
+        this.InlineStyle.SizeModeHeight = UiSizeMode.Expand;
+      }
+      this.InlineStyle.Color = vec4.rgba_ub(90, 90, 90);
+      this.AddChild(thumb);
+
+      thumb.EnableDrag((v) =>
+      {
+        float valpct = 0;
+        if (horizontal)
+        {
+          valpct = (float)thumb.Props._left / ((float)this.Props._width - (float)thumb.Props._width);
+        }
+        else
+        {
+          valpct = (float)thumb.Props._top / ((float)this.Props._height - (float)thumb.Props._height);
+        }
+        thumb.InlineStyle.Left = thumb.Props._left;
+        thumb.InlineStyle.Top = thumb.Props._top;
+        thumb.InlineStyle.Left += v.x;
+        thumb.InlineStyle.Top += v.y;
+        scrollFunc?.Invoke(valpct * (thumb.MinValue + thumb.MaxValue));
+      });
+
+    }
+
+  }
+  public class UiDropdown : UiElement
+  {
+    WeakReference<Gui2d> gui = null;
+    public UiDropdown(Gui2d g)
+    {
+      gui = new WeakReference<Gui2d>(g);
+    }
+    public void Show(vec2 pos, Dictionary<string, string> items)
+    {
+      InlineStyle.Pos = pos;
+
+      ClearChildren();
+      if (gui.TryGetTarget(out var g))
+      {
+        Gu.BRThrowNotImplementedException();
+        // foreach (var kvp in items)
+        // {
+        //   var item = g.CreateDefaultStyledElement("item-" + kvp.Key);
+        //   item.InlineStyle.Color *= 1.5f;
+
+        //   item.InlineStyle.PositionMode = UiPositionMode.Relative;
+        //   item.InlineStyle.SizeModeWidth = UiSizeMode.Expand;
+        //   item.InlineStyle.SizeModeHeight = UiSizeMode.Shrink;
+        //   item.InlineStyle.MarginBot = 1;
+        //   item.Text = kvp.Value;
+        //   item.Tag = kvp.Key;
+        //   AddChild(item);
+        // }
+      }
+      Show();
+    }
+  }
+  public class Gui2d : UiElement
+  {
+    #region Public: Members
 #if DEBUG
     private v_v4v4v4v2u2v4v4[] _debug_pt = new v_v4v4v4v2u2v4v4[3]; //save 3 points to see what they are (debug)
 #endif
 
-    public UiScreen(RenderView cam)
+    public static UiRef<MtTex> SolidColorTexture { get { return new UiRef<MtTex>(new MtTex()); } }
+
+    public WeakReference<RenderView> RenderView { get; private set; } = new WeakReference<RenderView>(null);
+    public UiDebugDraw DebugDraw { get; set; } = new UiDebugDraw();
+    public UiDropdown ContextMenu { get; private set; } = null;
+    public MeshData Mesh { get; set; } = null;
+    public long UpdateMs { get; private set; } = 0;
+    public long MeshMs { get; private set; } = 0;
+    public long PickMs { get; private set; } = 0;
+    public long ObjectEventsMs { get; private set; } = 0;
+    public long WindowEventsMs { get; private set; } = 0;
+    public MtTex DefaultPixel { get { return _shared.MegaTex.DefaultPixel; } }
+
+    private UiDragInfo _dragInfo = new UiDragInfo();
+    private vec2 _viewport_wh_last = new vec2(1, 1);
+    private Gui2dShared _shared = null;
+
+    #endregion
+    #region Public: Methods
+
+    public Gui2d(Gui2dShared shared, RenderView cam, string styleClass)
     {
-      _renderView = new WeakReference<RenderView>(cam);
+      _shared = shared;
+      RenderView = new WeakReference<RenderView>(cam);
       int designWidth = 1920;
       int designHeight = 1080;
       _props.SetDefault();
@@ -1624,53 +1978,48 @@ namespace PirateCraft
       _props._sizeModeWidth = _props._sizeModeHeight = UiSizeMode.Expand;
       this.Name = "screen(root)";
       CreateWindowEvents();
+
+      this.StyleClass = shared.StyleSheet.GetClass(styleClass);
+      this.StyleClass.Texture = null;//Null out texture.
+                                     //Technically not an error, however, we use the root styleclass to
+                                     //define default Texture Pixel for non-textured elements.
+      Gu.Assert(this.StyleClass != null);
+
+      ContextMenu = new UiDropdown(this);
+      //CreateDefaultStyledElement(ContextMenu);
+      ContextMenu.InlineStyle.PositionMode = UiPositionMode.Relative;
+      ContextMenu.InlineStyle.SizeModeHeight = UiSizeMode.Expand;
+      ContextMenu.InlineStyle.SizeModeWidth = UiSizeMode.Expand;
+      AddChild(ContextMenu);
+      ContextMenu.Hide();
     }
-    private void CreateWindowEvents()
+    public void OnResize()
     {
-      InlineStyle.AddEvent(UiEventId.Mouse_Lmb_Press, (UiEventId evId, UiElement ele, PCMouse m) =>
-      {
-        var e = (Gu.Context.Renderer.Picker.PickedObjectFrame as UiElement);
-        _dragInfo.StartDrag(e, m);
-      });
-      InlineStyle.AddEvent(UiEventId.Mouse_Move, (UiEventId evId, UiElement ele, PCMouse m) =>
-      {
-        _dragInfo.UpdateDrag(m);
-      });
-      InlineStyle.AddEvent(UiEventId.Mouse_Lmb_Release, (UiEventId evId, UiElement ele, PCMouse m) =>
-      {
-        _dragInfo.EndDrag();
-      });
+      SetLayoutChanged();
     }
-    public static int GetSortLayer(int n)
+    public void Render(RenderView rv)
     {
-      // Mnemonic wich gves you the base sort layer, provided n will return additional layers.
-      return c_BaseLayerSort + n;
+      //Swap out the mesh for this instance's mesh
+      _shared.Dummy.Mesh = Mesh;
+      DrawCall.Draw(Gu.World.WorldProps, rv, _shared.Dummy);
     }
-    public void Update(MegaTex mt, WindowContext ct, Gui2d g)
+    public void Update(double dt)//MegaTex mt, WindowContext ct, Gui2d g)
     {
-      if (_renderView != null && _renderView.TryGetTarget(out var rv))
+      if (RenderView != null && RenderView.TryGetTarget(out var rv))
       {
         long a = Gu.Milliseconds();
         SetExtentsToViewport(rv);
-        UpdateLayout(mt, ct.PCMouse, rv);
+        UpdateLayout(_shared.MegaTex, Gu.Context.PCMouse, rv);
         this.UpdateMs = Gu.Milliseconds() - a;
 
         a = Gu.Milliseconds();
-        RegenMesh(rv, g, mt);
+        RegenMesh(rv, _shared.MegaTex);
         this.MeshMs = Gu.Milliseconds() - a;
       }
     }
-    private void SetExtentsToViewport(RenderView rv)
+    public void Pick()
     {
-      _props._top = rv.Viewport.Y;
-      _props._left = rv.Viewport.X;
-      _props._width = rv.Viewport.Width;
-      _props._height = rv.Viewport.Height;
-      _props._maxWHPX = new vec2(rv.Viewport.Width, rv.Viewport.Height);//Make sure stuff doesn't go off the screen.
-      _props._minWHPX = new vec2(0, 0);
-    }
-    public void Pick(WindowContext ct)
-    {
+      var ct = Gu.Context;
       //See WorldObject->Pick
       if (Gu.Context.Renderer.Picker.PickedObjectFrame != null)
       {
@@ -1716,7 +2065,11 @@ namespace PirateCraft
       DoMouseEvents(ct.PCMouse, true);
       this.WindowEventsMs = Gu.Milliseconds() - a;
     }
-    private vec2 _viewport_wh_last = new vec2(1, 1);
+
+
+    #endregion
+    #region Private: Methods
+
     private void UpdateLayout(MegaTex mt, PCMouse mouse, RenderView rv)
     {
       if (LayoutChanged)
@@ -1734,17 +2087,12 @@ namespace PirateCraft
         _props._borderTopLeftRadius.Value, _props._borderTopRightRadius.Value, _props._borderBotRightRadius.Value, _props._borderBotLeftRadius.Value,
         _renderOffset, _contentArea);
 
-        PerformLayout_SizeElements(mt, force, this._props._maxWHPX.Value);
+        PerformLayout_SizeElements(mt, force, this._props._maxWHPX.Value, null);
         PerformLayout_PositionElements(force);
 
       }
     }
-    public long UpdateMs { get; private set; } = 0;
-    public long MeshMs { get; private set; } = 0;
-    public long PickMs { get; private set; } = 0;
-    public long ObjectEventsMs { get; private set; } = 0;
-    public long WindowEventsMs { get; private set; } = 0;
-    private void RegenMesh(RenderView rv, Gui2d g, MegaTex mt)
+    private void RegenMesh(RenderView rv, MegaTex mt)
     {
       Box2f b = GetScreenSpaceClipQuad();
       List<v_v4v4v4v2u2v4v4> verts = new List<v_v4v4v4v2u2v4v4>();
@@ -1761,16 +2109,67 @@ namespace PirateCraft
         _debug_pt[2] = verts[2];
 #endif
 
-      g.Mesh = new MeshData(rv.Name + "gui-mesh", OpenTK.Graphics.OpenGL4.PrimitiveType.Points,
+      Mesh = new MeshData(rv.Name + "gui-mesh", OpenTK.Graphics.OpenGL4.PrimitiveType.Points,
       Gpu.CreateVertexBuffer(rv.Name + "gui-mesh", verts.ToArray()),
       false
       );
-      g.Mesh.DrawMode = DrawMode.Forward;
-      g.Mesh.DrawOrder = DrawOrder.Last;
+      Mesh.DrawMode = DrawMode.Forward;
+      Mesh.DrawOrder = DrawOrder.Last;
       //wo.Mesh.DebugBreakRender = true;
 
     }
-  }
+    private void SetExtentsToViewport(RenderView rv)
+    {
+      _props._top = rv.Viewport.Y;
+      _props._left = rv.Viewport.X;
+      _props._width = rv.Viewport.Width;
+      _props._height = rv.Viewport.Height;
+      _props._maxWHPX = new vec2(rv.Viewport.Width, rv.Viewport.Height);//Make sure stuff doesn't go off the screen.
+      _props._minWHPX = new vec2(0, 0);
+    }
+    private void CreateWindowEvents()
+    {
+      //Drag Info..
+      //Context Menus..
+      InlineStyle.AddEvent(UiEventId.Mouse_Lmb_Press, (UiEventId evId, UiElement ele, PCMouse m) =>
+      {
+        var e = (Gu.Context.Renderer.Picker.PickedObjectFrame as UiElement);
+        _dragInfo.StartDrag(e, m);
+      });
+      InlineStyle.AddEvent(UiEventId.Mouse_Move, (UiEventId evId, UiElement ele, PCMouse m) =>
+      {
+        _dragInfo.UpdateDrag(m);
+      });
+      InlineStyle.AddEvent(UiEventId.Mouse_Lmb_Release, (UiEventId evId, UiElement ele, PCMouse m) =>
+      {
+        _dragInfo.EndDrag();
+        if (ContextMenu.RenderVisible)
+        {
+          ContextMenu?.Hide();
+        }
+      });
+      InlineStyle.AddEvent(UiEventId.Mouse_Rmb_Press, (UiEventId evId, UiElement ele, PCMouse m) =>
+      {
+        if (ContextMenu != null)
+        {
+          ContextMenu.Show();
+          ContextMenu.InlineStyle.Pos = m.Pos;
+        }
+      });
+      InlineStyle.AddEvent(UiEventId.Mouse_Rmb_Release, (UiEventId evId, UiElement ele, PCMouse m) =>
+      {
+        if (ContextMenu.RenderVisible)
+        {
+          ContextMenu?.Hide();
+        }
+      });
+    }
+
+
+    #endregion
+
+  }//Gui2d
+
   public class UiRef<T> where T : class
   {
     public T Value = null;
@@ -2032,9 +2431,9 @@ namespace PirateCraft
   {
     //The purpose of skins is to allow us to texture the UI in the future.
     //For now, we can use the 1 pixel texture and a default color (easier) 
-    public const string DefaultStyle = "default";
-    public const string DefaultHoverStyle = "default_hover";
-    public const string DefaultDownStyle = "default_down";
+    public const string DefaultStyle = "style-default";
+    public const string DefaultHoverStyle = "style-default-hover";
+    public const string DefaultDownStyle = "style-default-down";
 
     public UiStyle CurrentStyle = null;
     public MegaTex MegaTex { get; private set; } = null;
@@ -2061,7 +2460,7 @@ namespace PirateCraft
       defaultStyle.MarginRight = 0;
       defaultStyle.MarginBot = 0;
       defaultStyle.MarginLeft = 0;
-      defaultStyle.FontFace = new UiRef<FontFace>(FontFace.Mono);
+      defaultStyle.FontFace = new UiRef<FontFace>(FontFace.RobotoMono);//What if this doesn't exist? Default?
       defaultStyle.FontStyle = UiFontStyle.Normal;
       defaultStyle.FontSize = 22;
       defaultStyle.LineHeight = 1.0f;
@@ -2097,240 +2496,23 @@ namespace PirateCraft
       return ret;
     }
   }//UiStyleSheet
-  public class Gui2d
-  {
-    //Gui2d instance for a view.
-    //Separate screen but shared MegaTex (if given)
-    public UiScreen Screen { get; private set; } = null;
-    private Gui2dShared _shared = null;
-    public MeshData Mesh { get; set; } = null;
-
-    public Gui2d(Gui2dShared shared, RenderView rv)
-    {
-      _shared = shared;
-      Screen = new UiScreen(rv);
-    }
-    public void Update(double dt)
-    {
-      Screen.Update(_shared.MegaTex, Gu.Context, this);
-    }
-    public void OnResize()
-    {
-      Screen.SetLayoutChanged();
-    }
-    public void Render(RenderView rv)
-    {
-      //Swap out the mesh for this instance's mesh
-      _shared.Dummy.Mesh = Mesh;
-      DrawCall.Draw(Gu.World.WorldProps, rv, _shared.Dummy);
-    }
-    public void Pick()
-    {
-      Screen.Pick(Gu.Context);
-    }
-
-    #region Public : Create
-
-    public MtTex DefaultPixel()
-    {
-      return _shared.MegaTex.DefaultPixel;
-    }
-    private UiElement CreateDefaultStyledElement(string name)
-    {
-      UiElement e = new UiElement(name);
-      if (_shared.StyleSheet != null)
-      {
-        e.StyleClass = _shared.StyleSheet.GetClass(UiStyleSheet.DefaultStyle);
-      }
-      return e;
-    }
-    public UiElement CreatePanel(string name, vec2? pos, vec2? wh)
-    {
-      UiElement e = CreateDefaultStyledElement(name);
-      e.InlineStyle.Texture = new UiRef<MtTex>(_shared.MegaTex.DefaultPixel);
-      if (pos != null)
-      {
-        e.InlineStyle.Pos = pos.Value;
-        e.InlineStyle.PositionMode = UiPositionMode.Relative;
-      }
-      if (wh != null)
-      {
-        e.InlineStyle.Extent = wh.Value;
-      }
-      return e;
-    }
-    public UiElement CreateButton(string name, vec2? pos, string text, Action<UiEventId, UiElement, PCMouse> onClick = null)
-    {
-      UiElement e = CreateDefaultStyledElement(name);
-      e.InlineStyle.Texture = new UiRef<MtTex>(_shared.MegaTex.DefaultPixel);
-      if (pos != null)
-      {
-        e.InlineStyle.Pos = pos.Value;
-        e.InlineStyle.PositionMode = UiPositionMode.Relative;
-      }
-      e.Text = text;
-      e.InlineStyle.DisplayMode = UiDisplayMode.Inline;
-      e.InlineStyle.MaxWHPX = new vec2(100, 200);
-      e.InlineStyle.Border = 0;
-      e.InlineStyle.BorderRadius = 20;
-      e.InlineStyle.BorderColor = vec4.rgba_ub(90, 120, 240, 255);
-      e.InlineStyle.Color = vec4.rgba_ub(35 + 90, 47 + 90, 62 + 90, 255);
-      e.IsPickRoot = true;
-      e.InlineStyle.Padding = 3;
-      e.InlineStyle.PadRight = e.InlineStyle.PadLeft = 7;
-      e.InlineStyle.Margin = 2;
-      e.InlineStyle.FontColor = vec4.rgba_ub(255, 255, 255, 255);
-      e.InlineStyle.AddEvent(UiEventId.Mouse_Lmb_Release, (eid, uie, m) =>
-      {
-        e.StyleClass = _shared.StyleSheet.GetClass(UiStyleSheet.DefaultHoverStyle);
-        e.InlineStyle.FontColor = vec4.rgba_ub(255, 255, 255, 255);
-      });
-      e.InlineStyle.AddEvent(UiEventId.Mouse_Enter, (eid, uie, m) =>
-      {
-        e.InlineStyle.Border = 2;
-        e.InlineStyle.BorderColor = vec4.rgba_ub(255, 255, 255, 255);
-        //e.StyleClass = _styleSheet.GetClass(UiStyleSheet.DefaultHoverStyle);
-      });
-      e.InlineStyle.AddEvent(UiEventId.Mouse_Leave, (eid, uie, m) =>
-      {
-        e.InlineStyle.Border = 0;
-        //e.StyleClass = _styleSheet.GetClass(UiStyleSheet.DefaultStyle);
-      });
-      e.InlineStyle.AddEvent(UiEventId.Mouse_Lmb_Press, (eid, uie, m) =>
-      {
-        e.InlineStyle.FontColor = vec4.rgba_ub(200, 200, 200, 255);
-      });
-      if (onClick != null)
-      {
-        e.InlineStyle.AddEvent(UiEventId.Mouse_Lmb_Release, onClick);
-      }
-      return e;
-    }
-    public UiElement CreateLabel(string name, vec2? pos, string text, bool showbackground = true, FontFace? font = null, float fontSize = 12, vec4? fontColor = null, UiFontStyle fontstyle = UiFontStyle.Normal, float lineheight = 1.0f)
-    {
-      UiElement e = CreateDefaultStyledElement(name);
-      e.InlineStyle.Texture = new UiRef<MtTex>(showbackground ? _shared.MegaTex.DefaultPixel : null);
-      if (pos != null)
-      {
-        e.InlineStyle.Pos = pos.Value;
-        e.InlineStyle.PositionMode = UiPositionMode.Relative;
-      }
-      e.Text = text;
-      e.InlineStyle.FontFace = new UiRef<FontFace>(font != null ? font : FontFace.Mono);
-      e.InlineStyle.FontSize = fontSize;
-      e.InlineStyle.FontColor = fontColor != null ? fontColor.Value : new vec4(1, 1, 1, 1);
-      e.InlineStyle.FontStyle = fontstyle;
-      e.InlineStyle.LineHeight = lineheight;
-      e.InlineStyle.PadBot = e.InlineStyle.PadLeft = e.InlineStyle.PadTop = e.InlineStyle.PadRight = 15;// Fonts are messed up right now 
-      e.InlineStyle.PadBot = 10;
-      e.InlineStyle.PadTop = 10;
-      e.InlineStyle.PadLeft = 10;
-      e.InlineStyle.PadRight = 10;
-      e.IsPickRoot = true;
-      return e;
-    }
-    public UiElement CreateScrollbar(string name, bool horizontal, Action<float> scrollFunc)
-    {
-      UiElement thumb = CreateDefaultStyledElement(name);
-      thumb.Name = name + "_thumb";
-      thumb.InlineStyle.Texture = new UiRef<MtTex>(this.DefaultPixel());
-      thumb.InlineStyle.PadBot = thumb.InlineStyle.PadLeft = thumb.InlineStyle.PadTop = thumb.InlineStyle.PadRight = 15;// Fonts are messed up right now 
-      thumb.InlineStyle.PadBot = 10;
-      thumb.InlineStyle.PadTop = 10;
-      thumb.InlineStyle.PadLeft = 10;
-      thumb.InlineStyle.PadRight = 10;
-      thumb.InlineStyle.MaxWHPX = new vec2(999999, 999999);
-      thumb.InlineStyle.MinWHPX = new vec2(5, 5);
-      thumb.InlineStyle.Border = 1;
-      thumb.InlineStyle.BorderColor = vec4.rgba_ub(200, 200, 220);
-      thumb.IsPickRoot = true;
-      thumb.InlineStyle.PositionMode = UiPositionMode.RelativeConstrainXY;
-      thumb.InlineStyle.Top = 0;
-      thumb.InlineStyle.Left = 0;
-      thumb.IsPickRoot = true;
-
-      UiElement cont = CreateDefaultStyledElement(name);
-      cont.Name = name;
-      cont.InlineStyle.Texture = new UiRef<MtTex>(this.DefaultPixel());
-      cont.InlineStyle.Padding = 3;
-      if (horizontal)
-      {
-        cont.InlineStyle.MaxWHPX = new vec2(999999, 20);
-        cont.InlineStyle.MinWHPX = new vec2(20, 20);
-        cont.InlineStyle.SizeModeWidth = UiSizeMode.Expand;
-      }
-      else
-      {
-        cont.InlineStyle.MaxWHPX = new vec2(20, 999999);
-        cont.InlineStyle.MinWHPX = new vec2(20, 20);
-        cont.InlineStyle.SizeModeHeight = UiSizeMode.Expand;
-      }
-      cont.InlineStyle.Color = vec4.rgba_ub(90, 90, 90);
-      cont.AddChild(thumb);
-
-
-      thumb.EnableDrag((v) =>
-      {
-        float valpct = 0;
-        if (horizontal)
-        {
-          valpct = (float)thumb.Props._left / ((float)cont.Props._width - (float)thumb.Props._width);
-        }
-        else
-        {
-          valpct = (float)thumb.Props._top / ((float)cont.Props._height - (float)thumb.Props._height);
-
-        }
-        thumb.InlineStyle.Left = thumb.Props._left;
-        thumb.InlineStyle.Top = thumb.Props._top;
-        thumb.InlineStyle.Left += v.x;
-        thumb.InlineStyle.Top += v.y;
-        scrollFunc?.Invoke(valpct * (thumb.MinValue + thumb.MaxValue));
-      });
-
-      return cont;
-
-    }
-
-    #endregion
-
-  }//class Gui2d
   public class Gui2dShared
   {
     //Shared data between Gui2d instances for each context
     public UiStyleSheet StyleSheet { get; private set; } = null;
     public WorldObject Dummy { get; private set; } = null;
     public MegaTex MegaTex { get; private set; } = null;
+    public string Name { get; private set; } = "<unnamed>";
 
-    public MtFont GetFont(FileLoc loc)
+    public Gui2dShared(string name, List<FileLoc> resources)
     {
-      return MegaTex.GetFont(loc);
-    }
-    public Gui2dShared(List<FileLoc> resources)
-    {
-      MegaTex = new MegaTex("gui_megatex", true);
+      Name = name;
+      MegaTex = new MegaTex("gui_megatex", true, MegaTex.MtClearColor.DebugRainbow, true, TexFilter.Linear, false);
+      MegaTex.AddResources(resources);
+      MegaTex.CompiledTextures tx = MegaTex.Compile();
+
       StyleSheet = new UiStyleSheet(MegaTex);
 
-      foreach (var x in resources)
-      {
-        var e = System.IO.Path.GetExtension(x.QualifiedPath);
-        if (StringUtil.Equals(e, ".ttf"))
-        {
-          MegaTex.GetFont(x);
-        }
-        else if (StringUtil.Equals(e, ".png") || StringUtil.Equals(e, ".jpg") || StringUtil.Equals(e, ".bmp") || StringUtil.Equals(e, ".tga"))
-        {
-          MegaTex.GetTex(x);
-        }
-        else
-        {
-          Gu.Log.Error("Invalid file type for the GUi: " + x.QualifiedPath);
-          Gu.DebugBreak();
-        }
-      }
-
-      MegaTex.LoadImages();
-      MegaTex.CompiledTextures tx = MegaTex.Compile(MegaTex.MtClearColor.DebugRainbow, false, TexFilter.Linear, false);
       if (tx != null)
       {
         var shader = Gu.Resources.LoadShader("v_gui", true, FileStorage.Embedded);
@@ -2349,13 +2531,15 @@ namespace PirateCraft
   }//Gui2dShared
   public class Gui2dManager : OpenGLContextDataManager<Dictionary<ulong, Gui2dShared>>
   {
+
     //Shared GUI data for each context
     protected override Dictionary<ulong, Gui2dShared> CreateNew()
     {
       return new Dictionary<ulong, Gui2dShared>();
     }
-    public Gui2dShared GetOrCreateGui2d(List<FileLoc> resources)
+    public Gui2dShared GetOrCreateGui2d(string name, List<FileLoc> resources)
     {
+
       var qualifiedPaths = resources.ConvertAll((x) => { return x.QualifiedPath; });
       var hash = Gu.HashStringArray(qualifiedPaths);
 
@@ -2363,13 +2547,11 @@ namespace PirateCraft
       var dict = GetDataForContext(Gu.Context);
       if (!dict.TryGetValue(hash, out g))
       {
-        g = new Gui2dShared(resources);
+        g = new Gui2dShared(name, resources);
         dict.Add(hash, g);
       }
       return g;
     }
   }//Gui2dManager
-
-  #endregion
 
 }//Namespace Pri

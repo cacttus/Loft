@@ -4,47 +4,6 @@ using System.Text;
 
 namespace PirateCraft
 {
-  public class GLenumUnDuper
-  {
-    static Dictionary<uint, List<string>> dupes = new Dictionary<uint, List<string>>();
-
-    public static void Build(StringBuilder strState)
-    {
-      //dupes in enum
-      foreach (var name in Enum.GetNames(typeof(GLenum)))
-      {
-        try
-        {
-          var ob = Enum.Parse(typeof(GLenum), name);
-          int id1 = (int)ob;
-          uint id = (uint)id1;
-          List<string> st;
-          if (!dupes.TryGetValue(id, out st))
-          {
-            st = new List<string>();
-            dupes.Add(id, st);
-          }
-          st.Add(name);
-        }
-        catch (Exception e)
-        {
-          int n = 0;
-          n++;
-        }
-      }
-      // foreach (var kvp in dupes)
-      // {
-      //   if (kvp.Value.Count > 1)
-      //   {
-      //     strState.AppendLine("" + kvp.Key);
-      //     foreach (var n in kvp.Value)
-      //     {
-      //       strState.AppendLine("  " + n);
-      //     }
-      //   }
-      // }
-    }
-  }
   public enum GLenum
   {
     // (GL_[a-zA-Z0-9_]+) = ([a-zA-Z0-9_]+),

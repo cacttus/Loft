@@ -356,7 +356,8 @@ namespace PirateCraft
     }
     public float x, y;
     public static vec2 Zero { get { return new vec2(0, 0); } }
-    public static vec2 One { get { return new vec2(1, 1); } }
+    //public static vec2 One { get { return new vec2(1, 1); } }
+    public static vec2 One = new vec2(1, 1);
     public vec2 construct(float a, float b) { x = a; y = b; return this; }
     public vec2(OpenTK.Mathematics.Vector2 dxy) { x = dxy.X; y = dxy.Y; }
     public vec2(vec2 dxy) { x = dxy.x; y = dxy.y; }
@@ -4843,6 +4844,14 @@ namespace PirateCraft
     }
 
   }
+  [StructLayout(LayoutKind.Sequential)]
+  public struct vec3basis
+  {
+    public vec3basis() { }
+    public vec3 x = vec3.Zero;
+    public vec3 y = vec3.Zero;
+    public vec3 z = vec3.Zero;
+  }
   public static class BinaryWriterExtensions
   {
     public static void Write(this System.IO.BinaryWriter writer, vec2 v)
@@ -4929,11 +4938,18 @@ namespace PirateCraft
       writer.Write((vec3)box._min);
       writer.Write((vec3)box._max);
     }
-    public static void Write(this System.IO.BinaryWriter writer, Box2f box)
+    public static void Write(this System.IO.BinaryWriter writer, DateTime dt)
     {
-      writer.Write((vec2)box._min);
-      writer.Write((vec2)box._max);
+      //https://stackoverflow.com/questions/15919598/serialize-datetime-as-binary
+      writer.Write((long)dt.Ticks);
     }
+    public static void Write<T>(this System.IO.BinaryWriter writer, T[] items) where T : struct
+    {
+      var d = ResourceManager.Serialize(items);// Gpu.SerializeGpuData<T>(items);
+      writer.Write((Int32)d.Length);
+      writer.Write(d);
+    }
+
 
     public static vec2 ReadVec2(this System.IO.BinaryReader reader)
     {
@@ -5040,6 +5056,26 @@ namespace PirateCraft
       box._min = reader.ReadVec3();
       box._max = reader.ReadVec3();
       return box;
+    }
+    public static DateTime ReadDateTime(this System.IO.BinaryReader reader)
+    {
+      //https://stackoverflow.com/questions/15919598/serialize-datetime-as-binary
+      DateTime dt = new DateTime();
+      var dat = reader.ReadInt64();
+
+      long ticks = (long)(dat & 0x3FFFFFFFFFFFFFFF);
+      DateTimeKind kind = (DateTimeKind)(dat >> 62);
+      DateTime date = new DateTime(ticks, kind);
+
+      return date;
+    }
+    public static T[] Read<T>(this System.IO.BinaryReader reader) where T : struct
+    {
+      Int32 count = reader.ReadInt32();
+      byte[] buf = new byte[count];
+      reader.Read(buf, 0, (Int32)count);
+
+      return ResourceManager.Deserialize<T>(buf);
     }
 
   }

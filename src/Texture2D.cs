@@ -63,7 +63,7 @@ namespace PirateCraft
       }
       catch (Exception ex)
       {
-        Gu.Log.Info("Image not found. Loading default image.");
+        Gu.Log.Error("Image not found. Loading default image.",ex);
         img = Img32.Default1x1_RGBA32ub(255, 0, 255, 255);
       }
 
@@ -336,13 +336,19 @@ namespace PirateCraft
       }
 
       _boundUnit = unit;
+      Gpu.CheckGpuErrorsDbg();
       GL.ActiveTexture(unit);
+      Gpu.CheckGpuErrorsDbg();
       GL.BindTexture(TextureTarget, GetGlId());
+      Gpu.CheckGpuErrorsDbg();
     }
     public void Unbind()
     {
+      Gpu.CheckGpuErrorsDbg();
       GL.ActiveTexture(_boundUnit);
+      Gpu.CheckGpuErrorsDbg();
       GL.BindTexture(TextureTarget, 0);
+      Gpu.CheckGpuErrorsDbg();
     }
 
     #endregion
@@ -477,4 +483,6 @@ namespace PirateCraft
 
     #endregion
   }
+
+
 }

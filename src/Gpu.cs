@@ -344,7 +344,7 @@ namespace PirateCraft
       }
       if (doNotLog == false)
       {
-        string strId = "[id=" + msgId.ToString("X") + "]";
+        string strId = " 0x" + msgId.ToString("X");
 
         //Skip if the config.xml has turned off this kind of logging.
         if (severity == DebugSeverity.DebugSeverityHigh && graphicsLogHigh == false)
@@ -393,12 +393,11 @@ namespace PirateCraft
               shaderMsg + Environment.NewLine +
               " MSG ID: " + strId + Environment.NewLine +
               " Msg: " + cstrMsg + Environment.NewLine +
-              " Render: " + Environment.NewLine + strStackInfo + Environment.NewLine +
-              strRenderState;
+              " Render: " + Environment.NewLine + strStackInfo + Environment.NewLine;
 
         if (type == DebugType.DebugTypeError)
         {
-          Gu.Log.Error(msg);
+          Gu.Log.Error(msg, strRenderState);
           Gu.DebugBreak();
 
         }
@@ -578,6 +577,7 @@ namespace PirateCraft
     }
     public static unsafe T ByteArrayToStructure<T>(byte[] bytes) where T : struct
     {
+      //TODO:Duplicate REsourceManager.Serialize / Deserialize is essentially the same thing.
       fixed (byte* ptr = &bytes[0])
       {
         return (T)Marshal.PtrToStructure((IntPtr)ptr, typeof(T));
@@ -585,6 +585,7 @@ namespace PirateCraft
     }
     public static GpuDataArray SerializeGpuData<T>(T[] data) where T : struct
     {
+      //TODO:Duplicate REsourceManager.Serialize / Deserialize is essentially the same thing.
       var size = Marshal.SizeOf(data[0]);
 
       var bytes = new byte[size * data.Length];
@@ -860,7 +861,20 @@ namespace PirateCraft
       }
       return 0;
     }
-    public static string GetObjectLabel(ObjectLabelIdentifier idt, int id)
+    public static string GetObjectLabelWithId(ObjectLabelIdentifier idt, int id)
+    {
+      string label;
+      int length;
+      if (id == 0)
+      {
+        return " 0 (none)";
+      }
+      GL.GetObjectLabel(idt, id, 256, out length, out label);
+      label += $" ({id})";
+      return label;
+    }
+    //This is private now, because we have no need for it yet, but we may need it in the future to check against objects.
+    private static string GetObjectLabel(ObjectLabelIdentifier idt, int id)
     {
       string label;
       int length;
@@ -921,10 +935,9 @@ namespace PirateCraft
       }
 
       strState.AppendLine($"");
-      strState.AppendLine($"===================================================================");
-      strState.AppendLine($"                     RENDER STATE                                  ");
-      strState.AppendLine($"                     Window={ct.GameWindow.Title}                  ");
-      strState.AppendLine($"===================================================================");
+      strState.AppendLine($"==============================================");
+      strState.AppendLine($"=                RENDER STATE                =");
+      strState.AppendLine($"==============================================");
       Gpu.CheckGpuErrorsRt();
 
       DebugPrintShaderLimits(strState);
@@ -1034,11 +1047,11 @@ namespace PirateCraft
       GL.GetInteger(GetPName.CurrentProgram, out iCurrentProgram);
       Gpu.CheckGpuErrorsRt();
 
-      strState.AppendLine("Bound Shader Program: " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Program, iCurrentProgram));
+      strState.AppendLine("Bound Shader Program: " + Gpu.GetObjectLabelWithId(ObjectLabelIdentifier.Program, iCurrentProgram));
       Gpu.CheckGpuErrorsRt();
-      strState.AppendLine("Bound Vertex Array Buffer (VBO): " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Buffer, iBoundBuffer));
+      strState.AppendLine("Bound Vertex Array Buffer (VBO): " + Gpu.GetObjectLabelWithId(ObjectLabelIdentifier.Buffer, iBoundBuffer));
       Gpu.CheckGpuErrorsRt();
-      strState.AppendLine("Bound Element Array Buffer (IBO): " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Buffer, iElementArrayBufferBinding));
+      strState.AppendLine("Bound Element Array Buffer (IBO): " + Gpu.GetObjectLabelWithId(ObjectLabelIdentifier.Buffer, iElementArrayBufferBinding));
       Gpu.CheckGpuErrorsRt();
       strState.AppendLine("Bound Shader Storage Buffer (SSBO): Not avialable in opentk?");
       // List<int> binds = new List<int>();
@@ -1048,10 +1061,10 @@ namespace PirateCraft
       // {
       //   int iUniformBufferBindingxx = 0;
       //   GL.GetInteger(GetIndexedPName.UniformBufferBinding, xxx, out iUniformBufferBindingxx);
-      //   strState.AppendLine("Bound Uniform Buffer (UBO): " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Buffer, iUniformBufferBindingxx));
+      //   strState.AppendLine("Bound Uniform Buffer (UBO): " + Gpu.GetObjectLabelWithId(ObjectLabelIdentifier.Buffer, iUniformBufferBindingxx));
       // }
       Gpu.CheckGpuErrorsRt();
-      strState.AppendLine("Bound Vertex Array Object (VAO): " + Gpu.GetObjectLabel(ObjectLabelIdentifier.VertexArray, iVertexArrayBinding));
+      strState.AppendLine("Bound Vertex Array Object (VAO): " + Gpu.GetObjectLabelWithId(ObjectLabelIdentifier.VertexArray, iVertexArrayBinding));
       Gpu.CheckGpuErrorsRt();
 
       if (iCurrentProgram > 0)
@@ -1220,61 +1233,61 @@ namespace PirateCraft
         GL.GetInteger(GetPName.TextureBinding1D, out iTextureId);
         if (iTextureId > 0)
         {
-          strState.AppendLine("     1D: " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
+          strState.AppendLine("     1D: " + Gpu.GetObjectLabelWithId(ObjectLabelIdentifier.Texture, iTextureId));
         }
         iTextureId = 0;
         GL.GetInteger(GetPName.TextureBinding1DArray, out iTextureId);
         if (iTextureId > 0)
         {
-          strState.AppendLine("     1D_ARRAY: " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
+          strState.AppendLine("     1D_ARRAY: " + Gpu.GetObjectLabelWithId(ObjectLabelIdentifier.Texture, iTextureId));
         }
         iTextureId = 0;
         GL.GetInteger(GetPName.TextureBinding2D, out iTextureId);
         if (iTextureId > 0)
         {
-          strState.AppendLine("     2D: " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
+          strState.AppendLine("     2D: " + Gpu.GetObjectLabelWithId(ObjectLabelIdentifier.Texture, iTextureId));
         }
         iTextureId = 0;
         GL.GetInteger(GetPName.TextureBinding1DArray, out iTextureId);
         if (iTextureId > 0)
         {
-          strState.AppendLine("     2D_ARRAY: " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
+          strState.AppendLine("     2D_ARRAY: " + Gpu.GetObjectLabelWithId(ObjectLabelIdentifier.Texture, iTextureId));
         }
         iTextureId = 0;
         GL.GetInteger(GetPName.TextureBinding2DMultisample, out iTextureId);
         if (iTextureId > 0)
         {
-          strState.AppendLine("     2D_MULTISAMPLE: " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
+          strState.AppendLine("     2D_MULTISAMPLE: " + Gpu.GetObjectLabelWithId(ObjectLabelIdentifier.Texture, iTextureId));
         }
         iTextureId = 0;
         GL.GetInteger(GetPName.TextureBinding2DMultisampleArray, out iTextureId);
         if (iTextureId > 0)
         {
-          strState.AppendLine("     2D_MULTISAMPLE_ARRAY: " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
+          strState.AppendLine("     2D_MULTISAMPLE_ARRAY: " + Gpu.GetObjectLabelWithId(ObjectLabelIdentifier.Texture, iTextureId));
         }
         iTextureId = 0;
         GL.GetInteger(GetPName.TextureBinding3D, out iTextureId);
         if (iTextureId > 0)
         {
-          strState.AppendLine("     3D: " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
+          strState.AppendLine("     3D: " + Gpu.GetObjectLabelWithId(ObjectLabelIdentifier.Texture, iTextureId));
         }
         iTextureId = 0;
         GL.GetInteger(GetPName.TextureBindingBuffer, out iTextureId);
         if (iTextureId > 0)
         {
-          strState.AppendLine("     BUFFER: " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
+          strState.AppendLine("     BUFFER: " + Gpu.GetObjectLabelWithId(ObjectLabelIdentifier.Texture, iTextureId));
         }
         iTextureId = 0;
         GL.GetInteger(GetPName.TextureBindingCubeMap, out iTextureId);
         if (iTextureId > 0)
         {
-          strState.AppendLine("     CUBE_MAP: " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
+          strState.AppendLine("     CUBE_MAP: " + Gpu.GetObjectLabelWithId(ObjectLabelIdentifier.Texture, iTextureId));
         }
         iTextureId = 0;
         GL.GetInteger(GetPName.TextureBindingRectangle, out iTextureId);
         if (iTextureId > 0)
         {
-          strState.AppendLine("     RECTANGLE: " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Texture, iTextureId));
+          strState.AppendLine("     RECTANGLE: " + Gpu.GetObjectLabelWithId(ObjectLabelIdentifier.Texture, iTextureId));
         }
         Gpu.CheckGpuErrorsRt();
       }
@@ -1289,7 +1302,7 @@ namespace PirateCraft
 
       GL.ActiveTexture(TextureUnit.Texture0);
 
-      string texName = Gpu.GetObjectLabel(ObjectLabelIdentifier.Texture, iTexId);
+      string texName = Gpu.GetObjectLabelWithId(ObjectLabelIdentifier.Texture, iTexId);
       Gpu.CheckGpuErrorsRt();
 
       int tex_target;
@@ -1309,7 +1322,7 @@ namespace PirateCraft
         }
         else
         {
-          strState.AppendLine("Texture: " + texName);
+          strState.AppendLine($"Texture: {texName} ");
           strState.AppendLine("  Target: " + ((GLenum)tex_target).Description());
           strState.AppendLine("  Binding: " + ((GLenum)tex_target).Description());
 
@@ -1502,9 +1515,9 @@ namespace PirateCraft
 
 
       //strState.AppendLine(" Max Fragment Texture Image Units: " + maxFragmentTextureImageUnits);
-      strState.AppendLine("Current Bound Framebuffer: " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Framebuffer, boundFramebuffer));
-      strState.AppendLine("Current Draw Framebuffer Binding: " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Framebuffer, iDrawFramebufferBinding));
-      strState.AppendLine("Current Read Framebuffer Binding: " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Framebuffer, iReadFramebufferBinding));
+      strState.AppendLine("Current Bound Framebuffer: " + Gpu.GetObjectLabelWithId(ObjectLabelIdentifier.Framebuffer, boundFramebuffer));
+      strState.AppendLine("Current Draw Framebuffer Binding: " + Gpu.GetObjectLabelWithId(ObjectLabelIdentifier.Framebuffer, iDrawFramebufferBinding));
+      strState.AppendLine("Current Read Framebuffer Binding: " + Gpu.GetObjectLabelWithId(ObjectLabelIdentifier.Framebuffer, iReadFramebufferBinding));
       if (iDrawFramebufferBinding != iReadFramebufferBinding)
       {
         strState.AppendLine("   NOTE: Draw and Read framebuffers are bound different!");
@@ -1567,7 +1580,7 @@ namespace PirateCraft
         GL.GetFramebufferAttachmentParameter(FramebufferTarget.Framebuffer, attachment, FramebufferParameterName.FramebufferAttachmentObjectName, out attachmentName);
         Gpu.CheckGpuErrorsRt();
         strState.AppendLine("    Type: " + "GL_RENDERBUFFER");
-        strState.AppendLine("    Name: " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Renderbuffer, attachmentName));
+        strState.AppendLine("    Name: " + Gpu.GetObjectLabelWithId(ObjectLabelIdentifier.Renderbuffer, attachmentName));
       }
       else if (attachmentType == 0x1702)//GL_TEXTURE
       {
@@ -1600,7 +1613,7 @@ namespace PirateCraft
         GL.GetFramebufferAttachmentParameter(FramebufferTarget.Framebuffer, attachment, FramebufferParameterName.FramebufferAttachmentTextureLevel, out mipmapLevel);
         Gpu.CheckGpuErrorsRt();
         strState.AppendLine("    Type: " + "GL_TEXTURE");
-        strState.AppendLine("    Name: " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Texture, attachmentName));
+        strState.AppendLine("    Name: " + Gpu.GetObjectLabelWithId(ObjectLabelIdentifier.Texture, attachmentName));
         strState.AppendLine("    Mipmap Level: " + mipmapLevel);
       }
     }
@@ -1612,7 +1625,7 @@ namespace PirateCraft
       GL.GetInteger(GetPName.MaxVertexAttribs, out nMaxAttribs);
       GL.GetInteger(GetPName.VertexArrayBinding, out iVertexArrayBinding);
 
-      strState.AppendLine("Bound Vertex Array Id (VAO): " + Gpu.GetObjectLabel(ObjectLabelIdentifier.VertexArray, iVertexArrayBinding) + " (" + iVertexArrayBinding + ")");
+      strState.AppendLine("Bound Vertex Array Id (VAO): " + Gpu.GetObjectLabelWithId(ObjectLabelIdentifier.VertexArray, iVertexArrayBinding));
       strState.AppendLine("Max Allowed Atribs: " + nMaxAttribs);
 
       int nact = 0;
@@ -1668,7 +1681,7 @@ namespace PirateCraft
           continue;
         }
 
-        strState.AppendLine("    Array Buffer Binding: " + Gpu.GetObjectLabel(ObjectLabelIdentifier.Buffer, iArrayBufferBinding));
+        strState.AppendLine("    Array Buffer Binding: " + Gpu.GetObjectLabelWithId(ObjectLabelIdentifier.Buffer, iArrayBufferBinding));
         strState.AppendLine("    Size: " + iAttribArraySize);
         strState.AppendLine("    Stride: " + iAttribArrayStride);
         strState.AppendLine("    Is Integer: " + (iAttribArrayInteger > 0 ? "Y" : "N"));
@@ -1725,17 +1738,25 @@ namespace PirateCraft
     }
     private static void DebugPrintShaderLimits(StringBuilder strState)
     {
+
+      strState.AppendLine("---------------- Window Info ----------------");
+      strState.AppendLine($"Cur Context: '{Gu.Context.GameWindow.Title.ToString()}'");
+      strState.AppendLine($"  Title: '{Gu.Context.GameWindow.Title.ToString()}'");
+      strState.AppendLine($"  Dims: {Gu.Context.GameWindow.Width}x{Gu.Context.GameWindow.Height}");
+      //strState.AppendLine($"Screen Dims: {Gu.Context.GameWindow.monitor}x{Gu.Context.GameWindow.Height}");
+      //strState.AppendLine($"This API: {Gu.Context.GameWindow.API.ToString()}");
+      strState.AppendLine($"  GL Profile: {Gu.Context.GameWindow.Profile.ToString()}");
+      strState.AppendLine($"  GL Version: {Gu.Context.GameWindow.APIVersion.ToString()}");
+      strState.AppendLine($"All Windows:");
+      foreach (var c in Gu.Contexts)
+      {
+        strState.AppendLine($"  Title: '{c.Key.Title}'  Context is Current: {c.Key.Context.IsCurrent}");
+      }
       strState.AppendLine("---------------- Gpu Info ----------------");
       strState.AppendLine($"GPU: {GL.GetString​(StringName.Renderer)}");
       strState.AppendLine($"Vendor: {GL.GetString​(StringName.Vendor)}");
       strState.AppendLine($"Supported GL: {GL.GetString​(StringName.Version)}");
       strState.AppendLine($"Supported GLSL: {GL.GetString​(StringName.ShadingLanguageVersion)}");
-      strState.AppendLine($"Window Title: {Gu.Context.GameWindow.Title.ToString()}");
-      strState.AppendLine($"Window Dims: {Gu.Context.GameWindow.Width}x{Gu.Context.GameWindow.Height}");
-      //strState.AppendLine($"Screen Dims: {Gu.Context.GameWindow.monitor}x{Gu.Context.GameWindow.Height}");
-      //strState.AppendLine($"This API: {Gu.Context.GameWindow.API.ToString()}");
-      strState.AppendLine($"Window GL Profile: {Gu.Context.GameWindow.Profile.ToString()}");
-      strState.AppendLine($"Window GL Version: {Gu.Context.GameWindow.APIVersion.ToString()}");
 
       int iMaxVertexTextureUnits;
       int iMaxVertexGeometryUnits;

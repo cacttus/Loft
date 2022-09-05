@@ -2,6 +2,12 @@
 
 namespace PirateCraft
 {
+  public enum ViewInputMode
+  {
+    Play,
+    Edit
+  }
+
   public class Frustum
   {
     #region Public:Members
@@ -264,9 +270,11 @@ namespace PirateCraft
       Width = w;
       Height = h;
     }
-    public bool ContainsPoint_WindowRelative(int x, int y)
+    public bool Contains_Point_Window_Relative_BR_Exclusive(vec2 win_rel)
     {
-      return x >= X && y >= Y && x < (X + Width) && y < (Y + Height);
+      //note: our viewports are in TOp left coords, opengl we convert to bottom left
+      //Exclude BR to prevent overlaps.
+      return (win_rel.x >= X) && (win_rel.y >= Y) && (win_rel.x < (X + Width)) && (win_rel.y < (Y + Height));
     }
   }
 
@@ -284,6 +292,9 @@ namespace PirateCraft
     public Gui2d EditGui { get; set; } = null;
     public Gui2d GameGui { get; set; } = null;
     public UiElement DebugInfo { get; set; } = null;
+    public PolygonMode PolygonMode = PolygonMode.Fill;
+    public ViewInputMode ViewInputMode = ViewInputMode.Edit;
+    //public bool Visible { get; set; } = true;
 
     private mat4 _projLast = mat4.Identity;
     private GpuCamera _gpuCamera = new GpuCamera();

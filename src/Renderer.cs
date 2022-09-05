@@ -38,20 +38,10 @@ namespace PirateCraft
     private uint _uiLastSelectedPixelId = 0;//Note: This is relative to the last UserSelectionSet - the Id here is not fixed.
     public uint GetSelectedPixelId() { return _uiLastSelectedPixelId; }
 
-    //The world object that was picked. May be null (e.g. UiElement is not a WO)
-    public WorldObject PickedWorldObjectFrameLast { get; set; } = null;
-    public WorldObject PickedWorldObjectFrame { get; set; } = null;
     //The picked this frame (eg gui item, worldobj). Can be any object.
     public object PickedObjectFrameLast { get; set; } = null;
     public object PickedObjectFrame { get; set; } = null;
 
-    public string PickedWorldObjectName
-    {
-      get
-      {
-        return PickedWorldObjectFrame == null ? "<None>" : PickedWorldObjectFrame.Name;
-      }
-    }
     public string PickedObjectName
     {
       get
@@ -78,12 +68,15 @@ namespace PirateCraft
     }
     public void Update()
     {
-      PickedWorldObjectFrameLast = PickedWorldObjectFrame;
-      PickedWorldObjectFrame = null;
       PickedObjectFrameLast = PickedObjectFrame;
       PickedObjectFrame = null;
 
       UpdatePickedPixel((int)Gu.Mouse.Pos.x, (int)Gu.Mouse.Pos.y);
+
+      if(PickedObjectFrame != PickedObjectFrameLast){
+        int n=0;
+        n++;
+      }
     }
     public uint GenPickId()
     {
@@ -526,7 +519,7 @@ namespace PirateCraft
       Picker.Update();
       _requestSaveFBOs = false;
     }
-    public void RenderViewToWindow(RenderView rv, Dictionary<PipelineStageEnum, Action<double, RenderView>> stuff)
+    public void RenderViewToWindow(RenderView rv, List<PipelineStageEnum> stages = null)
     {
       //Make sure the given view has a camera attached.
       if (BeginRenderToView(rv))
@@ -534,6 +527,12 @@ namespace PirateCraft
 
         foreach (PipelineStage ps in PipelineStages)
         {
+          //
+          if (stages != null && !stages.Contains(ps.PipelineStageEnum))
+          {
+            continue;
+          }
+
           //OpenGL Y = Bottom left!!!
           int vx = rv.Viewport.X;
           int vy = _windowHeight - rv.Viewport.Y - rv.Viewport.Height;
@@ -762,12 +761,12 @@ namespace PirateCraft
       //using input framebuffer as we call saveFBOs in the blit routine (which, uses inputs)
       if (fbo != null)
       {
-        string prefix = Gu.GetFilenameDateTimeNOW() + "_" + "view" + CurrentView.Id + "_" + fbo.Name + "_" + tag + "_context-" + ctxName;
+        string prefix = Gu.GetFilenameDateTimeNOW() + " ctx-" + ctxName + " " + "view-" + CurrentView.Id + " " + fbo.Name + " " + tag  ;
         foreach (var bind in fbo.Bindings)// atts)
         {
           var pTarget = bind.Attachment;
-          string fname = prefix + "_" + pTarget.Texture.Name + "_" + bind.LayoutIndex + "_.png";//names may be the same
-          fname = System.IO.Path.Combine(Gu.LocalCachePath, fname);
+          string fname = prefix + " " + pTarget.Texture.Name + " index-" + bind.LayoutIndex + ".png";//names may be the same
+          fname = System.IO.Path.Combine(Gu.LocalTmpPath, fname);
           ResourceManager.SaveTexture(new FileLoc(fname, FileStorage.Disk), pTarget.Texture, true);
           Gu.Log.Info("[Renderer] Screenshot '" + fname + "' saved");
         }

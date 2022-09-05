@@ -9,21 +9,22 @@ namespace PirateCraft
 {
   public abstract class HasGpuResources : IDisposable
   {
-    WindowContext _context = null;
+    //We may need weak reference here
+    protected WindowContext Context {get; private set;}= null;
     bool _disposed = false;
     public abstract void Dispose_OpenGL_RenderThread();
     public HasGpuResources()
     {
-      _context = Gu.Context;
+      Context = Gu.Context;
     }
     public void Dispose()
     {
       _disposed = true;
       //Gu.Log.Warn("OpenGL Object wasn't disposed before being finalized. Must call Dispose() to release GPU resources.");
       var that = this;
-      if (Thread.CurrentThread.ManagedThreadId != _context?.Gpu.RenderThreadID)
+      if (Thread.CurrentThread.ManagedThreadId != Context?.Gpu.RenderThreadID)
       {
-        _context?.Gpu.Post_To_RenderThread(_context, (WindowContext wc) =>
+        Context?.Gpu.Post_To_RenderThread(Context, (WindowContext wc) =>
         {
           that.Dispose_OpenGL_RenderThread();
         });
@@ -42,6 +43,16 @@ namespace PirateCraft
       }
     }
   }
+  // public abstract class OpenGLContextData : HasGpuResources
+  // {
+  //   Dictionary<WeakReference<WindowContext>, int> Resources;
+  //   public OpenGLContextResource()
+  //   {
+
+  //   }
+
+  // }
+
   public abstract class OpenGLResource : HasGpuResources
   {
     protected int _glId;

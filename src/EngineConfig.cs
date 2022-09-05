@@ -5,7 +5,8 @@ namespace PirateCraft
   public class EngineConfig
   {
     //SUPER DEBUG stuff
-    public bool ClearCacheOnStart = true;
+    public bool ClearCacheOnStart = false;//Setting this true may make the thing SLOW
+    public bool ClearTmpOnStart = true;//logs..debug..
     public bool LogErrors = true;
     public bool BreakOnOpenGLError = true;
     public bool AlwaysCompileAndReloadGpuUniformData = true; //Don't try to optimize out modification, and always compile the structs (for debugging)

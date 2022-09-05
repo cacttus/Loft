@@ -408,64 +408,6 @@ namespace PirateCraft
   }
   public class FPSInputComponent : InputComponent
   {
-    private class FirstPersonMouseRotator
-    {
-      //Rotate camera via mouse on screen. Warp mouse.
-      private double rotX = 0;
-      private double rotY = 0;
-      private double warp_boundary = 0.001f;//the distance user can move mouse in window  until we warp. Warping every frame absolutely sucks.
-      private float rotations_per_width = 2.5f; // How many times we rotate 360 degrees width/Pixel.  if the user moves the cursor across the whole window width
-      private float half_rotations_per_height = 1f; // How many times we rotate 180 degrees height/Pixel  if the user moves the cursor across the whole window heihgt.
-
-      public void DoRotate(WorldObject obj, Camera3D cam)
-      {
-        if (cam.View != null && cam.View.TryGetTarget(out var view))
-        {
-          //Rotate Camera
-          float width = view.Viewport.Width;
-          float height = view.Viewport.Height;
-          float mpx_rel = Gu.Mouse.Pos.x - view.Viewport.X;
-          float mpy_rel = Gu.Mouse.Pos.y - view.Viewport.Y;
-
-          rotX += Math.PI * 2 * (Gu.Mouse.Delta.x / width) * rotations_per_width * Gu.CoordinateSystemMultiplier;
-          if (rotX >= Math.PI * 2.0f)
-          {
-            rotX = (float)(rotX % (Math.PI * 2.0f));
-          }
-          if (rotX <= 0)
-          {
-            rotX = (float)(rotX % (Math.PI * 2.0f));
-          }
-
-          rotY += Math.PI * 2 * (Gu.Mouse.Delta.y / height) * half_rotations_per_height * Gu.CoordinateSystemMultiplier;
-          if (rotY >= Math.PI / 2)
-          {
-            rotY = Math.PI / 2 - 0.001f;
-          }
-          if (rotY <= -Math.PI / 2)
-          {
-            rotY = -Math.PI / 2 + 0.001f;
-          }
-
-          quat qy = quat.fromAxisAngle(new vec3(0, 1, 0), (float)rotX).normalized();
-          quat qx = quat.fromAxisAngle(new vec3(1, 0, 0), (float)rotY).normalized();
-
-          obj.Rotation_Local = qy;
-          cam.Rotation_Local = qx;
-
-          if ((mpx_rel <= width * warp_boundary) || (mpx_rel >= width - width * warp_boundary))
-          {
-            Gu.Mouse.WarpMouse(view.Viewport, true, false, true);
-          }
-          if ((mpy_rel <= height * warp_boundary) || (mpy_rel >= height - height * warp_boundary))
-          {
-            Gu.Mouse.WarpMouse(view.Viewport, false, true, true);
-          }
-        }
-      }
-
-    }
-
     public enum FPSCamMode
     {
       Playing, Flying
@@ -475,7 +417,19 @@ namespace PirateCraft
     private const float Run_Mul = 6;
     private const float Base_Jump_Speed = World.BlockSizeY * 0.75f;
     private const float MaxAirFriction = 10.0f;//friction percentage in velocity Units per second (1.0 means the velocity will reach 0 in one second) [0,1]. lower values result in less friction
-    private FirstPersonMouseRotator _FPSRotator = new FirstPersonMouseRotator();
+                                               //    private FirstPersonMouseRotator _FPSRotator = new FirstPersonMouseRotator();
+
+    //Rotate camera via mouse on screen. Warp mouse.
+    private double rotX = 0;
+    private double rotY = 0;
+    private double warp_boundary = 0.001f;//the distance user can move mouse in window  until we warp. Warping every frame absolutely sucks.
+    private float _rotations_per_width = 2.5f; // How many times we rotate 360 degrees width/Pixel.  if the user moves the cursor across the whole window width
+    private float _half_rotations_per_height = 1f; // How many times we rotate 180 degrees height/Pixel  if the user moves the cursor across the whole window heihgt.
+    private float _pan_meters_per_pixel = 14f; //shift+mmb
+    private float _zoom_meters_per_pixel = 22f; //ctrl+mmb
+    private float _scroll_zoom_meters_per_pixel = 4f;//Zoom with mouse wheel
+
+    private bool _isActiveView = false; //user pressed MMB, RMB, LMB in view
 
     public FPSInputComponent(RenderView view) : base(view)
     {
@@ -489,7 +443,7 @@ namespace PirateCraft
       {
         return;
       }
-      if (this.View != Gu.Context.GameWindow.ActiveView)
+      if (View != Gu.Context.GameWindow.ActiveView)
       {
         return;
       }
@@ -502,20 +456,104 @@ namespace PirateCraft
 
       myObj.AirFriction = MaxAirFriction; //Movement Damping
 
-      vec3 basisX = vec3.Zero, basisY = vec3.Zero, basisZ = vec3.Zero;
-
+      vec3basis basis = new vec3basis();
       if (CamMode == FPSCamMode.Flying)
       {
-        basisX = cam.BasisX;
-        basisY = cam.BasisY;
-        basisZ = cam.BasisZ;
+        basis.x = cam.BasisX;
+        basis.y = cam.BasisY;
+        basis.z = cam.BasisZ;
       }
       else if (CamMode == FPSCamMode.Playing)
       {
-        basisX = cam.BasisX;
-        basisY = vec3.Zero; //no cheating
-        basisZ = cam.BasisZ;
+        basis.x = cam.BasisX;
+        basis.y = vec3.Zero; //no cheating
+        basis.z = cam.BasisZ;
       }
+      DoMouse(myObj, cam, basis);
+    }
+    public override void OnDestroy(WorldObject myObj)
+    {
+    }
+    private void DoMouse(WorldObject obj, Camera3D cam, vec3basis basis)
+    {
+      if (cam.View != null && cam.View.TryGetTarget(out var view))
+      {
+        //Rotate Camera
+        float width = view.Viewport.Width;
+        float height = view.Viewport.Height;
+        float mpx_rel = Gu.Mouse.Pos.x - view.Viewport.X;
+        float mpy_rel = Gu.Mouse.Pos.y - view.Viewport.Y;
+        vec2 mouse_delta_wh = new vec2(Gu.Mouse.PosDelta.x / view.Viewport.Width, Gu.Mouse.PosDelta.y / view.Viewport.Height);
+
+        bool ms_move_editing_must_warp = false;
+
+        //** Mimicking Blender Defaults ** 
+        if (Gu.Mouse.ScrollDelta.y != 0)
+        {
+          obj.Position_Local += basis.z * Gu.Mouse.ScrollDelta.y * _scroll_zoom_meters_per_pixel;
+          ms_move_editing_must_warp = true;
+        }
+        if (Gu.Mouse.GetDeviceButtonDown(MouseButton.Middle))
+        {
+          //Allow shift or control to affect speed instead, if WSAD is down.
+          bool bMoving = Gu.Keyboard.PressOrDown(Keys.W) || Gu.Keyboard.PressOrDown(Keys.S) || Gu.Keyboard.PressOrDown(Keys.A) || Gu.Keyboard.PressOrDown(Keys.D);
+          
+          if (!bMoving && (Gu.Keyboard.PressOrDown(Keys.LeftShift) || Gu.Keyboard.PressOrDown(Keys.RightShift)))
+          {
+            //Pan
+            obj.Position_Local += basis.x * -mouse_delta_wh.x * _pan_meters_per_pixel;
+            obj.Position_Local += basis.y * mouse_delta_wh.y * _pan_meters_per_pixel;
+            ms_move_editing_must_warp = true;
+          }
+          else if (!bMoving && (Gu.Keyboard.PressOrDown(Keys.LeftControl) || Gu.Keyboard.PressOrDown(Keys.RightControl)))
+          {
+            //Zoom
+            obj.Position_Local += basis.z * -mouse_delta_wh.y * _zoom_meters_per_pixel;
+            ms_move_editing_must_warp = true;
+          }
+          else
+          {
+            DoMoveWSAD(obj, basis);
+
+            //Rotate
+            rotX += Math.PI * 2 * mouse_delta_wh.x * _rotations_per_width * Gu.CoordinateSystemMultiplier;
+            if (rotX >= Math.PI * 2.0f)
+            {
+              rotX = (float)(rotX % (Math.PI * 2.0f));
+            }
+            if (rotX <= 0)
+            {
+              rotX = (float)(rotX % (Math.PI * 2.0f));
+            }
+
+            rotY += Math.PI * 2 * mouse_delta_wh.y * _half_rotations_per_height * Gu.CoordinateSystemMultiplier;
+            if (rotY >= Math.PI / 2)
+            {
+              rotY = Math.PI / 2 - 0.001f;
+            }
+            if (rotY <= -Math.PI / 2)
+            {
+              rotY = -Math.PI / 2 + 0.001f;
+            }
+
+            quat qy = quat.fromAxisAngle(new vec3(0, 1, 0), (float)rotX).normalized();
+            quat qx = quat.fromAxisAngle(new vec3(1, 0, 0), (float)rotY).normalized();
+
+            obj.Rotation_Local = qy;
+            cam.Rotation_Local = qx;
+
+            ms_move_editing_must_warp = true;
+          }
+          if (ms_move_editing_must_warp)
+          {
+            Gu.Mouse.WarpMouse(View, WarpMode.Wrap, 0.001f);
+          }
+        }
+      }
+
+    }
+    private void DoMoveWSAD(WorldObject myObj, vec3basis basis)
+    {
 
       //Modify speed multiplier based on state
       float speedMul = 1; //normal speed
@@ -531,27 +569,27 @@ namespace PirateCraft
       float final_run_speed = Base_Speed * speedMul;
       if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.Q }))
       {
-        myObj.Velocity += basisY * final_run_speed;
+        myObj.Velocity += basis.y * final_run_speed;
       }
       if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.E }))
       {
-        myObj.Velocity -= basisY * final_run_speed;
+        myObj.Velocity -= basis.y * final_run_speed;
       }
       if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.Up, Keys.W }))
       {
-        myObj.Velocity += basisZ * final_run_speed;
+        myObj.Velocity += basis.z * final_run_speed;
       }
       if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.Down, Keys.S }))
       {
-        myObj.Velocity -= basisZ * final_run_speed;
+        myObj.Velocity -= basis.z * final_run_speed;
       }
       if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.Right, Keys.D }))
       {
-        myObj.Velocity += basisX * final_run_speed;
+        myObj.Velocity += basis.x * final_run_speed;
       }
       if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.Left, Keys.A }))
       {
-        myObj.Velocity -= basisX * final_run_speed;
+        myObj.Velocity -= basis.x * final_run_speed;
       }
 
       if (myObj.OnGround && this.CamMode != FPSCamMode.Flying)
@@ -562,12 +600,12 @@ namespace PirateCraft
         }
       }
 
-      _FPSRotator.DoRotate(myObj, cam);
     }
-    public override void OnDestroy(WorldObject myObj)
-    {
-    }
-  }
+  }//FpsInputComponent
+
+
+
+
 
   #endregion
   #region Constraints
@@ -953,7 +991,7 @@ namespace PirateCraft
         {
           if (pixid == this._pickId)
           {
-            Gu.Context.Renderer.Picker.PickedWorldObjectFrame = this;
+            Gu.Context.Renderer.Picker.PickedObjectFrame = this;
           }
         }
       }
@@ -967,7 +1005,7 @@ namespace PirateCraft
         if (Gu.Context.Renderer.Picker.PickedObjectFrame != null)
         {
           //The component (gui) picked something that it owns. Set the worldobject to this.
-          Gu.Context.Renderer.Picker.PickedWorldObjectFrame = this;
+          Gu.Context.Renderer.Picker.PickedObjectFrame = this;
           return LambdaBool.Break;
         }
         return LambdaBool.Continue;
@@ -1289,7 +1327,7 @@ namespace PirateCraft
   {
     public Light(string name) : base(name + "-light")
     {
-      Texture2D light = Gu.Resources.LoadTexture(new FileLoc("light.png", FileStorage.Embedded), true, TexFilter.Bilinear);
+      Texture2D light = Gu.Resources.LoadTexture(new FileLoc("bulb.png", FileStorage.Embedded), true, TexFilter.Bilinear);
       Pickable = true;
     }
     public float Radius { get; set; } = 100;//Distance in the case of directional light

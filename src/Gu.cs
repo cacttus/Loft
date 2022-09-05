@@ -4,6 +4,8 @@ using System.IO.Compression;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using OpenTK.Windowing.Desktop;
+using System.Reflection;
+using System.Diagnostics;
 
 namespace PirateCraft
 {
@@ -20,38 +22,28 @@ namespace PirateCraft
     #region Public: Static Members
 
     public static bool AllowOpenTKFaults = false;//OpenTK's GL isn't fully implemented in a lot of places
-
-    public static string ExePath
-    {
-      get
-      {
-        if (String.IsNullOrEmpty(_strExePath))
-        {
-          var assemblyLoc = System.Reflection.Assembly.GetExecutingAssembly().Location;
-          _strExePath = System.IO.Path.GetDirectoryName(assemblyLoc);
-        }
-        return _strExePath;
-      }
-    }
     public static Dictionary<UiWindowBase, WindowContext> Contexts { get; private set; } = new Dictionary<UiWindowBase, WindowContext>();
     public static CoordinateSystem CoordinateSystem { get; set; } = CoordinateSystem.Rhs;
     public static float CoordinateSystemMultiplier { get { return (Gu.CoordinateSystem == CoordinateSystem.Lhs ? -1 : 1); } }
     public static EngineConfig EngineConfig { get; set; } = new EngineConfig();
     public static Log Log { get; set; } = null;
     public static WindowContext Context { get; set; } = null;
-    public static readonly string EmbeddedDataPath = "PirateCraft.data.";
     public static World World = null;
     public static PCMouse Mouse { get { return Context.PCMouse; } }
     public static PCKeyboard Keyboard { get { return Context.PCKeyboard; } }
     public static ResourceManager Resources { get; private set; } = null;
     public static AudioManager Audio { get; private set; } = null;
-    public static string LocalCachePath { get; private set; } = "";
+    public static string ExePath { get; private set; } = "";
+    public static string LocalCachePath { get; private set; } = "";//megatex..
+    public static string LocalTmpPath { get; private set; } = "";//logs..debug..shaderdebug..
+    public static string WorkspacePath { get; private set; } = "";
+    public static string WorkspaceDataPath { get; private set; } = "";//megatex..
+    public static readonly string EmbeddedDataPath = "PirateCraft.data.";
     public static string SavePath { get; private set; } = "";
-public static Gui2dManager Gui2dManager{get;private set;}  =null;
+    public static Gui2dManager Gui2dManager { get; private set; } = null;
     #endregion
     #region Private: Static Members
 
-    private static string _strExePath = "";
     private static List<UiWindowBase> toClose = new List<UiWindowBase>();
 
     #endregion
@@ -60,27 +52,38 @@ public static Gui2dManager Gui2dManager{get;private set;}  =null;
     public static void InitGlobals()
     {
       //Paths
+      var assemblyLoc = System.Reflection.Assembly.GetExecutingAssembly().Location;
+      ExePath = System.IO.Path.GetDirectoryName(assemblyLoc);
+      LocalTmpPath = System.IO.Path.Combine(ExePath, "./tmp");
       LocalCachePath = System.IO.Path.Combine(ExePath, "./cache");
       SavePath = System.IO.Path.Combine(ExePath, "./save");
+
+      //This is for debug files and file changes. 
+      WorkspacePath = System.IO.Path.Combine(ExePath, "../../../");
+      WorkspaceDataPath = System.IO.Path.Combine(WorkspacePath, "./data");//This may change .. uh
 
       //Config
       EngineConfig.Load();
 
       //Log
-      Log = new Log(Gu.LocalCachePath);
+      Log = new Log(Gu.LocalTmpPath);
       Gu.Log.Info("Initializing Globals");
       Gu.Log.Info("CurrentDirectory =" + System.IO.Directory.GetCurrentDirectory());
       Resources = new ResourceManager();
 
       //Cache
-      var dir = Path.GetDirectoryName(LocalCachePath);
+      var dir = Path.GetDirectoryName(LocalTmpPath);
       if (!Directory.Exists(dir))
       {
         Directory.CreateDirectory(dir);
       }
       if (EngineConfig.ClearCacheOnStart)
       {
-        ResourceManager.ClearCache();
+        ResourceManager.ClearDataDir(Gu.LocalCachePath);
+      }
+      if (EngineConfig.ClearTmpOnStart)
+      {
+        ResourceManager.ClearDataDir(Gu.LocalTmpPath);
       }
 
       //Manager
@@ -114,7 +117,8 @@ public static Gui2dManager Gui2dManager{get;private set;}  =null;
                 win.Load();
               }
               win.ProcessEvents();
-              win.SetActiveView();//make sure the view<->camera is updated to the active view of the window.
+              //win.SetActiveView();//make sure the view<->camera is updated to the active view of the window.
+              win.SetActiveView();
               Gu.Context.Update();
 
               if (Gu.World.UpdateContext == Gu.Context)
@@ -147,7 +151,7 @@ public static Gui2dManager Gui2dManager{get;private set;}  =null;
       }
       catch (Exception ex)
       {
-        Gu.Log.Error("Fatal error: " + ex.ToString());
+        Gu.Log.Error("Fatal error: ", ex);
       }
     }
     public static void CloseWindow(UiWindowBase win)
@@ -155,11 +159,13 @@ public static Gui2dManager Gui2dManager{get;private set;}  =null;
       toClose.Add(win);
 
     }
-    public static void CreateContext(UiWindowBase uw)
+    public static void CreateContext(string name, UiWindowBase uw)
     {
-      Gu.Log.Info("Registering Context: " + uw.Name);
+      //***TODO: context names must be unique because we use them to save, and store state.
+
+      Gu.Log.Info("Registering Context name='" + name + "', window= " + uw.Name);
       var ct = Gu.Context;
-      var wd = new WindowContext(uw);
+      var wd = new WindowContext(name, uw);
       Contexts.Add(uw, wd);
       Gu.SetContext(uw);
       wd.Init();
@@ -298,7 +304,38 @@ public static Gui2dManager Gui2dManager{get;private set;}  =null;
         return hash;
       }
     }
+    public static UInt64 HashByteArray(List<byte[]> datas)
+    {
+      //https://stackoverflow.com/questions/16340/how-do-i-generate-a-hashcode-from-a-byte-array-in-c
+      unchecked
+      {
+        const UInt64 p = 16777619;
+        UInt64 hash = (UInt64)2166136261;
 
+        foreach (var data in datas)
+        {
+          Gu.Assert(data != null);
+          for (UInt64 i = 0; i < (UInt64)data.Length; i++)
+          {
+            hash = (hash ^ data[i]) * p;
+          }
+        }
+
+        hash += hash << 13;
+        hash ^= hash >> 7;
+        hash += hash << 3;
+        hash ^= hash >> 17;
+        hash += hash << 5;
+        return hash;
+      }
+    }
+    public static string GetAssemblyVersion()
+    {
+      Assembly assembly = Assembly.GetExecutingAssembly();
+      FileVersionInfo fileVersionInfo = FileVersionInfo.GetVersionInfo(assembly.Location);
+      string version = fileVersionInfo.ProductVersion;
+      return version;
+    }
     #endregion
 
 

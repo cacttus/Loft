@@ -27,6 +27,8 @@ namespace PirateCraft
   {
     private long _lastTime = Gu.Nanoseconds();
 
+    public string Name { get; private set; } = "ct-not-set";
+
     public Gpu Gpu { get; private set; } = null;
     public UiWindowBase GameWindow { get; set; } = null;
     public PCKeyboard PCKeyboard = new PCKeyboard();
@@ -40,8 +42,9 @@ namespace PirateCraft
     public DebugDraw DebugDraw { get; private set; } = new DebugDraw();
     //public SynchronizationContext UpdateSyncContext{ get; private set; }
 
-    public WindowContext(UiWindowBase g)
+    public WindowContext(string name, UiWindowBase g)
     {
+      Name = name;
       GameWindow = g;
     }
     public void Init()

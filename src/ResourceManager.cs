@@ -10,8 +10,8 @@ namespace PirateCraft
     //Not sure if we want weak or strong here. 
     //If an object goes away.. well, we may need it later right? Particles, etc.
     // then we can manually unload all resources when we load a new scene.
-    public Dictionary<FileLoc, WeakReference<Shader>> Shaders { get; private set; } = new Dictionary<FileLoc, WeakReference<Shader>>(new FileLoc.Comparer());
-    public Dictionary<FileLoc, WeakReference<Texture2D>> Textures { get; private set; } = new Dictionary<FileLoc, WeakReference<Texture2D>>(new FileLoc.Comparer());
+    public Dictionary<FileLoc, WeakReference<Shader>> Shaders { get; private set; } = new Dictionary<FileLoc, WeakReference<Shader>>(new FileLoc.EqualityComparer());
+    public Dictionary<FileLoc, WeakReference<Texture2D>> Textures { get; private set; } = new Dictionary<FileLoc, WeakReference<Texture2D>>(new FileLoc.EqualityComparer());
 
     #endregion
     #region Public: Methods
@@ -32,7 +32,7 @@ namespace PirateCraft
         byte[]? model_bytes = null;
         glTFLoader.Schema.Gltf myModel = null;
 
-        using (Stream? stream = loc.GetStream())
+        using (Stream? stream = loc.OpenRead())
         {
           if (stream != null)
           {
@@ -43,7 +43,7 @@ namespace PirateCraft
             Gu.BRThrowException("Stream from '" + path + "'was null");
           }
         }
-        using (Stream? stream = loc.GetStream())
+        using (Stream? stream = loc.OpenRead())
         {
           if (stream != null)
           {
@@ -60,13 +60,10 @@ namespace PirateCraft
         {
           LoadMesh(ob, myModel, model_bytes);
         }
-
-
-
       }
       catch (Exception ex)
       {
-        Gu.Log.Error(ex.ToString());
+        Gu.Log.Error("Load model failed: ", ex);
       }
 
       return objs;
@@ -82,13 +79,13 @@ namespace PirateCraft
       }
       return false;
     }
-    public Texture2D LoadTexture(FileLoc loc, bool mipmaps, TexFilter filter)
+    public Texture2D LoadTexture(FileLoc loc, bool mipmaps, TexFilter filter, TextureWrapMode wrap = TextureWrapMode.Repeat)
     {
       Texture2D ret = FindItem(loc, Textures);
 
       if (ret == null)
       {
-        ret = new Texture2D(loc, true, TexFilter.Bilinear);
+        ret = new Texture2D(loc, true, TexFilter.Bilinear, wrap);
       }
       return ret;
     }
@@ -131,7 +128,7 @@ namespace PirateCraft
 
       if (loc.FileStorage == FileStorage.Embedded)
       {
-        using (Stream stream = loc.GetStream())
+        using (Stream stream = loc.OpenRead())
         {
           using (StreamReader reader = new StreamReader(stream))
           {
@@ -187,7 +184,7 @@ namespace PirateCraft
       }
       catch (Exception ex)
       {
-        Gu.Log.Error("Failed to save image: " + ex.ToString());
+        Gu.Log.Error("Failed to save image: ", ex);
         Gu.DebugBreak();
       }
     }
@@ -199,7 +196,7 @@ namespace PirateCraft
 
       try
       {
-        using (var fs = loc.GetStream())
+        using (var fs = loc.OpenRead())
         {
           if (fs != null)
           {
@@ -233,7 +230,7 @@ namespace PirateCraft
       }
       catch (Exception ex)
       {
-        Gu.Log.Error("failed to load image: " + ex.ToString());
+        Gu.Log.Error("failed to load image: ", ex);
         Gu.DebugBreak();
         b = Img32.Default1x1_RGBA32ub(255, 0, 255, 255);
       }
@@ -293,7 +290,7 @@ namespace PirateCraft
           {
             for (int ix = 0; ix < img.Width; ix++)
             {
-              var p = img.getPixel32(ix, iy);
+              var p = img.GetPixel32(ix, iy);
               //r32ui is in agbr -> rgba
               var tmp = p.a;
               p.a = p.r;
@@ -301,7 +298,7 @@ namespace PirateCraft
               tmp = p.b;
               p.b = p.g;
               p.g = tmp;
-              img.setPixel32(ix, iy, p);
+              img.SetPixel32(ix, iy, p);
             }
           }
         }
@@ -313,12 +310,12 @@ namespace PirateCraft
         {
           for (int ix = 0; ix < img.Width; ix++)
           {
-            var p = img.getPixel32(ix, iy);
+            var p = img.GetPixel32(ix, iy);
             float f = BitConverter.ToSingle(new byte[] { p.r, p.g, p.b, p.a }, 0);
             //r32ui is in agbr -> rgba
             p.r = p.g = p.b = (byte)((f / 1.0f) * 255.0f);
             p.a = 255;
-            img.setPixel32(ix, iy, p);
+            img.SetPixel32(ix, iy, p);
           }
         }
       }
@@ -330,13 +327,13 @@ namespace PirateCraft
       }
 
 
-      img.flip(false, true);
+      img.Flip(false, true);
       SaveImage(loc.QualifiedPath, img);
     }
-    public static void ClearCache()
+    public static void ClearDataDir( string dir)
     {
-      Gu.Log.Info("Clearing local cache data (engineconfig.ClearCacheOnStart = " + Gu.EngineConfig.ClearCacheOnStart.ToString() + ")");
-      var fs = System.IO.Directory.GetFiles(Gu.LocalCachePath);
+      Gu.Log.Info($"Clearing dir {dir}");
+      var fs = System.IO.Directory.GetFiles(dir);
       foreach (var f in fs)
       {
         try
@@ -345,11 +342,10 @@ namespace PirateCraft
         }
         catch (Exception ex)
         {
-          Gu.Log.Error("Clear Cache; Could not delete '" + f + "'");
+          Gu.Log.Error("Clear: Could not delete '" + f + "'", ex);
         }
       }
     }
-
     #endregion
     #region Private: Methods
 

@@ -55,6 +55,28 @@ namespace PirateCraft
       }
       ret.Add(y);
     }
+    public void Add(TKey x, List<TValue> y)
+    {
+      List<TValue> ret = null;
+      if (!_dict.TryGetValue(x, out ret))
+      {
+        ret = new List<TValue>();
+        _dict.Add(x, ret);
+      }
+      ret.AddRange(y);
+    }
+    public List<TValue> this[TKey k]
+    {
+      //operator[]
+      get
+      {
+        return ItemsAt(k);
+      }
+      set
+      {
+        Add(k, value);
+      }
+    }
     public List<TValue> ItemsAt(TKey key)
     {
       if (_dict.TryGetValue(key, out var ret))
@@ -127,6 +149,21 @@ namespace PirateCraft
     public static FileLoc Generated = new FileLoc("<generated>", FileStorage.Generated);
     public FileStorage FileStorage { get; private set; } = FileStorage.Disk;
     public string RawPath { get; private set; } = "";
+    public FileLoc Clone()
+    {
+      FileLoc ret = new FileLoc();
+      ret.RawPath = this.RawPath;
+      ret.FileStorage = this.FileStorage;
+      return ret;
+    }
+    public string FileName
+    {
+      get
+      {
+        string fn = System.IO.Path.GetFileName(this.QualifiedPath);
+        return fn;
+      }
+    }
     public string QualifiedPath
     {
       //Returns the full path with base storage location (disk/embed..)
@@ -136,6 +173,10 @@ namespace PirateCraft
         if (FileStorage == FileStorage.Embedded)
         {
           path = Gu.EmbeddedDataPath + path;
+        }
+        else if (FileStorage == FileStorage.Generated)
+        {
+          //noop
         }
         else if (FileStorage == FileStorage.Disk)
         {
@@ -172,6 +213,12 @@ namespace PirateCraft
     #endregion
     #region Public: Methods
 
+    public FileLoc() { }
+    public FileLoc(string path, string filename, FileStorage storage)
+    {
+      RawPath = System.IO.Path.Combine(path, filename);
+      FileStorage = storage;
+    }
     public FileLoc(string path, FileStorage storage)
     {
       RawPath = path;
@@ -201,7 +248,7 @@ namespace PirateCraft
     public byte[] GetBytes()
     {
       byte[] bytes = null;
-      using (var fs = GetStream())
+      using (var fs = OpenRead())
       {
         if (fs != null)
         {
@@ -224,17 +271,15 @@ namespace PirateCraft
       }
       return bytes;
     }
-    public Stream? GetStream()
+    public Stream? OpenRead()
     {
-      string qualifiedPath = this.QualifiedPath;
-
       if (FileStorage == FileStorage.Embedded)
       {
-        return System.Reflection.Assembly.GetExecutingAssembly().GetManifestResourceStream(qualifiedPath);
+        return System.Reflection.Assembly.GetExecutingAssembly().GetManifestResourceStream(QualifiedPath);
       }
       else if (FileStorage == FileStorage.Disk)
       {
-        return File.OpenRead(qualifiedPath);
+        return File.OpenRead(QualifiedPath);
       }
       else
       {
@@ -242,8 +287,21 @@ namespace PirateCraft
       }
       return null;
     }
-    public class Comparer : IEqualityComparer<FileLoc>
+    public Stream? OpenWrite()
     {
+      if (FileStorage == FileStorage.Disk)
+      {
+        return File.OpenWrite(QualifiedPath);
+      }
+      else
+      {
+        Gu.BRThrowNotImplementedException();
+      }
+      return null;
+    }
+    public class EqualityComparer : IEqualityComparer<FileLoc>
+    {
+      //Use for Dictionary<>
       public bool Equals(FileLoc a, FileLoc b)
       {
         return a.Equals(b);
@@ -253,6 +311,75 @@ namespace PirateCraft
       {
         return a.QualifiedPath.GetHashCode();
       }
+    }
+    public class SortedComparer : IComparer<FileLoc>
+    {
+      //Use for SortedDictionary()
+      public int Compare(FileLoc? a, FileLoc? b)
+      {
+        return a.QualifiedPath.CompareTo(b.QualifiedPath);
+      }
+
+      public int GetHashCode(FileLoc a)
+      {
+        return a.QualifiedPath.GetHashCode();
+      }
+    }
+    public void Create()
+    {
+      if (FileStorage == FileStorage.Disk)
+      {
+        using (var fs = System.IO.File.Create(QualifiedPath))
+        {
+        }
+      }
+      else
+      {
+        Gu.BRThrowNotImplementedException();
+      }
+    }
+    public string WorkspacePath
+    {
+      get
+      {
+        var p = System.IO.Path.Combine(Gu.WorkspaceDataPath, this.RawPath);
+        return p;
+      }
+    }
+    public DateTime GetLastWriteTime()
+    {
+      //Returns : the Modified Time of the 
+      //Disk file resource
+      //Embedded file's original resource, if present
+      //DateTime.MinVal if file was Generated
+      DateTime wt = DateTime.MinValue;
+      if (FileStorage == FileStorage.Embedded)
+      {
+        Gu.Assert(Exists);
+        //Embedded files don't hjave mod time, instead try to find the file pre-embed and use that.
+        //Otherwise we return minvalue.
+        if (System.IO.File.Exists(WorkspacePath))
+        {
+          wt = System.IO.File.GetLastWriteTime(WorkspacePath);
+        }
+      }
+      else if (FileStorage == FileStorage.Disk)
+      {
+        wt = System.IO.File.GetLastWriteTime(this.QualifiedPath);
+      }
+      //Net - We'd get it over th einternet
+      //Generated - has no mod time
+      return wt;
+    }
+    public void Serialize(BinaryWriter bw)
+    {
+      bw.Write((Int32)FileStorage);
+      bw.Write((string)RawPath);
+    }
+    public void Deserialize(BinaryReader br)
+    {
+      FileStorage = (FileStorage)br.ReadInt32();
+      RawPath = br.ReadString();
     }
 
     #endregion

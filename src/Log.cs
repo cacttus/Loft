@@ -18,7 +18,7 @@ namespace PirateCraft
 
     public bool WriteConsole { get; set; } = true;
     public bool WriteFile { get; set; } = true;
-    
+
     private string Newline = "\n";
 
     //Loc is the path to the logs, not the logs.
@@ -39,15 +39,102 @@ namespace PirateCraft
     {
       LogString("[" + LogLineStr() + "][" + TimeStr() + "][W]: " + s + Newline, ConsoleColor.Yellow);
     }
-    public void Error(string s)
+    public void Error(string msg)
     {
-      string stackTrace = Environment.StackTrace;
-
-      LogString("[" + LogLineStr() + "][" + TimeStr() + "][E]: " + s + Newline + stackTrace + Newline, ConsoleColor.Red);
+      Error(msg, "", "");
     }
-    public void ErrorCycle(string s)
+    public void Error(string pred, Exception ex)
     {
-      int md = (int)Gu.Context.FrameStamp % 60;
+      string e_all = Gu.GetAllException(ex);
+      Error(pred, e_all, "");
+    }
+    public void Error(string msg, string ex, string afterStackTrace = "")
+    {
+      string stackTrace = GetBeautifulStackTrace(true, true, true);
+      LogString("[" + LogLineStr() + "][" + TimeStr() + "][E]: " +
+      msg + Newline +
+      stackTrace + Newline +
+      (StringUtil.IsNotEmpty(ex) ? (ex + Newline) : "") +
+      afterStackTrace + Newline,
+      ConsoleColor.Red);
+    }
+    private string GetBeautifulStackTrace(bool removeParams, bool removeLineText, bool gridify)
+    {
+      var stackTrace = Environment.StackTrace;
+
+      //remove params from st
+      if (removeParams)
+      {
+        stackTrace = System.Text.RegularExpressions.Regex.Replace(stackTrace, @"\(.*\) in ", " "); //stackTrace.Replace(":line ",":");
+      }
+      if (removeLineText)
+      {
+        //So it makes it easier to click on the file:line in vscode if it's file:line
+        stackTrace = stackTrace.Replace(":line ", ":");
+      }
+      if (gridify)
+      {
+        //Make it in a grid. This might be annoying to some people but i like it
+        var ss = stackTrace.Split("\n").ToList(); ;
+
+        //Remove top two
+        ss.RemoveRange(0, 2);
+
+        int midspace = 2;
+        char spacingChar = ' ';
+        int gridformat = 0;//0 = Align left, 1 = Block align
+
+        int maxsp = 0;
+        for (int i = 0; i < ss.Count; i++)
+        {
+          ss[i] = System.Text.RegularExpressions.Regex.Replace(ss[i], @"^\s+at\s+", ""); //stackTrace.Replace(":line ",":");
+
+          int val = 1;
+          if (gridformat == 0)
+          {
+            val = ss[i].IndexOf(" ");
+          }
+          else if (gridformat == 1)
+          {
+            val = ss[i].Length;
+          }
+
+          maxsp = Math.Max(maxsp, val);
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < ss.Count; i++)
+        {
+          var line = ss[i];
+          var firstsp = line.IndexOf(" ");
+          if (firstsp >= 0)
+          {
+            var spaces = 0;
+            if (gridformat == 0)
+            {
+              spaces = maxsp - firstsp + midspace;
+            }
+            else if (gridformat == 1)
+            {
+              spaces = maxsp - line.Length + midspace;
+            }
+            var s1 = line.Substring(0, firstsp);
+            var sp = new string(spacingChar, spaces);
+            var s2 = line.Substring(firstsp + 1, line.Length - firstsp - 1);
+            sb.Append(s1 + sp + s2 + Environment.NewLine);
+          }
+          else
+          {
+            sb.Append(line);
+          }
+        }
+        stackTrace = sb.ToString();
+      }
+
+      return stackTrace;
+    }
+    public void ErrorCycle(string s, int frames = 60)
+    {
+      int md = (int)Gu.Context.FrameStamp % frames;
       if (md == 0)
       {
         Error(s);
@@ -55,7 +142,7 @@ namespace PirateCraft
     }
     public void WarnCycle(string s, int frames = 60)
     {
-      int md = (int)Gu.Context.FrameStamp % 60;
+      int md = (int)Gu.Context.FrameStamp % frames;
       if (Gu.Context.FrameStamp < 10 || md == 0) //<10 lets us see errors in the first 10 frames
       {
         Warn(s);
@@ -107,7 +194,7 @@ namespace PirateCraft
           }
           catch (Exception ex)
           {
-            Console.WriteLine(ex.ToString());
+            Console.WriteLine(Gu.GetAllException(ex));
             Debugger.Break();
           }
         }
