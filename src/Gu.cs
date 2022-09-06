@@ -31,16 +31,18 @@ namespace PirateCraft
     public static World World = null;
     public static PCMouse Mouse { get { return Context.PCMouse; } }
     public static PCKeyboard Keyboard { get { return Context.PCKeyboard; } }
-    public static ResourceManager Resources { get; private set; } = null;
-    public static AudioManager Audio { get; private set; } = null;
     public static string ExePath { get; private set; } = "";
     public static string LocalCachePath { get; private set; } = "";//megatex..
     public static string LocalTmpPath { get; private set; } = "";//logs..debug..shaderdebug..
     public static string WorkspacePath { get; private set; } = "";
-    public static string WorkspaceDataPath { get; private set; } = "";//megatex..
+    public static string WorkspaceDataPath { get; private set; } = "";// the ./Data directory. This is not present on embedded versions.
     public static readonly string EmbeddedDataPath = "PirateCraft.data.";
     public static string SavePath { get; private set; } = "";
+    public static ResourceManager Resources { get; private set; } = null;
+    public static AudioManager Audio { get; private set; } = null;
     public static Gui2dManager Gui2dManager { get; private set; } = null;
+    public static FrameDataTimer GlobalTimer { get; private set; } = null;//Global frame timer, for all windows;
+
     #endregion
     #region Private: Static Members
 
@@ -69,24 +71,10 @@ namespace PirateCraft
       Log = new Log(Gu.LocalTmpPath);
       Gu.Log.Info("Initializing Globals");
       Gu.Log.Info("CurrentDirectory =" + System.IO.Directory.GetCurrentDirectory());
-      Resources = new ResourceManager();
-
-      //Cache
-      var dir = Path.GetDirectoryName(LocalTmpPath);
-      if (!Directory.Exists(dir))
-      {
-        Directory.CreateDirectory(dir);
-      }
-      if (EngineConfig.ClearCacheOnStart)
-      {
-        ResourceManager.ClearDataDir(Gu.LocalCachePath);
-      }
-      if (EngineConfig.ClearTmpOnStart)
-      {
-        ResourceManager.ClearDataDir(Gu.LocalTmpPath);
-      }
 
       //Manager
+      Resources = new ResourceManager();
+      GlobalTimer = new FrameDataTimer();
       Audio = new AudioManager();
       Gui2dManager = new Gui2dManager();
     }
@@ -102,12 +90,16 @@ namespace PirateCraft
           }
           else
           {
-            //Not sure how to typically do this
+            //Grab all windows from their given contexts so we can loop over windows only.
+            //Not sure how to typically do this easily in C#
             List<UiWindowBase> wins = new List<UiWindowBase>();
             foreach (var ct in Contexts)
             {
               wins.Add(ct.Key);
             }
+
+            GlobalTimer.Update();
+            Resources.Update(GlobalTimer.Delta);
 
             foreach (var win in wins)
             {

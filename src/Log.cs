@@ -39,6 +39,11 @@ namespace PirateCraft
     {
       LogString("[" + LogLineStr() + "][" + TimeStr() + "][W]: " + s + Newline, ConsoleColor.Yellow);
     }
+    public void Warn(string s, Exception ex)
+    {
+      string e_all = Gu.GetAllException(ex);
+      LogString("[" + LogLineStr() + "][" + TimeStr() + "][W]: " + s + " " + e_all + Newline, ConsoleColor.Yellow);
+    }
     public void Error(string msg)
     {
       Error(msg, "", "");

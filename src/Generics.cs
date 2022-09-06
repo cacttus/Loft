@@ -8,6 +8,11 @@ namespace PirateCraft
   {
     Pause, Run, Stop
   }
+  public enum ActionRepeat
+  {
+    Repeat,
+    DoNotRepeat
+  }
   public enum LambdaBool
   {
     Break,
@@ -346,7 +351,7 @@ namespace PirateCraft
         return p;
       }
     }
-    public DateTime GetLastWriteTime()
+    public DateTime GetLastWriteTime(bool If_Is_Embedded_Then_Check_Data_Directory = true)
     {
       //Returns : the Modified Time of the 
       //Disk file resource
@@ -355,12 +360,14 @@ namespace PirateCraft
       DateTime wt = DateTime.MinValue;
       if (FileStorage == FileStorage.Embedded)
       {
-        Gu.Assert(Exists);
-        //Embedded files don't hjave mod time, instead try to find the file pre-embed and use that.
-        //Otherwise we return minvalue.
-        if (System.IO.File.Exists(WorkspacePath))
+        if (If_Is_Embedded_Then_Check_Data_Directory)
         {
-          wt = System.IO.File.GetLastWriteTime(WorkspacePath);
+          //Embedded files don't hjave mod time, instead try to find the file pre-embed and use that.
+          //Otherwise we return minvalue.
+          if (System.IO.File.Exists(WorkspacePath))
+          {
+            wt = System.IO.File.GetLastWriteTime(WorkspacePath);
+          }
         }
       }
       else if (FileStorage == FileStorage.Disk)
@@ -799,18 +806,23 @@ namespace PirateCraft
     public double Frequency { get; private set; } = 0;
     public double Time { get; private set; } = 0;
     public ActionState State { get; private set; } = ActionState.Stop;
+    public ActionRepeat Repeat { get; set; } = ActionRepeat.DoNotRepeat;
     public Action Action { get; set; } = null;
-    public bool Repeat { get; set; } = false;
 
     private DeltaTimer() { }//clone
-    public DeltaTimer(double frequency_seconds, bool repeat, Action? act = null)
+    public DeltaTimer(double frequency_seconds, ActionRepeat repeat, ActionState start, Action? act = null)
     {
       Frequency = frequency_seconds;
       Repeat = repeat;
       Action = act;
+      if (start==ActionState.Run)
+      {
+        Start();
+      }
     }
-    public int Update(double dt)
+    public int Update(double dt, Action? act = null)
     {
+      //Putting action here makes it more sense, since it keeps the action code within the update code.
       //Returns the number of times this timer fired, and executes optional action
       int fires = 0;
       if (State != ActionState.Stop)
@@ -820,6 +832,7 @@ namespace PirateCraft
         {
           Time -= Frequency;
           Action?.Invoke();
+          act?.Invoke();
           fires++;
         }
       }

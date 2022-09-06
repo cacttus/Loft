@@ -395,7 +395,7 @@ namespace PirateCraft
     }
     public void CompileGpuData()
     {
-      if (Modified || Gu.EngineConfig.AlwaysCompileAndReloadGpuUniformData)
+      if (Modified || Gu.EngineConfig.Debug_AlwaysCompileAndReloadGpuUniformData)
       {
         Gu.Assert(Camera != null);
         if (Camera != null && Camera.TryGetTarget(out var c))

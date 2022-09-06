@@ -135,6 +135,10 @@ namespace PirateCraft
       // Epsilon cusyhion equals
       return (((b) <= ((a) + (e))) && ((b) >= ((a) - (e))));
     }
+      public static DateTime Max(DateTime a, DateTime b)
+    {
+      return a > b ? a : b;
+    }
   }
   public struct RaycastHit
   {

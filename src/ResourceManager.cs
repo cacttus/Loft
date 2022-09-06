@@ -12,9 +12,36 @@ namespace PirateCraft
     // then we can manually unload all resources when we load a new scene.
     public Dictionary<FileLoc, WeakReference<Shader>> Shaders { get; private set; } = new Dictionary<FileLoc, WeakReference<Shader>>(new FileLoc.EqualityComparer());
     public Dictionary<FileLoc, WeakReference<Texture2D>> Textures { get; private set; } = new Dictionary<FileLoc, WeakReference<Texture2D>>(new FileLoc.EqualityComparer());
+    private DeltaTimer _shaderChangedTimer = null;
+    private float _checkForShaderFileChangeUpdatesTimeSeconds = 0.5f;
 
     #endregion
     #region Public: Methods
+
+    public ResourceManager()
+    {
+      //Clear temp, or cache directories if needed
+      var dir = Path.GetDirectoryName(Gu.LocalTmpPath);
+      if (!Directory.Exists(dir))
+      {
+        Directory.CreateDirectory(dir);
+      }
+      if (Gu.EngineConfig.ClearCacheOnStart)
+      {
+        ResourceManager.ClearDataDir(Gu.LocalCachePath);
+      }
+      if (Gu.EngineConfig.ClearTmpOnStart)
+      {
+        ResourceManager.ClearDataDir(Gu.LocalTmpPath);
+      }
+
+      //Start the shader poller, to update shaders so we don't gotta compile and run again 
+      //We can poll for engine config, or any other file realyl, but that is a much larger system.
+      if (_shaderChangedTimer == null)
+      {
+        _shaderChangedTimer = new DeltaTimer(_checkForShaderFileChangeUpdatesTimeSeconds, ActionRepeat.Repeat, ActionState.Run);
+      }
+    }
 
     public List<WorldObject> LoadObjects(FileLoc loc)
     {
@@ -89,64 +116,65 @@ namespace PirateCraft
       }
       return ret;
     }
-    public Shader LoadShader(string generic_name, bool gs, FileStorage storage, bool use_cached = true)
+    public Shader LoadShader(string generic_name, bool gs, FileStorage storage)
     {
-      Gu.Log.Info("Loading shader source: " + generic_name + " gs=" + gs.ToString() + " storage=" + storage.ToString() + " use_cached=" + use_cached);
-      //This simply loads the shader source, it doesn't proces vars or create shaders. This is done when we begin rendering.
-      string vert_name = generic_name + ".vs.glsl";
-      string geom_name = gs ? generic_name + ".gs.glsl" : "";
-      string frag_name = generic_name + ".fs.glsl";
-      string fileloc_name = vert_name + "-" + geom_name + "-" + frag_name; //hacky, but it will work
-      var cache_loc = new FileLoc(vert_name, storage);
+      //Load an empty shader generic name and storage. 
+      //We create the actual Gpu shader for the given context+pipeline stage when it is needed.
+      var cache_loc = new FileLoc(generic_name, storage);
 
       Shader ret = FindItem(cache_loc, Shaders);
 
       if (ret == null)
       {
-        List<string> errors = new List<string>();
-        bool hasErrors = false;
-        string vert = ContextShader.ProcessFile(new FileLoc(vert_name, FileStorage.Embedded), errors);
-        string geom = gs ? ContextShader.ProcessFile(new FileLoc(geom_name, FileStorage.Embedded), errors) : "";
-        string frag = ContextShader.ProcessFile(new FileLoc(frag_name, FileStorage.Embedded), errors);
-
-        if (errors.Count > 0)
-        {
-          Gu.Log.Warn("Shader preprocessing errors: \n" + string.Join("\n", errors));
-          Gu.DebugBreak();
-        }
-
-        ret = new Shader(generic_name, vert, frag, geom);
+        ret = new Shader(generic_name, gs, storage);
         Shaders.Add(cache_loc, new WeakReference<Shader>(ret));
       }
       return ret;
     }
-    public static string ReadTextFile(FileLoc loc)
+    public static string ReadTextFile(FileLoc loc, bool useDiskVersionIfAvailable)
     {
       //Returns empty string when failSilently is true.
+      //The disk version thing is if we have an embedded file, but (specifically for development) we want to use
+      //the files in the /data directory.
+
       string data = "";
       loc.AssertExists();
 
-      if (loc.FileStorage == FileStorage.Embedded)
+      if (loc.FileStorage == FileStorage.Embedded || loc.FileStorage == FileStorage.Disk)
       {
-        using (Stream stream = loc.OpenRead())
+        bool mustUseDiskVersion = false;
+        if (useDiskVersionIfAvailable == true)
         {
+          if (System.IO.File.Exists(loc.WorkspacePath))
+          {
+            mustUseDiskVersion = true;
+          }
+        }
+
+        if (loc.FileStorage == FileStorage.Embedded && !mustUseDiskVersion)
+        {
+          using (Stream stream = loc.OpenRead())
+          {
+            using (StreamReader reader = new StreamReader(stream))
+            {
+              data = reader.ReadToEnd();
+            }
+          }
+        }
+        else //we are on disk, or, we must use the version on disk.
+        {
+          string disk_path = mustUseDiskVersion ?  loc.WorkspacePath:loc.RawPath ;
+
+          if (!System.IO.File.Exists(disk_path))
+          {
+            Gu.BRThrowException("File '" + disk_path + "' does not exist.");
+          }
+
+          using (Stream stream = File.Open(disk_path, FileMode.Open, FileAccess.Read, FileShare.None))
           using (StreamReader reader = new StreamReader(stream))
           {
             data = reader.ReadToEnd();
           }
-        }
-      }
-      else if (loc.FileStorage == FileStorage.Disk)
-      {
-        if (!System.IO.File.Exists(loc.RawPath))
-        {
-          Gu.BRThrowException("File '" + loc.RawPath + "' does not exist.");
-        }
-
-        using (Stream stream = File.Open(loc.RawPath, FileMode.Open, FileAccess.Read, FileShare.None))
-        using (StreamReader reader = new StreamReader(stream))
-        {
-          data = reader.ReadToEnd();
         }
       }
       else
@@ -330,7 +358,7 @@ namespace PirateCraft
       img.Flip(false, true);
       SaveImage(loc.QualifiedPath, img);
     }
-    public static void ClearDataDir( string dir)
+    public static void ClearDataDir(string dir)
     {
       Gu.Log.Info($"Clearing dir {dir}");
       var fs = System.IO.Directory.GetFiles(dir);
@@ -346,6 +374,22 @@ namespace PirateCraft
         }
       }
     }
+
+    public void Update(double dt)
+    {
+      _shaderChangedTimer.Update(dt, () =>
+        {
+          foreach (var pair in Shaders)
+          {
+            if (pair.Value.TryGetTarget(out var s))
+            {
+              s.CheckSourceChanged();
+            }
+          }
+        });
+    }
+
+
     #endregion
     #region Private: Methods
 

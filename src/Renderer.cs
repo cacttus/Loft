@@ -73,8 +73,9 @@ namespace PirateCraft
 
       UpdatePickedPixel((int)Gu.Mouse.Pos.x, (int)Gu.Mouse.Pos.y);
 
-      if(PickedObjectFrame != PickedObjectFrameLast){
-        int n=0;
+      if (PickedObjectFrame != PickedObjectFrameLast)
+      {
+        int n = 0;
         n++;
       }
     }
@@ -503,7 +504,9 @@ namespace PirateCraft
     }
     public void BeginRenderToWindow()
     {
+      if(Gu.EngineConfig.Debug_ShowPipelineClearMessage){
       Gu.Log.WarnCycle("Clearing all pipelines, when it is not necessary (debug)");
+      }
 
       //**FULL CLEAR
       GL.Viewport(0, 0, Gu.Context.GameWindow.Width, Gu.Context.GameWindow.Height);
@@ -573,6 +576,17 @@ namespace PirateCraft
         CurrentStage = null;
       }
       EndRenderToView(rv);
+    }
+    public PipelineStage GetPipelineStage(PipelineStageEnum e)
+    {
+      foreach (var s in PipelineStages)
+      {
+        if (s.PipelineStageEnum == e)
+        {
+          return s;
+        }
+      }
+      return null;
     }
 
     #endregion
@@ -761,7 +775,7 @@ namespace PirateCraft
       //using input framebuffer as we call saveFBOs in the blit routine (which, uses inputs)
       if (fbo != null)
       {
-        string prefix = Gu.GetFilenameDateTimeNOW() + " ctx-" + ctxName + " " + "view-" + CurrentView.Id + " " + fbo.Name + " " + tag  ;
+        string prefix = Gu.GetFilenameDateTimeNOW() + " ctx-" + ctxName + " " + "view-" + CurrentView.Id + " " + fbo.Name + " " + tag;
         foreach (var bind in fbo.Bindings)// atts)
         {
           var pTarget = bind.Attachment;

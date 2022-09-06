@@ -108,7 +108,7 @@ namespace PirateCraft
 
   public abstract class OpenGLContextDataManager<T> where T : class
   {
-    private Dictionary<WindowContext, T> _contextData = new Dictionary<WindowContext, T>();
+    protected Dictionary<WindowContext, T> _contextData = new Dictionary<WindowContext, T>();
     protected abstract T CreateNew();
 
     public OpenGLContextDataManager()

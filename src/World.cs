@@ -452,8 +452,7 @@ namespace PirateCraft
         var ec = new EventComponent((self) =>
         {
           self.Destroy();
-        }, World.DropDestroyTime_Seconds, false);
-        ec.Start();
+        }, World.DropDestroyTime_Seconds, ActionRepeat.DoNotRepeat, ActionState.Run);
         self.Components.Add(ec);
       };
       float animationTime = 5.0f; //seconds

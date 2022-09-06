@@ -640,14 +640,14 @@ namespace PirateCraft
       }
     }
     private static GPULog GPULog = new GPULog();
-    public static void CheckGpuErrorsRt(bool donotbreak = false, bool donotlog = false, string shadername = "", bool clearonly = false)
+    public static bool CheckGpuErrorsRt(bool donotbreak = false, bool donotlog = false, string shadername = "", bool clearonly = false)
     {
-      GPULog.chkErrRt(donotbreak, donotlog, shadername, clearonly);
+      return GPULog.chkErrRt(donotbreak, donotlog, shadername, clearonly);
     }
-    public static void CheckGpuErrorsDbg(bool donotbreak = false, bool donotlog = false, string shadername = "", bool clearonly = false)
+    public static bool CheckGpuErrorsDbg(bool donotbreak = false, bool donotlog = false, string shadername = "", bool clearonly = false)
     {
 #if DEBUG
-      GPULog.chkErrDbg(donotbreak, donotlog, shadername, clearonly);
+      return GPULog.chkErrDbg(donotbreak, donotlog, shadername, clearonly);
 #endif
     }
     public static Img32 GetTextureDataFromGpu(int iGLTexId, TextureTarget eTexTargetBase, ref PixelFormat outFormat, ref PixelType outType, ref PixelInternalFormat outInternalFormat, int iCubeMapSide = -1)

@@ -17,11 +17,12 @@ void main(void)
 
   vec3 tx_normal = normalize(texture(_ufGpuMaterial_s2Normal, vec2(_vsTcoords)).xyz * 2.0f - 1.0f);
   mat3 mLightMatrix = getLightMatrix(_vsNormal, _vsVertex);
-  vec3 surface_normal = normalize(mLightMatrix * tx_normal);
+  vec3 surface_normal = normalize(mLightMatrix * tx_normal);  
 
-  setOutput_Color(albedo);
-  setOutput_Pick(_vsPick);
-  setOutput_Normal(vec4(tx_normal,1));
-  setOutput_Position(vec4(_vsVertex,1));
-  setOutput_Plane(vec4(_vsNormal,_ufGpuMaterial._flat));
-}
+//  setOutput_Color(vec4(albedo.r *.9,albedo.g * .6,albedo.b * .8,1)); 
+  setOutput_Color(albedo);  
+  setOutput_Pick(_vsPick);  
+  setOutput_Normal(vec4(tx_normal,1));  
+  setOutput_Position(vec4(_vsVertex,1));   
+  setOutput_Plane(vec4(_vsNormal,_ufGpuMaterial._flat));        
+}   

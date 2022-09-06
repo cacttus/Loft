@@ -836,8 +836,6 @@ namespace PirateCraft
       Texture2D tx_bloom = Gu.Resources.LoadTexture(new FileLoc("bloom.png", FileStorage.Embedded), true, TexFilter.Trilinear);
 
       //Sky
-      //, tx_sky_stars -- TODO:
-      // Gu.Resources.LoadShader("v_sky", false, FileStorage.Embedded)
       Material sky_mat = new Material("sky", Shader.DefaultObjectShader(), tx_sky);
       sky_mat.Flat = true;
       sky_mat.GpuRenderState.DepthTest = false;//Disable depth test.

@@ -69,7 +69,7 @@ namespace PirateCraft
 
     public void CompileGpuData()
     {
-      if (_bMustCompile || Gu.EngineConfig.AlwaysCompileAndReloadGpuUniformData)
+      if (_bMustCompile || Gu.EngineConfig.Debug_AlwaysCompileAndReloadGpuUniformData)
       {
         _gpuMaterial._vPBR_baseColor = _baseColor;
         _gpuMaterial._fPBR_roughness = _roughness;

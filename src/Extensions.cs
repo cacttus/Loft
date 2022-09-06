@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 
 namespace PirateCraft
 {
-
   //Extension methods - google what this is if you don't know
   public static class Extensions
   {
@@ -52,5 +51,5 @@ namespace PirateCraft
       return ret;
     }
   }
-  
+
 }

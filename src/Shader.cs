@@ -5,6 +5,21 @@ using OpenTK.Graphics.OpenGL4;
 
 namespace PirateCraft
 {
+  #region Enums
+
+  public enum ShaderLoadState
+  {
+    None,
+    Loading,
+    Compiled,
+    Validated,
+    Success,
+    Failed,
+    MaxShaderLoadStates,
+  }
+
+  #endregion
+
   #region GPU Structs
   public enum ShaderUniformName
   {
@@ -133,22 +148,21 @@ namespace PirateCraft
   public class ShaderControlVars
   {
     public ShaderControlVars() { }
-    public ShaderControlVars(PipelineStage stage, ShaderType type)
+    public ShaderControlVars(PipelineStageEnum stage, ShaderType type)
     {
       ShaderType = type;
-      PipelineStage = stage;
+      PipelineStageEnum = stage;
     }
     public ShaderType? ShaderType { get; private set; } = null;
-    //public PipelineStageEnum? PipelineStage { get; private set; } = null;
     public int MaxPointLights { get; set; } = 8;
     public int MaxDirLights { get; set; } = 2;
     public int MaxCubeShadowSamples { get; set; } = 4;
     public int MaxFrusShadowSamples { get; set; } = 4;
     public int MaxInstances { get; set; } = 8;
     public bool IsInstanced { get; set; } = true;  //this is, technically going to always be set now, but later we can add non-instanced for performance improvements.
-    private PipelineStage PipelineStage = null;
+    private PipelineStageEnum PipelineStageEnum = PipelineStageEnum.Unset;
 
-    public ShaderControlVars Clone(PipelineStage stage, ShaderType type)
+    public ShaderControlVars Clone(PipelineStageEnum stage, ShaderType type)
     {
       Gu.Assert(stage != null);
 
@@ -182,21 +196,24 @@ namespace PirateCraft
         AddDef(sb, "DEF_INSTANCED");
       }
 
-      ShaderType st = this.ShaderType.Value;
-      PipelineStageEnum ps = this.PipelineStage.PipelineStageEnum;
+      ShaderType st = ShaderType.Value;
       if (st == OpenTK.Graphics.OpenGL4.ShaderType.FragmentShader || st == OpenTK.Graphics.OpenGL4.ShaderType.FragmentShaderArb) { AddDef(sb, "DEF_SHADER_STAGE_FRAGMENT"); }
       else if (st == OpenTK.Graphics.OpenGL4.ShaderType.VertexShader || st == OpenTK.Graphics.OpenGL4.ShaderType.VertexShaderArb) { AddDef(sb, "DEF_SHADER_STAGE_VERTEX"); }
       else if (st == OpenTK.Graphics.OpenGL4.ShaderType.GeometryShader) { AddDef(sb, "DEF_SHADER_STAGE_GEOMETRY"); }
       else { Gu.BRThrowNotImplementedException(); }
 
       //Ooh.thanks Description[]
-      AddDef(sb, ps.Description());
+      AddDef(sb, PipelineStageEnum.Description());
 
       return sb.ToString();
     }
     public string OutputsString()
     {
       StringBuilder sb = new StringBuilder();
+
+      var pstage = Gu.Context.Renderer.GetPipelineStage(PipelineStageEnum);
+
+      Gu.Assert(pstage != null);
 
       //Get all pipeline outputs and set blank set() functions for outputs that are disabled in the given stage.
       //HashSet<string> outputs = new HashSet<string>();
@@ -209,14 +226,14 @@ namespace PirateCraft
           unique_outputs.Add(pp.OutputName, pp);
         }
       }
-      if (PipelineStage.OutputFramebuffer == null)
+      if (pstage.OutputFramebuffer == null)
       {
         SetOutputString(sb, 0, "vec4", "Color");//default fbo
         Gu.Assert(unique_outputs.Remove("Color"));//output must be in the global outputs array
       }
       else
       {
-        foreach (var output in PipelineStage.OutputFramebuffer.Bindings)
+        foreach (var output in pstage.OutputFramebuffer.Bindings)
         {
           var outname = output.Attachment.OutputName;
           Gu.Assert(unique_outputs.Remove(outname));//output must be in the global outputs array
@@ -298,7 +315,7 @@ namespace PirateCraft
     public WorldProps(string name) : base(name + "-env") { }
     public void CompileGpuData()
     {
-      if (Modified || Lights.Modified || Gu.EngineConfig.AlwaysCompileAndReloadGpuUniformData)
+      if (Modified || Lights.Modified || Gu.EngineConfig.Debug_AlwaysCompileAndReloadGpuUniformData)
       {
         _gpuWorld._fFogDamp = this._fogDamp;
         _gpuWorld._fFogBlend = this._fogBlend;
@@ -394,7 +411,7 @@ namespace PirateCraft
     }
     public void CompileGpuData()
     {
-      if (Modified || Gu.EngineConfig.AlwaysCompileAndReloadGpuUniformData)
+      if (Modified || Gu.EngineConfig.Debug_AlwaysCompileAndReloadGpuUniformData)
       {
         Gu.Assert(Objects != null);
         GpuInstanceData = new GpuInstanceData[Objects.Count];
@@ -456,7 +473,7 @@ namespace PirateCraft
     }
     public void CompileGpuData()
     {
-      if (Modified || Gu.EngineConfig.AlwaysCompileAndReloadGpuUniformData)
+      if (Modified || Gu.EngineConfig.Debug_AlwaysCompileAndReloadGpuUniformData)
       {
         if (Objects != null)
         {
@@ -504,13 +521,11 @@ namespace PirateCraft
       SetModified();
     }
   }
-  //stuff needed to render
   public class DrawCall
   {
     public double? Delta { get { return _delta; } set { _delta = value; } }
     public VisibleObjects VisibleObjects { get { return _visibleObjects; } set { _visibleObjects = value; } }
     public Func<ShaderUniform, bool> CustomUniforms = null;//Input: a uniform variable name that you must bind to, output: true if you handled it, false if not
-    public Func<ContextShader, ShaderUniformBlock, bool> CustomUniformBlocks = null;//Input: a uniform variable name that you must bind to, output: true if you handled it, false if not
 
     private double? _delta = null;
     private VisibleObjects _visibleObjects = new VisibleObjects();
@@ -542,18 +557,12 @@ namespace PirateCraft
       }
     }
   }
-  public enum ShaderLoadState
-  {
-    None,
-    Loading,
-    Failed,
-    Success
-  }
   public class ShaderStage : OpenGLResource
   {
     public ShaderType ShaderType { get; private set; } = ShaderType.VertexShader;
     public ShaderStage(string name, ShaderType tt, string src) : base(name + "-shr")
     {
+      //Here: we can load from shader cache.
       ShaderType = tt;
       _glId = GL.CreateShader(tt);
       Gpu.CheckGpuErrorsRt();
@@ -562,7 +571,6 @@ namespace PirateCraft
       GL.CompileShader(_glId);
       Gpu.CheckGpuErrorsRt();
     }
-
     public override void Dispose_OpenGL_RenderThread()
     {
       if (GL.IsShader(_glId))
@@ -618,17 +626,20 @@ namespace PirateCraft
       Gpu.CheckGpuErrorsDbg();
     }
   }
-
-  //Shader, program on the GPU. Contextual.
   public class ContextShader : OpenGLResource
   {
+    //Shader, program on the GPU based on GL Context...
+    //Assuming if I'm right, probably not, that OpenTK's context sharing can't share OpenGL programs.
+    //So we need one per context, and the way the system generates shaders, we need an additional shader per pipeline stage.
+    // Context -> Pipeline Stage -> Shader
     private static string c_strGlobalDefineString = "<GLSL_CONTROL_DEFINES_HERE>";
     private static string c_strGlobalOutputString = "<GLSL_CONTROL_OUTPUTS_HERE>";
     private ShaderStage _vertexStage = null;
     private ShaderStage _fragmentStage = null;
     private ShaderStage _geomStage = null;
 
-    public PipelineStageEnum PipelineStage { get; private set; } = PipelineStageEnum.Unset;
+    public PipelineStageEnum PipelineStageEnum { get; private set; } = PipelineStageEnum.Unset;
+    public ShaderLoadState State { get; private set; } = ShaderLoadState.None;
 
     private Dictionary<string, ShaderUniform> _uniforms = new Dictionary<string, ShaderUniform>();
     private Dictionary<string, ShaderUniformBlock> _uniformBlocks = new Dictionary<string, ShaderUniformBlock>();
@@ -639,72 +650,106 @@ namespace PirateCraft
 
     private List<string> _shaderErrors = new List<string>();
 
-    private ShaderLoadState State = ShaderLoadState.None;
 
     private string Name = "";
 
-    public ContextShader(string name, WindowContext ct, string vsSrc_raw = "", string psSrc_raw = "", string gsSrc_raw = "") : base(name + "-prog")
+    public ContextShader(string name, WindowContext ct, string vsSrc_raw, string psSrc_raw, string gsSrc_raw, DateTime maxmodifytime, PipelineStageEnum stage) : base(name + "-prog")
     {
       Gu.Assert(ct != null);
       Gu.Assert(ct.Renderer != null);
-      Gu.Assert(ct.Renderer.CurrentStage != null);
+      //Gu.Assert(ct.Renderer.CurrentStage != null);
 
       Name = name;
-      PipelineStage = ct.Renderer.CurrentStage.PipelineStageEnum;
-      Gu.Log.Debug("Compiling shader '" + Name + "'");
+      PipelineStageEnum = stage;
+      Gu.Log.Info($"{Name}: ..Compiling shader.");
+      Gu.Log.Info($"{Name}: ..Context = {ct.Name}");
+      Gu.Log.Info($"{Name}: ..Stage = {stage.Description()}");
 
       Gpu.CheckGpuErrorsDbg();
       {
         State = ShaderLoadState.Loading;
 
-        string vsSrc = ProcessShaderSource(ct, vsSrc_raw, ShaderType.VertexShader);
-        string gsSrc = ProcessShaderSource(ct, gsSrc_raw, ShaderType.GeometryShader);
-        string psSrc = ProcessShaderSource(ct, psSrc_raw, ShaderType.FragmentShader);
-
-        CreateShaders(vsSrc, psSrc, gsSrc);
-
-        CreateProgram();
-
-        //Just leave this on. Always save the copmiled shader source.
-        string v_src = GetReadableShaderSourceCode(vsSrc);
-        string g_src = GetReadableShaderSourceCode(gsSrc);
-        string f_src = GetReadableShaderSourceCode(psSrc);
-        SaveShaderSource(v_src, Name + ".vs.glsl", null);
-        SaveShaderSource(g_src, Name + ".gs.glsl", null);
-        SaveShaderSource(f_src, Name + ".fs.glsl", null);
-
-        if (State != ShaderLoadState.Failed)
+        //Attempt to load cached binary
+        bool loaded = false;
+        if (Gu.EngineConfig.ShaderCaching)
         {
-          GL.UseProgram(_glId);
-          Gpu.CheckGpuErrorsRt();
+          if (TryLoadCachedBinary(maxmodifytime))
+          {
+            if (ValidateProgram())
+            {
+              Gu.Log.Info($"{Name}: ..Successfully loaded cached shader binary.");
+              loaded = true;
+            }
+          }
+          //Log our errors, if any, and clear it. 
+          string errors = String.Join(Environment.NewLine, _shaderErrors.ToArray());
+          if (errors.Length > 0)
+          {
+            Gu.Log.Info(errors);
+          }
 
+        }
+
+        // Re-Compile binary
+        if (!loaded)
+        {
+          _shaderErrors.Clear();
+          State = ShaderLoadState.Loading; //reset back to loading to try compiling the files.
+
+          string vsSrc = ProcessShaderSource(ct, vsSrc_raw, ShaderType.VertexShader, PipelineStageEnum);
+          string gsSrc = ProcessShaderSource(ct, gsSrc_raw, ShaderType.GeometryShader, PipelineStageEnum);
+          string psSrc = ProcessShaderSource(ct, psSrc_raw, ShaderType.FragmentShader, PipelineStageEnum);
+
+          Gu.Log.Info($"{Name}: ..Fully compiling shader.");
+          CreateShaders(vsSrc, psSrc, gsSrc);
+          CreateProgramFromShaders();
+          ValidateProgram();
+          if (Gu.EngineConfig.ShaderCaching)
+          {
+            SaveBinary();
+          }
+
+          if (State == ShaderLoadState.Failed)
+          {
+            string v_src = GetReadableShaderSourceCode(vsSrc);
+            string g_src = GetReadableShaderSourceCode(gsSrc);
+            string f_src = GetReadableShaderSourceCode(psSrc);
+            SaveShaderSource(v_src, Name + ".vs.glsl", null);
+            SaveShaderSource(g_src, Name + ".gs.glsl", null);
+            SaveShaderSource(f_src, Name + ".fs.glsl", null);
+            string errors = String.Join(Environment.NewLine, _shaderErrors.ToArray());
+            string blip = "--------------------------------------------------------------------------------------";
+            string all_src_errs = "";
+            if (!String.IsNullOrEmpty(vsSrc))
+            {
+              all_src_errs += Environment.NewLine + blip + Environment.NewLine + "--VERTEX SOURCE--" + Environment.NewLine + blip + Environment.NewLine + v_src + Environment.NewLine;
+              SaveShaderSource(v_src, Name + ".vs.glsl", errors);
+            }
+            if (!String.IsNullOrEmpty(gsSrc))/*  */
+            {
+              all_src_errs += Environment.NewLine + blip + Environment.NewLine + "--GEOM SOURCE--" + Environment.NewLine + blip + Environment.NewLine + g_src + Environment.NewLine;
+              SaveShaderSource(v_src, Name + ".gs.glsl", errors);
+            }
+            if (!String.IsNullOrEmpty(psSrc))
+            {
+              all_src_errs += Environment.NewLine + blip + Environment.NewLine + "--FRAG SOURCE--" + Environment.NewLine + blip + Environment.NewLine + f_src + Environment.NewLine;
+              SaveShaderSource(v_src, Name + ".fs.glsl", errors);
+            }
+            Gu.Log.Info(all_src_errs);
+            Gu.Log.Error($"{Name}: ..Failed to load shader '" + Name + "'." + Environment.NewLine + errors);
+            Gu.DebugBreak();
+          }
+        }
+        //If either state has failed, print
+
+        if (State == ShaderLoadState.Validated)
+        {
+          Bind();
           ParseUniforms();
+          Unbind();
 
           State = ShaderLoadState.Success;
-        }
-        else
-        {
-          string errors = String.Join(Environment.NewLine, _shaderErrors.ToArray());
-          string blip = "--------------------------------------------------------------------------------------";
-          string all_src_errs = "";
-          if (!String.IsNullOrEmpty(vsSrc))
-          {
-            all_src_errs += Environment.NewLine + blip + Environment.NewLine + "--VERTEX SOURCE--" + Environment.NewLine + blip + Environment.NewLine + v_src + Environment.NewLine;
-            SaveShaderSource(v_src, Name + ".vs.glsl", errors);
-          }
-          if (!String.IsNullOrEmpty(gsSrc))/*  */
-          {
-            all_src_errs += Environment.NewLine + blip + Environment.NewLine + "--GEOM SOURCE--" + Environment.NewLine + blip + Environment.NewLine + g_src + Environment.NewLine;
-            SaveShaderSource(v_src, Name + ".gs.glsl", errors);
-          }
-          if (!String.IsNullOrEmpty(psSrc))
-          {
-            all_src_errs += Environment.NewLine + blip + Environment.NewLine + "--FRAG SOURCE--" + Environment.NewLine + blip + Environment.NewLine + f_src + Environment.NewLine;
-            SaveShaderSource(v_src, Name + ".fs.glsl", errors);
-          }
-          Gu.Log.Info(all_src_errs);
-          Gu.Log.Error("Failed to load shader '" + Name + "'." + Environment.NewLine + errors);
-          Gu.DebugBreak();
+          Gu.Log.Info($"{Name}: ..Succssfully processed and loaded shader to GPU (glId={GetGlId()})");
         }
       }
       Gpu.CheckGpuErrorsDbg();
@@ -714,7 +759,7 @@ namespace PirateCraft
     {
       System.IO.File.WriteAllText(System.IO.Path.Combine(Gu.LocalTmpPath, filename), src + Environment.NewLine + (errors == null ? "" : errors));
     }
-    private string ProcessShaderSource(WindowContext ct, string src_raw, ShaderType type)
+    private string ProcessShaderSource(WindowContext ct, string src_raw, ShaderType type, PipelineStageEnum stage)
     {
       string src_cpy = src_raw;
       if (StringUtil.IsNotEmpty(src_cpy))
@@ -733,7 +778,7 @@ namespace PirateCraft
         }
         else
         {
-          var vars = ct.Renderer.DefaultControlVars.Clone(ct.Renderer.CurrentStage, type);
+          var vars = ct.Renderer.DefaultControlVars.Clone(stage, type);
 
           var defines_string = vars.DefinesString();
           src_cpy = src_cpy.Replace(ContextShader.c_strGlobalDefineString, defines_string);
@@ -762,11 +807,17 @@ namespace PirateCraft
     }
     public override void Dispose_OpenGL_RenderThread()
     {
-      if (GL.IsProgram(_glId))
-      {
-        GL.DeleteProgram(_glId);
-      }
+      DestroyForGC();//Call again if it hasn't been.
+      DeleteProgram();
     }
+
+    public void DestroyForGC()
+    {
+      _vertexStage = null;
+      _fragmentStage = null;
+      _geomStage = null;
+    }
+
     private void Bind()
     {
       Gpu.CheckGpuErrorsDbg();
@@ -813,9 +864,20 @@ namespace PirateCraft
       _currUnit = TextureUnit.Texture0;
       _boundTextures.Clear();
     }
-
-    #region Private
-
+    private void DeleteProgram()
+    {
+      if (GL.IsProgram(_glId))
+      {
+        int p = GL.GetInteger(GetPName.CurrentProgram);
+        GL.UseProgram(0);
+        GL.DeleteProgram(_glId);
+        if (p != _glId)
+        {
+          GL.UseProgram(p);
+        }
+      }
+      this._glId = 0;
+    }
     private void CreateShaders(string vs, string ps, string gs = "")
     {
       Gpu.CheckGpuErrorsRt();
@@ -829,7 +891,7 @@ namespace PirateCraft
       }
       Gpu.CheckGpuErrorsRt();
     }
-    private void CreateProgram()
+    private void CreateProgramFromShaders()
     {
       Gpu.CheckGpuErrorsRt();
       {
@@ -844,25 +906,71 @@ namespace PirateCraft
           GL.AttachShader(_glId, _geomStage.GetGlId());
           Gpu.CheckGpuErrorsRt();
         }
-
         GL.LinkProgram(_glId);
         Gpu.CheckGpuErrorsRt();
-
-        string programInfoLog = "";
-        GL.GetProgramInfoLog(_glId, out programInfoLog);
-        if (_shaderErrors == null)
-        {
-          _shaderErrors = new List<string>();
-        }
-        _shaderErrors.AddRange(programInfoLog.Split('\n').ToList());
-
-        if (_shaderErrors.Count > 0 && programInfoLog.ToLower().Contains("error"))
-        {
-          State = ShaderLoadState.Failed;
-        }
-
       }
       Gpu.CheckGpuErrorsRt();
+
+      State = ShaderLoadState.Compiled;
+    }
+    private bool ValidateProgram()
+    {
+      string programInfoLog = "";
+      GL.GetProgramInfoLog(_glId, out programInfoLog);
+      if (_shaderErrors == null)
+      {
+        _shaderErrors = new List<string>();
+      }
+      _shaderErrors.AddRange(programInfoLog.Split('\n').ToList());
+
+      if (_shaderErrors.Count > 0 && programInfoLog.ToLower().Contains("error"))
+      {
+        State = ShaderLoadState.Failed;
+      }
+
+      //validate program.
+      GL.ValidateProgram(this.GetGlId());
+      Gpu.CheckGpuErrorsRt();
+
+      int iValid = 0;
+      GL.GetProgram(this._glId, GetProgramParameterName.ValidateStatus, out iValid);
+      Gpu.CheckGpuErrorsRt();
+
+      if (iValid == (int)GLenum.GL_FALSE)
+      {
+        // Program load faiiled
+        _shaderErrors.Add("[ShaderCache] glValidateProgram says program binary load failed.  Check the above logs for errors.");
+        DeleteProgram();
+        State = ShaderLoadState.Failed;
+        return false;
+      }
+
+      bool b2 = GL.IsProgram(GetGlId());
+      Gpu.CheckGpuErrorsRt();
+      if (b2 == false)
+      {
+        DeleteProgram();
+        State = ShaderLoadState.Failed;
+        _shaderErrors.Add("[ShaderCache] glIsProgram says program was not valid after loading to GPU");
+      }
+
+      //Try binding/using 
+      Bind();
+
+      // - If the program failed to load it will raise an error after failing to bind.
+      var e = GL.GetError();
+      if (e != ErrorCode.NoError)
+      {
+        State = ShaderLoadState.Failed;
+        _shaderErrors.Add("[ShaderCache], GL error " + e + " , program was not valid after binding.");
+        return false;
+      }
+
+      Unbind();
+
+      State = ShaderLoadState.Validated;
+
+      return true;
     }
     private void ParseUniforms()
     {
@@ -903,7 +1011,10 @@ namespace PirateCraft
             //But for what we're doing if it isn't a structure it should be used.
             Gu.DebugBreak();
           }
-          Gu.Log.Debug(Name + ": Inactive uniform: " + u_name);
+          if (Gu.EngineConfig.Debug_Print_Shader_Uniform_Details_Verbose)
+          {
+            Gu.Log.Debug($"{Name}: .. Inactive uniform: {u_name}");
+          }
           //Not necessarily an error
           //GetUniformLocation "This function returns -1 if name does not correspond to an active uniform variable in program,
           //if name starts with the reserved prefix "gl_", or if name is associated with an atomic counter or a named uniform block."
@@ -916,7 +1027,10 @@ namespace PirateCraft
         }
         else
         {
-          Gu.Log.Debug(Name + ": Active uniform: " + u_name);
+          if (Gu.EngineConfig.Debug_Print_Shader_Uniform_Details_Verbose)
+          {
+            Gu.Log.Debug($"{Name}: .. Active uniform: {u_name}");
+          }
         }
 
         ShaderUniform su = new ShaderUniform(location, u_size, u_type, u_name, active);
@@ -946,11 +1060,17 @@ namespace PirateCraft
         if (binding < 0)
         {
           active = false;
-          Gu.Log.Debug(Name + ": Inactive uniform block: " + u_name);
+          if (Gu.EngineConfig.Debug_Print_Shader_Uniform_Details_Verbose)
+          {
+            Gu.Log.Debug($"{Name}: ..Inactive uniform block: {u_name}");
+          }
         }
         else
         {
-          Gu.Log.Debug(Name + ": Active Uniform block: " + u_name);
+          if (Gu.EngineConfig.Debug_Print_Shader_Uniform_Details_Verbose)
+          {
+            Gu.Log.Debug($"{Name}: ..Active uniform block: {u_name}");
+          }
         }
 
         ShaderUniformBlock su = new ShaderUniformBlock(u_name, iBlock, binding, buffer_size_bytes, active);// u_size, u_type, u_name);
@@ -1083,7 +1203,7 @@ namespace PirateCraft
       GL.BindBuffer(BufferTarget.UniformBuffer, 0);
       Gpu.CheckGpuErrorsDbg();
 
-      if (u.HasBeenSet == true)
+      if (u.HasBeenSet == true && Gu.EngineConfig.Debug_Print_Shader_Uniform_Details_Verbose)
       {
         Gu.Log.WarnCycle(this.Name + ": Uniform  " + u.Name + " was already set.", 120 * 10);
       }
@@ -1108,7 +1228,7 @@ namespace PirateCraft
       {
         if (tex != null)
         {
-          if (su.HasBeenSet)
+          if (su.HasBeenSet && Gu.EngineConfig.Debug_Print_Shader_Uniform_Details_Verbose)
           {
             Gu.Log.WarnCycle(this.Name + ": Texture uniform " + su.Name + "  was already set.", 120 * 10);
           }
@@ -1138,10 +1258,9 @@ namespace PirateCraft
         Gu.Log.Error(this.Name + ": Unknown uniform " + (is_block ? "block " : "") + " '" + uniform_name + "' (possibly optimized out).");
         Gu.DebugBreak();
       }
-      else
+      else if (Gu.EngineConfig.Debug_Print_Shader_Uniform_Details_Verbose)
       {
         Gu.Log.WarnCycle(this.Name + ": Unknown uniform " + (is_block ? "block " : "") + " '" + uniform_name + "' (possibly optimized out).", 120 * 10);
-
       }
     }
     private static string ParseIncludeLine(string line)
@@ -1165,22 +1284,24 @@ namespace PirateCraft
       }
       return filename;
     }
-    public static string ProcessFile(FileLoc loc, List<string> errors)
+    public static string IncludeHeaders(FileLoc loc, List<string> errors, HashSet<FileLoc> uniqueFiles)
     {
       var file_lines = new StringBuilder();
 
-      ProcessFile(loc, file_lines, errors);
+      IncludeHeaders(loc, file_lines, errors, uniqueFiles);
 
       return file_lines.ToString();
     }
-    private static void ProcessFile(FileLoc loc, StringBuilder file_lines, List<string> errors)
+    private static void IncludeHeaders(FileLoc loc, StringBuilder file_lines, List<string> errors, HashSet<FileLoc> uniqueFiles)
     {
       Gu.Assert(loc != null);
       Gu.Assert(file_lines != null);
       //Returns the entire processed string on the first function invocation. 
       //Do not set file_lines if you want the return value
 
-      string file_text = ResourceManager.ReadTextFile(loc);
+      uniqueFiles.Add(loc);
+
+      string file_text = ResourceManager.ReadTextFile(loc, true);
       string[] lines = file_text.Split("\n");
       int iLine = 0;
       for (iLine = 0; iLine < lines.Length; iLine++)
@@ -1197,7 +1318,7 @@ namespace PirateCraft
       //Try to Parse Includes First, note it's not an error to have includes later, but we technically shouldn't for simplicity.
       for (iLine = 0; iLine < lines.Length; iLine++)
       {
-        if (!CheckInclude(iLine, lines, loc, file_lines, errors))
+        if (!CheckInclude(iLine, lines, loc, file_lines, errors, uniqueFiles))
         {
           break;
         }
@@ -1209,7 +1330,7 @@ namespace PirateCraft
 
       for (; iLine < lines.Length; iLine++)
       {
-        if (CheckInclude(iLine, lines, loc, file_lines, errors))
+        if (CheckInclude(iLine, lines, loc, file_lines, errors, uniqueFiles))
         {
           errors.Add("File: '" + loc.RawPath + "': #include should be at the top of the file to avoid invalid file commenting (may not be a GLSL error).");
         }
@@ -1222,7 +1343,7 @@ namespace PirateCraft
 
 
     }
-    private static bool CheckInclude(int iLine, string[] lines, FileLoc loc, StringBuilder file_lines, List<string> errors)
+    private static bool CheckInclude(int iLine, string[] lines, FileLoc loc, StringBuilder file_lines, List<string> errors, HashSet<FileLoc> uniqueFiles)
     {
       string line = lines[iLine];
       if (line.StartsWith("#include "))//note the space
@@ -1242,7 +1363,7 @@ namespace PirateCraft
             fs = inc;
           }
 
-          ProcessFile(new FileLoc(fs, loc.FileStorage), file_lines, errors);
+          IncludeHeaders(new FileLoc(fs, loc.FileStorage), file_lines, errors, uniqueFiles);
         }
         else
         {
@@ -1255,6 +1376,109 @@ namespace PirateCraft
         return false;
       }
     }
+    private FileLoc GetBinaryLocation()
+    {
+      string stage = PipelineStageEnum.Description();
+      string binaryname = $"{Name}-{stage}.sb";
+      string binloc = System.IO.Path.Combine(Gu.LocalCachePath, binaryname);
+      FileLoc fn = new FileLoc(binloc, FileStorage.Disk);
+      return fn;
+    }
+    private void SaveBinary()
+    {
+      Gu.Log.Info($"{Name}: ..Attempting to save shader binary.");
+      int binBufSz = 0;
+      GL.GetProgram(GetGlId(), (GetProgramParameterName)GLenum.GL_PROGRAM_BINARY_LENGTH, out binBufSz);
+      Gpu.CheckGpuErrorsRt();
+
+      var binaryData = new byte[binBufSz];
+      int outlen;
+      BinaryFormat outfmt;
+
+      var pinnedHandle = GCHandle.Alloc(binaryData, GCHandleType.Pinned);
+      GL.GetProgramBinary(GetGlId(), binBufSz, out outlen, out outfmt, pinnedHandle.AddrOfPinnedObject());
+      Gpu.CheckGpuErrorsRt();
+      pinnedHandle.Free();
+
+      FileLoc binloc = GetBinaryLocation();
+      Gu.Log.Info($"{Name}: ..Saving to {binloc.QualifiedPath}.");
+
+      byte[] bytes = BitConverter.GetBytes((Int32)outfmt);
+
+      using (var stream = binloc.OpenWrite())
+      {
+        using (var bw = new BinaryWriter(stream))
+        {
+          bw.Write((Int32)outfmt);
+          bw.Write((Int32)binaryData.Length);
+          bw.Write(binaryData);
+        }
+      }
+      Gu.Log.Info($"{Name}: ..Saved.");
+    }
+    public bool TryLoadCachedBinary(DateTime sourceFilesMaxWriteTime)
+    {
+      State = ShaderLoadState.Failed;
+
+      FileLoc binloc = GetBinaryLocation();
+      if (!binloc.Exists)
+      {
+        _shaderErrors.Add($"{Name}: ..{binloc.QualifiedPath} cached binary does not exist...must recompile.");
+        State = ShaderLoadState.Failed;
+      }
+      else if (binloc.GetLastWriteTime() >= sourceFilesMaxWriteTime)
+      {
+        //pProgram has already asked GL for an ID.
+        Gpu.CheckGpuErrorsRt();
+        try
+        {
+          //Load file
+          byte[] binaryData = null;
+          BinaryFormat fmt;
+          int binaryLength = 0;
+          using (var stream = binloc.OpenRead())
+          {
+            using (var br = new BinaryReader(stream))
+            {
+              fmt = (BinaryFormat)br.ReadInt32();
+              binaryLength = br.ReadInt32();
+              binaryData = br.ReadBytes(binaryLength);
+            }
+          }
+          _glId = GL.CreateProgram();
+          Gpu.CheckGpuErrorsRt();
+
+          var pinnedHandle = GCHandle.Alloc(binaryData, GCHandleType.Pinned);
+          GL.ProgramBinary(_glId, fmt, pinnedHandle.AddrOfPinnedObject(), binaryLength);
+          pinnedHandle.Free();
+
+          if (Gpu.CheckGpuErrorsRt(true, true, this.Name))
+          {
+            State = ShaderLoadState.Failed;
+            _shaderErrors.Add("glProgramBinary Failed to load cached binary. This is not necessarily an error, the binary may have been stale.");
+          }
+          else
+          {
+            State = ShaderLoadState.Compiled;
+          }
+        }
+        catch (Exception ex)
+        {
+          State = ShaderLoadState.Failed;
+          Gu.Log.Warn("[ShaderCache] Loading program binary threw exception:", ex);
+          //deleteBinaryFromDisk(programName);
+        }
+      }
+      else
+      {
+        State = ShaderLoadState.Failed;
+        _shaderErrors.Add("Shader source files were newer than the compiled binary.");
+      }
+
+      return State == ShaderLoadState.Compiled;
+    }
+
+
   }
   public class TextureInput : DataBlock
   {
@@ -1281,16 +1505,36 @@ namespace PirateCraft
     }
 
   }
-  //to make contexts transparent.
   public class Shader : OpenGLContextDataManager<Dictionary<PipelineStageEnum, ContextShader>>
   {
+    //The Shader is an opaque type Basically it owns shaders per context, as programs can't be shared with OPenTK (afaik)
+    //Technically we could have another class ContextPipelineDataManager, to manage pipelines
+    //to make contexts transparent.
 
+    #region Public: Members
 
     public string Name { get; private set; } = "<unset>";
-    private string _vs = "", _fs = "", _gs = "";
+    public DateTime MaxModifyTime { get; private set; } = DateTime.MinValue;
+
+    #endregion
+    #region Private: Members
+
+    private string _vsSrcOld = String.Empty;
+    private string _fsSrcOld = String.Empty;
+    private string _gsSrcOld = String.Empty; //**GS source must be string.empty to be unused
+    private string _vsSrc = String.Empty;
+    private string _fsSrc = String.Empty;
+    private string _gsSrc = String.Empty;
     private static Shader _defaultDiffuseShader = null;
     private static Shader _defaultBillboardPoints = null;
     private static Shader _defaultFlatColorShader = null;
+    private HashSet<FileLoc> _files = null;
+    private bool _hasGS = false;
+    private FileStorage _storage = FileStorage.Disk;
+    private bool _bInitHeaders = false;
+
+    #endregion
+    #region Public: Static methods
 
     public static Shader DefaultFlatColorShader()
     {
@@ -1319,16 +1563,160 @@ namespace PirateCraft
       return _defaultBillboardPoints;
     }
 
-    public Shader(string name, string vsSrc = "", string psSrc = "", string gsSrc = "")
+    #endregion
+    #region Public:Methods 
+
+    public Shader(string generic_name, bool gs, FileStorage storage)
     {
-      Name = name;
-      _vs = vsSrc;
-      _fs = psSrc;
-      _gs = gsSrc;
+      Name = generic_name;
+      _hasGS = gs;
+      _storage = storage;
+    }
+    public void CheckSourceChanged()
+    {
+      if (_files == null)
+      {
+        //The shader has been gott, but not initialized.
+        return;
+      }
+
+      bool mustUpdate = false;
+      foreach (var f in this._files)
+      {
+        var wt = f.GetLastWriteTime(true);
+        if (wt > MaxModifyTime)
+        {
+          mustUpdate = true;
+
+          break;
+        }
+      }
+      if (mustUpdate)
+      {
+        InitHeaders();
+
+        var cur_ctx = Gu.Context;
+        foreach (var context_pipeshader in _contextData)
+        {
+          //Grab contxt and save
+          Gu.SetContext(context_pipeshader.Key.GameWindow);
+
+          foreach (var pipeshader in context_pipeshader.Value.Keys)
+          {
+            //Attempt to compile the shader (context is set)
+            //if it fails, it won't save the binary, so we still have the old shader technically
+            //If it fails, it won't break the program, we just keep the old shader in memory.
+            var oldShader = context_pipeshader.Value[pipeshader];
+
+            var newshader = CreateNewShaderForContextPipe(context_pipeshader.Key, pipeshader);
+            if (newshader.State == ShaderLoadState.Success)
+            {
+              //remove old shader, set new shader.
+              context_pipeshader.Value[pipeshader] = newshader;
+            }
+            oldShader.DestroyForGC();
+            oldShader = null;
+            GC.Collect();
+          }
+
+        }
+        //set back our old ocntext
+        Gu.SetContext(cur_ctx.GameWindow);
+      }
+
     }
     public ContextShader GetShaderForCurrentContext()
     {
       return GetOrCreateShader(Gu.Context);
+    }
+
+    #endregion
+    #region Private:Methods
+
+    private bool InitHeaders()
+    {
+      //WE lazy initialize the header compiler for the shader when we need to use it. 
+      Gu.Log.Info("-------------------------------------");
+      Gu.Log.Info($"{Name}: ..Loading shader source. ");
+      Gu.Log.Info($"{Name}: ..has GS = {_hasGS.ToString()}");
+      Gu.Log.Info($"{Name}: ..storage = {_storage.ToString()}");
+      //This simply loads the shader source, it doesn't proces vars or create shaders. This is done when we begin rendering.
+      string vert_name = Name + ".vs.glsl";
+      string geom_name = _hasGS ? Name + ".gs.glsl" : "";
+      string frag_name = Name + ".fs.glsl";
+      string fileloc_name = vert_name + "-" + geom_name + "-" + frag_name; //hacky, but it will work
+
+
+      List<string> errors = new List<string>();
+      bool hasErrors = false;
+
+      _files = new HashSet<FileLoc>(new FileLoc.EqualityComparer());
+
+      //Save old sources in case we update and fail.
+      _vsSrcOld = _vsSrc;
+      _fsSrcOld = _fsSrc;
+      _gsSrcOld = _gsSrc;
+
+      //vert
+      var vloc = new FileLoc(vert_name, FileStorage.Embedded);
+      if (vloc.Exists)
+      {
+        _vsSrc = ContextShader.IncludeHeaders(vloc, errors, _files);
+      }
+      else
+      {
+        Gu.BRThrowException($"Shader source {vloc.QualifiedPath} was not found.");
+      }
+
+      //geom
+      if (_hasGS)
+      {
+        var gloc = new FileLoc(geom_name, FileStorage.Embedded);
+        if (gloc.Exists)
+        {
+          _gsSrc = ContextShader.IncludeHeaders(gloc, errors, _files);
+        }
+        else
+        {
+          Gu.BRThrowException($"Shader source {gloc.QualifiedPath} was not found.");
+        }
+      }
+
+      //frag
+      var floc = new FileLoc(frag_name, FileStorage.Embedded);
+      if (floc.Exists)
+      {
+        _fsSrc = ContextShader.IncludeHeaders(floc, errors, _files);
+      }
+      else
+      {
+        Gu.BRThrowException($"Shader source {floc.QualifiedPath} was not found.");
+      }
+
+      //Check errors
+      if (errors.Count > 0)
+      {
+        Gu.Log.Warn("Shader preprocessing errors: \n" + string.Join("\n", errors));
+        Gu.DebugBreak();
+        return false;
+      }
+
+      //Set max modify time, this lets us compile the shaders dynamically on file changes, it also lets us load the GLBinary on file changes.
+      var oldmod = MaxModifyTime;
+      foreach (var f in this._files)
+      {
+        MaxModifyTime = MathUtils.Max(MaxModifyTime, f.GetLastWriteTime(true));
+      }
+      if (MaxModifyTime != oldmod)
+      {
+        //debug
+        int n = 0;
+        n++;
+      }
+
+      _bInitHeaders = true;
+
+      return true;
     }
     protected override Dictionary<PipelineStageEnum, ContextShader> CreateNew()
     {
@@ -1336,6 +1724,10 @@ namespace PirateCraft
     }
     private ContextShader GetOrCreateShader(WindowContext ct)
     {
+      if (!_bInitHeaders)
+      {
+        InitHeaders();
+      }
       Gu.Assert(ct != null);
       PipelineStageEnum stage = ct.Renderer.CurrentStage.PipelineStageEnum;
       var dict = GetDataForContext(ct);
@@ -1344,20 +1736,19 @@ namespace PirateCraft
       ContextShader? shader = null;
       if (!dict.TryGetValue(stage, out shader))
       {
-        shader = new ContextShader(Name, ct, _vs, _fs, _gs);
+        shader = CreateNewShaderForContextPipe(ct, stage);
         dict.Add(stage, shader);
       }
-      Gu.Assert(shader.PipelineStage == stage);
+      Gu.Assert(shader.PipelineStageEnum == stage);
 
       return shader;
     }
-
+    private ContextShader CreateNewShaderForContextPipe(WindowContext ct, PipelineStageEnum stage)
+    {
+      var shader = new ContextShader(Name, ct, _vsSrc, _fsSrc, _gsSrc, MaxModifyTime, stage);
+      return shader;
+    }
+    #endregion
   }
 
-  #endregion
-
-  //TODO: shaderCompiler, ShaderCache
-
-
-
-}
+}//NS Piratecraft

@@ -9,10 +9,13 @@ namespace PirateCraft
     public bool ClearTmpOnStart = true;//logs..debug..
     public bool LogErrors = true;
     public bool BreakOnOpenGLError = true;
-    public bool AlwaysCompileAndReloadGpuUniformData = true; //Don't try to optimize out modification, and always compile the structs (for debugging)
+    public bool Debug_AlwaysCompileAndReloadGpuUniformData = true; //Don't try to optimize out modification, and always compile the structs (for debugging)
+    public bool Debug_Print_Shader_Uniform_Details_Verbose = false; //So this is to be turned on for debug
+    public bool Debug_ShowPipelineClearMessage = false;
     public bool SaveFBOsEveryFrame = false;
     public bool SaveAllFBOsEveryStageOfPipeline = false;
 
+    public bool ShaderCaching = true; //cache shader binaries on disk.
     public int MaxBakedCharSize = 64;
     public int MaxFontBitmapSize = 4096;
     public bool EnableMSAA = false;
@@ -37,7 +40,7 @@ namespace PirateCraft
     }
     public void Load()
     {
-      //TODO:
+      //TODO: this is all hard coded now. We can easily load from a file if needed.
     }
   }
 }

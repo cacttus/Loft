@@ -12,7 +12,7 @@ void main(void)
 
   vec4 finalDiffuseColor = _ufGpuMaterial._vPBR_baseColor;
 
-  setOutput_Color(finalDiffuseColor *  tx_albedo);
+  setOutput_Color(finalDiffuseColor *  tx_albedo * 0.5f);
   setOutput_Pick(_vsPickOut);
   setOutput_Position(vec4(_vsVertex,1));
 }
