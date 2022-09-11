@@ -1,0 +1,77 @@
+# Note: The country code specified in the header must match.;;
+#DELIM=;
+NA;en;es
+ImagesFolder;Images Folder;Carpeta de Imagenes
+Reload;Reload;Recargar
+AddImage;Add Image;añadir imagen
+EditImage;Edit Image;Editar imagen
+CreateProject;Create Project;Crear Proyecto
+EditProject;Edit Project;Editar Proyecto
+Name;Name;Nombre
+Image;Image;Imagen
+Atlas;Atlas;Atlante
+TileSize;Tile Size;Tamaño del Szulejo
+Spacing;Spacing;Espaciado
+Margin;Margin;Margen
+AtlasParameters;Atlas Parameters;Parámetros del Atlante
+ProjectPath;Project Path;Ruta del Proyecto
+ImageLocation;Image Location;Ubicación de la Imagen
+ImageAlreadyExists;"Image '{0}' already located in /images folder; no copy performed.";Imagen '{0}' ya ubicada en la carpeta /imagenes. No copia realizada.
+AddItem;Add an item;Añadir un artículo.
+EditItem;Edit Selected Item;Editar elemento seleccionado.
+RemoveItem;Delete Selected Item;Eliminar el elemento seleccionado
+CopyItem;Copy Selected Item;Copiar el elemento seleccionado
+RefreshForm;Refresh;Refrescar
+Warning;Warning;Caución
+RecentFiles;&Recent Projects;&Proyectos Recientes
+Ok;Ok;Vale
+Cancel;Cancel;Cancelar
+File;File;Limar
+Exit;Exit;Salir
+Language;Language;Lengua
+FolderDoesNotExist;Folder does not exist.;La carpeta no existe.
+FileDoesNotExist;File does not exist.;El archivo no existe.
+Options;Options;Opciones
+View;View;Ver
+Sprites;Sprites;Duendes
+Objects;Objects;Objetos
+Layers;Layers;Capas
+Undo;Undo;Deshacer
+Redo;Redo;Rehacer
+Edit;Edit;Editar
+Tools;Tools;útiles
+Theme;Theme;Tema
+Light;Light;Ligero
+Dark;Dark;Oscuro
+English;English;Inglés
+Spanish;Spanish;Español
+Error;Error;Error
+Info;Info;Información
+New;New;Nuevo
+Open;Open;Abierto
+OpenProject;Open Project;Proyecto abierto
+CloseProject;Close Project;Cerrar proyecto
+Save;Save;Guardar
+SaveAs;Save As..;Guardar Como..
+AddEdit;Add/Edit;Añadir/Editar.
+NewProject;New Project;Nuevo Proyecto
+ProjectName;Project Name;Nombre Fel Proyecto
+SelectFolder;Select Folder;Seleccione la Carpeta
+ProjectNameIsEmpty;Project Name Cannot Be Blank.;El nombre del proyecto no puede estar en blanco.
+ProjectFolderExists;Project Directory already exists.;El directorio de proyectos ya existe.
+ConfirmOverwrite;Confirm Overwrite;Confirmar sobreescritura
+About;About;Sobre
+Help;Help;Ayuda
+PleaseCorrectTheFollowingErrors;Please correct the following errors: ;Por favor corrige los siguientes errores
+PathHasInvalidChars;Path has invalid chars;La ruta tiene caracteres inválidos
+Close;Close;Cerrar
+FormatCode;Format Code;Código de formato
+Unsaved;Unsaved;No salvos
+SaveProject;Save Project;&Guardar proyecto
+SaveProjectAs;Save Project As..;&Guardar proyecto como..
+SaveFile;Save {1};Guardar {1}
+SaveFileAs;Save {1} As..;Guardar {1} como..
+None;None;Ninguna
+LoadLastProjectFile;Load last project file;Cargar el último archivo de proyecto
+LongText;"Not many wood elves would choose to come alone to Skyrim. Captain, what should we do? He’s not on the list. Female Captain: Forget the list. He goes straight to the block. Hadvar: By your orders, Captain. I’m sorry. We’ll make sure your remains get returned to Valenwood. Follow the captain, prisoner. Dragonborn: moves to stand next to Ralof Tullius: steps up to Ulfric Ulfric Stormcloak. Some here in Helgen call you a hero, but a hero doesn’t use a power like the voice to murder his king and usurp the throne. Ulfric: growl Tullius: You started this war, flung skyrim into chaos. And now the Empire is going to put you down and restore the peace. Alduin: distant roar Hadvar: looks around What was that? Tullius: It’s nothing. Carry on. Female Captain: Yes, General Tullius! turns to priestess Give them their last rights. Priestess: As we commend your souls to Aetherius, blessings of the 8 divines upon you- Stormcloak Soldier: For the love of Talos, shut up and let's get this over with. marches forward Priestess: hesitates … as you wish. Stormcloak Soldier: Come on! I haven’t got all morning! kneels at block, looks up at Captain/Headsman … My ancestors are smiling at me, Imperials. Can you say the same?? Captain: steps on his back Headsman: beheads soldier Stormcloak";"No muchos elfos de la madera elegirían venir solos a Skyrim. Capitán, ¿qué debemos hacer? No está en la lista. Capitana: Olvídate de la lista. Va directo a la cuadra. Hadvar: Por sus órdenes, capitán. Lo siento. Nos aseguraremos de que sus restos sean devueltos a Valenwood. Siga al capitán, prisionero. Dragonborn: se mueve para pararse junto a Ralof Tullius: sube a Ulfric Ulfric Stormcloak. Algunos aquí en Helgen te llaman héroe, pero un héroe no usa un poder como la voz para asesinar a su rey y usurpar el trono. Ulfric: gruñido Tulio: Comenzaste esta guerra, arrojaste a Skyrim al caos. Y ahora el Imperio te va a deponer y va a restaurar la paz. Alduin: rugido distante Hadvar: mira a tu alrededor ¿Qué fue eso? Tulio: No es nada. Continúe. Capitana: Sí, General Tulio. se vuelve sacerdotisa Dándoles sus últimos derechos. Sacerdotisa: Mientras encomendamos sus almas a Aetherius, bendiciones de los 8 divinos sobre ustedes - Soldado de la Capa de Tormenta: Por el amor de Talos, cállense y terminemos con esto. marcha hacia adelante Sacerdotisa: vacila as como quieras. Soldado de Capa de Tormenta: ¡Vamos! ¡No tengo toda la mañana! se arrodilla ante Block, mira al Capitán / Jefe ... Mis antepasados me sonríen, Imperiales. ¿Puedes decir lo mismo?? Capitán: camina sobre su espalda Jefe: decapita al soldado Capa de tormenta";
+Foob; Foob; Foob;

@@ -42,7 +42,6 @@ namespace PirateCraft
         _shaderChangedTimer = new DeltaTimer(_checkForShaderFileChangeUpdatesTimeSeconds, ActionRepeat.Repeat, ActionState.Run);
       }
     }
-
     public List<WorldObject> LoadObjects(FileLoc loc)
     {
       //Load GLTF object
@@ -163,7 +162,7 @@ namespace PirateCraft
         }
         else //we are on disk, or, we must use the version on disk.
         {
-          string disk_path = mustUseDiskVersion ?  loc.WorkspacePath:loc.RawPath ;
+          string disk_path = mustUseDiskVersion ? loc.WorkspacePath : loc.RawPath;
 
           if (!System.IO.File.Exists(disk_path))
           {
@@ -184,8 +183,9 @@ namespace PirateCraft
 
       return data;
     }
-    public static void SaveImage(string path, Img32 image)
+    public static void SaveImage(string path, Img32 image, bool flipOpenGL)
     {
+      //flipOpenGL - in OpenGL texture origin is the bottom left of screen, setting this will flip it upright.
       var dir = Path.GetDirectoryName(path);
       if (!Directory.Exists(dir))
       {
@@ -206,6 +206,10 @@ namespace PirateCraft
             Gu.DebugBreak();
             //          img2.FlipBR(); //flip back before saving
           }
+          if (flipOpenGL)
+          {
+            img2.Flip(false, true);
+          }
 
           writer.WritePng(img2.Data, image.Width, image.Height, StbImageWriteSharp.ColorComponents.RedGreenBlueAlpha, fs);
         }
@@ -218,7 +222,7 @@ namespace PirateCraft
     }
     public static Img32 LoadImage(FileLoc loc)
     {
-      Img32 b = null;
+      Img32 img = null;
 
       loc.AssertExists();
 
@@ -249,7 +253,12 @@ namespace PirateCraft
                 // b.FlipBR();
                 Gu.DebugBreak();
               }
-              b = new Img32(loc.QualifiedPath, image.Width, image.Height, image.Data, pf);
+              //so now image name is impoartnet.. so .. 
+              //Uh..ok so qualified path .. raw path ..
+              // Qualified path is long and has  / / / \ \ \
+              // Raw.. (filename) simpler.. but POSSIBLE conflicts. Very rare though.
+              // Raw it is..
+              img = new Img32(loc.RawPath, image.Width, image.Height, image.Data, pf);
 
             }
             fs.Close();
@@ -260,10 +269,10 @@ namespace PirateCraft
       {
         Gu.Log.Error("failed to load image: ", ex);
         Gu.DebugBreak();
-        b = Img32.Default1x1_RGBA32ub(255, 0, 255, 255);
+        img = Img32.Default1x1_RGBA32ub(255, 0, 255, 255);
       }
 
-      return b;
+      return img;
     }
     public static unsafe byte[] Serialize<T>(T[] data) where T : struct
     {
@@ -300,7 +309,7 @@ namespace PirateCraft
 
       return ret;
     }
-    public static void SaveTexture(FileLoc loc, Texture2D tex, bool formatNonRGBAtoRGBA, int cubemapside = -1)
+    public static void SaveTexture(FileLoc loc, Texture2D tex, bool formatNonRGBAtoRGBA, bool flipOpenGL = true, int cubemapside = -1)
     {
       //formatNonRGBAtoRGBA - Convert things (like R32) to RGBA so we can see it.
 
@@ -354,9 +363,7 @@ namespace PirateCraft
         Gu.DebugBreak();
       }
 
-
-      img.Flip(false, true);
-      SaveImage(loc.QualifiedPath, img);
+      SaveImage(loc.QualifiedPath, img, flipOpenGL);
     }
     public static void ClearDataDir(string dir)
     {
@@ -374,7 +381,6 @@ namespace PirateCraft
         }
       }
     }
-
     public void Update(double dt)
     {
       _shaderChangedTimer.Update(dt, () =>
@@ -388,7 +394,6 @@ namespace PirateCraft
           }
         });
     }
-
 
     #endregion
     #region Private: Methods

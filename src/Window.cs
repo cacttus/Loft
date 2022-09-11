@@ -512,21 +512,21 @@ namespace PirateCraft
   public class InfoWindow : UiWindowBase
   {
     static string nl = "\n";
-    string _text = "Info Window" + nl
-    + "This is some info.. " + nl
-    + "This is some info.. " + nl
-    + "This is some info.. " + nl
-    + "This is some info.. " + nl
-    + "This is some info.. " + nl
-    + "   aa     This is some info.. " + nl
-    + "          This is some info.. " + nl
-    + "   sss   This is some info.. " + nl
-    + "          This is some info.. " + nl
-    + "    aa   This is some info.. " + nl
-    ;
+    string _text = "";
 
     private bool _textChanged = true;
-    public string Text { get { return _text; _textChanged = true; } set { _text = value; _textChanged = true; } }
+    public string Text
+    {
+      get { return _text; }
+      set
+      {
+        if (value.Equals(_text) == false)
+        {
+          _textChanged = true;
+          _text = value;
+        }
+      }
+    }
 
     public InfoWindow(ivec2 pos, ivec2 size) :
     base("Info", false, pos, size, null, WindowBorder.Resizable, true, Gu.Context.GameWindow.Context)
@@ -556,18 +556,30 @@ namespace PirateCraft
     {
       var gui = GuiBuilder.GetOrCreateSharedGuiForView("info-win", rv);
 
-      var background = new UiElement();
-      background.InlineStyle.SizeModeHeight = background.InlineStyle.SizeModeWidth = UiSizeMode.Expand;
-      background.InlineStyle.Color = new vec4(.7f, .7f, .7f, 1);
-      background.InlineStyle.PositionMode = UiPositionMode.Static;
-      gui.AddChild(background, 100);
+      //Added styles
+      var styles = GuiBuilder.GetGlobalStylesThatWeWillLaterLoadViaCSSFile(gui);
+      styles.AddRange(new List<UiStyle>() {
+        new UiStyle("lighterLabel") {
+          Color = new vec4(.8f,.8f,.8f,1),
+          SizeModeWidth = UiSizeMode.Expand,
+          SizeModeHeight = UiSizeMode.Shrink,
+          PositionMode = UiPositionMode.Static,
+          DisplayMode = UiDisplayMode.Block,
+        }
+      });
+      gui.StyleSheet.AddStyles(styles);
 
-      rv.DebugInfo = new UiLabel("debugInfo", null, "test", false, FontFace.Calibri, 25);
-      rv.DebugInfo.InlineStyle.SizeModeWidth = UiSizeMode.Expand;
-      rv.DebugInfo.InlineStyle.SizeModeHeight = UiSizeMode.Expand;
-      rv.DebugInfo.InlineStyle.FontColor = new vec4(0, 0, 0, 1);
+      var background = new UiElement(new List<string> { StyleName.Panel }, "pnlPanel");
+      gui.AddChild(background); 
 
-      gui.AddChild(rv.DebugInfo);
+      //Header
+      background.AddChild(new UiElement(new List<string> { StyleName.Label, "lighterLabel" }, "lblDebugInfoHeader", Phrase.DebugInfoHeader) );
+
+      //Debug info
+      rv.DebugInfo = new UiElement(new List<string> { StyleName.Label }, "lblDebugInfo", "N/A");
+      rv.DebugInfo.Style.SizeModeWidth = UiSizeMode.Expand;
+      rv.DebugInfo.Style.SizeModeHeight = UiSizeMode.Shrink;
+      background.AddChild(rv.DebugInfo);
 
       rv.EditGui = gui;
       rv.GameGui = gui;
@@ -724,13 +736,17 @@ namespace PirateCraft
         {
           var e = ob as UiElement;
           sb.AppendLine($"{e.GetType().ToString()}");
-          sb.AppendLine($"Props:");
-          sb.AppendLine($"{e.Props.ToString()}");
+          sb.AppendLine($"Style:");
+          sb.AppendLine($"{e.Style.ToString()}");
         }
         else
         {
           Gu.BRThrowNotImplementedException();
         }
+      }
+      else
+      {
+        sb.Append(Gu.Translator.Translate(Phrase.DebugInfoMustSelect));
       }
 
       InfoWindow.Text = sb.ToString();

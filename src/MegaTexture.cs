@@ -26,6 +26,7 @@ using OpenTK.Graphics.OpenGL4;
 
 namespace PirateCraft
 {
+
   public class MtNode
   {
     //BSP tree node
@@ -110,6 +111,7 @@ namespace PirateCraft
   public class MtTex
   {
     //Note: this class is serialized make sure to serialize all data.
+    public string Name { get; private set; } = Gu.UnsetName;
     public WeakReference<MtNode> Node { get; set; } = null;  //mega texture node
     public int ShrinkPixels { get; private set; } = 0;
     public vec2 uv0 { get; set; } = vec2.Zero;
@@ -122,10 +124,10 @@ namespace PirateCraft
     private float _fSizeRatio = 0;
     private int _iPatchImg = 0;  //0-8 for 9p, or 0-2 for 3p //Basically this is if we split an image up into "patches". Probably not being used.
 
-
     public MtTex() { }
-    public MtTex(int iPatch, int shrinkPixelBorder)
+    public MtTex(string name, int iPatch, int shrinkPixelBorder)
     {
+      Name = name;
       _iPatchImg = iPatch;
       ShrinkPixels = shrinkPixelBorder;
     }
@@ -135,11 +137,17 @@ namespace PirateCraft
     public Img32 Img() { return _pImg; }
     public void SetImg(Img32 img)
     {
+      Gu.Assert(img != null);
       _pImg = img;
-      //We don't save the img data on the CPU, so just store what we need
+      //We don't save the img data on the CPU, so store what we need to generate texture coords.
       _iHeight = img.Height;
       _iWidth = img.Width;
       _fSizeRatio = (float)_iWidth / (float)_iHeight;
+    }
+    public void ClearImg()
+    {
+      //Note: we keep the image metadata around to compute megatexture information.
+      _pImg = null;
     }
     public void FreeTmp()
     {
@@ -168,6 +176,7 @@ namespace PirateCraft
     }
     public void Serialize(BinaryWriter bw)
     {
+      bw.Write((string)Name);
       bw.Write((Int32)ShrinkPixels);
       bw.Write((vec2)uv0);
       bw.Write((vec2)uv1);
@@ -179,6 +188,7 @@ namespace PirateCraft
     }
     public void Deserialize(BinaryReader br)
     {
+      Name = br.ReadString();
       ShrinkPixels = br.ReadInt32();
       uv0 = br.ReadVec2();
       uv1 = br.ReadVec2();
@@ -188,14 +198,10 @@ namespace PirateCraft
       _fSizeRatio = br.ReadInt32();
       _iPatchImg = br.ReadInt32();
     }
-    public void SetWH(int w, int h)
-    {
-      _iWidth = w;
-      _iHeight = h;
-    }
     public MtTex Clone()
     {
       MtTex ret = new MtTex();
+      ret.Name = this.Name;
       ret.Node = null; // **uh... this no be set
       ret.ShrinkPixels = this.ShrinkPixels;
       ret.uv0 = this.uv0;
@@ -246,12 +252,6 @@ namespace PirateCraft
         Gu.DebugBreak();
       }
       return null;
-    }
-    public void AddTexImage(int iPatch, int shrinkPixelBorder = 0)
-    {
-      MtTex mt = new MtTex(iPatch, shrinkPixelBorder);
-      Gpu.CheckGpuErrorsDbg();
-      Texs.Add(mt);
     }
     public void Serialize(BinaryWriter bw)
     {
@@ -370,6 +370,7 @@ namespace PirateCraft
         if (p.Value.Contains(ext))
         {
           Loader = CreateLoaderFromType(p.Key);
+          break;
         }
       }
 
@@ -383,7 +384,13 @@ namespace PirateCraft
         Loader.LoadData();
       }
     }
-
+    public void UnloadData()
+    {
+      foreach (var t in Texs)
+      {
+        t.ClearImg();
+      }
+    }
 
   }//Mtfile
 
@@ -434,7 +441,7 @@ namespace PirateCraft
       else
       {
         Img32 img = ResourceManager.LoadImage(MtFile.FileLoc);
-        var tx = new MtTex(0, MtFile.ShrinkPixelBorder);
+        var tx = new MtTex(img.Name, 0, MtFile.ShrinkPixelBorder);
         MtFile.Texs.Add(tx);
         tx.SetImg(img);
       }
@@ -532,10 +539,12 @@ namespace PirateCraft
     }
   }//MtImageLoader
 
-  [StructLayout(LayoutKind.Sequential)]
-  public struct MtCachedCharData
+  //[StructLayout(LayoutKind.Sequential)]
+  public class MtCachedCharData
   {
     //This is a cached char that has all its information pre-computed from stb
+    public int patchTexture_Width;
+    public int patchTexture_Height;
     public int code;
     public vec2 uv0;
     public vec2 uv1;
@@ -546,8 +555,21 @@ namespace PirateCraft
     public float bot;
     public float left;
     public float right;
+
+    public void ApplyScaling(float scale, out float gtop, out float gright, out float gbot, out float gleft, out float gwidth, out float gheight)
+    {
+      //Scale this Mipmap glyph.
+      gtop = top * scale;
+      gright = right * scale;
+      gbot = bot * scale;
+      gleft = left * scale;
+      gwidth = width * scale;
+      gheight = height * scale;
+    }
     public void Serialize(BinaryWriter bw)
     {
+      bw.Write((Int32)patchTexture_Width);
+      bw.Write((Int32)patchTexture_Height);
       bw.Write((Int32)code);
       bw.Write((vec2)uv0);
       bw.Write((vec2)uv1);
@@ -561,6 +583,8 @@ namespace PirateCraft
     }
     public void Deserialize(BinaryReader br)
     {
+      patchTexture_Width = br.ReadInt32();
+      patchTexture_Height = br.ReadInt32();
       code = br.ReadInt32();
       uv0 = br.ReadVec2();
       uv1 = br.ReadVec2();
@@ -588,8 +612,12 @@ namespace PirateCraft
     public StbTrueTypeSharp.StbTrueType.stbtt_packedchar[] CharInfo = null;
     public Dictionary<int, MtCachedCharData> CachedChars = new Dictionary<int, MtCachedCharData>();
 
-    public bool GetChar(int unicode_point, float fontSize, out MtCachedCharData ccd)
+    public bool GetChar(int unicode_point, float fontSize, out MtCachedCharData ccd, out float scale)
     {
+      //Transform quad by STB scale.
+      //The STB quad is in STB scaled units to the given BakedChar size, i.e. it is not in "raw" units
+      //We must then transform it into EM 
+
       if (unicode_point < FirstChar || unicode_point >= (FirstChar + CharCount))
       {
         //char is an invalid character such as a newline.
@@ -597,18 +625,9 @@ namespace PirateCraft
         unicode_point = ' ';
       }
 
-      //Transform quad by STB scale.
-      //The STB quad is in STB scaled units to the given BakedChar size, i.e. it is not in "raw" units
-      //We must then transform it into EM 
-      float fScale = GetScaleForPixelSize(fontSize);
+      scale = GetScaleForPixelSize(fontSize);
       if (CachedChars.TryGetValue(unicode_point, out ccd))
       {
-        ccd.top *= fScale;
-        ccd.right *= fScale;
-        ccd.bot *= fScale;
-        ccd.left *= fScale;
-        ccd.width *= fScale;
-        ccd.height *= fScale;
         return true;
       }
       else
@@ -669,6 +688,53 @@ namespace PirateCraft
     }
   }//MtFontPatchInfo
 
+  public class CharacterRangeUTF8
+  {
+    //Character ranges correspond to the chars we 'try' to fit on a single texture.
+    //Han, for instance is massive, so we would split it among CharacterRanges. 
+    //Also, most of UTF8 is pointless characters.
+    public int FirstChar { get; private set; } = ' ';//en_US
+    public int CharCount { get; private set; } = 512;//en_US
+
+    public List<MtFontPatchInfo> FontPatchInfos = new List<MtFontPatchInfo>();
+
+    public CharacterRangeUTF8(int first, int count)
+    {
+      FirstChar = first;
+      CharCount = count;
+    }
+
+  }
+  //So we need to compile multiple or single char ranges into single char codes, and we have a "max count" of 
+  //packed characters that we'll allow, or, a MaxFontBitmapSize width. EngineConfig.MaxCharactersPerBitmap .. But we may not need this if MaxFontBitmapSize works well.
+  //check that stb_packeChar can separate pack ranges.
+  //
+  // Font -> Languages -> Ranges  .. Then we may need to have multiple images in the MegaTexture, and swap it if needed..
+  //
+  // Compiling ..
+  //
+  //  EN + ES - Same font range ..
+  //  RU - different font range.
+  //
+  // AND
+  //
+  //  Check that the font supports the language code (range).
+  //  This may in fact be why Entypo doesn't work with the way I've configured STB
+  //
+  public class LanguagePackUTF8
+  {
+    //по-ру́сски ISO 15924 https://www.compart.com/en/unicode/scripts/Cyrl 
+    public LanguageCode LanguageCode { get; private set; }
+    public SortedDictionary<int, CharacterRangeUTF8> CharacterRanges { get; private set; } = new SortedDictionary<int, CharacterRangeUTF8>();//Int maps to the First UTF-8 Char
+    public LanguagePackUTF8(LanguageCode c, List<CharacterRangeUTF8> ranges)
+    {
+      LanguageCode = c;
+      foreach (var x in ranges)
+      {
+        CharacterRanges.Add(x.FirstChar, x);
+      }
+    }
+  }
   public class MtFontLoader : MtLoader
   {
     //Load font
@@ -684,6 +750,17 @@ namespace PirateCraft
     private int _padding = 1; //STB - "normally you want 1 for bilinear filtering"
 
     private List<MtFontPatchInfo> _fontPatchInfos = new List<MtFontPatchInfo>();
+
+    //TODO:
+    //TODO:
+    //TODO:
+    //TODO:
+    private Dictionary<LanguageCode, LanguagePackUTF8> _loadedLanguagePacks = new Dictionary<LanguageCode, LanguagePackUTF8>();
+    //TODO:
+    //TODO:
+    //TODO:
+    //TODO:
+    //TODO:
 
     #endregion
     #region Private: Unserialized Members
@@ -703,6 +780,8 @@ namespace PirateCraft
       Gu.Log.Info("Creating New font Images '" + MtFile.FileLoc.FileName);
       try
       {
+        LoadLanguagePacks();
+
         LoadSTBFont();
 
         CreateFontImages();
@@ -726,7 +805,7 @@ namespace PirateCraft
       }
       return fKern;
     }
-    public MtFontPatchInfo SelectFontPatchInfo(float fontSize)
+    public MtFontPatchInfo SelectFontPatchInfo(LanguageCode lc, float fontSize)
     {
       //Gets the closest font patch given the input size.
       //This is similar to mipmapping, but it works in case we can't filter the texture.
@@ -742,6 +821,7 @@ namespace PirateCraft
       {
         return null;
       }
+      //Find the font patch info (MipMap)that is closest to the requested Font Size
       MtFontPatchInfo last = _fontPatchInfos[0];
       if (fontSize >= last.BakedCharSize)
       {
@@ -854,7 +934,27 @@ namespace PirateCraft
         _descent = descent;
         _lineGap = lineGap;
       }
+    }
+    private void LoadLanguagePacks()
+    {
+      //This may not be implemented.
+      //TODO: config file here..
+      var addPack = (LanguageCode c, List<CharacterRangeUTF8> l) =>
+      {
+        _loadedLanguagePacks.Add(c, new LanguagePackUTF8(c, l));
+      };
 
+      addPack(LanguageCode.en, new List<CharacterRangeUTF8>() { new CharacterRangeUTF8(' ', 512) });
+      addPack(LanguageCode.es, new List<CharacterRangeUTF8>() { new CharacterRangeUTF8(' ', 512) });//Same as EN
+
+      if (Gu.EngineConfig.UseLang_RU)
+      {
+        addPack(LanguageCode.ru, new List<CharacterRangeUTF8>() { new CharacterRangeUTF8(0x400, 0xFE2F - 0x400) });
+      }
+      if (Gu.EngineConfig.UseLang_ZH)
+      {
+        addPack(LanguageCode.zh, new List<CharacterRangeUTF8>() { new CharacterRangeUTF8(0x4E00, 0x62FF - 0x4E00) });//0x9FFF is the whole range, that's a lot
+      }
     }
     private void CreateFontImages()
     {
@@ -865,7 +965,7 @@ namespace PirateCraft
       int charsize = Gu.EngineConfig.MaxBakedCharSize;
       int charPadding = _padding;
 
-      for (int i = 0; i < 96; i++)//96=arbitrary to prevent inf loop
+      for (int iTex = 0; iTex < Gu.c_intMaxWhileTrueLoopSmall; iTex++)
       {
         int imageWidth = xchar * (charsize + charPadding * 2);
         int imageHeight = xchar * (charsize + charPadding * 2);
@@ -888,8 +988,8 @@ namespace PirateCraft
           if (Gu.EngineConfig.SaveSTBFontImage)
           {
             Gu.Log.Debug("Saving font...");
-            string nmapname_dbg = System.IO.Path.Combine(Gu.LocalTmpPath, Gu.Context.Name + " mt_" + MtFile.FileLoc.FileName + "_font_" + i + ".png");
-            ResourceManager.SaveImage(nmapname_dbg, img);
+            string nmapname_dbg = System.IO.Path.Combine(Gu.LocalTmpPath, Gu.Context.Name + " mt_" + MtFile.FileLoc.FileName + "_font_" + iTex + ".png");
+            ResourceManager.SaveImage(nmapname_dbg, img, false);
           }
           MtTex mt = new MtTex();
           mt.SetImg(img);
@@ -901,7 +1001,7 @@ namespace PirateCraft
           f.TextureWidth = imageWidth;
           f.TextureHeight = usedHeight;
           f.CharInfo = charInfo;
-          f.TextureIndex = i;
+          f.TextureIndex = iTex;
           f.FirstChar = _firstChar;
           f.CharCount = _charCount;
           _fontPatchInfos.Add(f);
@@ -1068,6 +1168,8 @@ namespace PirateCraft
         ccd.top = stbQuad.y0;
         ccd.right = stbQuad.x1;
         ccd.bot = stbQuad.y1;
+        ccd.patchTexture_Height = patchInfo.TextureHeight;
+        ccd.patchTexture_Width = patchInfo.TextureWidth;
 
         patchInfo.CachedChars.Add(cCode, ccd);
       }
@@ -1118,19 +1220,13 @@ namespace PirateCraft
   public class MegaTex
   {
     #region Enums
+
     public enum MegaTexCompileState
     {
       NotCompiled,
       Dirty,
       Compiling,
       Compiled
-    }
-    public class CompiledTextures
-    {
-      public Texture2D Albedo = null;
-      public Texture2D Normal = null;
-      public Img32 AlbedoImg = null;
-      public Img32 NormalImg = null;
     }
     public enum MtClearColor
     {
@@ -1145,65 +1241,55 @@ namespace PirateCraft
     public MtTex DefaultPixel = null;
     public string Name { get; private set; } = "";
     public static string GenExtension = ".mtgen";
-    public List<MtFile> Files { get; private set; } = new List<MtFile>();//We need an ordered list for the disk cache
-    //Keep a separate LUT to FileLoc, this is bc we call GetFont() a BOO BOO number of times which requires a fast LUT
-
+    public List<MtFile> Files { get; private set; } = new List<MtFile>();//We need an ordered list for the disk cache. Keep a separate LUT to FileLoc, this is bc we call GetFont() a BOO BOO number of times which requires a fast LUT
     #endregion
     #region Private Members
-
+    private const string c_strDefaultPixelName = "MegaTexDefaultPixel";
     private int _iStartWH = 256;//Image start size (minimum size) pixels
     private int _iGrowWH = 128;//Amount to grow the image as we keep plopping (pixels)
     private MtNode _pRoot = null;
     private MegaTexCompileState _eState = MegaTexCompileState.NotCompiled;
-    //private bool _bCache = false;
-    private static UInt64 genId = 0;
+    private UInt64 _genId = 0;
+    private string _albedoLocStr = "";
+    private string _normLocStr = "";
+    private Dictionary<FileLoc, MtFile> _locToFileCache = new Dictionary<FileLoc, MtFile>(new FileLoc.EqualityComparer());//Faster LUT than Files<>, however we need Files<> for maintaining sequence.
+
     private MtClearColor _clearColor = MtClearColor.BlackNoAlpha;
     private bool _generateMipmaps = false;
     private TexFilter _texFilter = TexFilter.Nearest;
     private bool _hasNormalMap = false;
-    private string _albedoLocStr = "";
-    private string _normLocStr = "";
-    private Dictionary<FileLoc, MtFile> _cached = new Dictionary<FileLoc, MtFile>(new FileLoc.EqualityComparer());
+    private int _defaultPixelSize = 0;
 
     #endregion
     #region Public: Methods
 
     public MegaTex(string name, bool bCache, MtClearColor clearColor = MtClearColor.BlackNoAlpha, bool mipmaps = false, TexFilter filter = TexFilter.Nearest, bool createNormalMap = false, int defaultPixelSize = 3)
     {
+      this.Name = name;
       this._hasNormalMap = createNormalMap;
       this._clearColor = clearColor;
       this._generateMipmaps = mipmaps;
       this._texFilter = filter;
-      this._hasNormalMap = createNormalMap;
-      this.Name = name;
-      this._albedoLocStr = System.IO.Path.Combine(Gu.LocalCachePath, Gu.Context.Name + "-mt-" + Name + "_albedo.png");
-      this._normLocStr = System.IO.Path.Combine(Gu.LocalCachePath, Gu.Context.Name + "-mt-" + Name + "_normal.png");
+      this._albedoLocStr = MakeSaveTextureName(Gu.LocalCachePath, "albedo");
+      this._normLocStr = MakeSaveTextureName(Gu.LocalCachePath, "normal");
 
       //@param defaultPixelSize - Add a default white region for rendering solid colors. 0=disable.
       // _bCache = bCache;
+      _defaultPixelSize = defaultPixelSize;
       if (defaultPixelSize > 0)
       {
         //Note: Default region will get skewed if texture filtering is enabled.
         var pixelBytes = Enumerable.Repeat((byte)255, defaultPixelSize * defaultPixelSize * 4).ToArray();
-        var dpImage = new Img32("MegaTexDefaultPixel", defaultPixelSize, defaultPixelSize, pixelBytes, Img32.ImagePixelFormat.RGBA32ub);
+        var dpImage = new Img32(c_strDefaultPixelName, defaultPixelSize, defaultPixelSize, pixelBytes, Img32.ImagePixelFormat.RGBA32ub);
         var tp = AddResource(dpImage, 1);
-        DefaultPixel = tp.Texs[0];
       }
-    }
-
-    public void AddResources(List<FileLoc> resources)
-    {
-      foreach (var fl in resources)
-      {
-        AddResource(fl);
-      }
-      _eState = MegaTexCompileState.Dirty;
     }
     public MtFile AddResource(Img32 tx, int shrinkPixelBorder = 0)
     {
-      string genName = $"|{tx.Name}-gen-{genId++}{MegaTex.GenExtension}";
+      //Add a generated, or custom resource (not from a file)
+      string genName = $"|{tx.Name}-gen-{_genId++}{MegaTex.GenExtension}";
       MtFile p = AddResource(new FileLoc(genName, FileStorage.Generated), 1, shrinkPixelBorder);
-      MtTex tt = new MtTex(0, shrinkPixelBorder);
+      MtTex tt = new MtTex(genName, 0, shrinkPixelBorder);
       tt.SetImg(tx);
       //Criticla - compute hash for generated images. 
       tt.ComputeImageHash();
@@ -1213,21 +1299,33 @@ namespace PirateCraft
     }
     public MtFile AddResource(FileLoc loc, int nPatches = 1, int shrinkPixelBorder = 0)
     {
+      //Add a file resource
       Gu.Assert(nPatches > 0);
+      Gu.Assert(loc != null);
 
       MtFile? ret = null;
-      _cached.TryGetValue(loc, out ret);
+      _locToFileCache.TryGetValue(loc, out ret);
       if (ret == null)
       {
         ret = new MtFile(loc, nPatches, shrinkPixelBorder);
         Files.Add(ret);
-        _cached.Add(ret.FileLoc, ret);
+        _locToFileCache.Add(ret.FileLoc, ret);
       }
       return ret;
     }
+    public void AddResources(List<FileLoc> resources)
+    {
+      Gu.Assert(resources != null);
+      foreach (var fl in resources)
+      {
+        AddResource(fl);
+      }
+      _eState = MegaTexCompileState.Dirty;
+    }
     public MtFontLoader GetFont(FontFace fontLoc)
     {
-      if (_cached.TryGetValue(fontLoc, out var ret))
+      Gu.Assert(fontLoc != null);
+      if (_locToFileCache.TryGetValue(fontLoc, out var ret))
       {
         if (ret.Loader is MtFontLoader)
         {
@@ -1236,53 +1334,69 @@ namespace PirateCraft
       }
       return null;
     }
-    public CompiledTextures Compile()
+    public PBRTextureArray Compile()
     {
       _eState = MegaTexCompileState.Compiling;
 
       //Cached image names
 
-
-
       //Adding cache because this MFER takes forever to do
-      CompiledTextures output = null;
+      PBRTextureArray output = null;
 
       //Compiling megatex can be a long process, and it's going to get much longer as this (or any) app gets developed.
       //Caching is really necessary to make debugging faster.
-      string out_albedo, out_normal;
       var cacheFile = this.GetCacheFileName();
-      bool changed = CheckCacheFile(out out_albedo, out out_normal) != "";
+      bool changed = CheckCacheFile() != "";
       if (changed)
       {
         output = RedoCompile();
         //[CONTEXT]_mt_[MEGATEX]_[albedo|normal].png
-        ResourceManager.SaveImage(_albedoLocStr, output.AlbedoImg);
+        ResourceManager.SaveImage(_albedoLocStr, output.AlbedoImage, false);
+        //Save to /tmp to see it upright
+        ResourceManager.SaveImage(MakeSaveTextureName(Gu.LocalTmpPath, "albedo"), output.AlbedoImage, false);
         if (this._hasNormalMap)
         {
-          ResourceManager.SaveImage(_normLocStr, output.NormalImg);
+          ResourceManager.SaveImage(_normLocStr, output.NormalImage, false);
+          ResourceManager.SaveImage(MakeSaveTextureName(Gu.LocalTmpPath, "normal"), output.NormalImage, false);
         }
         SaveCacheFile();
       }
       else
       {
-        //Load the images . . . .
-        output = new CompiledTextures();
+        //Load the cached and compiled megatexture Images
+        output = new PBRTextureArray(this.Name + "-pbrtexturearray");
         var alb = new FileLoc(_albedoLocStr, FileStorage.Disk);
         var norm = new FileLoc(_normLocStr, FileStorage.Disk);
-        output.AlbedoImg = ResourceManager.LoadImage(alb);//alb, this.mipmaps, this.filter
-        output.Albedo = new Texture2D(output.AlbedoImg, this._generateMipmaps, this._texFilter);
+
+        //These MUST exist, or else CheckCacheFile has a bug.
+        Gu.Assert(alb.Exists);
+        Gu.Assert(!_hasNormalMap || (_hasNormalMap && norm.Exists));
+
+        var albedo = ResourceManager.LoadImage(alb);
+        output.CreateTexture(PBRTextureType.Albedo, albedo, this._generateMipmaps, this._texFilter, true);
         if (this._hasNormalMap)
         {
           if (!norm.Exists)
           {
-            CreateNormalMapForOuptut(output);
+            output.CreateNormalMap(_generateMipmaps, _texFilter, false);
           }
           else
           {
-            output.Normal = Gu.Resources.LoadTexture(norm, this._generateMipmaps, this._texFilter);
+            var normal = ResourceManager.LoadImage(norm);
+            output.CreateTexture(PBRTextureType.Normal, normal, this._generateMipmaps, this._texFilter, true);
           }
         }
       }
+      //Find the default pixel. We dot his because.. well, we cache it, load it, etc.
+      FindNeededTexturesByNameAfterLoad();
+
+      //Delete the loaded images...
+      foreach (var f in Files)
+      {
+        f.UnloadData();
+      }
+      //Clean up the massive amount of unloaded image data.
+      GC.Collect();
 
       _eState = MegaTexCompileState.Compiled;
 
@@ -1313,9 +1427,9 @@ namespace PirateCraft
 
       return vecTexs;
     }
-    private CompiledTextures RedoCompile()
+    private PBRTextureArray RedoCompile()
     {
-      CompiledTextures output = new CompiledTextures();
+      PBRTextureArray output = new PBRTextureArray(this.Name + "-pbrtexturearray");
 
       Gu.Log.Debug("Compiling Mega Tex,'" + this.Name + "', " + Files.Count + " images.");
 
@@ -1469,9 +1583,12 @@ namespace PirateCraft
       if (master_albedo != null)
       {
         Gu.Log.Debug("..Creating Albedo Map.");
-        output.AlbedoImg = master_albedo;
-        output.Albedo = new Texture2D(output.AlbedoImg, this._generateMipmaps, this._texFilter);
-        CreateNormalMapForOuptut(output);
+
+        output.CreateTexture(PBRTextureType.Albedo, master_albedo, this._generateMipmaps, this._texFilter, true);
+        if (_hasNormalMap)
+        {
+          output.CreateNormalMap(this._generateMipmaps, this._texFilter, false);
+        }
       }
 
       //Cache chars &c
@@ -1482,18 +1599,9 @@ namespace PirateCraft
 
       return output;
     }
-    private void CreateNormalMapForOuptut(CompiledTextures output)
+    private FileLoc GetTmpFileName()
     {
-      if (_hasNormalMap)
-      {
-        Gu.Log.Debug("..Creating Normal Map.");
-        output.NormalImg = output.AlbedoImg.CreateNormalMap();
-        output.Normal = new Texture2D(output.NormalImg, _generateMipmaps, _texFilter);
-      }
-      else
-      {
-        output.Normal = null;
-      }
+      return new FileLoc(Gu.LocalTmpPath, this.Name + ".mtcache", FileStorage.Disk);
     }
     private FileLoc GetCacheFileName()
     {
@@ -1511,13 +1619,9 @@ namespace PirateCraft
         {
           using (var bw = new BinaryWriter(stream))
           {
-            bw.Write((Int32)Files.Count);
-            foreach (var f in Files)
-            {
-              f.Serialize(bw);
-            }
-            bw.Write((string)_albedoLocStr);
-            bw.Write((string)_normLocStr);
+
+            Serialize(bw);
+
           }
         }
       }
@@ -1529,64 +1633,127 @@ namespace PirateCraft
       Gu.Log.Debug(res);
       return res;
     }
-    private string CheckCacheFile(out string out_albedo, out string out_normal)
+    private string CheckCacheFile()
     {
       //Return empty string if there were no changes to our packed file.
       //or, REturn a string telling what changed.
-      out_albedo = "";
-      out_normal = "";
-
-      Dictionary<string, MtFile> loadedResources;
-
-      // return true if we must compile.
-      var fn = GetCacheFileName();
-      Gu.Log.Debug("Loading MT cache file " + fn.QualifiedPath);
-      if (!fn.Exists)
+      try
       {
-        return YesItChanged("mtcache file does not exist.");
-      }
-      else
-      {
-        using (var stream = fn.OpenRead())
-        using (var br = new BinaryReader(stream))
+        // return true if we must compile.
+        var fn = GetCacheFileName();
+        Gu.Log.Debug("Loading MT cache file " + fn.QualifiedPath);
+        if (!fn.Exists)
         {
-          try
+          Gu.BRThrowException($"{Name}: File {fn.QualifiedPath} does not exist.");
+        }
+        else
+        {
+          using (var stream = fn.OpenRead())
+          using (var br = new BinaryReader(stream))
           {
-            int count = br.ReadInt32();
-            if (Files.Count != count)
-            {
-              return YesItChanged("New texture(s)");
-            }
-
-            //Clone files, then, set them back if it all worked.
-            List<MtFile> deserializedfiles = new List<MtFile>();
-
-            foreach (var f in Files)
-            {
-              //Deserialize the CACHED file, INTO a constructed (empty) file object
-              MtFile fnew = f.Clone();
-              fnew.Deserialize(br);
-              deserializedfiles.Add(fnew);
-            }
-            out_albedo = br.ReadString();
-            out_normal = br.ReadString();
-
-            //All good. No exceptions.. Set our files to be the deserialized.
-            Files = deserializedfiles;
-            _cached.Clear();
-            foreach (var f in Files)
-            {
-              _cached.Add(f.FileLoc, f);
-            }
+            Deserialize(br);
           }
-          catch (Exception ex)
-          {
-            return YesItChanged(ex.ToString());
-          }
-
         }
       }
+      catch (Exception ex)
+      {
+        return YesItChanged(ex.ToString());
+      }
       return "";
+    }
+    public void Serialize(BinaryWriter bw)
+    {
+      bw.Write((string)Name);
+      bw.Write((Int32)_clearColor);
+      bw.Write((bool)_generateMipmaps);
+      bw.Write((Int32)_texFilter);
+      bw.Write((bool)_hasNormalMap);
+      bw.Write((Int32)_defaultPixelSize);
+      bw.Write((Int32)_iStartWH);
+      bw.Write((Int32)_iGrowWH);
+      bw.Write((UInt64)_genId);
+
+      bw.Write((Int32)Files.Count);
+      foreach (var f in Files)
+      {
+        f.Serialize(bw);
+      }
+      bw.Write((string)_albedoLocStr);
+      bw.Write((string)_normLocStr);
+    }
+    public void Deserialize(BinaryReader br)
+    {
+      Name = br.ReadString();
+      _clearColor = (MtClearColor)br.ReadInt32();
+      _generateMipmaps = br.ReadBoolean();
+      _texFilter = (TexFilter)br.ReadInt32();
+      _hasNormalMap = br.ReadBoolean();
+      _defaultPixelSize = br.ReadInt32();
+      _iStartWH = br.ReadInt32();
+      _iGrowWH = br.ReadInt32();
+      _genId = br.ReadUInt64();
+
+      int count = br.ReadInt32();
+      if (Files.Count != count)
+      {
+        Gu.BRThrowException("New texture(s)");
+      }
+
+      //Clone files, then, set them back if it all worked.
+      List<MtFile> deserializedfiles = new List<MtFile>();
+
+      foreach (var f in Files)
+      {
+        //Deserialize the CACHED file, INTO a constructed (empty) file object
+        MtFile fnew = f.Clone();
+        fnew.Deserialize(br);
+        deserializedfiles.Add(fnew);
+      }
+      _albedoLocStr = br.ReadString();
+      _normLocStr = br.ReadString();
+
+      if (!System.IO.File.Exists(_albedoLocStr))
+      {
+        Gu.BRThrowException($"{Name} Albedo file {_albedoLocStr} does not exist.");
+      }
+      if (_hasNormalMap && !System.IO.File.Exists(_normLocStr))
+      {
+        Gu.BRThrowException($"{Name} Norm file {_normLocStr} does not exist.");
+      }
+
+      //All good. No exceptions.. Set our files to be the deserialized.
+      Files = deserializedfiles;
+      _locToFileCache.Clear();
+      foreach (var f in Files)
+      {
+        _locToFileCache.Add(f.FileLoc, f);
+      }
+    }
+    private string MakeSaveTextureName(string path, string texture_name)
+    {
+      string s = System.IO.Path.Combine(path, $"{Gu.Context.Name}-mt-{Name}-{texture_name}.png");
+      return s;
+    }
+    private void FindNeededTexturesByNameAfterLoad()
+    {
+      //Find Default Pixel.
+      if (_defaultPixelSize > 0)
+      {
+        DefaultPixel = null;
+        foreach (var f in this.Files)
+        {
+          foreach (var tx in f.Texs)
+          {
+            if (tx.Name.Contains(c_strDefaultPixelName))
+            {
+              this.DefaultPixel = tx;
+              return;
+            }
+          }
+        }
+        Gu.Assert(DefaultPixel != null);
+      }
+
     }
 
   }//MegaTex

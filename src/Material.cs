@@ -4,6 +4,81 @@ using System.Collections.Generic;
 
 namespace PirateCraft
 {
+  public enum PBRTextureType
+  {
+    Albedo,
+    Normal,
+    Metal,
+    Rough,
+    Spec,
+    Height
+  }
+
+  public class PBRTextureArray
+  {
+    //Simply, an array of textures mapped to common PBR enums for convenience.
+    public string Name { get; private set; } = Gu.UnsetName;
+
+    public Dictionary<PBRTextureType, Texture2D> Texs { get; private set; } = new Dictionary<PBRTextureType, Texture2D>();
+    public Dictionary<PBRTextureType, Img32> Imgs { get; private set; } = new Dictionary<PBRTextureType, Img32>();
+
+    public Texture2D AlbedoTexture { get { return GetTexture(PBRTextureType.Albedo); } }
+    public Texture2D NormalTexture { get { return GetTexture(PBRTextureType.Normal); } }
+    //...
+
+    public Img32 AlbedoImage { get { return GetImage(PBRTextureType.Albedo); } }
+    public Img32 NormalImage { get { return GetImage(PBRTextureType.Normal); } }
+    //...
+
+    public PBRTextureArray(string name)
+    {
+      Name = name;
+    }
+    public void CreateNormalMap(bool generateMipmaps, TexFilter texFilter, bool tryTextureAlbedoIfImageAlbedoNotFound = false)
+    {
+      //TODO: implement tryTextureAlabedo, load from GPU, then FLIP
+      Gu.Log.Debug("..Creating Normal Map.");
+      if (Imgs.TryGetValue(PBRTextureType.Albedo, out Img32 img))
+      {
+        var normal = img.CreateNormalMap();
+        Imgs.Add(PBRTextureType.Normal, normal);
+        var txNormal = new Texture2D(normal, generateMipmaps, texFilter);
+        Texs.Add(PBRTextureType.Normal, txNormal);
+      }
+      else
+      {
+        Gu.Log.Error($"{Name} Could not creat normal map, albedo image not found. ");
+      }
+    }
+    public Texture2D GetTexture(PBRTextureType tex)
+    {
+      if (Texs.TryGetValue(tex, out var tx))
+      {
+        return tx;
+      }
+      return null;
+    }
+    public Img32 GetImage(PBRTextureType tex)
+    {
+      if (Imgs.TryGetValue(tex, out var img))
+      {
+        return img;
+      }
+      return null;
+    }
+    public Texture2D CreateTexture(PBRTextureType type, Img32 img, bool generateMipmaps, TexFilter filter, bool saveImage)
+    {
+      var tx = new Texture2D(img, generateMipmaps, filter);
+      this.Texs[type] = tx;
+      if (saveImage)
+      {
+        this.Imgs[type] = img;
+      }
+      return tx;
+    }
+
+  }
+
   //Material, input to a shader & gpu state for material FBO (blending, etc)
   public class Material : DataBlock
   {
@@ -19,6 +94,7 @@ namespace PirateCraft
     public float IndexOfRefraction { get { return _indexOfRefraction; } set { _indexOfRefraction = value; SetModified(); } }
     public bool Flat { get { return _flat; } set { _flat = value; SetModified(); } }
 
+    //TODO: we can use PBRTextureARray here instead.
     public TextureInput AlbedoSlot { get { return _albedoSlot; } private set { _albedoSlot = value; SetModified(); } }
     public TextureInput NormalSlot { get { return _normalSlot; } private set { _normalSlot = value; SetModified(); } }
     public TextureInput RoughnessSlot { get { return _roughnessSlot; } private set { _roughnessSlot = value; SetModified(); } }

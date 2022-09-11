@@ -16,8 +16,11 @@ namespace PirateCraft
     // Global Utils. static Class
     #region Public: Constants
 
+    public const int c_intMaxWhileTrueLoopSmall = 1000;//dummy infinite loop blocker
     public const int c_intMaxWhileTrueLoop = 100000;//dummy infinite loop blocker
-
+    public const int c_intMaxWhileTrueLoopLONG = 100000000;//dummy infinite loop blocker
+    public const string UnsetName = "<unset>";
+    public const string CopyName = "-copy";
     #endregion
     #region Public: Static Members
 
@@ -42,6 +45,7 @@ namespace PirateCraft
     public static AudioManager Audio { get; private set; } = null;
     public static Gui2dManager Gui2dManager { get; private set; } = null;
     public static FrameDataTimer GlobalTimer { get; private set; } = null;//Global frame timer, for all windows;
+    public static Translator Translator { get; private set; } = null;
 
     #endregion
     #region Private: Static Members
@@ -73,6 +77,7 @@ namespace PirateCraft
       Gu.Log.Info("CurrentDirectory =" + System.IO.Directory.GetCurrentDirectory());
 
       //Manager
+      Translator = new Translator();
       Resources = new ResourceManager();
       GlobalTimer = new FrameDataTimer();
       Audio = new AudioManager();

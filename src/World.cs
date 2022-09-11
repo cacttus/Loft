@@ -1322,8 +1322,8 @@ namespace PirateCraft
     {
       var maps = CreateAtlas();
       var s = Gu.Resources.LoadShader("v_Glob", false, FileStorage.Embedded);
-      _worldMaterial_Op = new Material("worldMaterial_Op", s, maps.Albedo, maps.Normal);
-      _worldMaterial_Tp = new Material("worldMaterial_Tp", s, maps.Albedo, maps.Normal);
+      _worldMaterial_Op = new Material("worldMaterial_Op", s, maps.AlbedoTexture, maps.NormalTexture);
+      _worldMaterial_Tp = new Material("worldMaterial_Tp", s, maps.AlbedoTexture, maps.NormalTexture);
       _worldMaterial_Tp.GpuRenderState.Blend = true;
       _worldMaterial_Tp.GpuRenderState.DepthTest = true;
       _worldMaterial_Tp.GpuRenderState.CullFace = false;
@@ -1333,18 +1333,18 @@ namespace PirateCraft
         //Create block entities
         foreach (var bt in _blockTiles)
         {
-          bt.Value.DefineEntity(maps.Albedo, maps.Normal);
+          bt.Value.DefineEntity(maps.AlbedoTexture, maps.NormalTexture);
         }
       }
 
       //Block Material
       _blockObjectMaterial = new Material("BlockObject", Gu.Resources.LoadShader("v_v3n3x2_BlockObject_Instanced", false, FileStorage.Embedded));
     }
-    private MegaTex.CompiledTextures CreateAtlas()
+    private PBRTextureArray CreateAtlas()
     {
       //Create the atlas.
       //Must be called after context is set.
-      _worldMegatex = new MegaTex("world-megatex", true, MegaTex.MtClearColor.BlackNoAlpha, true, TexFilter.Nearest, true);
+      _worldMegatex = new MegaTex("world-megatex", true, MegaTex.MtClearColor.DebugRainbow, true, TexFilter.Nearest, true);
 
       foreach (var resource in WorldStaticData.TileImages)
       {
@@ -1355,7 +1355,7 @@ namespace PirateCraft
 
       var cmp = _worldMegatex.Compile();
 
-      cmp.Albedo.SetFilter(TextureMinFilter.NearestMipmapLinear, TextureMagFilter.Nearest);
+      cmp.AlbedoTexture.SetFilter(TextureMinFilter.NearestMipmapLinear, TextureMagFilter.Nearest);
       foreach (var resource in WorldStaticData.TileImages)
       {
         foreach (var mf in _worldMegatex.Files)

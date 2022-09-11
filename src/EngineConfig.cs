@@ -16,6 +16,9 @@ namespace PirateCraft
     public bool SaveAllFBOsEveryStageOfPipeline = false;
 
     public bool ShaderCaching = true; //cache shader binaries on disk.
+    public bool UseLang_RU = true;//russian
+    public bool UseLang_ZH = true;//Mandarin
+    public int MaxCharactersPerBitmap = 2048;//may not need this, MaxFontBitmapSize seems better
     public int MaxBakedCharSize = 64;
     public int MaxFontBitmapSize = 4096;
     public bool EnableMSAA = false;

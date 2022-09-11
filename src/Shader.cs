@@ -1513,7 +1513,7 @@ namespace PirateCraft
 
     #region Public: Members
 
-    public string Name { get; private set; } = "<unset>";
+    public string Name { get; private set; } = Gu.UnsetName;
     public DateTime MaxModifyTime { get; private set; } = DateTime.MinValue;
 
     #endregion

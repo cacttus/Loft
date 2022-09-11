@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Reflection;
+using System.Text;
 
 namespace PirateCraft
 {
@@ -148,6 +149,8 @@ namespace PirateCraft
   public class FileLoc
   {
     #region Public: Members
+    private int c_newline = '\n';
+    private int c_EOF = -1;//I guess, -1 in .net
 
     /// FileLoc represents a virtual file location on disk, embed, or web
     //The name here has to be unique or it will cause conflicts.
@@ -219,9 +222,9 @@ namespace PirateCraft
     #region Public: Methods
 
     public FileLoc() { }
-    public FileLoc(string path, string filename, FileStorage storage)
+    public FileLoc(string directory, string filename, FileStorage storage)
     {
-      RawPath = System.IO.Path.Combine(path, filename);
+      RawPath = System.IO.Path.Combine(directory, filename);
       FileStorage = storage;
     }
     public FileLoc(string path, FileStorage storage)
@@ -291,6 +294,90 @@ namespace PirateCraft
         Gu.BRThrowNotImplementedException();
       }
       return null;
+    }
+    private int CountStreamChars(StreamReader s, List<int> chars)
+    {
+      Gu.Assert(chars != null);
+      Gu.Assert(chars.Count > 0);
+      //Count all characters in stream from beginning of stream.
+      long p = s.BaseStream.Position;
+      int count = 1;
+
+      s.BaseStream.Position = 0;//Seek(0, SeekOrigin.Begin);
+      s.DiscardBufferedData();
+
+      int symbol = s.Peek();
+      while (symbol != c_EOF)
+      {
+        symbol = s.Read();
+        foreach (var n in chars)
+        {
+          if (symbol == n)
+          {
+            count++;
+          }
+        }
+      }
+
+      //Reset Position
+      //This is apparently what needs to be done. There's some bufering, and Seek() is problematic.
+      s.BaseStream.Position = p;
+      s.DiscardBufferedData();
+
+      return count;
+    }
+    private int ReadLine(StreamReader stream, out string ss)
+    {
+      //Read a line, return the terminating symbol.
+      StringBuilder sb = new StringBuilder();
+      int symbol = stream.Peek();
+      while (symbol != c_EOF)
+      {
+        symbol = stream.Read();
+        if (symbol == c_newline)
+        {
+          break;
+        }
+        else
+        {
+          sb.Append((char)symbol);
+        }
+      }
+      ss = sb.ToString();
+      return symbol;
+    }
+    public string[] ReadAllLines()
+    {
+      //Read all lines with the embedded file, disk file, net file .. et.
+      string[] ret = null;
+      Gu.Assert(this.Exists);
+      int lines = 0;
+      using (var s = this.OpenRead())
+      {
+        if (s != null)
+        {
+          using (var stream = new StreamReader(s))
+          {
+            lines = CountStreamChars(stream, new List<int>() { c_newline });
+
+            ret = new string[lines];
+            int nline = 0;
+            string line = "";
+            for (int xxx = 0; xxx < Gu.c_intMaxWhileTrueLoopLONG; xxx++)
+            {
+              var delim = ReadLine(stream, out line);
+              Gu.Assert(nline < lines);
+              ret[nline] = line;
+              if (delim == c_EOF)
+              {
+                break;
+              }
+              nline++;
+            }
+          }
+        }
+      }
+      return ret;
     }
     public Stream? OpenWrite()
     {
@@ -815,7 +902,7 @@ namespace PirateCraft
       Frequency = frequency_seconds;
       Repeat = repeat;
       Action = act;
-      if (start==ActionState.Run)
+      if (start == ActionState.Run)
       {
         Start();
       }
@@ -854,6 +941,7 @@ namespace PirateCraft
       d.State = this.State;
       d.Action = this.Action;
       d.Repeat = this.Repeat;
+      
       return d;
     }
   }

@@ -7,6 +7,97 @@ using System.Text;
 
 namespace PirateCraft
 {
+  public class GpuDataPtr
+  {
+    //these could be one class
+    //Sizing information from GPU data, and object pointer destined for gpu
+    private bool _locked = false;
+    private GCHandle pinnedArray;
+    private object _pt;
+
+    public int ItemSizeBytes { get; private set; } = 0;
+    public int Count { get; private set; } = 0;
+
+    public static GpuDataPtr GetGpuDataPtr<T>(T[] data)
+    {
+      //takes an array of vertexes and marshals them for copying to the GPU
+      GpuDataPtr p = null;
+      if (data.Length == 0)
+      {
+        p = new GpuDataPtr(0, data.Length, data);
+      }
+      else
+      {
+        var size = Marshal.SizeOf(data[0]);
+        p = new GpuDataPtr(size, data.Length, data);
+      }
+      return p;
+    }
+
+    public GpuDataPtr(int itemSize, int count, object pt)
+    {
+      ItemSizeBytes = itemSize;
+      Count = count;
+      _pt = pt;
+    }
+    public IntPtr Lock()
+    {
+      _locked = true;
+      pinnedArray = GCHandle.Alloc(_pt, GCHandleType.Pinned);
+      return pinnedArray.AddrOfPinnedObject();
+    }
+    public void Unlock()
+    {
+      pinnedArray.Free();
+      _locked = false;
+    }
+    ~GpuDataPtr()
+    {
+      if (_locked)
+      {
+        Gu.Log.Error("GpuDataPtr unmanaged handle wasn't freed. Must call Unlock().");
+        Gu.DebugBreak();
+      }
+    }
+  }
+  public class GpuDataArray
+  {
+    //Raw byte data from or to the GPU, with sizing information.
+    private bool _locked = false;
+    private GCHandle pinnedArray;
+
+    public byte[] Bytes { get; private set; } = null; // Managed Array
+
+    public int ItemSizeBytes { get; private set; } = 0;
+    public int Count { get; private set; } = 0;
+
+    public GpuDataArray(int itemSize, int count, byte[] pt)
+    {
+      ItemSizeBytes = itemSize;
+      Count = count;
+      Bytes = pt;
+    }
+    public IntPtr Lock()
+    {
+      _locked = true;
+      pinnedArray = GCHandle.Alloc(Bytes, GCHandleType.Pinned);
+      return pinnedArray.AddrOfPinnedObject();
+    }
+    public void Unlock()
+    {
+      pinnedArray.Free();
+      _locked = false;
+    }
+    ~GpuDataArray()
+    {
+      if (_locked)
+      {
+        Gu.Log.Error("Gpu Data array unmanaged handle wasn't freed. Must call Unlock().");
+        Gu.DebugBreak();
+      }
+    }
+  }
+
   public class GpuRenderState
   {
     //State switches to prevent unnecessary gpu context changes.
@@ -115,6 +206,7 @@ namespace PirateCraft
       }
     }
   }
+
   public class GPULog
   {
     bool _bPrintingGPULog = false;
@@ -534,7 +626,6 @@ namespace PirateCraft
 
   }
 
-  //This instance must be per-context.
   public class Gpu
   {
     private Dictionary<WindowContext, List<Action<WindowContext>>> RenderThreadActions = new Dictionary<WindowContext, List<Action<WindowContext>>>();
@@ -560,21 +651,6 @@ namespace PirateCraft
       GL.GetInteger(GetPName.ActiveTexture, out tex_unit);
       return (TextureUnit)tex_unit;
     }
-    public static GpuDataPtr GetGpuDataPtr<T>(T[] data)
-    {
-      //takes an array of vertexes and marshals them for copying to the GPU
-      GpuDataPtr p = null;
-      if (data.Length == 0)
-      {
-        p = new GpuDataPtr(0, data.Length, data);
-      }
-      else
-      {
-        var size = Marshal.SizeOf(data[0]);
-        p = new GpuDataPtr(size, data.Length, data);
-      }
-      return p;
-    }
     public static unsafe T ByteArrayToStructure<T>(byte[] bytes) where T : struct
     {
       //TODO:Duplicate REsourceManager.Serialize / Deserialize is essentially the same thing.
@@ -583,23 +659,23 @@ namespace PirateCraft
         return (T)Marshal.PtrToStructure((IntPtr)ptr, typeof(T));
       }
     }
-    public static GpuDataArray SerializeGpuData<T>(T[] data) where T : struct
-    {
-      //TODO:Duplicate REsourceManager.Serialize / Deserialize is essentially the same thing.
-      var size = Marshal.SizeOf(data[0]);
+    // public static GpuDataArray SerializeGpuData<T>(T[] data) where T : struct
+    // {
+    //   //TODO:Duplicate REsourceManager.Serialize / Deserialize is essentially the same thing.
+    //   var size = Marshal.SizeOf(data[0]);
 
-      var bytes = new byte[size * data.Length];
-      var ptr = Marshal.AllocHGlobal(size);
-      for (int di = 0; di < data.Length; di++)
-      {
-        Marshal.StructureToPtr(data[di], ptr, false);
-        Marshal.Copy(ptr, bytes, di * size, size);
-      }
-      Marshal.FreeHGlobal(ptr);
-      GpuDataArray arr = new GpuDataArray(size, data.Length, bytes);
+    //   var bytes = new byte[size * data.Length];
+    //   var ptr = Marshal.AllocHGlobal(size);
+    //   for (int di = 0; di < data.Length; di++)
+    //   {
+    //     Marshal.StructureToPtr(data[di], ptr, false);
+    //     Marshal.Copy(ptr, bytes, di * size, size);
+    //   }
+    //   Marshal.FreeHGlobal(ptr);
+    //   GpuDataArray arr = new GpuDataArray(size, data.Length, bytes);
 
-      return arr;
-    }
+    //   return arr;
+    // }
     public void Post_To_RenderThread(WindowContext wc, Action<WindowContext> a)
     {
       //This is super important for disposing Render (opengl) stuff.
@@ -885,10 +961,21 @@ namespace PirateCraft
       GL.GetObjectLabel(idt, id, 256, out length, out label);
       return label;
     }
-    public static GPUBuffer CreateBuffer<T>(string name, BufferTarget t, T[] verts)
+    public static GPUBuffer CreateBuffer<T>(string name, BufferTarget t, T[] data)
     {
+      int size = 0;
+      int length = data.Length;
+      if (data.Length == 0)
+      {
+        size = 0;
+      }
+      else
+      {
+        size = Marshal.SizeOf(data[0]);
+      }
+
       var fmt = VertexFormat.GetVertexFormat<T>();
-      GPUBuffer b = new GPUBuffer(name, fmt, t, Gpu.GetGpuDataPtr(verts));
+      GPUBuffer b = new GPUBuffer(name, fmt, t, size, length, (object)data);
       return b;
     }
     public static GPUBuffer CreateVertexBuffer<T>(string name, T[] verts)
@@ -899,11 +986,7 @@ namespace PirateCraft
     {
       return CreateBuffer(name + "-index", BufferTarget.ElementArrayBuffer, inds);
     }
-
-
-
   }//Gpu
-
 
   public class GpuDebug
   {

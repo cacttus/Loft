@@ -1,19 +1,80 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using OpenTK.Windowing.GraphicsLibraryFramework;
+using System.ComponentModel;
+
+// # API Overview
+// My guess is nobody is going to use this API (there are much better Game UI's out there). Plus, it's ingrained into this engine pretty well (MegaTexture).
+// It does work. As of writing this, a few bugs, notably, margin and border-radius do not respect the Top/Left of child elements.
+// 
+// ## Usage
+//  gui.StyleSheet.AddStyle(
+//     new UiStyle(new List<string>(){ "myinheritedclass1" , "myinheritedclass2" } , "mystyle") 
+//     {
+//        Margin = 0,
+//        Padding = 2,
+//        Color = new vec4(1,1,0,1),
+//        FontFace = FontFace.Lato,
+//        BorderRadius = 2,
+//        Border = 10,
+//        BorderColor = vec4(0,1,0,0.5f)
+//        //...
+//     }
+//  );
+//
+//  // Other styles.. 
+//
+//  var ele = new UiElement(gui.StyleSheet, new List<string>(){ "myotherstyle", "mystyle" }, "lblMyElement",  "Hello world!");// mystyle will override anything in myotherstyle
+//  gui.Add(ele)
+//
+//  var ele2 = new UiElement(gui.StyleSheet, null/*Does not use any classes*/, "lblDefault", "Default Styled Element");//default styled element
+//  ele.AddChild(ele2);
+//
+// ## Styles
+// UiStyle is a CSS style. Like CSS, UiStyle can be inherited and thus, "compiles" to a final "inline" style on each element. 
+// Elements have "inline" styles as well, like in HTML,  <div class=".." style="..."/>, style="" is the inline style.
+// UiStyle compilation is dynamic, and happens during the layout, when a value has been changed. The system then refreshes all elements that use that UiStyle.
+//    (We refresh the ENTIRE element(s) when changing ANY attribute, meaning like changing Color/Texture WILL affect position of an element. 
+//    Would be a nice optimization to fix this.)
+// 
+// Note: a few properties are different from HTML/CSS, notably:
+//   * Color: is the CSS background-color attribute, NOT text color. Colors can be semi-transparent as well using the alpha channel.
+//   * FontColor: The color of the text/font
+//   * Texture: Like background-image in CSS. Allows you to set a texture instead of a color. Images may be semi-transparent, alpha-blended or alpha masked. Note: a pixel alpha value of less than 0.01f is discarded.
+//   * ImageTiling: fill, repeat, wrap, clamp, etc.
+//   * SizeMode: allows you to expand an element to its parent, or shrink an element to its children. MaxWidth MaxHeight are important with Expand, as, without a maxWidth, child elements will epxand to the parent size (ultimately, RenderView size). 
+//        (We should also allow for Fixed width elements..)
+//   * PositionMode: is like the CSS Static, Relative or Absolute. 
+//        Static: Automatic layout; Top/Left are ignored. Width/Height
+//        Relative: Top/Left are relative to parent, Width/Height are used. 
+//        Absolute: Top/Left are relative to the RenderViewport, Width/Height are used.
+//   * OverflowMode: allows you to show or hide the contents of a child element.
+//   * DisplayMode: For PositionMode=Static elements only. Whether there is a break <br/> after the element.
+//  
+//   * Events: Mouse Down/Hover..etc.. These work, but their "inheritance" is questionable. We may end up not inheriting events.
+//
+// ## Values
+// Note: There are 2 Kinds of Values.
+// The **UiStyle** value (Get/Set ClassValue) , is nullable , and will return null if this style does not have the Prop set, for instance:
+//    div { width:200px; }
+//  is:
+//    UiStyle s = new UiStyle(<style1 style2>,"mystyle")
+//    s.Width = 200px;
+//  The **UiProp** value (Get/Set PropValue) can NEVER be null , if unset, uses the default field value:
+//     s._props.Width = 200
+//  And on UiStyle:
+//    s.Width = null
+//  will clear Width from the class, and it will INHERIT Width from a superclass, or, if there are no superclasses, it will set to the Default value for Width.
+//  So to actually use a value in the Layout algorithm, you muse use the UiStyle._prop field.
+//  In other words, UiProps stores concrete values, and cannot be null. UiStyle uses null (via the user) to signal that a property is to be inherited.
+
 namespace PirateCraft
 {
   #region Enums
 
-  public enum UiFontStyle
-  {
-    Normal,
-    Bold,
-    Italic
-  }
   public class FontFace : FileLoc
   {
     protected FontFace(FileLoc loc) : base(loc.RawPath, loc.FileStorage) { }
@@ -30,12 +91,6 @@ namespace PirateCraft
     Block,
     InlineNoWrap
   }
-  public enum UiDimUnit
-  {
-    Percent,
-    Pixel,
-    Auto /*, Initial*/
-  }
   public enum UiPositionMode
   {
     //Note: the position terminology here mirrors that of CSS. 
@@ -48,8 +103,9 @@ namespace PirateCraft
   }
   public enum UiSizeMode
   {
-    Shrink,
-    Expand,
+    Shrink, //Shrink to size of child contents, taking Max Width/Height into account
+    Expand, //Expand to parent
+    Fixed // Fixed width/height
   }
   public enum UiEventId
   {
@@ -103,244 +159,65 @@ namespace PirateCraft
     Hold,  // hover + hold
     Up   // hover + release
   }
+  public enum UiPropName
+  {
+    Top
+    , Left
+    , Width
+    , Height
+    , MinWidth
+    , MinHeight
+    , MaxWidth
+    , MaxHeight
+    , PadTop
+    , PadRight
+    , PadBot
+    , PadLeft
+    , MarginTop
+    , MarginRight
+    , MarginBot
+    , MarginLeft
+    , BorderTop
+    , BorderRight
+    , BorderBot
+    , BorderLeft
+    , BorderTopLeftRadius
+    , BorderTopRightRadius
+    , BorderBotRightRadius
+    , BorderBotLeftRadius
+    , Color
+    , BorderColor
+    , FontFace
+    , FontSize
+    , FontStyle
+    , FontColor
+    , LineHeight
+    , Texture
+    , ImageTilingX
+    , ImageTilingY
+    , DisplayMode
+    , PositionMode
+    , OverflowMode
+    , SizeModeWidth
+    , SizeModeHeight
+
+    //****
+    , MaxUiProps
+  }
+  public enum UiFontStyle
+  {
+    Normal,
+    Bold,
+    Italic
+  }
 
   #endregion
-  #region Helpers
 
   public class UiDebugDraw
   {
     public bool DisableClip = false;
     public bool ShowOverlay = false;
     public vec4 OverlayColor = new vec4(1, 0, 0, 0.5f);
-  }
-  public class UiStyleProps
-  {
-    //All styled properties of an element. Props are initially null because they are cascading. Any null property defers to its sub, or the default value.
-    public UiStyleProps()
-    {
-    }
-    public void SetDefault()
-    {
-      _texture = new UiRef<MtTex>(null);
-      _color = new vec4(1, 1, 1, 1);
-      _borderColor = new vec4(1, 1, 1, 1);
-      _fontStyle = UiFontStyle.Normal;
-      _fontColor = new vec4(0, 0, 0, 1);
-      _fontFace = new UiRef<FontFace>(FontFace.RobotoMono);
-      _imageTilingX = UiImageTiling.Expand;
-      _imageTilingY = UiImageTiling.Expand;
-      _displayMode = UiDisplayMode.Block;
-      _minWHPX = new vec2(10, 10);
-      _maxWHPX = new vec2(99999, 99999);
-      _positionMode = UiPositionMode.Static;
-      _overflowMode = UiOverflowMode.Hide;
-      _sizeModeWidth = UiSizeMode.Shrink;
-      _sizeModeHeight = UiSizeMode.Shrink;
-      _fontSize = 20;
-      _lineHeight = 1;
-      _top = 50;
-      _left = 50;
-      _width = 100;
-      _height = 100;
-      _padTop = 0;
-      _padRight = 0;
-      _padBot = 0;
-      _padLeft = 0;
-      _marTop = 0;
-      _marRight = 0;
-      _marBot = 0;
-      _marLeft = 0;
-      _borderTop = 0;
-      _borderRight = 0;
-      _borderBot = 0;
-      _borderLeft = 0;
-      _borderTopLeftRadius = 0;
-      _borderTopRightRadius = 0;
-      _borderBotRightRadius = 0;
-      _borderBotLeftRadius = 0;
-      _width = 10;
-      _height = 10;
-      _events = null;//EventId, list of action (EventId, Object)
-    }
-    public UiStyleProps Clone()
-    {
-      UiStyleProps ret = new UiStyleProps();
-
-      if (this._texture != null) { ret._texture = this._texture; }
-      if (this._color != null) { ret._color = this._color.Value; }
-      if (this._borderColor != null) { ret._borderColor = this._borderColor.Value; }
-      if (this._fontStyle != null) { ret._fontStyle = this._fontStyle.Value; }
-      if (this._fontColor != null) { ret._fontColor = this._fontColor.Value; }
-      if (this._fontFace != null) { ret._fontFace = this._fontFace; }
-      if (this._imageTilingX != null) { ret._imageTilingX = this._imageTilingX.Value; }
-      if (this._imageTilingY != null) { ret._imageTilingY = this._imageTilingY.Value; }
-      if (this._displayMode != null) { ret._displayMode = this._displayMode.Value; }
-      if (this._minWHPX != null) { ret._minWHPX = this._minWHPX.Value; }
-      if (this._maxWHPX != null) { ret._maxWHPX = this._maxWHPX.Value; }
-      if (this._positionMode != null) { ret._positionMode = this._positionMode.Value; }
-      if (this._overflowMode != null) { ret._overflowMode = this._overflowMode.Value; }
-      if (this._sizeModeWidth != null) { ret._sizeModeWidth = this._sizeModeWidth.Value; }
-      if (this._sizeModeHeight != null) { ret._sizeModeHeight = this._sizeModeHeight.Value; }
-      if (this._fontSize != null) { ret._fontSize = this._fontSize.Value; }
-      if (this._lineHeight != null) { ret._lineHeight = this._lineHeight.Value; }
-      if (this._top != null) { ret._top = this._top.Value; }
-      if (this._left != null) { ret._left = this._left.Value; }
-      if (this._width != null) { ret._width = this._width.Value; }
-      if (this._height != null) { ret._height = this._height.Value; }
-      if (this._padTop != null) { ret._padTop = this._padTop.Value; }
-      if (this._padRight != null) { ret._padRight = this._padRight.Value; }
-      if (this._padBot != null) { ret._padBot = this._padBot.Value; }
-      if (this._padLeft != null) { ret._padLeft = this._padLeft.Value; }
-      if (this._marTop != null) { ret._marTop = this._marTop.Value; }
-      if (this._marRight != null) { ret._marRight = this._marRight.Value; }
-      if (this._marBot != null) { ret._marBot = this._marBot.Value; }
-      if (this._marLeft != null) { ret._marLeft = this._marLeft.Value; }
-      if (this._borderTop != null) { ret._borderTop = this._borderTop.Value; }
-      if (this._borderRight != null) { ret._borderRight = this._borderRight.Value; }
-      if (this._borderBot != null) { ret._borderBot = this._borderBot.Value; }
-      if (this._borderLeft != null) { ret._borderLeft = this._borderLeft.Value; }
-      if (this._events != null) { ret._events = this._events; }
-      if (this._borderTopLeftRadius != null) { ret._borderTopLeftRadius = this._borderTopLeftRadius; }
-      if (this._borderTopRightRadius != null) { ret._borderTopRightRadius = this._borderTopRightRadius; }
-      if (this._borderBotRightRadius != null) { ret._borderBotRightRadius = this._borderBotRightRadius; }
-      if (this._borderBotLeftRadius != null) { ret._borderBotLeftRadius = this._borderBotLeftRadius; }
-      if (this._width != null) { ret._width = this._width; }
-      if (this._height != null) { ret._height = this._height; }
-
-      return ret;
-    }
-    public void ApplySubclass(UiStyleProps sub)
-    {
-      Gu.Assert(sub != null);
-
-      if (sub._texture != null) { this._texture = sub._texture; }
-      if (sub._color != null) { this._color = sub._color; }
-      if (sub._borderColor != null) { this._borderColor = sub._borderColor; }
-      if (sub._fontStyle != null) { this._fontStyle = sub._fontStyle; }
-      if (sub._fontColor != null) { this._fontColor = sub._fontColor; }
-      if (sub._fontFace != null) { this._fontFace = sub._fontFace; }
-      if (sub._imageTilingX != null) { this._imageTilingX = sub._imageTilingX; }
-      if (sub._imageTilingY != null) { this._imageTilingY = sub._imageTilingY; }
-      if (sub._displayMode != null) { this._displayMode = sub._displayMode; }
-      if (sub._minWHPX != null) { this._minWHPX = sub._minWHPX; }
-      if (sub._maxWHPX != null) { this._maxWHPX = sub._maxWHPX; }
-      if (sub._positionMode != null) { this._positionMode = sub._positionMode; }
-      if (sub._overflowMode != null) { this._overflowMode = sub._overflowMode; }
-      if (sub._sizeModeWidth != null) { this._sizeModeWidth = sub._sizeModeWidth; }
-      if (sub._sizeModeHeight != null) { this._sizeModeHeight = sub._sizeModeHeight; }
-      if (sub._fontSize != null) { this._fontSize = sub._fontSize; }
-      if (sub._lineHeight != null) { this._lineHeight = sub._lineHeight; }
-      if (sub._top != null) { this._top = sub._top; }
-      if (sub._left != null) { this._left = sub._left; }
-      if (sub._width != null) { this._width = sub._width; }
-      if (sub._height != null) { this._height = sub._height; }
-      if (sub._padTop != null) { this._padTop = sub._padTop; }
-      if (sub._padRight != null) { this._padRight = sub._padRight; }
-      if (sub._padBot != null) { this._padBot = sub._padBot; }
-      if (sub._padLeft != null) { this._padLeft = sub._padLeft; }
-      if (sub._marTop != null) { this._marTop = sub._marTop; }
-      if (sub._marRight != null) { this._marRight = sub._marRight; }
-      if (sub._marBot != null) { this._marBot = sub._marBot; }
-      if (sub._marLeft != null) { this._marLeft = sub._marLeft; }
-      if (sub._borderTop != null) { this._borderTop = sub._borderTop; }
-      if (sub._borderRight != null) { this._borderRight = sub._borderRight; }
-      if (sub._borderBot != null) { this._borderBot = sub._borderBot; }
-      if (sub._borderLeft != null) { this._borderLeft = sub._borderLeft; }
-      if (sub._events != null) { this._events = sub._events; }
-      if (sub._borderTopLeftRadius != null) { this._borderTopLeftRadius = sub._borderTopLeftRadius; }
-      if (sub._borderTopRightRadius != null) { this._borderTopRightRadius = sub._borderTopRightRadius; }
-      if (sub._borderBotRightRadius != null) { this._borderBotRightRadius = sub._borderBotRightRadius; }
-      if (sub._borderBotLeftRadius != null) { this._borderBotLeftRadius = sub._borderBotLeftRadius; }
-      if (sub._width != null) { this._width = sub._width; }
-      if (sub._height != null) { this._height = sub._height; }
-    }
-
-    public UiRef<MtTex> _texture = null;
-    public vec4? _color = null;
-    public vec4? _borderColor = null;
-    public UiFontStyle? _fontStyle = null;
-    public vec4? _fontColor = null;
-    public UiRef<FontFace> _fontFace = null;
-    public UiImageTiling? _imageTilingX = null;
-    public UiImageTiling? _imageTilingY = null;
-    public UiDisplayMode? _displayMode = null;
-    public vec2? _minWHPX = null;
-    public vec2? _maxWHPX = null;
-    public UiPositionMode? _positionMode = null;
-    public UiOverflowMode? _overflowMode = null;
-    public UiSizeMode? _sizeModeWidth = null;
-    public UiSizeMode? _sizeModeHeight = null;
-    public float? _fontSize = null;
-    public float? _lineHeight = null;
-    public float? _top = null;
-    public float? _left = null;
-    public float? _right { get { return _left + _width; } }
-    public float? _bottom { get { return _top + _height; } }
-    public float? _width = null;
-    public float? _height = null;
-    public float? _padTop = null;
-    public float? _padRight = null;
-    public float? _padBot = null;
-    public float? _padLeft = null;
-    public float? _marTop = null;
-    public float? _marRight = null;
-    public float? _marBot = null;
-    public float? _marLeft = null;
-    public float? _borderTop = null;
-    public float? _borderRight = null;
-    public float? _borderBot = null;
-    public float? _borderLeft = null;
-    public float? _borderTopLeftRadius = null;
-    public float? _borderTopRightRadius = null;
-    public float? _borderBotRightRadius = null;
-    public float? _borderBotLeftRadius = null;
-    public UiRef<Dictionary<UiEventId, MultiMap<string, Action<UiEventId, UiElement, PCMouse>>>> _events = null;
-
-    public new string ToString()
-    {
-      StringBuilder sb = new StringBuilder();
-      sb.AppendLine($"_texture                {this._texture.ToString()}");
-      sb.AppendLine($"_color                  {this._color.ToString()}");
-      sb.AppendLine($"_borderColor            {this._borderColor.ToString()}");
-      sb.AppendLine($"_fontStyle              {this._fontStyle.ToString()}");
-      sb.AppendLine($"_fontColor              {this._fontColor.ToString()}");
-      sb.AppendLine($"_fontFace               {this._fontFace.ToString()}");
-      sb.AppendLine($"_imageTilingX           {this._imageTilingX.ToString()}");
-      sb.AppendLine($"_imageTilingY           {this._imageTilingY.ToString()}");
-      sb.AppendLine($"_displayMode            {this._displayMode.ToString()}");
-      sb.AppendLine($"_minWHPX                {this._minWHPX.ToString()}");
-      sb.AppendLine($"_maxWHPX                {this._maxWHPX.ToString()}");
-      sb.AppendLine($"_positionMode           {this._positionMode.ToString()}");
-      sb.AppendLine($"_overflowMode           {this._overflowMode.ToString()}");
-      sb.AppendLine($"_sizeModeWidth          {this._sizeModeWidth.ToString()}");
-      sb.AppendLine($"_sizeModeHeight         {this._sizeModeHeight.ToString()}");
-      sb.AppendLine($"_fontSize               {this._fontSize.ToString()}");
-      sb.AppendLine($"_lineHeight             {this._lineHeight.ToString()}");
-      sb.AppendLine($"_top                    {this._top.ToString()}");
-      sb.AppendLine($"_left                   {this._left.ToString()}");
-      sb.AppendLine($"_width                  {this._width.ToString()}");
-      sb.AppendLine($"_height                 {this._height.ToString()}");
-      sb.AppendLine($"_padTop                 {this._padTop.ToString()}");
-      sb.AppendLine($"_padRight               {this._padRight.ToString()}");
-      sb.AppendLine($"_padBot                 {this._padBot.ToString()}");
-      sb.AppendLine($"_padLeft                {this._padLeft.ToString()}");
-      sb.AppendLine($"_marTop                 {this._marTop.ToString()}");
-      sb.AppendLine($"_marRight               {this._marRight.ToString()}");
-      sb.AppendLine($"_marBot                 {this._marBot.ToString()}");
-      sb.AppendLine($"_marLeft                {this._marLeft.ToString()}");
-      sb.AppendLine($"_borderTop              {this._borderTop.ToString()}");
-      sb.AppendLine($"_borderRight            {this._borderRight.ToString()}");
-      sb.AppendLine($"_borderBot              {this._borderBot.ToString()}");
-      sb.AppendLine($"_borderLeft             {this._borderLeft.ToString()}");
-      sb.AppendLine($"_events                 {this._events.ToString()}");
-      sb.AppendLine($"_borderTopLeftRadius    {this._borderTopLeftRadius.ToString()}");
-      sb.AppendLine($"_borderTopRightRadius   {this._borderTopRightRadius.ToString()}");
-      sb.AppendLine($"_borderBotRightRadius   {this._borderBotRightRadius.ToString()}");
-      sb.AppendLine($"_borderBotLeftRadius    {this._borderBotLeftRadius.ToString()}");
-      sb.AppendLine($"_width                  {this._width.ToString()}");
-      sb.AppendLine($"_height                 {this._height.ToString()}");
-      return sb.ToString();
-    }
   }
   public class UiDragInfo
   {
@@ -402,11 +279,667 @@ namespace PirateCraft
 
     }
   }
+  public class UiProps
+  {
+    //All styled properties of an element. 
+    // All elements contain one properties class with all value type properties set to default (besides texture/font face, but they MUST be set).
+    //
+    public float Bottom { get { return Top + Height; } }
+    public float Right { get { return Left + Width; } }
 
-  #endregion
+    public float Top = 0;
+    public float Left = 0;
+    public float Width = 1;
+    public float Height = 1;
+    public float MinWidth = 0;
+    public float MinHeight = 0;
+    public float MaxWidth = Gui2d.MaxSize;
+    public float MaxHeight = Gui2d.MaxSize;
+    public float PadTop = 0;
+    public float PadRight = 0;
+    public float PadBot = 0;
+    public float PadLeft = 0;
+    public float MarginTop = 0;
+    public float MarginRight = 0;
+    public float MarginBot = 0;
+    public float MarginLeft = 0;
+    public float BorderTop = 0;
+    public float BorderRight = 0;
+    public float BorderBot = 0;
+    public float BorderLeft = 0;
+    public float BorderTopLeftRadius = 0;
+    public float BorderTopRightRadius = 0;
+    public float BorderBotRightRadius = 0;
+    public float BorderBotLeftRadius = 0;
+    public vec4 Color = new vec4(1, 1, 1, 1);
+    public vec4 BorderColor = new vec4(1, 1, 1, 1);
+    public PirateCraft.FontFace FontFace = PirateCraft.FontFace.RobotoMono;
+    public float FontSize = 12;
+    public UiFontStyle FontStyle = UiFontStyle.Normal;
+    public vec4 FontColor = new vec4(0, 0, 0, 1);
+    public float LineHeight = 1;
+    public MtTex Texture = null;
+    public UiImageTiling ImageTilingX = UiImageTiling.Expand;
+    public UiImageTiling ImageTilingY = UiImageTiling.Expand;
+    public UiDisplayMode DisplayMode = UiDisplayMode.Block;
+    public UiPositionMode PositionMode = UiPositionMode.Static;
+    public UiOverflowMode OverflowMode = UiOverflowMode.Hide;
+    public UiSizeMode SizeModeWidth = UiSizeMode.Expand;
+    public UiSizeMode SizeModeHeight = UiSizeMode.Expand;
 
+    //Most of this generic field junk can go away and we can manually just return the variables. My hands were huring here so..ugh
+    private static UiProps _defaults = new UiProps();//defaults are just set on the field initializer.
+    public static Dictionary<UiPropName, System.Reflection.FieldInfo> Fields { get; private set; } = null;
+
+    public UiProps()
+    {
+    }
+    public static object? Default(UiPropName p)
+    {
+      return _defaults.Get(p);
+    }
+    public object? Get(UiPropName p)
+    {
+      CreateStaticFieldInfo();
+      var fi = Fields[p];
+      var val = fi.GetValue(this);
+      return val;
+    }
+    public void Set(UiPropName p, object? value)
+    {
+      if (value == null && p != UiPropName.Texture)
+      {
+        //this is an error..props, besides texture, must never have null values.
+        Gu.DebugBreak();
+      }
+
+      CreateStaticFieldInfo();
+      var fi = Fields[p];
+      fi.SetValue(this, value);
+    }
+    public UiProps Clone()
+    {
+      UiProps ret = new UiProps();
+
+      foreach (var f in GetType().GetFields())
+      {
+        var v = f.GetValue(this);
+        if (v != null)
+        {
+          f.SetValue(ret, v);
+        }
+      }
+
+      return ret;
+    }
+    public new string ToString()
+    {
+      StringBuilder sb = new StringBuilder();
+      foreach (var f in GetType().GetFields())
+      {
+        if (f.GetValue(this) != null)
+        {
+          sb.AppendLine($"{f.Name}      {f.GetValue(this).ToString()}");
+        }
+      }
+      return sb.ToString();
+    }
+    private static void CreateStaticFieldInfo()
+    {
+      if (Fields == null)
+      {
+        Fields = new Dictionary<UiPropName, System.Reflection.FieldInfo>();
+
+        foreach (var f in typeof(UiProps).GetFields())
+        {
+          var pvals = Enum.GetValues(typeof(UiPropName));
+          foreach (var pp in pvals)
+          {
+            string a = pp.ToString();
+            string b = f.Name;
+            if (a.Equals(b))
+            {
+              Fields.Add((UiPropName)pp, f);
+              break;
+            }
+          }
+        }
+        //Make sure we got all fields.
+        for (int i = 0; i < (int)UiPropName.MaxUiProps; ++i)
+        {
+          UiPropName p = (UiPropName)i;
+          Gu.Assert(Fields.ContainsKey(p));
+        }
+      }
+    }
+  }
+  public class UiStyle
+  {
+    #region Public: Aggregate Prop Setters
+
+    public string Name { get; set; } = "";
+
+    public float? Margin
+    {
+      get { return (float?)_props.Get(UiPropName.MarginTop); }
+      set
+      {
+        MarginTop = MarginRight = MarginBot = MarginLeft = value;
+      }
+    }
+    public float? Border
+    {
+      get { return (float?)_props.Get(UiPropName.BorderTop); }
+      set
+      {
+        BorderTop = BorderRight = BorderLeft = BorderBot = value;
+      }
+    }
+    public float? BorderRadius
+    {
+      get { return (float?)_props.Get(UiPropName.BorderTopLeftRadius); }
+      set
+      {
+        BorderTopLeftRadius = BorderTopRightRadius = BorderBotRightRadius = BorderBotLeftRadius = value;
+      }
+    }
+    public float? Padding
+    {
+      get { return (float?)_props.Get(UiPropName.PadTop); }
+      set
+      {
+        PadTop = PadRight = PadBot = PadLeft = value;
+      }
+    }
+    public float? Bottom { get { return (float?)GetClassValue(UiPropName.Top) + (float?)GetClassValue(UiPropName.Height); } }
+    public float? Right { get { return (float?)GetClassValue(UiPropName.Left) + (float?)GetClassValue(UiPropName.Width); } }
+
+    public Dictionary<UiEventId, MultiMap<string, Action<UiEventId, UiElement, PCMouse>>> Events { get { return _events; } set { _events = value; } }
+
+    #endregion
+    #region Public: User Prop Setters
+
+    //Manual setters.. these will cause this style class to own this property
+    //**Note: Do not use nullable<> or ? types on class types here. This will return (null) even if the class type is set on the nullable boxer.
+    //OK so you could actually just return _props.Top .. etc here, but for now we're doing this to simplify things (as they are written)
+    public float? Top { get { return (float?)GetClassValue(UiPropName.Top); } set { SetClassValue(UiPropName.Top, (float?)value); } }
+    public float? Left { get { return (float?)GetClassValue(UiPropName.Left); } set { SetClassValue(UiPropName.Left, (float?)value); } }
+    public float? Width { get { return (float?)GetClassValue(UiPropName.Width); } set { SetClassValue(UiPropName.Width, (float?)value); } }
+    public float? Height { get { return (float?)GetClassValue(UiPropName.Height); } set { SetClassValue(UiPropName.Height, (float?)value); } }
+    public float? MinWidth { get { return (float?)GetClassValue(UiPropName.MinWidth); } set { SetClassValue(UiPropName.MinWidth, (float?)value); } }
+    public float? MinHeight { get { return (float?)GetClassValue(UiPropName.MinHeight); } set { SetClassValue(UiPropName.MinHeight, (float?)value); } }
+    public float? MaxWidth { get { return (float?)GetClassValue(UiPropName.MaxWidth); } set { SetClassValue(UiPropName.MaxWidth, (float?)value); } }
+    public float? MaxHeight { get { return (float?)GetClassValue(UiPropName.MaxHeight); } set { SetClassValue(UiPropName.MaxHeight, (float?)value); } }
+    public float? PadTop { get { return (float?)GetClassValue(UiPropName.PadTop); } set { SetClassValue(UiPropName.PadTop, (float?)value); } }
+    public float? PadRight { get { return (float?)GetClassValue(UiPropName.PadRight); } set { SetClassValue(UiPropName.PadRight, (float?)value); } }
+    public float? PadBot { get { return (float?)GetClassValue(UiPropName.PadBot); } set { SetClassValue(UiPropName.PadBot, (float?)value); } }
+    public float? PadLeft { get { return (float?)GetClassValue(UiPropName.PadLeft); } set { SetClassValue(UiPropName.PadLeft, (float?)value); } }
+    public float? MarginTop { get { return (float?)GetClassValue(UiPropName.MarginTop); } set { SetClassValue(UiPropName.MarginTop, (float?)value); } }
+    public float? MarginRight { get { return (float?)GetClassValue(UiPropName.MarginRight); } set { SetClassValue(UiPropName.MarginRight, (float?)value); } }
+    public float? MarginBot { get { return (float?)GetClassValue(UiPropName.MarginBot); } set { SetClassValue(UiPropName.MarginBot, (float?)value); } }
+    public float? MarginLeft { get { return (float?)GetClassValue(UiPropName.MarginLeft); } set { SetClassValue(UiPropName.MarginLeft, (float?)value); } }
+    public float? BorderTop { get { return (float?)GetClassValue(UiPropName.BorderTop); } set { SetClassValue(UiPropName.BorderTop, (float?)value); } }
+    public float? BorderRight { get { return (float?)GetClassValue(UiPropName.BorderRight); } set { SetClassValue(UiPropName.BorderRight, (float?)value); } }
+    public float? BorderBot { get { return (float?)GetClassValue(UiPropName.BorderBot); } set { SetClassValue(UiPropName.BorderBot, (float?)value); } }
+    public float? BorderLeft { get { return (float?)GetClassValue(UiPropName.BorderLeft); } set { SetClassValue(UiPropName.BorderLeft, (float?)value); } }
+    public float? BorderTopLeftRadius { get { return (float?)GetClassValue(UiPropName.BorderTopLeftRadius); } set { SetClassValue(UiPropName.BorderTopLeftRadius, (float?)value); } }
+    public float? BorderTopRightRadius { get { return (float?)GetClassValue(UiPropName.BorderTopRightRadius); } set { SetClassValue(UiPropName.BorderTopRightRadius, (float?)value); } }
+    public float? BorderBotRightRadius { get { return (float?)GetClassValue(UiPropName.BorderBotRightRadius); } set { SetClassValue(UiPropName.BorderBotRightRadius, (float?)value); } }
+    public float? BorderBotLeftRadius { get { return (float?)GetClassValue(UiPropName.BorderBotLeftRadius); } set { SetClassValue(UiPropName.BorderBotLeftRadius, (float?)value); } }
+    public vec4? Color { get { return (vec4?)GetClassValue(UiPropName.Color); } set { SetClassValue(UiPropName.Color, (vec4?)value); } }
+    public vec4? BorderColor { get { return (vec4?)GetClassValue(UiPropName.BorderColor); } set { SetClassValue(UiPropName.BorderColor, (vec4?)value); } }
+    public FontFace FontFace { get { return (FontFace)GetClassValue(UiPropName.FontFace); } set { SetClassValue(UiPropName.FontFace, (FontFace)value); } }
+    public float? FontSize { get { return (float?)GetClassValue(UiPropName.FontSize); } set { SetClassValue(UiPropName.FontSize, (float?)value); } }
+    public UiFontStyle? FontStyle { get { return (UiFontStyle?)GetClassValue(UiPropName.FontStyle); } set { SetClassValue(UiPropName.FontStyle, (UiFontStyle?)value); } }
+    public vec4? FontColor { get { return (vec4?)GetClassValue(UiPropName.FontColor); } set { SetClassValue(UiPropName.FontColor, (vec4?)value); } }
+    public float? LineHeight { get { return (float?)GetClassValue(UiPropName.LineHeight); } set { SetClassValue(UiPropName.LineHeight, (float?)value); } }
+    public UiPositionMode? PositionMode { get { return (UiPositionMode?)GetClassValue(UiPropName.PositionMode); } set { SetClassValue(UiPropName.PositionMode, (UiPositionMode?)value); } }
+    public UiOverflowMode? OverflowMode { get { return (UiOverflowMode?)GetClassValue(UiPropName.OverflowMode); } set { SetClassValue(UiPropName.OverflowMode, (UiOverflowMode?)value); } }
+    public UiSizeMode? SizeModeWidth { get { return (UiSizeMode?)GetClassValue(UiPropName.SizeModeWidth); } set { SetClassValue(UiPropName.SizeModeWidth, (UiSizeMode?)value); } }
+    public UiSizeMode? SizeModeHeight { get { return (UiSizeMode?)GetClassValue(UiPropName.SizeModeHeight); } set { SetClassValue(UiPropName.SizeModeHeight, (UiSizeMode?)value); } }
+    public UiDisplayMode? DisplayMode { get { return (UiDisplayMode?)GetClassValue(UiPropName.DisplayMode); } set { SetClassValue(UiPropName.DisplayMode, (UiDisplayMode?)value); } }
+    public UiImageTiling? ImageTilingX { get { return (UiImageTiling?)GetClassValue(UiPropName.ImageTilingX); } set { SetClassValue(UiPropName.ImageTilingX, (UiImageTiling?)value); } }
+    public UiImageTiling? ImageTilingY { get { return (UiImageTiling?)GetClassValue(UiPropName.ImageTilingY); } set { SetClassValue(UiPropName.ImageTilingY, (UiImageTiling?)value); } }
+    public MtTex Texture { get { return (MtTex)GetClassValue(UiPropName.Texture); } set { SetClassValue(UiPropName.Texture, (MtTex)value); } }
+
+    #endregion
+    #region Public: Methods
+
+    public UiProps _props = new UiProps();//Gets the compiled / final props
+    public bool IsPropsOnly { get; set; } = false;//For glyph, don't inherit parent or compile, and re-compile the class every time.. we set _props manually
+    public WeakReference<UiStyleSheet> StyleSheet { get; private set; } = null;
+
+    private bool _bMustCompile = true;
+    private long _changedFrameId = 0;
+    private long _compiledFrameId = 0;
+    private HashSet<WeakReference<UiElement>> _eles = null;
+    private Dictionary<UiEventId, MultiMap<string, Action<UiEventId, UiElement, PCMouse>>> _events = null;
+    private BitArray _owned = new BitArray((int)UiPropName.MaxUiProps);//This bitset tells us which props were set
+    private BitArray _inherited = new BitArray((int)UiPropName.MaxUiProps);
+    private BitArray _defaulted = new BitArray((int)UiPropName.MaxUiProps);
+    private BitArray _changed = new BitArray((int)UiPropName.MaxUiProps);//props that changed during the last class compile
+    private List<UiStyle> _superStyles = null;
+    private List<string> _superStylesNames = null;//Translate this with Stylesheet.
+    private bool _bMustTranslateInheritedStyles = false;
+
+    private bool IsInline = false;
+
+#if DEBUG
+    private Dictionary<UiPropName, object?> _debugChangedNamesList = null;//Properties owned (set) by this class. For visual debug
+    private Dictionary<UiPropName, object?> _debugOwnedNamesList = null;//Properties owned (set) by this class. For visual debug
+    private Dictionary<UiPropName, object?> _debugInheritedNamesList = null;//Properties owned (set) by this class. For visual debug
+    private Dictionary<UiPropName, object?> _debugDefaultNamesList = null;//Properties owned (set) by this class. For visual debug
+#endif
+
+    public UiStyle(string name, List<string> inherted_styles = null, bool isInline = false)
+    {
+      Name = name;
+      IsInline = isInline;
+      if (inherted_styles != null)
+      {
+        _superStylesNames = inherted_styles;
+        _bMustTranslateInheritedStyles = true;
+      }
+    }
+    public void SetInheritStyles(List<string> styles)
+    {
+      //Set the styles we inherit, then we can compile them.
+      if ((_superStylesNames == null || _superStylesNames.Count == 0) && (styles == null || styles.Count == 0))
+      {
+        //no change
+      }
+      else
+      {
+        _superStylesNames = styles;
+        _bMustTranslateInheritedStyles = true;
+      }
+    }
+    public void SetStyleSheet(UiStyleSheet s)
+    {
+      //swap stylesheet if already set.
+      if (StyleSheet != null && StyleSheet.TryGetTarget(out var ss))
+      {
+        ss.RemoveStyle(this);
+        StyleSheet = null;
+      }
+      StyleSheet = new WeakReference<UiStyleSheet>(s);
+    }
+    private void TranslateStyleNames(UiStyleSheet sheet)
+    {
+      if (_bMustTranslateInheritedStyles == true)
+      {
+        Gu.Assert(sheet != null);
+        _superStyles = _superStyles.ConstructIfNeeded();
+        _superStyles?.Clear();
+        if (_superStylesNames != null)
+        {
+          foreach (var sn in _superStylesNames)
+          {
+            var style = sheet.GetStyle(sn);
+            if (style == null)
+            {
+              sheet.StyleError($"Style '{Name}': Could not find inherited style '{sn}'.");
+            }
+            else
+            {
+              _superStyles.Add(style);
+            }
+          }
+        }
+        _bMustTranslateInheritedStyles = false;
+      }
+    }
+    private void DebugStorePropDetails()
+    {
+#if DEBUG
+      //Debug / view all props that this class owns/inherits
+      _debugChangedNamesList = _debugChangedNamesList.ConstructIfNeeded();
+      _debugChangedNamesList.Clear();
+
+      _debugOwnedNamesList = _debugOwnedNamesList.ConstructIfNeeded();
+      _debugOwnedNamesList.Clear();
+
+      _debugInheritedNamesList = _debugInheritedNamesList.ConstructIfNeeded();
+      _debugInheritedNamesList.Clear();
+
+      _debugDefaultNamesList = _debugDefaultNamesList.ConstructIfNeeded();
+      _debugDefaultNamesList.Clear();
+
+      for (int i = 0; i < (int)UiPropName.MaxUiProps; i++)
+      {
+        var prop = (UiPropName)i;
+
+        if (_changed.Get(i))
+        {
+          _debugChangedNamesList.Add(prop, GetPropValue(prop));
+        }
+
+        if (_owned.Get(i))
+        {
+          _debugOwnedNamesList.Add(prop, GetPropValue(prop));
+        }
+        if (_inherited.Get(i))
+        {
+          _debugInheritedNamesList.Add(prop, GetPropValue(prop));
+        }
+        if (_defaulted.Get(i))
+        {
+          _debugDefaultNamesList.Add(prop, GetPropValue(prop));
+        }
+      }
+      //These sets are mutually exclusive.
+      BitArray b2 = _owned.AndWith(_defaulted);
+      BitArray b3 = _owned.AndWith(_inherited);
+      BitArray b4 = _inherited.AndWith(_defaulted);
+      Gu.Assert(b2.UInt64Value() == 0);
+      Gu.Assert(b3.UInt64Value() == 0);
+      Gu.Assert(b4.UInt64Value() == 0);
+#endif
+    }
+    public void CompileStyleTree(UiStyleSheet s, long framestamp, UiStyle style_DOM_parent = null)
+    {
+      //Compile.. for example: <div top="3"> <div class=" class1 class2 class1 " style="top:3" right="5">  into a single set of properties for each <div>
+      // parent style (tag), <style style style> (classes), owned (inline)... <div class/style="parent stuff"> <div class="a b c b a" style="inline stuff.."
+      if (!IsPropsOnly)
+      {
+        TranslateStyleNames(s);
+
+        if (_bMustCompile)
+        {
+          _inherited.SetAll(false);
+          _defaulted.SetAll(false);
+
+          DebugStorePropDetails();
+
+          foreach (var p in UiProps.Fields)
+          {
+            if (!IsOwned(p.Key))
+            {
+              //not owned, get the value from a superclass
+              if (!InheritFromSuperClasses(s, p.Key, p.Value, framestamp))
+              {
+                //if subclasses are not set, then try the parent DOM element, otherwise we'll get set to a default value
+                if (!InheritFromParentTag(style_DOM_parent, p.Key, p.Value))
+                {
+                  //No parent element, and, no styles, set to default.
+                  SetDefaultValue(p.Key, p.Value);
+                }
+              }
+            }
+          }
+
+          DebugStorePropDetails();
+
+          _changed.SetAll(false);
+          _compiledFrameId = framestamp;
+          _bMustCompile = false;
+        }
+      }
+    }
+    private bool IsOwned(UiPropName p)
+    {
+      return _owned.Get((int)p);
+    }
+    private bool InheritFromParentTag(UiStyle style_DOM_parent, UiPropName pname, System.Reflection.FieldInfo fieldinfo)
+    {
+      //Return true if successfully inherited.
+      if (style_DOM_parent != null)
+      {
+        return InheritValue(style_DOM_parent, pname, fieldinfo);
+      }
+      return false;
+    }
+    private bool InheritFromSuperClasses(UiStyleSheet s, UiPropName pname, System.Reflection.FieldInfo fieldinfo, long framestamp)
+    {
+      //Return true if successfully inherited.
+      if (_superStyles != null && _superStyles.Count > 0)
+      {
+        //Apply styles in the reverse order <div class="a b c " .. c..b..a
+        for (int i = _superStyles.Count - 1; i >= 0; i--)
+        {
+          if (_superStyles[i] != null)
+          {
+            if (!_superStyles[i].IsInline)
+            {
+              _superStyles[i].CompileStyleTree(s, framestamp, null);
+              return InheritValue(_superStyles[i], pname, fieldinfo);
+            }
+            else
+            {
+              s.StyleError($"'{Name}' A Super style '{_superStyles[i].Name}' was Inline, but was also inherited. This is a bug.");
+              Gu.DebugBreak();
+            }
+          }
+          else
+          {
+            s.StyleError($"'{Name}' A Super style was null. This is a bug.");
+            Gu.DebugBreak();
+          }
+        }
+      }
+      return false;
+    }
+    private void SetDefaultValue(UiPropName p, System.Reflection.FieldInfo fi)
+    {
+      var val = UiProps.Default(p);
+      fi.SetValue(this._props, val);
+      _defaulted.Set((int)p, true);
+    }
+    private bool InheritValue(UiStyle fromStyle, UiPropName p, System.Reflection.FieldInfo fi)
+    {
+      //if the property is owned by the given class, then, we can set it
+      //Return true if successfully inherited.
+      if (fromStyle.PropIsOwnedOrInherited(p))
+      {
+        var val = fromStyle.GetPropValue(p);
+        fi.SetValue(this._props, val);
+        _inherited.Set((int)p, true);
+        return true;
+      }
+      return false;
+    }
+    public bool PropIsOwnedOrInherited(UiPropName p)
+    {
+      var ss_owned = _owned.Get((int)p);
+      var ss_inherited = _inherited.Get((int)p);
+      //var ss_changed = _changed.Get((int)p);
+      //Changed..is an issue we'd need an array of FrameSTamp's that determine that this element hasn't been updated.
+      // Then we're duplicating tons of data, and just copying everything would be more performant than Dictionry<>
+      bool ret = ss_owned || ss_inherited;
+      return ret;
+    }
+    public void AddEvent(UiEventId evId, Action<UiEventId, UiElement, PCMouse> f, string tag = "")
+    {
+      // Layman's: For each Mouse Button State we have a list of functions that get called when it is active (like clicked)
+      _events = _events.ConstructIfNeeded();
+
+      MultiMap<string, Action<UiEventId, UiElement, PCMouse>>? evList = null;
+      if (!_events.TryGetValue(evId, out evList))
+      {
+        evList = new MultiMap<string, Action<UiEventId, UiElement, PCMouse>>();
+        _events.Add(evId, evList);
+      }
+      evList.Add(tag, f);
+    }
+    public bool RemoveEvents(UiEventId evId, string tag)
+    {
+      if (_events.TryGetValue(evId, out var evList))
+      {
+        return evList.Remove(tag);
+      }
+      return false;
+    }
+
+    public void DoEvents(UiEventId evid, UiElement e, PCMouse m)
+    {
+      if (Events.TryGetValue(evid, out var s_actions))
+      {
+        foreach (var act in s_actions)
+        {
+          act.Value(evid, e, m);
+        }
+      }
+      //I am not sure abou thtis. I think each element should have it's own style or behavior. Man, IDK about this.
+      //Style Button needs to have its own behavior. Etc. But the inline style of what inherits Button itself may have no behavior. Or, It may override the behavior
+      //So what we need to do is override events, just like props. However some events need to NOT propogate down, like the window events 
+      //That is inline style, however, we don't have inline style per. se. anymore.
+      int n = 0;
+      n++;
+
+      //      foreach(var super in this.SuperStyles){
+      //        super.DoMouseEvents(evid,m);
+      //      }
+    }
+    public UiStyle Clone()
+    {
+      UiStyle ret = new UiStyle(this.Name + Gu.CopyName, this._superStylesNames);
+      ret._props = _props.Clone();
+      ret._eles = null;
+      ret._bMustCompile = true;
+      return ret;
+    }
+    public void AddReference(UiElement u)
+    {
+      _eles = _eles.ConstructIfNeeded();
+      //Adds a reference to the given element, so when we change the style, teh element gets updated.
+      foreach (var e in _eles)
+      {
+        if (e.TryGetTarget(out var ee))
+        {
+          if (ee == u)
+          {
+            Gu.DebugBreak();//Duplicate element reference in the style.
+            return;
+          }
+        }
+      }
+      _eles.Add(new WeakReference<UiElement>(u));
+    }
+    public void RemoveReference(UiElement u)
+    {
+      if (_eles != null)
+      {
+        _eles.RemoveWhere((x) =>
+        {
+          if (x.TryGetTarget(out var ee))
+          {
+            return ee.Equals(u);
+          }
+          else
+          {
+            return false;
+          }
+        });
+      }
+    }
+
+    #endregion
+    #region Private: Methods
+    private void SetClassValue(UiPropName p, object? value)
+    {
+      //Set nullable value for class. Set to null to clear/inherit value
+      if (CheckValueModified(p, value))
+      {
+        SetClassValueDirect(p, value);
+      }
+    }
+    private bool CheckValueModified(UiPropName p, object? new_class_value)
+    {
+      //Return true if
+      var owned = _owned.Get((int)p);
+      if (new_class_value == null && owned == false)
+      {
+        //Class value is unset, and was set it to null again.. no change
+        return false;
+      }
+      else if (new_class_value != null && owned == false)
+      {
+        //Class value is unset, and we set a fresh value... definite change
+        return true;
+      }
+      else if (new_class_value != null && owned == true)
+      {
+        //Class value is set, and we set a new value check for value difference (prevent recompiling all classes!)
+        //Check hard (prop) value for new value
+        var cur_prop_val = _props.Get(p);
+        if (!cur_prop_val.Equals(new_class_value))
+        {
+          return true;
+        }
+      }
+      return false;
+    }
+    private void SetClassValueDirect(UiPropName p, object? value)
+    {
+      //Set the class value, skipping over modified value checking.
+      if (value != null)
+      {
+        _owned.Set((int)p, true);
+        _props.Set(p, value); //Only set the prop value if not null, as, null is basically the way we say "clear the value"
+      }
+      else
+      {
+        _owned.Set((int)p, false);
+      }
+      _changed.Set((int)p, true);
+      _changedFrameId = Gu.Context.FrameStamp;
+      _bMustCompile = true;
+
+      //SetLayoutChanged. Currently, classes are compiled for elements, which makes this sub-optimal
+      //We really need to use the StyleSHeets to compile classes, then we can call SetLayoutChanged only one time for all _bMustCompile styles.
+      //We'll have to figure out how to use Inline (UiElement) styles here though
+      IterateElements((e) =>
+      {
+        e.SetLayoutChanged();
+      });
+    }
+    private object? GetClassValue(UiPropName p)
+    {
+      //Get the class value (not compiled value)
+      var owned = _owned.Get((int)p);
+      if (!owned)
+      {
+        return null;
+      }
+      else
+      {
+        return GetPropValue(p);
+      }
+    }
+    private object? GetPropValue(UiPropName p)
+    {
+      //Get the compiled / or / owned value
+      return _props.Get(p);
+    }
+    private void IterateElements(Action<UiElement> act)
+    {
+      if (_eles != null)
+      {
+        List<WeakReference<UiElement>> remove = new List<WeakReference<UiElement>>();
+        foreach (var ele in _eles)
+        {
+          if (ele.TryGetTarget(out var e))
+          {
+            act(e);
+          }
+          else
+          {
+            remove.Add(ele);
+          }
+        }
+        foreach (var e in remove)
+        {
+          _eles.Remove(e);
+        }
+      }
+    }
+    #endregion
+
+  }
   public class UiElement
   {
+    #region Inner Classes 
+
     private class UiLine
     {
       public float _top = 0;
@@ -433,6 +966,7 @@ namespace PirateCraft
       public vec2 _rbl = new vec2(0, 0);
     }
 
+    #endregion
     #region Public: Members
 
     public string Name { get { return _name; } set { _name = value; } }
@@ -448,48 +982,19 @@ namespace PirateCraft
         _bTextChanged = true;
       }
     }
-    public UiStyle StyleClass
-    {
-      get { return _styleClass; }
-      set
-      {
-        if (_styleClass == value)
-        {
-          return;
-        }
-        if (_styleClass != null && value._eles != null)
-        {
-          _styleClass._eles.Remove(new WeakReference<UiElement>(this));
-        }
-        _styleClass = value;
-        if (_styleClass != null)
-        {
-          if (value._eles == null)
-          {
-            value._eles = new List<WeakReference<UiElement>>();
-          }
-          value._eles.Add(new WeakReference<UiElement>(this));
-        }
-        SetLayoutChanged();
-      }
-    }
-    public UiStyle InlineStyle
+    public UiStyle Style
     {
       //overrides Style Class
       get
       {
-        if (_inlineStyle == null)
+        if (_style == null)
         {
-          _inlineStyle = new UiStyle();
-          _inlineStyle._eles = new List<WeakReference<UiElement>>();
-          _inlineStyle._eles.Add(new WeakReference<UiElement>(this));
+          _style = new UiStyle(StyleName.Inline, null, true);
+          _style.AddReference(this);
         }
-        return _inlineStyle;
+        return _style;
       }
-      set
-      {
-        _inlineStyle = value;
-      }
+      //Can't set Style since it must be owned by this class. Inherit the on the style to add subclasses
     }
     public bool IsPickRoot { get { return _isPickRoot; } set { _isPickRoot = value; } }
     public bool PickEnabled { get { return _pickEnabled; } set { _pickEnabled = value; } } //Prevents the pick algorithm from running on misc elements (such as glyphs).
@@ -501,7 +1006,6 @@ namespace PirateCraft
     public bool LayoutChanged { get; private set; } = true;
     public bool LayoutVisible { get { return _layoutVisible; } set { _layoutVisible = value; SetLayoutChanged(); } }
     public bool RenderVisible { get { return _renderVisible; } set { _renderVisible = value; SetLayoutChanged(); } }
-    public UiStyleProps Props { get { return _props; } }
 
     #endregion
     #region Private: Members
@@ -510,15 +1014,17 @@ namespace PirateCraft
     protected const int c_BaseLayerSort = 1000;
     protected const int c_GlyphLayerSort = 2000;
     public const int c_ContextMenuSort = 3000;
-    protected UiStyleProps _props = new UiStyleProps();
-    protected UiStyle _inlineStyle = null;      //Inline style
-    protected UiStyle _styleClass = null;      //class styles
-    protected UiStyle _glyphStyle = null; //Style for glyphs, in case this has text.
+
+    protected string _name = "";
+    protected UiStyle _style = null;      //Inline style
     protected MultiMap<int, UiElement> _children { get; set; } = null;
     private WeakReference<UiElement> _parent = null;
-    private MtFontLoader _cachedFont = null;
+    //TODO:
+    //if an item has mouse events it is an automatic pick root, AND generate a pickID, if no events then not a pick root
     private bool _isPickRoot = false;
     private bool _pickEnabled = true;
+    private MtFontLoader _cachedFont = null;//For labels that contain glyphs
+    private MtCachedCharData? _cachedGlyph = null;//For glyphs
     private bool _layoutVisible = true;
     private bool _renderVisible = true;
     private bool _bTextChanged = false;
@@ -533,16 +1039,38 @@ namespace PirateCraft
     private long _iPickedFrameId = 0;
     protected string _strText = "";
     private string _strTextLast = "";
-    protected string _name = "";
-    private long _iCompiledParentClassFrameId = 0;
-    private long _iCompiledClassFrameId = 0;
-    private long _iCompiledInlineFrameId = 0;
     private bool _bMustRedoTextBecauseOfStyle = false;
-
-    int _char; //debug -- for text;
 
     #endregion
     #region Public: Methods
+
+    public UiElement()
+    {
+    }
+    public UiElement(string name)
+    {
+      init(null, name);
+    }
+    public UiElement(List<string> styleClasses, string name)
+    {
+      init(styleClasses, name);
+    }
+    public UiElement(List<string> styleClasses, string name, Phrase phrase)
+    {
+      init(styleClasses, name, Gu.Translator.Translate(phrase));
+    }
+    public UiElement(List<string> styleClasses, string name, string text)
+    {
+      init(styleClasses, name, text);
+    }
+    public UiElement(List<string> styleClasses, string name, Phrase phrase, List<UiElement> children)
+    {
+      init(styleClasses, name, Gu.Translator.Translate(phrase), children);
+    }    
+    public UiElement(List<string> styleClasses, string name, string text, List<UiElement> children)
+    {
+      init(styleClasses, name, text, children);
+    }
 
     public void Hide()
     {
@@ -553,27 +1081,6 @@ namespace PirateCraft
       _layoutVisible = _renderVisible = true;
     }
 
-    public UiElement()
-    {
-      //Note: if no Texture is set, the element will not be rendered (i.e. it's a container)
-      _props.SetDefault();
-    }
-    public UiElement(string name)
-    {
-      _name = name;
-      _props.SetDefault();
-    }
-    public UiElement(UiStyle styleClass)
-    {
-      StyleClass = styleClass;
-      _props.SetDefault();
-    }
-    public UiElement(string name, UiStyle styleClass)
-    {
-      StyleClass = styleClass;
-      _name = name;
-      _props.SetDefault();
-    }
     public void ResetPick()
     {
       this._bPickedPreviousFrame = _bPickedThisFrame;
@@ -624,30 +1131,6 @@ namespace PirateCraft
     {
       _children?.Clear();
     }
-    // public void IterateChildrenSafe(Func<UiElement, LambdaBool> act)
-    // {
-    //   //If we remove components while iterating components..
-    //   for (int c = _children.Keys.Count - 1; c >= 0; c--)
-    //   {
-    //     if (c < _children.Keys.Count)
-    //     {
-    //       var list = _children[c];
-    //       if (list != null)
-    //       {
-    //         for (int li = list.Count - 1; li >= 0; li--)
-    //         {
-    //           if (li < list.Count)
-    //           {
-    //             if (act(list[li]) == LambdaBool.Break)
-    //             {
-    //               break;
-    //             }
-    //           }
-    //         }
-    //       }
-    //     }
-    //   }
-    // }
     public void EnableDrag(Action<vec2> func)
     {
       DragEnabled = true;
@@ -661,9 +1144,9 @@ namespace PirateCraft
     }
     public void ValidateQuad()
     {
-      if (((_props._left + _props._width) < _props._left) || ((_props._top + _props._height) < _props._top))
+      if (((Style._props.Left + Style._props.Width) < Style._props.Left) || ((Style._props.Top + Style._props.Height) < Style._props.Top))
       {
-        Gu.Log.Error("Computed Quad is invalid, rtbl= " + (_props._left + _props._width) + "," + _props._left + "," + (_props._top + _props._height) + "," + _props._top + ".");
+        Gu.Log.Error("Computed Quad is invalid, rtbl= " + (Style._props.Left + Style._props.Width) + "," + Style._props.Left + "," + (Style._props.Top + Style._props.Height) + "," + Style._props.Top + ".");
         Gu.DebugBreak();
       }
     }
@@ -672,10 +1155,6 @@ namespace PirateCraft
       Gu.Assert(_children.Count > 0);
       return (T)_children.First().Value;
     }
-
-    #endregion
-    #region Private: and Protected: Methods
-
     public void SetLayoutChanged()
     {
       if (LayoutChanged == false)
@@ -700,7 +1179,59 @@ namespace PirateCraft
           }
         }
       }
+    }
+    public void DoMouseEvents(PCMouse mouse, bool iswindow = false)
+    {
+      if (_bPickedThisFrame || iswindow)
+      {
+        if (_bPickedPreviousFrame || iswindow)
+        {
+          DoMouseEvent(mouse, UiEventId.Mouse_Move);
+        }
+        else
+        {
+          DoMouseEvent(mouse, UiEventId.Mouse_Enter);
+        }
 
+        ButtonState eLmb = mouse.GetButtonState(MouseButton.Left);
+        ButtonState eRmb = mouse.GetButtonState(MouseButton.Right);
+        ButtonState eMmb = mouse.GetButtonState(MouseButton.Middle);
+
+        DoMouseButtonEvent(mouse, UiEventId.Mouse_Lmb_Up, eLmb, ButtonState.Up);
+        DoMouseButtonEvent(mouse, UiEventId.Mouse_Lmb_Hold, eLmb, ButtonState.Hold);
+        DoMouseButtonEvent(mouse, UiEventId.Mouse_Lmb_Press, eLmb, ButtonState.Press);
+        DoMouseButtonEvent(mouse, UiEventId.Mouse_Lmb_Release, eLmb, ButtonState.Release);
+
+        DoMouseButtonEvent(mouse, UiEventId.Mouse_Rmb_Up, eRmb, ButtonState.Up);
+        DoMouseButtonEvent(mouse, UiEventId.Mouse_Rmb_Hold, eRmb, ButtonState.Hold);
+        DoMouseButtonEvent(mouse, UiEventId.Mouse_Rmb_Press, eRmb, ButtonState.Press);
+        DoMouseButtonEvent(mouse, UiEventId.Mouse_Rmb_Release, eRmb, ButtonState.Release);
+      }
+      else if (_bPickedPreviousFrame)
+      {
+        DoMouseEvent(mouse, UiEventId.Mouse_Leave);
+        _bPickedPreviousFrame = false;
+      }
+    }
+
+    #endregion
+    #region Private and Protected: Methods
+
+    private void init(List<string> styleClasses, string name, string? phrase = null, List<UiElement> children = null)
+    {
+      this.Style.SetInheritStyles(styleClasses);
+      _name = name;
+      if (phrase != null)
+      {
+        Text = phrase;
+      }
+      if (children != null)
+      {
+        foreach (var c in children)
+        {
+          AddChild(c);
+        }
+      }
     }
     private bool IsFullyClipped(Box2f b2ClipRect)
     {
@@ -765,7 +1296,7 @@ namespace PirateCraft
       // Must be called in the loop so we reset it with every child.
       Box2f b = GetScreenSpaceClipQuad();
       Box2f ret = b2ClipRect;
-      if (_props._overflowMode == UiOverflowMode.Hide)
+      if (Style._props.OverflowMode == UiOverflowMode.Hide)
       {
         // Shrink the box
         if (b._min.x > ret._min.x)
@@ -796,9 +1327,10 @@ namespace PirateCraft
       }
       return ret;
     }
-    private void ComputeVertexTexcoord(ref v_v4v4v4v2u2v4v4 vc, MtTex pTex, UiImageTiling xtile, UiImageTiling ytile)
+    private void ComputeVertexTexcoord(ref v_v4v4v4v2u2v4v4 vc, MtTex pTex, UiImageTiling xtile, UiImageTiling ytile, float pixAdjust)
     {
       Box2f q2Tex = new Box2f();
+      Gu.Assert(pTex != null);
 
       if (xtile == UiImageTiling.Expand)
       {
@@ -807,7 +1339,7 @@ namespace PirateCraft
       }
       else if (xtile == UiImageTiling.Tile)
       {
-        float wPx = _props._width.Value;
+        float wPx = Style._props.Width;
         q2Tex._min.x = pTex.uv0.x;
         q2Tex._max.x = pTex.uv1.x + (pTex.uv1.x - pTex.uv0.x) * _tileScale.x;
       }
@@ -827,7 +1359,7 @@ namespace PirateCraft
       }
       else if (ytile == UiImageTiling.Tile)
       {
-        float hPx = _props._height.Value;
+        float hPx = Style._props.Height;
         q2Tex._min.y = pTex.uv0.y;
         q2Tex._max.y = pTex.uv1.y + (pTex.uv1.y - pTex.uv0.y) * _tileScale.y;
       }
@@ -856,9 +1388,6 @@ namespace PirateCraft
       vc._texsiz.x = Math.Abs(pTex.uv1.x - pTex.uv0.x);
       vc._texsiz.y = Math.Abs(pTex.uv1.y - pTex.uv0.y);  // Uv0 - uv1 - because we flipped coords bove
 
-      //**Texture Adjust - modulating repeated textures causes seaming issues, especially with texture filtering
-      // adjust the texture coordinates by some pixels to account for that.  0.5f seems to work well.
-      float pixAdjust = 0.0f;  // # of pixels to adjust texture by
       float w1px = 0;                  // 1 pixel subtract from the u/v to prevent creases during texture modulation
       float h1px = 0;
 
@@ -881,6 +1410,52 @@ namespace PirateCraft
       vc._tex.z -= w1px;
       vc._tex.w -= h1px;
     }
+    private void ComputeVertexGlyph(ref v_v4v4v4v2u2v4v4 vc, MtCachedCharData? glyph, float pixAdjust)
+    {
+      Gu.Assert(glyph != null);
+      Box2f q2Tex = new Box2f();
+      q2Tex._min.x = glyph.uv0.x;
+      q2Tex._max.x = glyph.uv1.x;
+
+      //exact y
+      q2Tex._min.y = glyph.uv0.y;
+      q2Tex._max.y = glyph.uv1.y;
+
+      ///proportion y .. not sure if this is what glyph needs.
+      // q2Tex._min.y = glyph.Value.uv1.y;
+      // float fw = q2Tex._max.x - q2Tex._min.x;
+      // float fr = glyph.Value.GetSizeRatio();
+      // float fh = fw * fr;
+      // q2Tex._max.y = q2Tex._min.y + fh;
+
+      vc._tex.x = q2Tex._min.x;  // GL - bottom left
+      vc._tex.y = q2Tex._min.y;
+      vc._tex.z = q2Tex._max.x;  // GL - top right *this essentially flips it upside down
+      vc._tex.w = q2Tex._max.y;
+      vc._texsiz.x = Math.Abs(glyph.uv1.x - glyph.uv0.x);
+      vc._texsiz.y = Math.Abs(glyph.uv1.y - glyph.uv0.y);  // Uv0 - uv1 - because we flipped coords bove
+
+      float w1px = 0;
+      float h1px = 0;
+      if (glyph.patchTexture_Width > 0 && vc._texsiz.x > 0)
+      {
+        w1px = 1.0f / glyph.patchTexture_Width;
+        w1px *= vc._texsiz.x;
+        w1px *= pixAdjust;
+      }
+      if (glyph.patchTexture_Width > 0 && vc._texsiz.y > 0)
+      {
+        h1px = 1.0f / glyph.patchTexture_Width;
+        h1px *= vc._texsiz.y;
+        h1px *= pixAdjust;
+      }
+      vc._texsiz.x -= w1px * 2.0f;
+      vc._texsiz.y -= h1px * 2.0f;
+      vc._tex.x += w1px;
+      vc._tex.y += h1px;
+      vc._tex.z -= w1px;
+      vc._tex.w -= h1px;
+    }
     private void SetVertexRasterArea(ref v_v4v4v4v2u2v4v4 vc, in Box2f rasterQuad, in Box2f b2ClipRect, UiDebugDraw dd)
     {
       //BL = min TR = max
@@ -893,10 +1468,10 @@ namespace PirateCraft
       if (dd.DisableClip)
       {
         //We are only flipping Y in the shader now
-        vc._clip.x = -999999;
-        vc._clip.y = -999999;
-        vc._clip.z = 999999;
-        vc._clip.w = 999999;
+        vc._clip.x = -Gui2d.MaxSize;
+        vc._clip.y = -Gui2d.MaxSize;
+        vc._clip.z = Gui2d.MaxSize;
+        vc._clip.w = Gui2d.MaxSize;
       }
       else
       {
@@ -913,11 +1488,15 @@ namespace PirateCraft
       {
         return;
       }
-      if (_props._texture.Value == null)
+      if ((Style._props.Texture == null) && (_cachedGlyph == null))
       {
         //invisible, or container element
         return;
       }
+
+      //**Texture Adjust - modulating repeated textures causes seaming issues, especially with texture filtering
+      // adjust the texture coordinates by some pixels to account for that.  0.5f seems to work well.
+      float pixAdjust = 0.0f;  // # of pixels to adjust texture by
 
       if (_borderArea != null)
       {
@@ -925,8 +1504,8 @@ namespace PirateCraft
         vb._rtl_rtr = new vec4(_borderArea._rtl, _borderArea._rtr);
         vb._rbr_rbl = new vec4(_borderArea._rbr, _borderArea._rbl);
         SetVertexRasterArea(ref vb, in _borderArea._b2RasterQuad, in b2ClipRect, dd);
-        ComputeVertexTexcoord(ref vb, defaultPixel, UiImageTiling.Expand, UiImageTiling.Expand);
-        SetVertexPickAndColor(ref vb, _props._borderColor.Value, rootPickId);
+        ComputeVertexTexcoord(ref vb, defaultPixel, UiImageTiling.Expand, UiImageTiling.Expand, pixAdjust);
+        SetVertexPickAndColor(ref vb, Style._props.BorderColor, rootPickId);
         verts.Add(vb);
       }
       {
@@ -934,10 +1513,18 @@ namespace PirateCraft
         vc._rtl_rtr = new vec4(_contentArea._rtl, _contentArea._rtr);
         vc._rbr_rbl = new vec4(_contentArea._rbr, _contentArea._rbl);
         SetVertexRasterArea(ref vc, in _contentArea._b2RasterQuad, in b2ClipRect, dd);
-        ComputeVertexTexcoord(ref vc, _props._texture.Value, _props._imageTilingX.Value, _props._imageTilingY.Value);
-        SetVertexPickAndColor(ref vc, _props._color.Value, rootPickId);
+        if (_cachedGlyph != null)
+        {
+          ComputeVertexGlyph(ref vc, _cachedGlyph, pixAdjust);
+        }
+        else
+        {
+          ComputeVertexTexcoord(ref vc, Style._props.Texture, Style._props.ImageTilingX, Style._props.ImageTilingY, pixAdjust);
+        }
+        SetVertexPickAndColor(ref vc, Style._props.Color, rootPickId);
         verts.Add(vc);
       }
+      //**DEBUG OVERLAY (can mostly be ignored)** 
       if (dd.ShowOverlay)
       {
         //overlay colored quad.
@@ -957,7 +1544,7 @@ namespace PirateCraft
           }
           dbgv._rtl_rtr = new vec4(0, 0, 0, 0);
           dbgv._rbr_rbl = new vec4(0, 0, 0, 0);
-          ComputeVertexTexcoord(ref dbgv, defaultPixel, UiImageTiling.Expand, UiImageTiling.Expand);
+          ComputeVertexTexcoord(ref dbgv, defaultPixel, UiImageTiling.Expand, UiImageTiling.Expand, pixAdjust);
           SetVertexPickAndColor(ref dbgv, dd.OverlayColor, rootPickId);
           verts.Add(dbgv);
         }
@@ -973,7 +1560,7 @@ namespace PirateCraft
         }
         dbgv._rtl_rtr = new vec4(0, 0, 0, 0);
         dbgv._rbr_rbl = new vec4(0, 0, 0, 0);
-        ComputeVertexTexcoord(ref dbgv, defaultPixel, UiImageTiling.Expand, UiImageTiling.Expand);
+        ComputeVertexTexcoord(ref dbgv, defaultPixel, UiImageTiling.Expand, UiImageTiling.Expand, pixAdjust);
         SetVertexPickAndColor(ref dbgv, dd.OverlayColor, rootPickId);
         verts.Add(dbgv);
 
@@ -984,7 +1571,7 @@ namespace PirateCraft
       vc._pick_color = new uvec2(
          //Since we can't discard fragments for the pick buffer, assume the pick id of the parent pick root
          rootPickId,
-         ((uint)(color.x * 255.0f) << 24) |
+          ((uint)(color.x * 255.0f) << 24) |
           ((uint)(color.y * 255.0f) << 16) |
           ((uint)(color.z * 255.0f) << 8) |
           ((uint)(color.w * 255.0f) << 0)
@@ -1036,39 +1623,6 @@ namespace PirateCraft
       }
       return _bPickedThisFrame;
     }
-    public void DoMouseEvents(PCMouse mouse, bool iswindow = false)
-    {
-      if (_bPickedThisFrame || iswindow)
-      {
-        if (_bPickedPreviousFrame || iswindow)
-        {
-          DoMouseEvent(mouse, UiEventId.Mouse_Move);
-        }
-        else
-        {
-          DoMouseEvent(mouse, UiEventId.Mouse_Enter);
-        }
-
-        ButtonState eLmb = mouse.GetButtonState(MouseButton.Left);
-        ButtonState eRmb = mouse.GetButtonState(MouseButton.Right);
-        ButtonState eMmb = mouse.GetButtonState(MouseButton.Middle);
-
-        DoMouseButtonEvent(mouse, UiEventId.Mouse_Lmb_Up, eLmb, ButtonState.Up);
-        DoMouseButtonEvent(mouse, UiEventId.Mouse_Lmb_Hold, eLmb, ButtonState.Hold);
-        DoMouseButtonEvent(mouse, UiEventId.Mouse_Lmb_Press, eLmb, ButtonState.Press);
-        DoMouseButtonEvent(mouse, UiEventId.Mouse_Lmb_Release, eLmb, ButtonState.Release);
-
-        DoMouseButtonEvent(mouse, UiEventId.Mouse_Rmb_Up, eRmb, ButtonState.Up);
-        DoMouseButtonEvent(mouse, UiEventId.Mouse_Rmb_Hold, eRmb, ButtonState.Hold);
-        DoMouseButtonEvent(mouse, UiEventId.Mouse_Rmb_Press, eRmb, ButtonState.Press);
-        DoMouseButtonEvent(mouse, UiEventId.Mouse_Rmb_Release, eRmb, ButtonState.Release);
-      }
-      else if (_bPickedPreviousFrame)
-      {
-        DoMouseEvent(mouse, UiEventId.Mouse_Leave);
-        _bPickedPreviousFrame = false;
-      }
-    }
     private void DoMouseButtonEvent(PCMouse m, UiEventId evid, ButtonState curstate, ButtonState evstate)
     {
       if (curstate == evstate)
@@ -1078,31 +1632,27 @@ namespace PirateCraft
     }
     private void DoMouseEvent(PCMouse m, UiEventId evid)
     {
-      if (_props._events != null)
+      //Events.. we can only have them in styles and we do not inherit them.
+      //Events..are selectors as in CSS..
+      if (Style != null)
       {
-        if (_props._events.Value.TryGetValue(evid, out var actions))
-        {
-          foreach (var act in actions)
-          {
-            act.Value(evid, this, m);
-          }
-        }
+        Style.DoEvents(evid, this, m);
       }
     }
-    protected virtual void PerformLayout_SizeElements(MegaTex mt, bool bForce, vec2 parentMaxWH, UiStyle st)
+    protected virtual void PerformLayout_SizeElements(MegaTex mt, bool bForce, vec2 parentMaxWH, UiStyle parent, UiStyleSheet sheet, long framesatmp)
     {
       //Build the UI depth-first. Children elements are sized. Then we got hrough again and position them from the top.
       if (LayoutChanged || bForce)
       {
-        ComputeStyle(st);
+        Style.CompileStyleTree(sheet, framesatmp, parent);
         UpdateBorder();
 
         //in HTML all elements default to zero width without any contents.
-        vec2 contentWH = new vec2(_props._padLeft.Value + _props._padRight.Value, _props._padTop.Value + _props._padBot.Value);
+        vec2 contentWH = new vec2(Style._props.PadLeft + Style._props.PadRight, Style._props.PadTop + Style._props.PadBot);
 
         vec2 maxWH = new vec2(
-          Math.Max(Math.Min(parentMaxWH.x, _props._maxWHPX.Value.x), 0),
-          Math.Max(Math.Min(parentMaxWH.y, _props._maxWHPX.Value.y), 0)
+          Math.Max(Math.Min(parentMaxWH.x, Style._props.MaxWidth), 0),
+          Math.Max(Math.Min(parentMaxWH.y, Style._props.MaxHeight), 0)
         );
 
         //textchanged .. font color .. font size .. etc.
@@ -1121,14 +1671,14 @@ namespace PirateCraft
             UiElement ele = p.Value;
             if (ele.LayoutVisible)
             {
-              ele.PerformLayout_SizeElements(mt, bForce, maxWH, StyleClass);
+              ele.PerformLayout_SizeElements(mt, bForce, maxWH, this.Style, sheet, framesatmp);
             }
           }
 
           LayoutChildren(bForce, maxWH, ref contentWH);
         }
 
-        SizeElement(maxWH, contentWH);
+        SizeElement(maxWH, contentWH, parent);
       }
     }
     protected void PerformLayout_PositionElements(bool bForce)
@@ -1151,106 +1701,79 @@ namespace PirateCraft
         LayoutChanged = false;
       }
     }
-    private void ComputeStyle(UiStyle parentStyle)
-    {
-      //Compute Style, update "_props"
-      // 1 apply parent's compiled style, to the child's style (if present)
-      // 2 compile style and sub-classes (if present)
-      // 3 apply child's inline style. (if present)
-      // --> _props
-
-      //Assu;ming: parent's class is already compiled since we go top->down
-      //** Parent style thing is messing stuff up **
-      //** Parent style thing is messing stuff up **
-      //** Parent style thing is messing stuff up **
-      // UiScreen for example would end up with a textured style. 
-      if (parentStyle != null)
-      {
-        if (parentStyle.ChangedFrameId >= _iCompiledParentClassFrameId)
-        {
-          _props.ApplySubclass(parentStyle.Compiled);
-          _iCompiledParentClassFrameId = Gu.Context.FrameStamp;
-          _bMustRedoTextBecauseOfStyle = true;
-        }
-      }
-      if (_styleClass != null)
-      {
-        _styleClass.Compile();
-        if (_styleClass.ChangedFrameId >= _iCompiledClassFrameId)
-        {
-          _props.ApplySubclass(_styleClass.Compiled);
-          _iCompiledClassFrameId = Gu.Context.FrameStamp;
-          _bMustRedoTextBecauseOfStyle = true;
-        }
-      }
-      if (_inlineStyle != null)
-      {
-        _inlineStyle.Compile();
-        if (_inlineStyle.ChangedFrameId >= _iCompiledInlineFrameId)
-        {
-          _props.ApplySubclass(_inlineStyle.Compiled);
-          _iCompiledInlineFrameId = Gu.Context.FrameStamp;
-          _bMustRedoTextBecauseOfStyle = true;
-        }
-      }
-    }
     private void UpdateBorder()
     {
       //Check if border changed
       if (_borderArea == null)
       {
-        if (_props._borderTop > 0 || _props._borderRight > 0 || _props._borderBot > 0 || _props._borderLeft > 0)
+        if (Style._props.BorderTop > 0 || Style._props.BorderRight > 0 || Style._props.BorderBot > 0 || Style._props.BorderLeft > 0)
         {
           _borderArea = new Quads();
         }
       }
       else
       {
-        if (_props._borderTop == 0 && _props._borderRight == 0 && _props._borderBot == 0 && _props._borderLeft == 0)
+        if (Style._props.BorderTop == 0 && Style._props.BorderRight == 0 && Style._props.BorderBot == 0 && Style._props.BorderLeft == 0)
         {
           _borderArea = null;
         }
       }
     }
-    private void SizeElement(vec2 maxWH, vec2 contentWH)
+    private void SizeElement(vec2 maxWH, vec2 contentWH, UiStyle parent)
     {
       //Shrink the element (if not UiScreen) This is how HTML works by default.
       //Also apply min/max to the element. This is specifically how you would fix an element's size.
       //Note: content quad may expand beyond container
-      _b2ContentQuad._min = new vec2(_props._left.Value, _props._top.Value);
+      _b2ContentQuad._min = new vec2(Style._props.Left, Style._props.Top);
       _b2ContentQuad._max = _b2ContentQuad._min + contentWH;
 
-      if (_props._sizeModeWidth == UiSizeMode.Shrink)
+      if (Style._props.SizeModeWidth == UiSizeMode.Shrink)
       {
-        _props._width = Math.Min(Math.Max(_props._minWHPX.Value.x, Math.Min(maxWH.x, contentWH.x)), _props._maxWHPX.Value.x);
+        Style._props.Width = Math.Min(Math.Max(Style._props.MinWidth, Math.Min(maxWH.x, contentWH.x)), Style._props.MaxWidth);
       }
-      else if (_props._sizeModeWidth == UiSizeMode.Expand)
+      else if (Style._props.SizeModeWidth == UiSizeMode.Expand)
       {
-        if (this._parent != null && this._parent.TryGetTarget(out var par))
+        if (_parent != null && _parent.TryGetTarget(out var par))
         {
-          _props._width = par._props._width;// - _props._left;
+          Style._props.Width = parent._props.Width;// - _props._left;
         }
+        else
+        {
+          //No parent - Fixed. Only possible for (root) element
+        }
+      }
+      else if (Style._props.SizeModeWidth == UiSizeMode.Fixed)
+      {
+        //Fixed
       }
       else
       {
         Gu.BRThrowNotImplementedException();
       }
-      if (_props._sizeModeHeight == UiSizeMode.Shrink)
+      if (Style._props.SizeModeHeight == UiSizeMode.Shrink)
       {
-        _props._height = Math.Min(Math.Max(_props._minWHPX.Value.y, Math.Min(maxWH.y, contentWH.y)), _props._maxWHPX.Value.y);
+        Style._props.Height = Math.Min(Math.Max(Style._props.MinHeight, Math.Min(maxWH.y, contentWH.y)), Style._props.MaxHeight);
       }
-      else if (_props._sizeModeHeight == UiSizeMode.Expand)
+      else if (Style._props.SizeModeHeight == UiSizeMode.Expand)
       {
-        if (this._parent != null && this._parent.TryGetTarget(out var par))
+        if (_parent != null && _parent.TryGetTarget(out var par))
         {
-          _props._height = par._props._height;// - _props._top;
+          Style._props.Height = parent._props.Height;
         }
+        else
+        {
+          //No parent - Fixed. Only possible for (root) element
+        }
+      }
+      else if (Style._props.SizeModeHeight == UiSizeMode.Fixed)
+      {
+        //Fixed
       }
       else
       {
         Gu.BRThrowNotImplementedException();
       }
-      if (_props._width < 0 || _props._height < 0)
+      if (Style._props.Width < 0 || Style._props.Height < 0)
       {
         int n = 0;
         n++;
@@ -1274,7 +1797,7 @@ namespace PirateCraft
           if (ele.LayoutVisible)
           {
 
-            if (ele._props._positionMode == UiPositionMode.Static)
+            if (ele.Style._props.PositionMode == UiPositionMode.Static)
             {
               // Static elements - Have a Flow, and computed position
               if (p.Key != uiLast)
@@ -1288,15 +1811,15 @@ namespace PirateCraft
               }
               bucket.Add(p.Value);
             }
-            else if (ele._props._positionMode == UiPositionMode.Relative ||
-            ele._props._positionMode == UiPositionMode.RelativeConstrainX ||
-            ele._props._positionMode == UiPositionMode.RelativeConstrainY ||
-            ele._props._positionMode == UiPositionMode.RelativeConstrainXY)
+            else if (ele.Style._props.PositionMode == UiPositionMode.Relative ||
+            ele.Style._props.PositionMode == UiPositionMode.RelativeConstrainX ||
+            ele.Style._props.PositionMode == UiPositionMode.RelativeConstrainY ||
+            ele.Style._props.PositionMode == UiPositionMode.RelativeConstrainXY)
             {
               // Fixed elements relative to container
               ComputePositionalElement(ele,
-              ele._props._positionMode == UiPositionMode.RelativeConstrainX || ele._props._positionMode == UiPositionMode.RelativeConstrainXY,
-              ele._props._positionMode == UiPositionMode.RelativeConstrainY || ele._props._positionMode == UiPositionMode.RelativeConstrainXY);
+              ele.Style._props.PositionMode == UiPositionMode.RelativeConstrainX || ele.Style._props.PositionMode == UiPositionMode.RelativeConstrainXY,
+              ele.Style._props.PositionMode == UiPositionMode.RelativeConstrainY || ele.Style._props.PositionMode == UiPositionMode.RelativeConstrainXY);
             }
             else
             {
@@ -1317,16 +1840,16 @@ namespace PirateCraft
     {
       // Calc width with all static blocks using 0 width for autos (expandable blocks).
       List<UiLine> vecLines = new List<UiLine>();
-      vecLines.Add(new UiLine(_props._padLeft.Value, _props._padTop.Value));
+      vecLines.Add(new UiLine(Style._props.PadLeft, Style._props.PadTop));
       foreach (var ele in stats)
       {
         CalcStaticElement(ele, vecLines, 0.0f, 0.0f, maxWH);
       }
-      float totalHeight = _props._padTop.Value + _props._padBot.Value;
+      float totalHeight = Style._props.PadTop + Style._props.PadBot;
       foreach (var line in vecLines)
       {
         totalHeight += line._height;
-        contentWH.x = Math.Max(contentWH.x, line._width + _props._padLeft.Value + _props._padRight.Value);
+        contentWH.x = Math.Max(contentWH.x, line._width + Style._props.PadLeft + Style._props.PadRight);
       }
       contentWH.y = Math.Max(contentWH.y, totalHeight);
     }
@@ -1341,36 +1864,36 @@ namespace PirateCraft
       }
       UiLine line = vecLines[vecLines.Count - 1];
 
-      float parent_contentarea_width = parentMaxWH.x - _props._padLeft.Value - _props._padRight.Value;
+      float parent_contentarea_width = parentMaxWH.x - Style._props.PadLeft - Style._props.PadRight;
 
       //*Padding
-      float mt = ele._props._marTop.Value;
-      float mr = ele._props._marRight.Value;
-      float mb = ele._props._marBot.Value;
-      float ml = ele._props._marLeft.Value;
+      float mt = ele.Style._props.MarginTop;
+      float mr = ele.Style._props.MarginRight;
+      float mb = ele.Style._props.MarginBot;
+      float ml = ele.Style._props.MarginLeft;
 
-      float bt = ele._props._borderTop.Value;
-      float br = ele._props._borderRight.Value;
-      float bb = ele._props._borderBot.Value;
-      float bl = ele._props._borderLeft.Value;
+      float bt = ele.Style._props.BorderTop;
+      float br = ele.Style._props.BorderRight;
+      float bb = ele.Style._props.BorderBot;
+      float bl = ele.Style._props.BorderLeft;
 
-      float ele_width = Math.Max(ele._props._width.Value, ele._props._minWHPX.Value.x);
+      float ele_width = Math.Max(ele.Style._props.Width, ele.Style._props.MinWidth);
 
       //**Line break
       bool bLineBreak = false;
-      if (ele._props._displayMode == UiDisplayMode.Inline)
+      if (ele.Style._props.DisplayMode == UiDisplayMode.Inline)
       {
         if (ml + mr + bl + br + ele_width + line._width > parent_contentarea_width) //For label - auto width + expand. ?? 
         {
           bLineBreak = true;
         }
       }
-      else if (ele._props._displayMode == UiDisplayMode.Block)
+      else if (ele.Style._props.DisplayMode == UiDisplayMode.Block)
       {
         //For /n in text. or block elements
         bLineBreak = true;
       }
-      else if (ele._props._displayMode != UiDisplayMode.InlineNoWrap)
+      else if (ele.Style._props.DisplayMode != UiDisplayMode.InlineNoWrap)
       {
         bLineBreak = false;
       }
@@ -1378,7 +1901,7 @@ namespace PirateCraft
       if (bLineBreak)
       {
         // new line
-        UiLine line2 = new UiLine(_props._padLeft.Value, 0/*pad top, only for the top uiline*/);
+        UiLine line2 = new UiLine(Style._props.PadLeft, 0/*pad top, only for the top uiline*/);
         line2._top = line._top + line._height;
         vecLines.Add(line2);
         line = vecLines[vecLines.Count - 1];
@@ -1386,8 +1909,8 @@ namespace PirateCraft
 
       line._width += ml;
       line._width += bl;
-      ele._props._left = line._left + line._width;
-      ele._props._top = line._top + mt + bt;
+      ele.Style._props.Left = line._left + line._width;
+      ele.Style._props.Top = line._top + mt + bt;
       line._width += ele_width;
       line._width += br;
       line._width += mr;
@@ -1395,7 +1918,7 @@ namespace PirateCraft
       ele.ValidateQuad();
 
       // Increse line height WITH PAD
-      line._height = Math.Max(line._height, Math.Max(ele._props._height.Value + mt + mb + bt + bb, ele._props._minWHPX.Value.y));
+      line._height = Math.Max(line._height, Math.Max(ele.Style._props.Height + mt + mb + bt + bb, ele.Style._props.MinHeight));
 
       line._eles.Add(ele);
     }
@@ -1403,24 +1926,24 @@ namespace PirateCraft
     {
       if (constrainX)
       {
-        if (ele._props._right > _props._width)
+        if (ele.Style._props.Right > Style._props.Width)
         {
-          ele._props._left = _props._width - ele._props._width;
+          ele.Style._props.Left = Style._props.Width - ele.Style._props.Width;
         }
-        if (ele._props._left < 0)
+        if (ele.Style._props.Left < 0)
         {
-          ele._props._left = 0;
+          ele.Style._props.Left = 0;
         }
       }
       if (constrainY)
       {
-        if (ele._props._bottom > _props._height)
+        if (ele.Style._props.Bottom > Style._props.Height)
         {
-          ele._props._top = _props._height - ele._props._height;
+          ele.Style._props.Top = Style._props.Height - ele.Style._props.Height;
         }
-        if (ele._props._top < 0)
+        if (ele.Style._props.Top < 0)
         {
-          ele._props._top = 0;
+          ele.Style._props.Top = 0;
         }
       }
 
@@ -1432,18 +1955,18 @@ namespace PirateCraft
       float t, r, b, l;
       float bt, br, bb, bl;
       float rtl, rtr, rbr, rbl;
-      t = _contentArea._b2ComputedQuad._min.y + ele._props._top.Value;
-      r = _contentArea._b2ComputedQuad._min.x + ele._props._right.Value;
-      b = _contentArea._b2ComputedQuad._min.y + ele._props._bottom.Value;
-      l = _contentArea._b2ComputedQuad._min.x + ele._props._left.Value;
-      bt = ele._props._borderTop.Value;
-      br = ele._props._borderRight.Value;
-      bb = ele._props._borderBot.Value;
-      bl = ele._props._borderLeft.Value;
-      rtl = ele._props._borderTopLeftRadius.Value;
-      rtr = ele._props._borderTopRightRadius.Value;
-      rbr = ele._props._borderBotRightRadius.Value;
-      rbl = ele._props._borderBotLeftRadius.Value;
+      t = _contentArea._b2ComputedQuad._min.y + ele.Style._props.Top;
+      r = _contentArea._b2ComputedQuad._min.x + ele.Style._props.Right;
+      b = _contentArea._b2ComputedQuad._min.y + ele.Style._props.Bottom;
+      l = _contentArea._b2ComputedQuad._min.x + ele.Style._props.Left;
+      bt = ele.Style._props.BorderTop;
+      br = ele.Style._props.BorderRight;
+      bb = ele.Style._props.BorderBot;
+      bl = ele.Style._props.BorderLeft;
+      rtl = ele.Style._props.BorderTopLeftRadius;
+      rtr = ele.Style._props.BorderTopRightRadius;
+      rbr = ele.Style._props.BorderBotRightRadius;
+      rbl = ele.Style._props.BorderBotLeftRadius;
 
       ComputeQuads(t + bt, r - br, b - bb, l + bl, rtl, rtr, rbr, rbl, ele._renderOffset, ele._contentArea);
 
@@ -1520,11 +2043,14 @@ namespace PirateCraft
         _children = new MultiMap<int, UiElement>();
       }
 
+      //Props must never be null.
+      Gu.Assert(Style._props.FontFace != null);
+
       //Get the font if it isn't already got.
       MtFontLoader font = null;
-      if (_cachedFont == null || mt.GetFont(_props._fontFace.Value) != _cachedFont)
+      if (_cachedFont == null || mt.GetFont(Style._props.FontFace) != _cachedFont)
       {
-        font = mt.GetFont(_props._fontFace.Value);
+        font = mt.GetFont(Style._props.FontFace);
       }
       else
       {
@@ -1532,18 +2058,16 @@ namespace PirateCraft
       }
       if (font == null)
       {
-        Gu.Log.ErrorCycle("Font loader could not be found for " + _props._fontFace.Value.QualifiedPath + " font possibly loaded with error", 500);
+        Gu.Log.ErrorCycle("Font loader could not be found for " + Style._props.FontFace.QualifiedPath + " font possibly loaded with error", 500);
         return;
       }
 
-      float fontHeight = _props._fontSize.Value;
-      var patch = font.SelectFontPatchInfo(fontHeight);
+      float fontHeight = Style._props.FontSize;
+      var patch = font.SelectFontPatchInfo(Gu.Translator.LanguageCode, fontHeight);
       if (patch == null)
       {
         return;
       }
-      //replaceChangedGlyphs=false;
-      int[] diff = null;
       if (replaceChangedGlyphs)
       {
         //Try to "smart" replace only changed text. 
@@ -1561,10 +2085,12 @@ namespace PirateCraft
         }
         else
         {
+          //Sliding Diff algorithm to create a subset of glyphs.
           int ilast = 0;
           int icur = 0;
           List<UiElement> newChildren = new List<UiElement>();
-          diff = StringUtil.SlidingDiff(_strTextLast, _strText, 16);
+          //We could cache diff in a static variable if its size becomes a problem.
+          int[] diff = StringUtil.SlidingDiff(_strTextLast, _strText, Gui2d.SlidingDiffWindow);
           int debug_numcreated = 0;
           for (int di = 0; di < diff.Length; di += 2)
           {
@@ -1585,6 +2111,7 @@ namespace PirateCraft
             {
               for (int cti = 0; cti < ct; cti++)
               {
+                //TODO: this should be UiElementBase, for simplicity. UiElement is too huge.
                 UiElement e = new UiElement();
                 DoGlyph(e, icur + cti, _strText, font, patch, fontHeight);
                 newChildren.Add(e);
@@ -1597,46 +2124,11 @@ namespace PirateCraft
               ilast += ct;
             }
           }
-
-          // //test
-          // string test1="";
-          // foreach(var c in newChildren){
-          // test1+=(char)c._char;
-          // }
-          //       string test2 = "";
-          //       ilast = 0;
-          //       icur = 0;
-          //       int nadd = 0;
-          //       int nrem = 0;
-          //       for (var xi = 0; xi < diff.Length; xi += 2)
-          //       {
-          //           int ct = diff[xi + 1];
-          //         if (diff[xi + 0] == 0)
-          //         {
-          //           test2 += _strTextLast.Substring(ilast, ct);
-          //           ilast += ct;
-          //           icur += ct;
-          //         }
-          //         else if (diff[xi + 0] == 1)
-          //         {
-          //           test2 += _strText.Substring(icur, ct);
-          //           icur += ct;
-          //           nadd += ct;
-          //         }
-          //         else if (diff[xi + 0] == 2)
-          //         {
-          //           ilast += ct;
-          //           nrem += ct;
-          //         }
-          //       }
-          //       bool didWork = StringUtil.Equals(_strText, test2);
-          //       bool didWork2 = StringUtil.Equals(_strText, test1);
-
-
           _children.SetValueList(c_GlyphLayerSort, newChildren);
+
         }
       }
-      else
+      if (replaceChangedGlyphs == false)
       {
         _children.Remove(c_GlyphLayerSort);
         int debug_redocount = 0;
@@ -1656,42 +2148,40 @@ namespace PirateCraft
     {
       int cc = _strText[index];
       int ccNext = (index + 1) < _strText.Length ? _strText[index + 1] : 0;
-      float adv = font.GetKernAdvanceWidth(patch, _props._fontSize.Value, cc, ccNext);
+      float adv = font.GetKernAdvanceWidth(patch, Style._props.FontSize, cc, ccNext);
       if (adv != 0)
       {
         int n = 0;
         n++;
       }
 
-      MtCachedCharData ccd = new MtCachedCharData();
-      patch.GetChar(cc, fontHeight, out ccd);
+      float sca = 0;
+      patch.GetChar(cc, fontHeight, out e._cachedGlyph, out sca);
 
-      //TODO: this should be UiElementBase, for simplicity. UiElement is too huge.
+      float gtop = 0, gright = 0, gbot = 0, gleft = 0, gwidth = 0, gheight = 0;
+      e._cachedGlyph.ApplyScaling(sca, out gtop, out gright, out gbot, out gleft, out gwidth, out gheight);
 
       e._pickEnabled = false;
-      e._renderOffset = new Box2f(new vec2(ccd.left, ccd.top), new vec2(ccd.right, ccd.bot));
-      e._props.SetDefault();
-      e._props._texture = new UiRef<MtTex>(new MtTex());
-      e._props._texture.Value.SetWH(patch.TextureWidth, patch.TextureHeight);
-      e._props._texture.Value.uv0 = ccd.uv0;
-      e._props._texture.Value.uv1 = ccd.uv1;
-      e._props._left = 0;
-      e._props._top = 0;
-      e._props._minWHPX = new vec2(ccd.width, ccd.height * _props._lineHeight.Value);
-      e._props._marRight = ccd.marginRight + adv;
-      e._props._positionMode = UiPositionMode.Static;
-      e._props._sizeModeHeight = UiSizeMode.Shrink;
-      e._props._sizeModeWidth = UiSizeMode.Shrink;
-      e._char = cc;
+      e._renderOffset = new Box2f(new vec2(gleft, gtop), new vec2(gright, gbot));
+      e.Style.IsPropsOnly = true;
+      e.Style._props.Left = 0;
+      e.Style._props.Top = 0;
+      e.Style._props.MinWidth = gwidth;
+      e.Style._props.MinHeight = gheight * Style._props.LineHeight;
+      e.Style._props.MarginRight = e._cachedGlyph.marginRight + adv;
+      e.Style._props.PositionMode = UiPositionMode.Static;
+      e.Style._props.SizeModeHeight = UiSizeMode.Shrink;
+      e.Style._props.SizeModeWidth = UiSizeMode.Shrink;
+
       if (cc == '\n')
       {
-        e._props._displayMode = UiDisplayMode.Block;
+        e.Style._props.DisplayMode = UiDisplayMode.Block;
       }
       else
       {
-        e._props._displayMode = UiDisplayMode.Inline;
+        e.Style._props.DisplayMode = UiDisplayMode.Inline;
       }
-      e._props._color = _props._fontColor;
+      e.Style._props.Color = Style._props.FontColor;
 
       e.ValidateQuad();
     }
@@ -1707,246 +2197,124 @@ namespace PirateCraft
     #endregion
 
   }//UiElement
-  public class UiGridRow : UiElement
+  public class StyleName
   {
+    // Helpers .. these will go away when we do a css file.
+    public const string Inline = "inline";
+    public const string Base = "base";
+    public const string Label = "label";
+    public const string DebugLabel = "debuglabel";
+    public const string Panel = "panel"; // a full width/height panel
+    public const string Button = "button";
+    public const string Toolbar = "toolbar";
   }
-  public class UiGrid : UiElement
+  public class UiStyleSheet
   {
-    public void AddRows(int nr, int nc)
-    {
-    }
-  }
-  public class UiMenuItem : UiButtonBase
-  {
-    public UiMenuItem(string name, string text, Action<UiEventId, UiElement, PCMouse> onClick = null, UiStyle styleClass = null) : base(name, text, null, styleClass)
-    {
-      if (onClick != null)
-      {
-        this.InlineStyle.AddEvent(UiEventId.Mouse_Lmb_Release, onClick);
-      }
-    }
-    public UiMenuItem AddMenuItem(UiMenuItem item)
-    {
-      AddChild(item);
-      return this;
-    }
-    public UiMenuItem AddMenuItems(List<UiMenuItem> items)
-    {
-      foreach (var item in items)
-      {
-        AddMenuItem(item);
-      }
-      return this;
-    }
-  }
-  public class UiToolbar : UiElement
-  {
-    public UiToolbar(string name, vec2? pos, vec2? wh, UiStyle style = null) : base(name, style)
-    {
-      this.InlineStyle.Texture = Gui2d.SolidColorTexture;
-      this.InlineStyle.MinWHPX = new vec2(0, 25);
-      this.InlineStyle.SizeModeWidth = UiSizeMode.Expand;
-      this.InlineStyle.SizeModeHeight = UiSizeMode.Shrink;
-      this.InlineStyle.Color = vec4.rgba_ub(220, 220, 230, 100);
-      this.InlineStyle.Padding = 5;
-      if (pos != null)
-      {
-        this.InlineStyle.Pos = pos.Value;
-        this.InlineStyle.PositionMode = UiPositionMode.Relative;
-      }
-      if (wh != null)
-      {
-        this.InlineStyle.Extent = wh.Value;
-      }
-    }
-  }
-  public class UiLabel : UiElement
-  {
-    public UiLabel(string name, vec2? pos, string text, bool showbackground = true, FontFace? font = null, float fontSize = 12, vec4? fontColor = null, UiFontStyle fontstyle = UiFontStyle.Normal, float lineheight = 1.0f)
-    {
-      if (pos != null)
-      {
-        this.InlineStyle.Pos = pos.Value;
-        this.InlineStyle.PositionMode = UiPositionMode.Relative;
-      }
-      this.Text = text;
-      if (showbackground)
-      {
-        this.InlineStyle.Texture = Gui2d.SolidColorTexture;
-      }
-      this.InlineStyle.FontFace = new UiRef<FontFace>(font != null ? font : FontFace.RobotoMono);
-      this.InlineStyle.FontSize = fontSize;
-      this.InlineStyle.FontColor = fontColor != null ? fontColor.Value : new vec4(1, 1, 1, 1);
-      this.InlineStyle.FontStyle = fontstyle;
-      this.InlineStyle.LineHeight = lineheight;
-      this.InlineStyle.Padding = 15;
-      this.InlineStyle.PadBot = 10;
-      this.InlineStyle.PadTop = 10;
-      this.InlineStyle.PadLeft = 10;
-      this.InlineStyle.PadRight = 10;
-      this.IsPickRoot = true;
-    }
-  }
-  public class UiButtonBase : UiElement
-  {
-    public UiButtonBase(string name, string text, vec2? pos = null, UiStyle styleClass = null) : base(name, styleClass)
-    {
-      this.Text = text;
-      this.IsPickRoot = true;
+    //* There is only one stylesheet, we must have a global namespace to make this owrk.
+    //I keep syaing we dont need this.
+    //optimally, we keep styles here, referencing elements and update it all at once for optimization.
+    //this would be ideal, plus, it allows us to share styles across the application.
 
-      if (pos != null)
-      {
-        this.InlineStyle.Pos = pos.Value;
-        this.InlineStyle.PositionMode = UiPositionMode.Relative;
-      }
-      this.InlineStyle.Texture = Gui2d.SolidColorTexture;
-      this.InlineStyle.DisplayMode = UiDisplayMode.Inline;
-      this.InlineStyle.MaxWHPX = new vec2(100, 200);
-      this.InlineStyle.Border = 0;
-      this.InlineStyle.BorderRadius = 3;
-      this.InlineStyle.BorderColor = vec4.rgba_ub(90, 120, 240, 255);
-      this.InlineStyle.Color = vec4.rgba_ub(35 + 90, 47 + 90, 62 + 90, 255);
-      this.InlineStyle.Padding = 3;
-      this.InlineStyle.PadRight = 7;
-      this.InlineStyle.PadLeft = 7;
-      this.InlineStyle.Margin = 2;
-      this.InlineStyle.FontColor = vec4.rgba_ub(255, 255, 255, 255);
-      this.InlineStyle.AddEvent(UiEventId.Mouse_Lmb_Release, (eid, uie, m) =>
-      {
-        this.InlineStyle.FontColor = vec4.rgba_ub(255, 255, 255, 255);
-      });
-      this.InlineStyle.AddEvent(UiEventId.Mouse_Enter, (eid, uie, m) =>
-      {
-        this.InlineStyle.Border = 2;
-        this.InlineStyle.BorderColor = vec4.rgba_ub(255, 255, 255, 255);
-      });
-      this.InlineStyle.AddEvent(UiEventId.Mouse_Leave, (eid, uie, m) =>
-      {
-        this.InlineStyle.Border = 0;
-      });
-      this.InlineStyle.AddEvent(UiEventId.Mouse_Lmb_Press, (eid, uie, m) =>
-      {
-        this.InlineStyle.FontColor = vec4.rgba_ub(200, 200, 200, 255);
-      });
+    // private enum LessCompileContext
+    // {
+    //   None,
+    //   ClassName,
+    //   ClassBody,
+    // }
+    // private enum LessVariableType { 
+    //   String,
+    //   Number,
+    // }
+    // private class ILessVariable { }
+    // private class LessVariable <T> : ILessVariable
+    // {
+    //   public T Value;
+    // }
 
-    }
-  }
-  public class UiButton : UiButtonBase
-  {
-    public UiButton(string name, string text, vec2? pos = null, Action<UiEventId, UiElement, PCMouse> onClick = null, UiStyle styleClass = null) : base(name, text, pos, styleClass)
+    private FileLoc _location = null;
+    private Dictionary<string, UiStyle> Styles = new Dictionary<string, UiStyle>();
+    private List<string> _errors = new List<string>();
+    public string Name { get; private set; } = Gu.UnsetName;
+
+    public UiStyleSheet(FileLoc loc)
     {
-      if (onClick != null)
+      _location = loc;
+      Name = System.IO.Path.GetFileName(loc.RawPath) + "-stylesheet";
+      LoadCSSFile();
+    }
+    public void Update()
+    {
+      if (_errors != null && _errors.Count > 0)
       {
-        this.InlineStyle.AddEvent(UiEventId.Mouse_Lmb_Release, onClick);
+        StringBuilder sb = new StringBuilder();
+        sb.AppendLine($"");
+        sb.AppendLine($"StyleSheet '{Name}', Context '{Gu.Context.Name}' has errors: ");
+        foreach (var e in _errors)
+        {
+          sb.AppendLine("-> " + e);
+        }
+        _errors.Clear();
+        Gu.Log.Error(sb.ToString());
       }
     }
-  }
-
-  public class UiScrollbar : UiElement
-  {
-    public UiScrollbar(string name, Action<float> scrollFunc, bool horizontal = false, UiStyle styleClass = null) : base(name, styleClass)
+    private void LoadCSSFile()
     {
-      UiElement thumb = new UiElement(name + "-thumb", styleClass);
-      //thumb.InlineStyle.Texture = new UiRef<MtTex>(null);//this.DefaultPixel());
-      thumb.InlineStyle.PadBot = thumb.InlineStyle.PadLeft = thumb.InlineStyle.PadTop = thumb.InlineStyle.PadRight = 15;// Fonts are messed up right now 
-      thumb.InlineStyle.PadBot = 5;
-      thumb.InlineStyle.PadTop = 5;
-      thumb.InlineStyle.PadLeft = 5;
-      thumb.InlineStyle.PadRight = 5;
-      thumb.InlineStyle.MaxWHPX = new vec2(999999, 999999);
-      thumb.InlineStyle.MinWHPX = new vec2(5, 5);
-      thumb.InlineStyle.Border = 1;
-      thumb.InlineStyle.BorderColor = vec4.rgba_ub(200, 200, 220);
-      thumb.IsPickRoot = true;
-      thumb.InlineStyle.PositionMode = UiPositionMode.RelativeConstrainXY;
-      thumb.InlineStyle.Top = 0;
-      thumb.InlineStyle.Left = 0;
-      thumb.IsPickRoot = true;
-
-      //UiElement cont = new UiElement(name, styleClass);//CreateDefaultStyledElement(name);
-      // cont.Name = name;
-      // cont.InlineStyle.Texture = new UiRef<MtTex>(null);//this.DefaultPixel());
-      this.InlineStyle.Padding = 3;
-      if (horizontal)
+      //Compile a CSS file 
+    }
+    public void StyleError(string error)
+    {
+      this._errors.Add(error);
+    }
+    public void AddStyles(List<UiStyle> styles)
+    {
+      foreach (var s in styles)
       {
-        this.InlineStyle.MaxWHPX = new vec2(999999, 20);
-        this.InlineStyle.MinWHPX = new vec2(20, 20);
-        this.InlineStyle.SizeModeWidth = UiSizeMode.Expand;
+        AddStyle(s);
+      }
+    }
+    public void AddStyle(UiStyle s)
+    {
+      //Styles can
+      s.SetStyleSheet(this);
+      Gu.Assert(s.Name != null);
+      if (Styles.ContainsKey(s.Name))
+      {
+        Gu.Log.Error($"{this.Name} style {s.Name} was already added.");
+        Gu.DebugBreak();
       }
       else
       {
-        this.InlineStyle.MaxWHPX = new vec2(20, 999999);
-        this.InlineStyle.MinWHPX = new vec2(20, 20);
-        this.InlineStyle.SizeModeHeight = UiSizeMode.Expand;
+        Styles.Add(s.Name, s);
       }
-      this.InlineStyle.Color = vec4.rgba_ub(90, 90, 90);
-      this.AddChild(thumb);
-
-      thumb.EnableDrag((v) =>
-      {
-        float valpct = 0;
-        if (horizontal)
-        {
-          valpct = (float)thumb.Props._left / ((float)this.Props._width - (float)thumb.Props._width);
-        }
-        else
-        {
-          valpct = (float)thumb.Props._top / ((float)this.Props._height - (float)thumb.Props._height);
-        }
-        thumb.InlineStyle.Left = thumb.Props._left;
-        thumb.InlineStyle.Top = thumb.Props._top;
-        thumb.InlineStyle.Left += v.x;
-        thumb.InlineStyle.Top += v.y;
-        scrollFunc?.Invoke(valpct * (thumb.MinValue + thumb.MaxValue));
-      });
-
     }
-
-  }
-  public class UiDropdown : UiElement
-  {
-    WeakReference<Gui2d> gui = null;
-    public UiDropdown(Gui2d g)
+    public bool RemoveStyle(UiStyle s)
     {
-      gui = new WeakReference<Gui2d>(g);
+      var b = Styles.Remove(s.Name);
+      return b;
     }
-    public void Show(vec2 pos, Dictionary<string, string> items)
+    public UiStyle GetStyle(string s)
     {
-      InlineStyle.Pos = pos;
-
-      ClearChildren();
-      if (gui.TryGetTarget(out var g))
-      {
-        Gu.BRThrowNotImplementedException();
-        // foreach (var kvp in items)
-        // {
-        //   var item = g.CreateDefaultStyledElement("item-" + kvp.Key);
-        //   item.InlineStyle.Color *= 1.5f;
-
-        //   item.InlineStyle.PositionMode = UiPositionMode.Relative;
-        //   item.InlineStyle.SizeModeWidth = UiSizeMode.Expand;
-        //   item.InlineStyle.SizeModeHeight = UiSizeMode.Shrink;
-        //   item.InlineStyle.MarginBot = 1;
-        //   item.Text = kvp.Value;
-        //   item.Tag = kvp.Key;
-        //   AddChild(item);
-        // }
-      }
-      Show();
+      Styles.TryGetValue(s, out var x);
+      return x;
     }
+
   }
   public class Gui2d : UiElement
   {
+
     #region Public: Members
 #if DEBUG
     private v_v4v4v4v2u2v4v4[] _debug_pt = new v_v4v4v4v2u2v4v4[3]; //save 3 points to see what they are (debug)
 #endif
 
-    public static UiRef<MtTex> SolidColorTexture { get { return new UiRef<MtTex>(new MtTex()); } }
+    public const int MaxSize = 9999999;
+    public const int SlidingDiffWindow = 16;//16 chars for the string difference window. Replacement of a full float string.
+
+    //public static UiRef<MtTex> SolidColorTexture { get { return new UiRef<MtTex>(new MtTex()); } }
 
     public WeakReference<RenderView> RenderView { get; private set; } = new WeakReference<RenderView>(null);
     public UiDebugDraw DebugDraw { get; set; } = new UiDebugDraw();
-    public UiDropdown ContextMenu { get; private set; } = null;
+    // public UiDropdown ContextMenu { get; private set; } = null;
     public MeshData Mesh { get; set; } = null;
     public long UpdateMs { get; private set; } = 0;
     public long MeshMs { get; private set; } = 0;
@@ -1954,6 +2322,7 @@ namespace PirateCraft
     public long ObjectEventsMs { get; private set; } = 0;
     public long WindowEventsMs { get; private set; } = 0;
     public MtTex DefaultPixel { get { return _shared.MegaTex.DefaultPixel; } }
+    public UiStyleSheet StyleSheet { get; set; } = null;
 
     private UiDragInfo _dragInfo = new UiDragInfo();
     private vec2 _viewport_wh_last = new vec2(1, 1);
@@ -1962,36 +2331,13 @@ namespace PirateCraft
     #endregion
     #region Public: Methods
 
-    public Gui2d(Gui2dShared shared, RenderView cam, string styleClass)
+    public Gui2d(Gui2dShared shared, RenderView cam)
     {
+      StyleSheet = new UiStyleSheet(new FileLoc("ui-default.css", FileStorage.Embedded));
       _shared = shared;
       RenderView = new WeakReference<RenderView>(cam);
-      int designWidth = 1920;
-      int designHeight = 1080;
-      _props.SetDefault();
-      _props._top = 0;
-      _props._left = 0;
-      _props._width = designWidth - 1;
-      _props._height = designHeight - 1;
-      _props._maxWHPX = new vec2(designWidth, designHeight);//Make sure stuff doesn't go off the screen.
-      _props._minWHPX = new vec2(0, 0);
-      _props._sizeModeWidth = _props._sizeModeHeight = UiSizeMode.Expand;
-      this.Name = "screen(root)";
+      Name = "screen(root)";
       CreateWindowEvents();
-
-      this.StyleClass = shared.StyleSheet.GetClass(styleClass);
-      this.StyleClass.Texture = null;//Null out texture.
-                                     //Technically not an error, however, we use the root styleclass to
-                                     //define default Texture Pixel for non-textured elements.
-      Gu.Assert(this.StyleClass != null);
-
-      ContextMenu = new UiDropdown(this);
-      //CreateDefaultStyledElement(ContextMenu);
-      ContextMenu.InlineStyle.PositionMode = UiPositionMode.Relative;
-      ContextMenu.InlineStyle.SizeModeHeight = UiSizeMode.Expand;
-      ContextMenu.InlineStyle.SizeModeWidth = UiSizeMode.Expand;
-      AddChild(ContextMenu);
-      ContextMenu.Hide();
     }
     public void OnResize()
     {
@@ -2008,6 +2354,7 @@ namespace PirateCraft
       if (RenderView != null && RenderView.TryGetTarget(out var rv))
       {
         long a = Gu.Milliseconds();
+        StyleSheet?.Update();
         SetExtentsToViewport(rv);
         UpdateLayout(_shared.MegaTex, Gu.Context.PCMouse, rv);
         this.UpdateMs = Gu.Milliseconds() - a;
@@ -2015,6 +2362,7 @@ namespace PirateCraft
         a = Gu.Milliseconds();
         RegenMesh(rv, _shared.MegaTex);
         this.MeshMs = Gu.Milliseconds() - a;
+
       }
     }
     public void Pick()
@@ -2066,7 +2414,6 @@ namespace PirateCraft
       this.WindowEventsMs = Gu.Milliseconds() - a;
     }
 
-
     #endregion
     #region Private: Methods
 
@@ -2083,11 +2430,11 @@ namespace PirateCraft
         }
 
         // Gui2d doesn't have a parent, so we have to compute the quads to create a valid clip region.
-        ComputeQuads(_props._top.Value, _props._right.Value, _props._bottom.Value, _props._left.Value,
-        _props._borderTopLeftRadius.Value, _props._borderTopRightRadius.Value, _props._borderBotRightRadius.Value, _props._borderBotLeftRadius.Value,
+        ComputeQuads(Style._props.Top, Style._props.Right, Style._props.Bottom, Style._props.Left,
+        Style._props.BorderTopLeftRadius, Style._props.BorderTopRightRadius, Style._props.BorderBotRightRadius, Style._props.BorderBotLeftRadius,
         _renderOffset, _contentArea);
 
-        PerformLayout_SizeElements(mt, force, this._props._maxWHPX.Value, null);
+        PerformLayout_SizeElements(mt, force, new vec2(Style._props.MaxWidth, Style._props.MaxHeight), null, StyleSheet, Gu.Context.FrameStamp);
         PerformLayout_PositionElements(force);
 
       }
@@ -2120,48 +2467,53 @@ namespace PirateCraft
     }
     private void SetExtentsToViewport(RenderView rv)
     {
-      _props._top = rv.Viewport.Y;
-      _props._left = rv.Viewport.X;
-      _props._width = rv.Viewport.Width;
-      _props._height = rv.Viewport.Height;
-      _props._maxWHPX = new vec2(rv.Viewport.Width, rv.Viewport.Height);//Make sure stuff doesn't go off the screen.
-      _props._minWHPX = new vec2(0, 0);
+      Style.Top = rv.Viewport.Y;
+      Style.Left = rv.Viewport.X;
+      Style.Width = rv.Viewport.Width;
+      Style.Height = rv.Viewport.Height;
+      Style.MinWidth = 0;
+      Style.MinHeight = 0;
+      Style.MaxWidth = rv.Viewport.Width;//Make sure stuff doesn't go off the screen.
+      Style.MaxHeight = rv.Viewport.Height;//Make sure stuff doesn't go off the screen.
+      Style.SizeModeWidth = UiSizeMode.Fixed;
+      Style.SizeModeHeight = UiSizeMode.Fixed;
+      Style.PositionMode = UiPositionMode.Relative;
     }
     private void CreateWindowEvents()
     {
       //Drag Info..
       //Context Menus..
-      InlineStyle.AddEvent(UiEventId.Mouse_Lmb_Press, (UiEventId evId, UiElement ele, PCMouse m) =>
+      Style.AddEvent(UiEventId.Mouse_Lmb_Press, (UiEventId evId, UiElement ele, PCMouse m) =>
       {
         var e = (Gu.Context.Renderer.Picker.PickedObjectFrame as UiElement);
         _dragInfo.StartDrag(e, m);
       });
-      InlineStyle.AddEvent(UiEventId.Mouse_Move, (UiEventId evId, UiElement ele, PCMouse m) =>
+      Style.AddEvent(UiEventId.Mouse_Move, (UiEventId evId, UiElement ele, PCMouse m) =>
       {
         _dragInfo.UpdateDrag(m);
       });
-      InlineStyle.AddEvent(UiEventId.Mouse_Lmb_Release, (UiEventId evId, UiElement ele, PCMouse m) =>
+      Style.AddEvent(UiEventId.Mouse_Lmb_Release, (UiEventId evId, UiElement ele, PCMouse m) =>
       {
         _dragInfo.EndDrag();
-        if (ContextMenu.RenderVisible)
-        {
-          ContextMenu?.Hide();
-        }
+        // if (ContextMenu.RenderVisible)
+        // {
+        //   ContextMenu?.Hide();
+        // }
       });
-      InlineStyle.AddEvent(UiEventId.Mouse_Rmb_Press, (UiEventId evId, UiElement ele, PCMouse m) =>
+      Style.AddEvent(UiEventId.Mouse_Rmb_Press, (UiEventId evId, UiElement ele, PCMouse m) =>
       {
-        if (ContextMenu != null)
-        {
-          ContextMenu.Show();
-          ContextMenu.InlineStyle.Pos = m.Pos;
-        }
+        // if (ContextMenu != null)
+        // {
+        //   ContextMenu.Show();
+        //   ContextMenu.InlineStyle.Pos = m.Pos;
+        // }
       });
-      InlineStyle.AddEvent(UiEventId.Mouse_Rmb_Release, (UiEventId evId, UiElement ele, PCMouse m) =>
+      Style.AddEvent(UiEventId.Mouse_Rmb_Release, (UiEventId evId, UiElement ele, PCMouse m) =>
       {
-        if (ContextMenu.RenderVisible)
-        {
-          ContextMenu?.Hide();
-        }
+        // if (ContextMenu.RenderVisible)
+        // {
+        //   ContextMenu?.Hide();
+        // }
       });
     }
 
@@ -2169,337 +2521,16 @@ namespace PirateCraft
     #endregion
 
   }//Gui2d
-
   public class UiRef<T> where T : class
   {
     public T Value = null;
     public UiRef() { }
     public UiRef(T val) { Value = val; }
   }
-  public class UiStyle
-  {
-    //Purpose of this class is to encapsulate all style properties and "cascade" similar to CSS
-    //I imagine we won't use this so much. Just one element (usually) will be associated with a style
-    //The problem with the last system is that there was no default color, so we had to texture every element ugh.
-    public string Name { get; set; } = "<unset>";
-    public UiStyle Super
-    {
-      get { return _super; }
-      set
-      {
-        if (AssertDAG())
-        {
-          _super = value;
-          SetLayoutChanged();
-        }
-        else
-        {
-          Gu.DebugBreak();
-        }
-      }
-    }
-    private bool AssertDAG()
-    {
-      UiStyle that = Super;
-      for (int n = 0; n < Gu.c_intMaxWhileTrueLoop; n++)
-      {
-        if (that == this)
-        {
-          Gu.Log.Error("Cycle in UI class '" + this.Name + "' and '" + Super.Name + "'. Subclass not set.");
-          return false;
-        }
-        if (that != null)
-        {
-          that = that.Super;
-        }
-        else
-        {
-          break;
-        }
-      }
-      return true;
-    }
-    public UiRef<MtTex> Texture
-    {
-      get
-      {
-        return _props._texture;
-      }
-      set
-      {
-        if (value != null)
-        {
-          if (_props._texture == null)
-          {
-            IterateElements((e) =>
-            {
-              e._iPickId = Gu.Context.Renderer.Picker.GenPickId();
-            });
-          }
-          else
-          {
-            //keep same id
-          }
-        }
-        else
-        {
-          IterateElements((e) =>
-          {
-            e._iPickId = 0;
-          });
-        }
-        _props._texture = value;
-        SetMustCompile();
-      }
-    }
-    public float? Margin
-    {
-      get { return _props._marTop.Value; }
-      set
-      {
-        _props._marTop = _props._marRight = _props._marLeft = _props._marBot = value;
-        SetLayoutChanged();
-        SetMustCompile();
-      }
-    }
-    public float? Border
-    {
-      get { return _props._borderTop.Value; }
-      set
-      {
-        _props._borderTop = _props._borderRight = _props._borderLeft = _props._borderBot = value;
-        SetLayoutChanged();
-        SetMustCompile();
-      }
-    }
-    public float? BorderRadius
-    {
-      get { return _props._borderTopLeftRadius.Value; }
-      set
-      {
-        _props._borderTopLeftRadius = _props._borderBotLeftRadius = _props._borderBotRightRadius = _props._borderTopRightRadius = value;
-        SetLayoutChanged();
-        SetMustCompile();
-      }
-    }
-    public float? Padding
-    {
-      get { return _props._padTop.Value; }
-      set
-      {
-        _props._padTop = _props._padRight = _props._padLeft = _props._padBot = value;
-        SetLayoutChanged();
-      }
-    }
-    public vec2 Pos { get { return new vec2(_props._left.Value, _props._top.Value); } set { _props._left = value.x; _props._top = value.y; SetLayoutChanged(); } }
-    public vec2 Extent { get { return new vec2(_props._width.Value, _props._height.Value); } set { _props._width = value.x; _props._height = value.y; SetLayoutChanged(); } }
-    public vec4? BorderColor { get { return _props._borderColor; } set { _props._borderColor = value; SetLayoutChanged(); } }
-    public vec4? Color { get { return _props._color; } set { _props._color = value; SetLayoutChanged(); } }
-    public vec4? FontColor { get { return _props._fontColor; } set { _props._fontColor = value; SetLayoutChanged(); } }
-    public UiPositionMode? PositionMode { get { return _props._positionMode; } set { _props._positionMode = value; SetLayoutChanged(); } }
-    public UiOverflowMode? OverflowMode { get { return _props._overflowMode; } set { _props._overflowMode = value; SetLayoutChanged(); } }
-    public UiSizeMode? SizeModeWidth { get { return _props._sizeModeWidth; } set { _props._sizeModeWidth = value; SetLayoutChanged(); } }
-    public UiSizeMode? SizeModeHeight { get { return _props._sizeModeHeight; } set { _props._sizeModeHeight = value; SetLayoutChanged(); } }
-    public UiDisplayMode? DisplayMode { get { return _props._displayMode; } set { _props._displayMode = value; SetLayoutChanged(); } }
-    public UiImageTiling? ImageTilingX { get { return _props._imageTilingX; } set { _props._imageTilingX = value; SetLayoutChanged(); } }
-    public UiImageTiling? ImageTilingY { get { return _props._imageTilingY; } set { _props._imageTilingY = value; SetLayoutChanged(); } }
-    public vec2? MinWHPX { get { return _props._minWHPX; } set { _props._minWHPX = value; SetLayoutChanged(); } }
-    public vec2? MaxWHPX { get { return _props._maxWHPX; } set { _props._maxWHPX = value; SetLayoutChanged(); } }
-    public float? Top { get { return _props._top; } set { _props._top = value; SetLayoutChanged(); } }
-    public float? Left { get { return _props._left; } set { _props._left = value; SetLayoutChanged(); } }
-    public float? MarginTop { get { return _props._marTop; } set { _props._marTop = value; SetLayoutChanged(); } }
-    public float? MarginRight { get { return _props._marRight; } set { _props._marRight = value; SetLayoutChanged(); } }
-    public float? MarginBot { get { return _props._marBot; } set { _props._marBot = value; SetLayoutChanged(); } }
-    public float? MarginLeft { get { return _props._marLeft; } set { _props._marLeft = value; SetLayoutChanged(); } }
-    public float? BorderTop { get { return _props._borderTop; } set { _props._borderTop = value; SetLayoutChanged(); } }
-    public float? BorderRight { get { return _props._borderRight; } set { _props._borderRight = value; SetLayoutChanged(); } }
-    public float? BorderBot { get { return _props._borderBot; } set { _props._borderBot = value; SetLayoutChanged(); } }
-    public float? BorderLeft { get { return _props._borderLeft; } set { _props._borderLeft = value; SetLayoutChanged(); } }
-    public float? BorderTopLeftRadius { get { return _props._borderTopLeftRadius; } set { _props._borderTopLeftRadius = value; SetLayoutChanged(); } }
-    public float? BorderTopRightRadius { get { return _props._borderTopRightRadius; } set { _props._borderTopRightRadius = value; SetLayoutChanged(); } }
-    public float? BorderBotRightRadius { get { return _props._borderBotRightRadius; } set { _props._borderBotRightRadius = value; SetLayoutChanged(); } }
-    public float? BorderBotLeftRadius { get { return _props._borderBotLeftRadius; } set { _props._borderBotLeftRadius = value; SetLayoutChanged(); } }
-    public float? PadTop { get { return _props._padTop; } set { _props._padTop = value; SetLayoutChanged(); } }
-    public float? PadRight { get { return _props._padRight; } set { _props._padRight = value; SetLayoutChanged(); } }
-    public float? PadBot { get { return _props._padBot; } set { _props._padBot = value; SetLayoutChanged(); } }
-    public float? PadLeft { get { return _props._padLeft; } set { _props._padLeft = value; SetLayoutChanged(); } }
-    public float? LineHeight { get { return _props._lineHeight; } set { _props._lineHeight = value; SetLayoutChanged(); } }
-    public UiRef<FontFace> FontFace { get { return _props._fontFace; } set { _props._fontFace = value; SetLayoutChanged(); } }
-    public float? FontSize { get { return _props._fontSize; } set { _props._fontSize = value; SetLayoutChanged(); } }
-    public UiFontStyle? FontStyle { get { return _props._fontStyle; } set { _props._fontStyle = value; SetLayoutChanged(); } }
-    public UiRef<Dictionary<UiEventId, MultiMap<string, Action<UiEventId, UiElement, PCMouse>>>> Events { get { return _props._events; } set { _props._events = value; } }
-
-    public void Compile(UiStyle sub = null)
-    {
-      if (_bMustCompile)
-      {
-        _compiled = _props.Clone();
-        if (_super != null)
-        {
-          _super.Compile(this);
-        }
-        if (sub != null)
-        {
-          _compiled.ApplySubclass(sub._props);
-        }
-        _bMustCompile = false;
-      }
-    }
-
-    public UiStyleProps Props { get { return _props; } }
-    public UiStyleProps Compiled { get { return _compiled; } }
-    private UiStyleProps _props = new UiStyleProps();
-    private UiStyleProps _compiled = null; // This is only for classes, not elements. Don't duplciate this data for all glyphs!
-    private bool _bMustCompile = true;
-    private UiStyle _super = null;
-    public List<WeakReference<UiElement>> _eles = null;
-    public long ChangedFrameId { get; set; } = 0;
-
-    public UiStyle()
-    {
-    }
-    public void AddEvent(UiEventId evId, Action<UiEventId, UiElement, PCMouse> f, string tag = "")
-    {
-      // Layman's: For each Mouse Button State we have a list of functions that get called when it is active (like clicked)
-      if (_props._events == null)
-      {
-        _props._events = new UiRef<Dictionary<UiEventId, MultiMap<string, Action<UiEventId, UiElement, PCMouse>>>>(new Dictionary<UiEventId, MultiMap<string, Action<UiEventId, UiElement, PCMouse>>>());
-      }
-      MultiMap<string, Action<UiEventId, UiElement, PCMouse>>? evList = null;
-      if (!_props._events.Value.TryGetValue(evId, out evList))
-      {
-        evList = new MultiMap<string, Action<UiEventId, UiElement, PCMouse>>();
-        _props._events.Value.Add(evId, evList);
-      }
-      evList.Add(tag, f);
-    }
-    public bool RemoveEvents(UiEventId evId, string tag)
-    {
-      if (_props._events.Value.TryGetValue(evId, out var evList))
-      {
-        return evList.Remove(tag);
-      }
-      return false;
-    }
-    public UiStyle Clone()
-    {
-      UiStyle ret = new UiStyle();
-      ret._props = this._props.Clone();
-      ret._eles = null;
-      ret._bMustCompile = true;
-      ret._super = this._super;
-      return ret;
-    }
-    private void SetLayoutChanged()
-    {
-      IterateElements((e) =>
-      {
-        e.SetLayoutChanged();
-      });
-      SetMustCompile();
-    }
-    private void SetMustCompile()
-    {
-      ChangedFrameId = Gu.Context.FrameStamp;
-      _bMustCompile = true;
-    }
-    private void IterateElements(Action<UiElement> act)
-    {
-      if (_eles != null)
-      {
-        List<WeakReference<UiElement>> remove = new List<WeakReference<UiElement>>();
-        foreach (var ele in _eles)
-        {
-          if (ele.TryGetTarget(out var e))
-          {
-            act(e);
-          }
-          else
-          {
-            remove.Add(ele);
-          }
-        }
-        foreach (var e in remove)
-        {
-          _eles.Remove(e);
-        }
-      }
-    }
-
-  }
-  public class UiStyleSheet
-  {
-    //The purpose of skins is to allow us to texture the UI in the future.
-    //For now, we can use the 1 pixel texture and a default color (easier) 
-    public const string DefaultStyle = "style-default";
-    public const string DefaultHoverStyle = "style-default-hover";
-    public const string DefaultDownStyle = "style-default-down";
-
-    public UiStyle CurrentStyle = null;
-    public MegaTex MegaTex { get; private set; } = null;
-    public Dictionary<string, UiStyle> Styles = new Dictionary<string, UiStyle>();
-    public UiStyleSheet(MegaTex tex)
-    {
-      if (tex.DefaultPixel == null)
-      {
-        Gu.BRThrowException("Default pixel for UI megatex must be set.");
-      }
-      MegaTex = tex;
-
-      UiStyle defaultStyle = new UiStyle();
-
-      defaultStyle.Name = DefaultStyle;
-      defaultStyle.FontColor = vec4.rgba_ub(10, 10, 12, 1);
-      defaultStyle.Color = vec4.rgba_ub(150, 150, 150, 255);
-      defaultStyle.Texture = new UiRef<MtTex>(tex.DefaultPixel); //Flat color
-      defaultStyle.PadTop = 5;
-      defaultStyle.PadRight = 5;
-      defaultStyle.PadBot = 5;
-      defaultStyle.PadLeft = 5;
-      defaultStyle.MarginTop = 0;
-      defaultStyle.MarginRight = 0;
-      defaultStyle.MarginBot = 0;
-      defaultStyle.MarginLeft = 0;
-      defaultStyle.FontFace = new UiRef<FontFace>(FontFace.RobotoMono);//What if this doesn't exist? Default?
-      defaultStyle.FontStyle = UiFontStyle.Normal;
-      defaultStyle.FontSize = 22;
-      defaultStyle.LineHeight = 1.0f;
-      Styles.Add(defaultStyle.Name, defaultStyle);
-
-      var defaultDownStyle = new UiStyle()
-      {
-        Name = DefaultDownStyle,
-        Super = defaultStyle,
-        Color = new vec4(defaultStyle.Color.Value.xyz() * 0.7f, 1),
-        FontColor = vec4.rgba_ub(190, 190, 190, 1)
-      };
-      Styles.Add(defaultDownStyle.Name, defaultDownStyle);
-
-      var defaultHoverStyle = new UiStyle()
-      {
-        Name = DefaultHoverStyle,
-        Super = defaultStyle,
-        Color = new vec4(defaultStyle.Color.Value.xyz() * 1.3f, 1),
-        FontColor = vec4.rgba_ub(30, 30, 32, 1)
-      };
-      Styles.Add(defaultHoverStyle.Name, defaultHoverStyle);
-    }
-    public UiStyle GetClass(string name)
-    {
-      UiStyle ret = null;
-      Styles.TryGetValue(name, out ret);
-      if (ret == null)
-      {
-        Gu.Log.Error("Failed to find UI Style " + name);
-        Gu.DebugBreak();
-      }
-      return ret;
-    }
-  }//UiStyleSheet
   public class Gui2dShared
   {
     //Shared data between Gui2d instances for each context
-    public UiStyleSheet StyleSheet { get; private set; } = null;
+    // public UiStyleSheet StyleSheet { get; private set; } = null;
     public WorldObject Dummy { get; private set; } = null;
     public MegaTex MegaTex { get; private set; } = null;
     public string Name { get; private set; } = "<unnamed>";
@@ -2509,9 +2540,9 @@ namespace PirateCraft
       Name = name;
       MegaTex = new MegaTex("gui_megatex", true, MegaTex.MtClearColor.DebugRainbow, true, TexFilter.Linear, false);
       MegaTex.AddResources(resources);
-      MegaTex.CompiledTextures tx = MegaTex.Compile();
+      var tx = MegaTex.Compile();
 
-      StyleSheet = new UiStyleSheet(MegaTex);
+      //StyleSheet = new UiStyleSheet(MegaTex);
 
       if (tx != null)
       {
@@ -2520,7 +2551,7 @@ namespace PirateCraft
         Dummy.Material = new Material("GuiMT", shader);
         Dummy.Material.GpuRenderState.DepthTest = false;
         Dummy.Material.GpuRenderState.Blend = true;
-        Dummy.Material.AlbedoSlot.Texture = tx.Albedo;
+        Dummy.Material.AlbedoSlot.Texture = tx.AlbedoTexture;
       }
       else
       {

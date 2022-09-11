@@ -135,7 +135,7 @@ namespace PirateCraft
       // Epsilon cusyhion equals
       return (((b) <= ((a) + (e))) && ((b) >= ((a) - (e))));
     }
-      public static DateTime Max(DateTime a, DateTime b)
+    public static DateTime Max(DateTime a, DateTime b)
     {
       return a > b ? a : b;
     }
@@ -1779,6 +1779,14 @@ namespace PirateCraft
     public static vec4 operator /(vec4 a, float b)
     {
       return new vec4(a.x / b, a.y / b, a.z / b, a.w / b);
+    }
+    public static bool operator !=(vec4 a, vec4 b)
+    {
+      return (a.x != b.x || a.y != b.y || a.z != b.z || a.w != b.w);
+    }
+    public static bool operator ==(vec4 a, vec4 b)
+    {
+      return (a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w);
     }
     public static vec4 Minv(vec4 a, vec4 b)
     {
@@ -4949,7 +4957,7 @@ namespace PirateCraft
     }
     public static void Write<T>(this System.IO.BinaryWriter writer, T[] items) where T : struct
     {
-      var d = ResourceManager.Serialize(items);// Gpu.SerializeGpuData<T>(items);
+      var d = ResourceManager.Serialize(items);
       writer.Write((Int32)d.Length);
       writer.Write(d);
     }

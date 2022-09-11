@@ -1,4 +1,5 @@
 ﻿
+using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL4;
 
 namespace PirateCraft
@@ -63,7 +64,7 @@ namespace PirateCraft
       }
       catch (Exception ex)
       {
-        Gu.Log.Error("Image not found. Loading default image.",ex);
+        Gu.Log.Error("Image not found. Loading default image.", ex);
         img = Img32.Default1x1_RGBA32ub(255, 0, 255, 255);
       }
 
@@ -454,13 +455,9 @@ namespace PirateCraft
       SetFilter(filter);
       SetWrap(wrap);
 
-      //This calls glteximage2d for every mip level, or array texture (shadow array)
-      //Allocates storage (buffers) on the GPU for all levels
       GL.TexStorage2D(TextureTarget2d.Texture2D, _numMipmaps, GetSizedInternalFormat(), (int)Width, (int)Height);
 
-      //var raw = Gpu.SerializeGPUData(bmp.Data);
-      var raw = Gpu.GetGpuDataPtr(bmp.Data);
-
+      var pinnedHandle = GCHandle.Alloc(bmp.Data, GCHandleType.Pinned);
       GL.TexSubImage2D(TextureTarget,
           0, //mipmap level
           0, 0, //x.y
@@ -468,8 +465,8 @@ namespace PirateCraft
           this.Height,
           this.PixelFormat,
           this.PixelType,
-          raw.Lock());
-      raw.Unlock();
+          pinnedHandle.AddrOfPinnedObject());
+      pinnedHandle.Free();
 
       if (mipmaps)
       {

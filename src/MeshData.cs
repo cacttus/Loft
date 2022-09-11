@@ -371,9 +371,6 @@ namespace PirateCraft
       verts[0 * 4 + 2] = new v_v3n3x2() { _v = box[2], _n = norms[0], _x = (side != null) ? side[2] : texs[2] };
       verts[0 * 4 + 3] = new v_v3n3x2() { _v = box[3], _n = norms[0], _x = (side != null) ? side[3] : texs[3] };
 
-      // var indsBoxed = GenerateQuadIndicesArray("generated-plane", verts.Length / 4);
-      // var vertsBoxed = Gpu.GetGpuDataPtr(verts);
-
       return new MeshData("generated-plane", PrimitiveType.Triangles,
         Gpu.CreateVertexBuffer("generated-plane", verts),
         GenerateQuadIndicesArray("generated-plane", verts.Length / 4));

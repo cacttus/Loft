@@ -44,7 +44,7 @@ namespace PirateCraft
     }
 
     private FramebufferAttachment() { }
-    public string OutputName { get; private set; } = "<unset>";
+    public string OutputName { get; private set; } = Gu.UnsetName;
     public FramebufferAttachment(string outputName, RenderTargetType eTargetType, int w, int h, int nMsaaSamples)
     {
       OutputName = outputName;

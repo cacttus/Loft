@@ -23,13 +23,16 @@ namespace PirateCraft
     public int ItemCount { get { return _itemCount; } }
     public int ItemSizeBytes { get { return _format.ItemSizeBytes; } }
 
-    public GPUBuffer(string name, VertexFormat fmt, BufferTarget t, GpuDataPtr items) : base(name + "-buffer")
+    public GPUBuffer(string name, VertexFormat fmt, BufferTarget t, int itemSize, int itemCount, object items) : base(name + "-buffer")
     {
       Gu.Assert(fmt != null);
       Gu.Assert(items != null);
+
       BufferTarget = t;
       _format = fmt;
       _glId = GL.GenBuffer();
+      _itemCount = itemCount;
+      _itemSize = itemSize;
       Allocate(items);
       SetObjectLabel();
 
@@ -78,6 +81,7 @@ namespace PirateCraft
     }
     public GpuDataArray CopyDataFromGPU(int itemOffset = 0, int itemCount = -1)
     {
+      //TODO: this is super slow, we can use Marshal.Copy(IntPtr, IntPtr[] to be faster, and also template this method)
       //Copies GPU data into a temporary byte array.
       //GpuDataArray is a kind of proxy class that munges data into a managed byte array.
 
@@ -130,21 +134,19 @@ namespace PirateCraft
       GL.UnmapBuffer(BufferTarget);
       Unbind();
     }
-    private void Allocate(GpuDataPtr items)
+    private void Allocate(object items)
     {
-      _itemCount = items.Count;
-      _itemSize = items.ItemSizeBytes;
       Bind();
+      var pinnedHandle = GCHandle.Alloc(items, GCHandleType.Pinned);
       GL.BufferData(
                 BufferTarget,
-          (int)(items.Count * items.ItemSizeBytes),
-          items.Lock(),
+          (int)(_itemCount * _itemSize),
+          pinnedHandle.AddrOfPinnedObject(),
           BufferUsageHint.StaticDraw
           );
-      items.Unlock();
+      pinnedHandle.Free();
       Gpu.CheckGpuErrorsDbg();
       Unbind();
-
     }
   }
 
