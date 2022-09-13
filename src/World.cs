@@ -1351,8 +1351,6 @@ namespace PirateCraft
         MtFile mf = _worldMegatex.AddResource(resource.Value);
       }
 
-      _worldMegatex.AddResource(FontFace.EmilysCandy);
-
       var cmp = _worldMegatex.Compile();
 
       cmp.AlbedoTexture.SetFilter(TextureMinFilter.NearestMipmapLinear, TextureMagFilter.Nearest);

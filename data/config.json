@@ -1,16 +1,113 @@
 {
-  "LogErrors" : "true",
-  "BreakOnOpenGLError" : "true",
-  "MaxBakedCharSize" : "64",
-  "MaxFontBitmapSize" : "4096",
-  "EnableMSAA" : "false",
-  "MSAASamples" : "4",
-  "ShadowMapResolution" : "1024",
-  "EnableDebugErrorChecking" : "true",
-  "EnableRuntimeErrorChecking" : "true",
-  "BreakOnGraphicsError" : "true",
-  "ShowGuiBoxesAndDisableClipping" : "false",
-  "SaveSTBFontImage" : "true"  //saves raw generated font images
+  "LogErrors" :true,
+  "ShaderCaching" : true, //cache shader binaries on disk.
+  "MaxCharactersPerBitmap" : 2048,//may not need this, MaxFontBitmapSize seems better
+  "MaxBakedCharSize" : 64,
+  "MaxFontBitmapSize" : 4096,
+  "EnableMSAA" : false,
+  "MSAASamples" : 4,
+  "ShadowMapResolution" : 1024,
+  "EnableDebugErrorChecking" : true,
+  "EnableRuntimeErrorChecking" : true,
+  "BreakOnGraphicsError" : true,
+  "ShowGuiBoxesAndDisableClipping" : false,
+  "SaveSTBFontImage" : true, //saves raw generated font images
+  "StartInEditMode" : true,//Set this to false to start the engine in game mode.
+  "WindowInitX" : 100,
+  "WindowInitY" : 100,
+  "WindowInitW" : 1920,
+  "WindowInitH" : 1080,
+  "WindowInitScaleW" : 0.75,
+  "WindowInitScaleH" : 0.75,
+  //"IncludeTest" : @"config_include.json:embedded",
+  "fonts" : [
+    {
+      "name": "NotoSerif",
+      "langs": {
+          "all": {
+            "regular" : { "file" : "NotoSerifSC-Regular.ttf", "storage" : "embedded" },
+            "bold" : { "file" : "NotoSerifSC-Bold.ttf", "storage" : "embedded" }
+          },
+          "zh": {
+            "regular" : { "file" : "NotoSerifSC-Regular.ttf", "storage" : "embedded" },
+            "bold" : { "file" : "NotoSerifSC-Bold.ttf", "storage" : "embedded" }
+          }
+        }
+    },
+    {
+      "name": "Parisienne",
+      "en": {
+        "regular" : { "file" : "Parisienne-Regular.ttf", "storage" : "embedded"}
+      }
+    },
+    {
+      "name": "RobotoMono",
+      "en": {
+        "regular" : { "file" : "RobotoMono-Regular.ttf", "storage" : "embedded" }
+      }
+    },
+    {
+      "name": "PressStart2P",
+      "en": {
+        "regular" : { "file" : "PressStart2P-Regular.ttf", "storage" : "embedded" }
+      }
+    },
+    {
+      "name": "Entypo",
+      "en": {
+        "regular" : { "file" : "Entypo.ttf", "storage" : "embedded" }
+      }
+    },
+    {
+      "name": "Calibri",
+      "en": {
+        "regular" : { "file" : "calibri.ttf", "storage" : "embedded" }
+      }
+    },
+    {
+      "name": "EmilysCandy",
+      "en": {
+        "regular" : { "file" : "EmilysCandy-Regular.ttf", "storage" : "embedded" }
+      }
+    }
+  ]
+
+  }
+//   public static FontFace Parisienne = new FontFace(
+//   new Dictionary<LanguageCode, FileLoc>() {
+//     { LanguageCode.en, new FileLoc("Parisienne-Regular.ttf", FileStorage.Embedded) }
+//   }
+// );
+// public static FontFace RobotoMono = new FontFace(
+//   new Dictionary<LanguageCode, FileLoc>() { 
+//     { LanguageCode.en, new FileLoc("RobotoMono-Regular.ttf", FileStorage.Embedded) } 
+//   }
+// );
+// public static FontFace PressStart2P = new FontFace(
+//   new Dictionary<LanguageCode, FileLoc>() { 
+//     { LanguageCode.en, new FileLoc("PressStart2P-Regular.ttf", FileStorage.Embedded) }
+//   }
+// );
+// public static FontFace Entypo = new FontFace(
+//   new Dictionary<LanguageCode, FileLoc>() {
+//     { LanguageCode.en, new FileLoc("Entypo.ttf", FileStorage.Embedded) } 
+//   }
+// );
+// public static FontFace Calibri = new FontFace(
+//   new Dictionary<LanguageCode, FileLoc>() { 
+//     { LanguageCode.en, new FileLoc("calibri.ttf", FileStorage.Embedded) }
+//   }
+// );
+// public static FontFace EmilysCandy = new FontFace(
+//   new Dictionary<LanguageCode, FileLoc>() { 
+//     { LanguageCode.en, new FileLoc("EmilysCandy-Regular.ttf", FileStorage.Embedded) } 
+//   }
+//   );
+// public static FontFace Noto = new FontFace(
+//   new Dictionary<LanguageCode, FileLoc>() {
+//      { LanguageCode.zh, new FileLoc("NotoSerifSC-Regular.otf", FileStorage.Embedded) }
+//    }
+//   );
 
   // "TextureFolder": "./textures/",
   // "ShaderFolder": "./shaders/",

@@ -74,7 +74,7 @@ namespace PirateCraft
     }
     public static void CheckALErrors()
     {
-      for (int i = 0; i < Gu.c_intMaxWhileTrueLoop; ++i)
+      for (int i = 0; Gu.WhileTrueGuard(i, Gu.c_intMaxWhileTrueLoop); ++i)
       {
         //NOTE: you can only call getError when there is an AL context.
         ALError e = AL.GetError();

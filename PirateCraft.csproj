@@ -11,16 +11,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="data\**" />
-    <EmbeddedResource Include="data\**" />
-    <None Remove="data\**" />
+    <Compile Remove=".\data\**" />
+    <EmbeddedResource Include=".\data\**" />
+    <None Remove=".\data\**" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
     <PackageReference Include="OpenTK" Version="4.7.1" />
-    <PackageReference Include="SharpEXR" Version="1.0.0.19" />
-    <PackageReference Include="SimpleJson" Version="0.38.0" />
     <PackageReference Include="StbImageSharp" Version="2.27.8" />
     <PackageReference Include="StbImageWriteSharp" Version="1.13.5" />
     <PackageReference Include="StbTrueTypeSharp" Version="1.26.9" />

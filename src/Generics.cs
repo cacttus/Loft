@@ -148,12 +148,13 @@ namespace PirateCraft
 
   public class FileLoc
   {
+    /// FileLoc represents a virtual file location on disk, embed, or web
+    //The name here has to be unique or it will cause conflicts.
+
     #region Public: Members
     private int c_newline = '\n';
     private int c_EOF = -1;//I guess, -1 in .net
 
-    /// FileLoc represents a virtual file location on disk, embed, or web
-    //The name here has to be unique or it will cause conflicts.
     public static FileLoc Generated = new FileLoc("<generated>", FileStorage.Generated);
     public FileStorage FileStorage { get; private set; } = FileStorage.Disk;
     public string RawPath { get; private set; } = "";
@@ -363,7 +364,7 @@ namespace PirateCraft
             ret = new string[lines];
             int nline = 0;
             string line = "";
-            for (int xxx = 0; xxx < Gu.c_intMaxWhileTrueLoopLONG; xxx++)
+            for (int xxx = 0; Gu.WhileTrueGuard(xxx, Gu.c_intMaxWhileTrueLoopLONG); xxx++)
             {
               var delim = ReadLine(stream, out line);
               Gu.Assert(nline < lines);
@@ -378,6 +379,29 @@ namespace PirateCraft
         }
       }
       return ret;
+    }
+    public byte[] ReadAllData()
+    {
+      //Read all lines with the embedded file, disk file, net file .. et.
+      Gu.Assert(this.Exists);
+      byte[] bytes = null;
+      using (var s = this.OpenRead())
+      {
+        if (s != null)
+        {
+          using (var stream = new StreamReader(s))
+          {
+            //Debug this..make sure lenght is correct
+            var len = (int)s.Length;
+            if (len > 0)
+            {
+              bytes = new byte[len];
+              s.Read(bytes, 0, len);
+            }
+          }
+        }
+      }
+      return bytes;
     }
     public Stream? OpenWrite()
     {
@@ -513,6 +537,19 @@ namespace PirateCraft
     {
       return String.Format("{0:0." + new string('0', prec) + "}", x);
     }
+    public static string Indent(string x, int count, char indentChar = ' ')
+    {
+      //indent newlines
+      if (StringUtil.IsEmpty(x))
+      {
+        return x;
+      }
+      var spaces = new string(indentChar, count);
+      var y = spaces + x.Replace("\n", "\n" + spaces);
+      y = y.Remove(y.Length - count, count);
+      return y;
+    }
+
     public static int[] SlidingDiff(string strlast, string strcur, int window = 16)
     {
       //The purpose of this is to test for subtle changes to a string, say if we replace a number in the debug. So we don't need an entire LCS matrix, or remove all glyphs.
@@ -547,7 +584,7 @@ namespace PirateCraft
       int cb;
 
       bool exit = false;
-      for (int xx = 0; xx < Gu.c_intMaxWhileTrueLoop; xx++)
+      for (int xx = 0; Gu.WhileTrueGuard(xx, Gu.c_intMaxWhileTrueLoop); xx++)
       {
         //Find runs
         int change_none = 0;
@@ -941,8 +978,145 @@ namespace PirateCraft
       d.State = this.State;
       d.Action = this.Action;
       d.Repeat = this.Repeat;
-      
+
       return d;
     }
   }
-}
+
+  public class ByteParser
+  {
+    public static bool IsWS(char c)
+    {
+      return c == ' ' || c == '\n' || c == '\r' || c == '\t';
+    }
+    public static bool IsDelim(char c)
+    {
+      return IsWS(c) || c == '{' || c == '}' || c == '[' || c == ']' || c == '\"' || c == '\'';
+    }
+    public static char PeekChar(byte[] data, int index)
+    {
+      byte b = data[index];
+      char c = (char)b;
+      return c;
+    }
+    public static char GetChar(byte[] data, ref int index)
+    {
+      byte b = data[index];
+      char c = (char)b;
+      index++;
+      return c;
+    }
+    public static bool IsAlpha(char c)
+    {
+      return
+      c == 'a' || c == 'b' || c == 'c' || c == 'd' || c == 'e' || c == 'f' || c == 'g' || c == 'h' || c == 'i' || c == 'j' || c == 'k' ||
+      c == 'l' || c == 'm' || c == 'n' || c == 'o' || c == 'p' || c == 'q' || c == 'r' || c == 's' || c == 't' || c == 'u' || c == 'v' || c == 'w' ||
+      c == 'x' || c == 'y' || c == 'z' ||
+      c == 'A' || c == 'B' || c == 'C' || c == 'D' || c == 'E' || c == 'F' || c == 'G' || c == 'H' || c == 'I' || c == 'J' || c == 'K' ||
+      c == 'L' || c == 'M' || c == 'N' || c == 'O' || c == 'P' || c == 'Q' || c == 'R' || c == 'S' || c == 'T' || c == 'U' || c == 'V' || c == 'W' ||
+      c == 'X' || c == 'Y' || c == 'Z';
+    }
+    public static bool? ParseBool(byte[] data, ref int line, ref int col, ref int index)
+    {
+      string tok = ParseAlphaToken(data, ref line, ref col, ref index);
+      if (tok.ToLower() == "true")
+      {
+        return true;
+      }
+      if (tok.ToLower() == "false")
+      {
+        return false;
+      }
+      return null;
+    }
+    public static string ParseAlphaToken(byte[] data, ref int line, ref int col, ref int index)
+    {
+      //parse alphanumeric char to a delimiter
+      string tok = "";
+      while (index < data.Length)
+      {
+        char c = PeekChar(data, index);
+
+        if (IsAlpha(c)) //TODO: locale.. . = ,
+        {
+          tok += c;
+          index++;
+        }
+        else
+        {
+          break;
+        }
+      }
+      return tok;
+    }
+    public static double? ParseDouble(byte[] data, ref int line, ref int col, ref int index)
+    {
+      string tok = "";
+
+      //Back up the previous character.
+      bool dotted = false;
+      while (index < data.Length)
+      {
+        char c = PeekChar(data, index);
+
+        if (Char.IsDigit(c) || (c == '.' && !dotted)) //TODO: locale.. . = ,
+        {
+          tok += c;
+          if (c == '.')
+          {
+            dotted = true;
+          }
+          if (c == '\n')
+          {
+            line++;
+            col = 0;
+          }
+          col++;
+          index++;
+        }
+        else
+        {
+          break;
+        }
+      }
+      double d;
+      if (!Double.TryParse(tok, out d))
+      {
+        return null;
+      }
+      return d;
+    }
+    public static void EatTo(byte[] data, ref int line, ref int col, ref string eated, ref int index, char delim = '\n', char? delimprev = null)
+    {
+      //Eat to .. including the delimiter.
+      //delimprev - if defined, prev dlim == /* .. 
+      char clast = '\0';
+      eated = "";
+      while (index < data.Length)
+      {
+        char c = GetChar(data, ref index);
+        if (c == '\n')
+        {
+          line++;
+          col = 0;
+        }
+        col++;
+
+        if (delimprev != null && (clast == delimprev && c == delim))
+        {
+          break;
+        }
+        else if (c == delim)
+        {
+          break;
+        }
+        else
+        {
+          eated += c;
+        }
+      }
+    }
+
+  }
+
+}//ns

@@ -28,7 +28,7 @@ namespace PirateCraft
     public static Dictionary<UiWindowBase, WindowContext> Contexts { get; private set; } = new Dictionary<UiWindowBase, WindowContext>();
     public static CoordinateSystem CoordinateSystem { get; set; } = CoordinateSystem.Rhs;
     public static float CoordinateSystemMultiplier { get { return (Gu.CoordinateSystem == CoordinateSystem.Lhs ? -1 : 1); } }
-    public static EngineConfig EngineConfig { get; set; } = new EngineConfig();
+    public static EngineConfig EngineConfig { get; set; } = null;
     public static Log Log { get; set; } = null;
     public static WindowContext Context { get; set; } = null;
     public static World World = null;
@@ -68,13 +68,13 @@ namespace PirateCraft
       WorkspacePath = System.IO.Path.Combine(ExePath, "../../../");
       WorkspaceDataPath = System.IO.Path.Combine(WorkspacePath, "./data");//This may change .. uh
 
-      //Config
-      EngineConfig.Load();
-
       //Log
       Log = new Log(Gu.LocalTmpPath);
       Gu.Log.Info("Initializing Globals");
       Gu.Log.Info("CurrentDirectory =" + System.IO.Directory.GetCurrentDirectory());
+     
+      //Config
+      EngineConfig = new EngineConfig(new FileLoc("config.json", FileStorage.Embedded));
 
       //Manager
       Translator = new Translator();
@@ -326,12 +326,50 @@ namespace PirateCraft
         return hash;
       }
     }
+    public static int HashIntArray(int[] intlist)
+    {
+      //https://stackoverflow.com/questions/16340/how-do-i-generate-a-hashcode-from-a-byte-array-in-c
+      unchecked
+      {
+        const int p = 16777619;
+        int hash = (int)2166136261;
+
+        foreach (var i in intlist)
+        {
+          hash = (hash ^ i) * p; //Not sure if this will work but.
+        }
+
+        hash += hash << 13;
+        hash ^= hash >> 7;
+        hash += hash << 3;
+        hash ^= hash >> 17;
+        hash += hash << 5;
+        return hash;
+      }
+    }
     public static string GetAssemblyVersion()
     {
       Assembly assembly = Assembly.GetExecutingAssembly();
       FileVersionInfo fileVersionInfo = FileVersionInfo.GetVersionInfo(assembly.Location);
       string version = fileVersionInfo.ProductVersion;
       return version;
+    }
+    public static bool WhileTrueGuard(int whileloop_index, int whileloop_maxlen)
+    {
+      //simple while loop guard used in a for loop to prevent infinite execution
+      //log when we take too long.
+      //the while true loop should always break 
+      if(whileloop_index > 1000)
+      {
+        int n=0; n++;
+      }
+      if (whileloop_index < whileloop_maxlen)
+      {
+        return true;
+      }
+      Gu.Log.Error("while(true) loop out of bounds.");
+      Gu.DebugBreak();
+      return false;
     }
     #endregion
 

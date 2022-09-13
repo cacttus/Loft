@@ -497,7 +497,7 @@ namespace PirateCraft
         {
           //Allow shift or control to affect speed instead, if WSAD is down.
           bool bMoving = Gu.Keyboard.PressOrDown(Keys.W) || Gu.Keyboard.PressOrDown(Keys.S) || Gu.Keyboard.PressOrDown(Keys.A) || Gu.Keyboard.PressOrDown(Keys.D);
-          
+
           if (!bMoving && (Gu.Keyboard.PressOrDown(Keys.LeftShift) || Gu.Keyboard.PressOrDown(Keys.RightShift)))
           {
             //Pan
@@ -790,13 +790,17 @@ namespace PirateCraft
       get
       {
         var thep = this;
-        for (int ip = 0; ip < Gu.c_intMaxWhileTrueLoop; ip++)
+        for (int ip = 0; Gu.WhileTrueGuard(ip, Gu.c_intMaxWhileTrueLoop); ip++)
         {
           if (thep._parent != null && thep._parent.TryGetTarget(out var p))
           {
             if (p != Gu.World.SceneRoot)
             {
               thep = p;
+            }
+            else
+            {
+              break;
             }
           }
           else

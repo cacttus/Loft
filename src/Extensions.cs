@@ -9,6 +9,29 @@ namespace PirateCraft
   //Extension methods - google what this is if you don't know
   public static class Extensions
   {
+    public static string GetEnumValues(this Type enumtype, string delim_in = ",")
+    {
+      Gu.Assert(enumtype.IsEnum);
+      string s = "";
+      string delim = "";
+      foreach (var v in Enum.GetValues(enumtype))
+      {
+        s += delim + v.ToString().ToLower();
+        delim = delim_in;
+      }
+      return s;
+    }
+
+    public static void CheckIfSortedByKey_Slow_AndThrowIfNot<T>(this List<T> items, Func<T, int> keyfunc) where T : class
+    {
+      var val = keyfunc(items[1]);
+      for (int xi = 1; xi < items.Count; xi++)
+      {
+        var val2 = keyfunc(items[xi]);
+        Gu.Assert(val < val2);
+        val = val2;
+      }
+    }
     public static System.Collections.BitArray AndWith(this System.Collections.BitArray readonly_copy, System.Collections.BitArray other)
     {
       //And a BitArray with another, but do not modify the array, return the And'd array.
@@ -34,6 +57,7 @@ namespace PirateCraft
     }
     public static string Description(this Enum value)
     {
+      //Returns null if the given attribute is not found
       var d = value.GetAttribute<System.ComponentModel.DescriptionAttribute>();
       if (d == null)
       {
@@ -45,6 +69,7 @@ namespace PirateCraft
     }
     public static T GetAttribute<T>(this Enum value) where T : Attribute
     {
+      //Returns null if the given attribute is not found
       T attribute;
       System.Reflection.MemberInfo info = value.GetType().GetMember(value.ToString()).FirstOrDefault();
       if (info != null)
@@ -54,7 +79,17 @@ namespace PirateCraft
       }
       return null;
     }
-
+    public static T GetAttribute<T>(this System.Reflection.FieldInfo value) where T : Attribute
+    {
+      //Returns null if the given attribute is not found
+      T attribute;
+      if (value != null)
+      {
+        attribute = (T)value.GetCustomAttributes(typeof(T), false).FirstOrDefault();
+        return attribute;
+      }
+      return null;
+    }
     public static T ConstructIfNeeded<T>(this T xx) where T : class, new()
     {
       if (xx == null)

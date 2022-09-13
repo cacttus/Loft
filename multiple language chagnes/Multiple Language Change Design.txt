@@ -1,0 +1,131 @@
+3 parts
+
+Note we added GameTextGLobalization for this, and FontRangeUTF8
+
+1 - allow megatexture to break up its texture (this may have to ahppen in the future)
+    Supporting CJK is a massive thing because there's 20,000 glyphs in the Unified CJK
+        so, 20000 glyphs glyph size = 64px
+        max texture.. let's say 32,000px
+        32000^2 / 64^2 = 250000 so yes we COULD pack all the fonts in one texture I think.
+
+
+2 - Change the MtFont loader to use multiple code points.
+    stbtt_FindGlyphIndex < check to see if a given font supports the glyph
+    stbtt_PackFontRanges < pack multiple ranges of glyphs
+                MtFontLoader
+                  We need to make sure that a given font encodes the given character. EmilysCandy doesn't support cyrillic
+
+                  stbtt_FindGlyphIndex
+                  <LanguageCode> SupportedLanguages.. 
+
+                 *** Dictionary<int (uf8char), Dictionary<float, MtFontPatchInfo>> Chars *** FINAL DATA
+
+                  MtFontPatchInfo GetPatch(int char, float scale){
+                      
+                      //Kind of hairy, we coudl avoid a huge search if we have "uniform" patches.
+
+                      Chars.trygetvalue(out var patchinfos)
+
+                          last = patchinfos[0]
+                          foreach patchinfo in patchinfos      
+                            if (fontSize <= last.BakedCharSize && fontSize >= inf.BakedCharSize)
+                              .. then use the same Patch scale find routine.
+                  }
+    
+                    font.GetPatch(char, scale);
+
+
+3 - Change Render System to render in layers
+
+            class RenderLayerMesh {
+              (MtTex..) Texture2D ..One Of Many MegaTexImages.. mat
+              Mesh .. Generated mesh for layer
+            }
+
+            RenderLayer Index is equivalent to Child Element depth (num parents), or, possibly num Visible Parents (parents with background/texture/border)
+
+            Dict<int, List<RenderLayerMesh>> renderlayers//sorted back to front
+            Dict<int, Dictionary<Texture2D/*mat or MtTex*/, Mesh>> renderlayers //alternative
+
+            ex.   ContextMenu = renderlayer 1000 - top layer, because it's above everything
+                  Contexmenu's button = RenderLayer 1001 .. etc
+
+            //There could be some Z fighting, but that's ok, i'm ok with a little .
+
+            foreach(level in renderlayers){
+              foreach(mesh in level.Values){
+                DrawCall.Draw(mesh.. mat .. )
+              }
+            }
+
+
+
+
+Tasks
+
+* Allow megatex to be multiple images.
+* PBRTextureArray would be an aray of aray
+* List<PBRTextureArray>
+
+* Select fonts in Google Fonts - Noto, etc.. based on language.
+
+* RenderLayers in the UI
+
+What if just part of the langauage is supported? hmm.. 
+We need "necessary codepoints" to render glyphs
+Perhaps we need the ISO standards.
+ISO/IEC 8859-5 
+https://en.wikipedia.org/wiki/Cyrillic_(Unicode_block)
+//System.Text.Unicode.UnicodeRanges
+//U+0400 -  U+045F - essential
+//U+0400 -  U+04FF - entire cyrillic codeblock 
+//The BMP (basic multilingual plane) can define most of this carp
+//**All unicode blocks, thanks wikipedia
+//https://en.wikipedia.org/wiki/Unicode_block
+
+//There are radical+stroke in unicode, and also CJK Unified
+      心 U+5FC3 OR 	U+2F3C
+      龍 dragon 16 strokes - 	U+9F8D
+      
+//Arabic U+060F U+06FF 
+//http://www.unicode.org/cgi-bin/GetUnihanData.pl?codepoint=654E
+Under the traditional radical-stroke system, each Han ideograph is considered to be writ-
+ten with one of a number of different character elements or radicals and a number of addi-
+tional strokes. For example, the character @ has the radical $ and seven additional strokes.
+To find the character @ within a dictionary, one would first locate the section for its radi-
+cal, $, and then find the subsection for characters with seven additional strokes.
+https://www.unicode.org/charts/rs.pdf
+
+//Ok this seems better
+https://en.wiktionary.org/wiki/Appendix:Unicode/CJK_Unified_Ideographs
+  // U+4E00 (一) to U+4FFF (俿)
+  // U+5000 (倀) to U+57FF (埿)
+  // U+5800 (堀) to U+5FFF (忿)
+  // U+6000 (怀) to U+67FF (柿)
+  // U+6800 (栀) to U+6FFF (濿)
+  // U+7000 (瀀) to U+77FF (矿)
+  // U+7800 (砀) to U+7FFF (翿)
+  // U+8000 (耀) to U+87FF (蟿)
+  // U+8800 (蠀) to U+8FFF (迿)
+  // U+9000 (退) to U+97FF (響)
+  // U+9800 (頀) to U+9FFF (鿿)
+  // ** 20991 characters.
+
+I think the next step is to separate font bitmaps in megatex
+then we render text separately.. idk.. so.. This also gives us more control over font styles
+but we only display one language at a time, so having several languages in the megatex is pointless..
+we should jsut re-generate it if the language chagnes.
+HOWEVER we would need to still split megatex, in case of huge code pages. 
+Which would mean we'd still require a separate image, and changes to rendering
+But separate language rendering would mess up the draw order as language would only be rendered on top.
+We need to face it that it may not be possible to cram everything into one texture, and update the UI rendering code.
+
+Changing UI rendering would be pretty simple. 
+Shader remains the same. Layout.. just the draw order, and multipel meshes 
+We'd have maybe 2 draw calls per layer, text/image , and, max 5 layers or so, so probably 10 draw calls.. its nothing.. for small fonts.. small UIs
+
+each renderable layer will have font textures/ image textures and Point meshes
+
+
+
+
