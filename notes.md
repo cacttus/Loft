@@ -1,8 +1,5 @@
 ﻿working on 
-testing JSONX
-multiple languages
-.. split megatex
-gui rendering multiple layers
+Gui: Menus
 
 UC
 click "generate land"

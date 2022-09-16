@@ -90,6 +90,17 @@ namespace PirateCraft
       }
       return null;
     }
+    public static T GetAttribute<T>(this System.Reflection.PropertyInfo value) where T : Attribute
+    {
+      //Returns null if the given attribute is not found
+      T attribute;
+      if (value != null)
+      {
+        attribute = (T)value.GetCustomAttributes(typeof(T), false).FirstOrDefault();
+        return attribute;
+      }
+      return null;
+    }
     public static T ConstructIfNeeded<T>(this T xx) where T : class, new()
     {
       if (xx == null)

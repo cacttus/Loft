@@ -14,11 +14,12 @@ namespace PirateCraft
     public string Name { get; private set; } = Gu.UnsetName;
     public JSONXSerializeAs(string JSONname) { Name = JSONname; }
   }
-  public class JSONXFile
+
+  public class JSONXFile : ByteForByteFile
   {
     //JSON file with extra syntax.
-    // -> allow /* and // comments
-    // -> allows true, false for booleans instead of "true"
+    // -> /* and // comments
+    // ->  true, false for booleans instead of "true"
     // -> Include other JSON files with @".."
     // Possibly: allow datatypes.
 
@@ -52,7 +53,7 @@ namespace PirateCraft
 
       public bool IsClass() { return Fields != null; }
       public bool IsArray() { return Values != null; }
-      public object Data {get { if(IsClass()){return Fields;} else {return Values; } }}
+      public object Data { get { if (IsClass()) { return Fields; } else { return Values; } } }
 
       public JSONClassOrArray(FileLoc f, int line, int col) { Line = line; Col = col; FileLoc = f; }
     }
@@ -66,15 +67,17 @@ namespace PirateCraft
 
       public bool DataAsArray(out JSONClassOrArray? val)
       {
-        if(DataAsClassOrArray(out val)){
-            return val.IsArray();
+        if (DataAsClassOrArray(out val))
+        {
+          return val.IsArray();
         }
         return false;
       }
-            public bool DataAsClass(out JSONClassOrArray? val)
+      public bool DataAsClass(out JSONClassOrArray? val)
       {
-        if(DataAsClassOrArray(out val)){
-            return val.IsClass();
+        if (DataAsClassOrArray(out val))
+        {
+          return val.IsClass();
         }
         return false;
       }
@@ -96,37 +99,45 @@ namespace PirateCraft
 
     public JSONClassOrArray Root = null;
 
-    private List<string> _errors = null;
-    private FileLoc _fileLoc = null;
+    //Parse State (may be inherited)
+    private ParseState _state = ParseState.None;
+    private JSONClassOrArray _curClassOrArray = null;//Root;//Array, or class
+    private string? _curField = null;
 
     #endregion
-    #region PUblic:Methods
+    #region Public:Methods
 
-    public JSONXFile(FileLoc loc)
+    public JSONXFile(FileLoc loc, JSONClassOrArray? parentFileRoot = null, List<string>? parentErrors = null, string? curField = null) : base(loc)
     {
-      _fileLoc = loc;
-    }
-    public bool Load()
-    {
-      return Load(null, null);
-    }
-    public bool PrintErrors()
-    {
-      //Return true if there were errors
-      if (_errors != null && _errors.Count > 0)
+      if (parentErrors != null)
       {
-        System.Text.StringBuilder sb = new System.Text.StringBuilder();
-        sb.AppendLine("");
-        sb.AppendLine($"---{_fileLoc.RawPath} Has Errors---");
-        foreach (var e in _errors)
-        {
-          sb.AppendLine($"  {e}");
-        }
-        Gu.Log.Error(sb.ToString());
-        return true;
+        _errors = parentErrors;
       }
-      return false;
+      else
+      {
+        _errors = new List<string>();
+      }
+      if (parentFileRoot != null)
+      {
+        Root = parentFileRoot;
+        _curClassOrArray = parentFileRoot;
+        _state = ParseState.ClassFieldValueBegin;
+      }
+      else
+      {
+        Root = null;
+        _curClassOrArray = null;
+      }
+      if (curField != null)
+      {
+        _curField = curField;
+      }
+      else
+      {
+        _curField = null;
+      }
     }
+
     public void FillOutClass(object theClass)
     {
       //Basically fill out a class assuming the JSON properties match the class field names.
@@ -219,290 +230,40 @@ namespace PirateCraft
     #endregion
     #region Private:Members
 
-    private bool Load(JSONClassOrArray? parentFileRoot = null, List<string>? parentErrors = null, string? curField = null)
+    protected override bool DoParse( char c, string eated, ref bool requestBreak)
     {
-      Gu.Assert(_fileLoc.Exists);
-      var sw = new Stopwatch();
-      sw.Start();
+      bool handled = true;
 
-      if (parentErrors != null)
+      if (c == '\"')
       {
-        _errors = parentErrors;
-      }
-      else
-      {
-        _errors = new List<string>();
-      }
-      if (parentFileRoot != null)
-      {
-        Root = parentFileRoot;
-        _curClassOrArray = parentFileRoot;
-        _state = ParseState.ClassFieldValueBegin;
-      }
-      else
-      {
-        Root = null;
-        _curClassOrArray = null;
-      }
-      if (curField != null)
-      {
-        _curField = curField;
-      }
-      else
-      {
-        _curField = null;
-      }
-
-      var data = _fileLoc.ReadAllData();
-
-      ParseJSONX(data);
-
-      Gu.Log.Debug($"Parse JSONX: {data.Length}B took: {sw.ElapsedMilliseconds}ms");
-
-      return true;
-    }
-
-    //Parse State
-    ParseState _state = ParseState.None;
-    JSONClassOrArray _curClassOrArray = null;//Root;//Array, or class
-    string? _curField = null;
-    string _tok = "";
-    char _clast = ' ';
-    int _line = 1;
-    int _col = 1;
-
-    private void ParseJSONX(byte[] data)
-    {
-      string eated = "";
-      int idx = 0;
-      while (idx < data.Length)
-      {
-        char c = ByteParser.GetChar(data, ref idx);
-        if (c == '\n')
+        if (_state == ParseState.ClassBegin || _state == ParseState.ClassListContinue
+          || _state == ParseState.ArrayBegin || _state == ParseState.ArrayListContinue
+          || _state == ParseState.ClassFieldNameBegin || _state == ParseState.ClassFieldValueBegin
+          || _state == ParseState.ArrayValueBegin || _state == ParseState.IncludeFile)
         {
-          _line++;
-          _col = 0;
-        }
-        _col++;
-
-#if DEBUG
-        //   System.IO.File.WriteAllBytes(System.IO.Path.Combine(Gu.LocalTmpPath, _fileLoc.RawPath + "_debug.txt"), data.Take(idx).ToArray());
-        //   BreakOn(6, 32, "config_include.json");
-#endif
-
-        // "ID" : value | class | array .. field
-        // 0.0 .. value
-        // { field } ..class
-        // [ value | class ] .. array
-        if (ByteParser.IsWS(c))
-        {
-          //eat
-        }
-        else if ((c == '/') && (_clast == '/'))
-        {
-          ByteParser.EatTo(data, ref _line, ref _col, ref eated, ref idx, '\n');
-        }
-        else if ((c == '*') && (_clast == '\\'))
-        {
-          ByteParser.EatTo(data, ref _line, ref _col, ref eated, ref idx, '*', '\\');
-        }
-        else if (c == '\"')
-        {
-          if (_state == ParseState.ClassBegin || _state == ParseState.ClassListContinue
-            || _state == ParseState.ArrayBegin || _state == ParseState.ArrayListContinue
-            || _state == ParseState.ClassFieldNameBegin || _state == ParseState.ClassFieldValueBegin
-            || _state == ParseState.ArrayValueBegin || _state == ParseState.IncludeFile)
+          ByteParser.EatTo(_data, ref _line, ref _col, ref eated, ref _idx, '\"');
+          if (_state == ParseState.ClassBegin || _state == ParseState.ClassListContinue || _state == ParseState.ClassFieldNameBegin)
           {
-            ByteParser.EatTo(data, ref _line, ref _col, ref eated, ref idx, '\"');
-            if (_state == ParseState.ClassBegin || _state == ParseState.ClassListContinue || _state == ParseState.ClassFieldNameBegin)
-            {
-              //field name, after eating, we are at end of field name
-              Gu.Assert(_curField == null);
-              _curField = eated;
-              _state = ParseState.ClassFieldNameEnd; // "field" : .. 
-            }
-            else if (_state == ParseState.ClassFieldValueBegin)
-            {
-              //field val
-              DoClassValue(eated);
-            }
-            else if (_state == ParseState.ArrayBegin || _state == ParseState.ArrayListContinue)
-            {
-              //value
-              DoArrayValue(eated);
-            }
-            else if (_state == ParseState.IncludeFile)
-            {
-              TryIncludeFile(eated, _line, _col, _curClassOrArray, _curField);
-              _curField = null;
-              _state = ParseState.ClassFieldValueEnd;
-            }
-            else
-            {
-              UnexpectedError(c);
-            }
-          }
-          else
-          {
-            UnexpectedError(c);
-          }
-        }
-        else if (c == ',')
-        {
-          Gu.Assert(_curClassOrArray != null);
-          if (_state == ParseState.ClassFieldValueEnd || _state == ParseState.ArrayValueEnd)
-          {
-            if (_curClassOrArray.Values != null)
-            {
-              _state = ParseState.ArrayListContinue;
-            }
-            else if (_curClassOrArray.Fields != null)
-            {
-              _state = ParseState.ClassFieldNameBegin;
-            }
-            else
-            {
-              UnexpectedError(c);
-            }
-          }
-          else
-          {
-            UnexpectedError(c);
-          }
-        }
-        else if (c == ':')
-        {
-          if (_state == ParseState.ClassFieldNameEnd)
-          {
-            _state = ParseState.ClassFieldValueBegin;
-          }
-          else
-          {
-            UnexpectedError(c);
-          }
-        }
-        else if (c == '{' || c == '[')
-        {
-          if (_state == ParseState.None)
-          {
-            if (c == '{')
-            {
-              //If not null, this is an included JSON
-              if (_curClassOrArray == null)
-              {
-                _curClassOrArray = new JSONClassOrArray(_fileLoc, _line, _col);
-                Root = _curClassOrArray;
-                _curClassOrArray.Fields = _curClassOrArray.Fields.ConstructIfNeeded();
-              }
-              _state = ParseState.ClassBegin;
-            }
-            else
-            {
-              UnexpectedError(c);
-            }
+            //field name, after eating, we are at end of field name
+            Gu.Assert(_curField == null);
+            _curField = eated;
+            _state = ParseState.ClassFieldNameEnd; // "field" : .. 
           }
           else if (_state == ParseState.ClassFieldValueBegin)
           {
-            //value is a class
-            DoArrayOrClassFieldValue(c == '{');
+            //field val
+            DoClassValue(eated);
           }
           else if (_state == ParseState.ArrayBegin || _state == ParseState.ArrayListContinue)
           {
-            if (c == '{')
-            {
-              DoClassOnly();
-            }
-            else
-            {
-              // [[],[]] not valid json
-              UnexpectedError(c);
-            }
+            //value
+            DoArrayValue(eated);
           }
-          else
+          else if (_state == ParseState.IncludeFile)
           {
-            UnexpectedError(c);
-          }
-        }
-        else if (c == '}')
-        {
-          //Technically we could check for ClassFieldNameBegin or ArrayListContinue, as well as other valid states
-          Gu.Assert(_curClassOrArray != null);
-          if (_curClassOrArray.Parent == null)
-          {
-            break;
-          }
-          _curClassOrArray = _curClassOrArray.Parent;
-          _state = ParseState.ClassFieldValueEnd;
-        }
-        else if (c == ']')
-        {
-          Gu.Assert(_curClassOrArray != null);
-          _curClassOrArray = _curClassOrArray.Parent;
-          //so technically, afaik, arrays can only be fields no? So state here would be "class field end"
-          _state = ParseState.ClassFieldValueEnd;
-        }
-        else if (c == '.' || Char.IsDigit(c))
-        {
-          //number
-          if (_state == ParseState.ClassFieldValueBegin || _state == ParseState.ArrayListContinue)
-          {
-            idx -= 1;
-            var d = ByteParser.ParseDouble(data, ref _line, ref _col, ref idx);
-            if (d != null)
-            {
-              if (_state == ParseState.ClassFieldValueBegin)
-              {
-                DoClassValue(d);
-              }
-              else if (_state == ParseState.ArrayListContinue)
-              {
-                DoArrayValue(d);
-              }
-            }
-            else
-            {
-              UnexpectedError(c);
-            }
-          }
-          else
-          {
-            UnexpectedError(c);
-          }
-        }
-        else if (c == 't' || c == 'f' || c == 'T' || c == 'F')
-        {
-          //boolean
-          if (_state == ParseState.ClassFieldValueBegin || _state == ParseState.ArrayListContinue)
-          {
-            idx -= 1;
-            var d = ByteParser.ParseBool(data, ref _line, ref _col, ref idx);
-            if (d != null)
-            {
-              if (_state == ParseState.ClassFieldValueBegin)
-              {
-                DoClassValue(d);
-              }
-              if (_state == ParseState.ArrayListContinue)
-              {
-                DoArrayValue(d);
-              }
-            }
-            else
-            {
-              UnexpectedError(c);
-            }
-          }
-          else
-          {
-            UnexpectedError(c);
-          }
-        }
-        else if (c == '@')
-        {
-          //Config include
-          if (_state == ParseState.ClassFieldValueBegin)
-          {
-            _state = ParseState.IncludeFile;
+            TryIncludeFile(eated, _line, _col, _curClassOrArray, _curField);
+            _curField = null;
+            _state = ParseState.ClassFieldValueEnd;
           }
           else
           {
@@ -511,12 +272,176 @@ namespace PirateCraft
         }
         else
         {
-          _tok += c;
+          UnexpectedError(c);
         }
-
-        _clast = c;
-
-      }//while(ture0)
+      }
+      else if (c == ',')
+      {
+        Gu.Assert(_curClassOrArray != null);
+        if (_state == ParseState.ClassFieldValueEnd || _state == ParseState.ArrayValueEnd)
+        {
+          if (_curClassOrArray.Values != null)
+          {
+            _state = ParseState.ArrayListContinue;
+          }
+          else if (_curClassOrArray.Fields != null)
+          {
+            _state = ParseState.ClassFieldNameBegin;
+          }
+          else
+          {
+            UnexpectedError(c);
+          }
+        }
+        else
+        {
+          UnexpectedError(c);
+        }
+      }
+      else if (c == ':')
+      {
+        if (_state == ParseState.ClassFieldNameEnd)
+        {
+          _state = ParseState.ClassFieldValueBegin;
+        }
+        else
+        {
+          UnexpectedError(c);
+        }
+      }
+      else if (c == '{' || c == '[')
+      {
+        if (_state == ParseState.None)
+        {
+          if (c == '{')
+          {
+            //If not null, this is an included JSON
+            if (_curClassOrArray == null)
+            {
+              _curClassOrArray = new JSONClassOrArray(_fileLoc, _line, _col);
+              Root = _curClassOrArray;
+              _curClassOrArray.Fields = _curClassOrArray.Fields.ConstructIfNeeded();
+            }
+            _state = ParseState.ClassBegin;
+          }
+          else
+          {
+            UnexpectedError(c);
+          }
+        }
+        else if (_state == ParseState.ClassFieldValueBegin)
+        {
+          //value is a class
+          DoArrayOrClassFieldValue(c == '{');
+        }
+        else if (_state == ParseState.ArrayBegin || _state == ParseState.ArrayListContinue)
+        {
+          if (c == '{')
+          {
+            DoClassOnly();
+          }
+          else
+          {
+            // [[],[]] not valid json
+            UnexpectedError(c);
+          }
+        }
+        else
+        {
+          UnexpectedError(c);
+        }
+      }
+      else if (c == '}')
+      {
+        //Technically we could check for ClassFieldNameBegin or ArrayListContinue, as well as other valid states
+        Gu.Assert(_curClassOrArray != null);
+        if (_curClassOrArray.Parent == null)
+        {
+          requestBreak = true;
+        }
+        _curClassOrArray = _curClassOrArray.Parent;
+        _state = ParseState.ClassFieldValueEnd;
+      }
+      else if (c == ']')
+      {
+        Gu.Assert(_curClassOrArray != null);
+        _curClassOrArray = _curClassOrArray.Parent;
+        //so technically, afaik, arrays can only be fields no? So state here would be "class field end"
+        _state = ParseState.ClassFieldValueEnd;
+      }
+      else if (c == '.' || Char.IsDigit(c))
+      {
+        //number
+        if (_state == ParseState.ClassFieldValueBegin || _state == ParseState.ArrayListContinue)
+        {
+          _idx -= 1;
+          var d = ByteParser.ParseDouble(_data, ref _line, ref _col, ref _idx);
+          if (d != null)
+          {
+            if (_state == ParseState.ClassFieldValueBegin)
+            {
+              DoClassValue(d);
+            }
+            else if (_state == ParseState.ArrayListContinue)
+            {
+              DoArrayValue(d);
+            }
+          }
+          else
+          {
+            UnexpectedError(c);
+          }
+        }
+        else
+        {
+          UnexpectedError(c);
+        }
+      }
+      else if (c == 't' || c == 'f' || c == 'T' || c == 'F')
+      {
+        //boolean
+        if (_state == ParseState.ClassFieldValueBegin || _state == ParseState.ArrayListContinue)
+        {
+          _idx -= 1;
+          var d = ByteParser.ParseBool(_data, ref _line, ref _col, ref _idx);
+          if (d != null)
+          {
+            if (_state == ParseState.ClassFieldValueBegin)
+            {
+              DoClassValue(d);
+            }
+            if (_state == ParseState.ArrayListContinue)
+            {
+              DoArrayValue(d);
+            }
+          }
+          else
+          {
+            UnexpectedError(c);
+          }
+        }
+        else
+        {
+          UnexpectedError(c);
+        }
+      }
+      else if (c == '@')
+      {
+        //Config include
+        if (_state == ParseState.ClassFieldValueBegin)
+        {
+          _state = ParseState.IncludeFile;
+        }
+        else
+        {
+          UnexpectedError(c);
+        }
+      }
+      else
+      {
+        handled = false;
+      }
+      return handled;
 
     }//parse
     private void DoArrayValue(object? eated)
@@ -589,26 +514,7 @@ namespace PirateCraft
       var s = $"{t.ToString()}.{inf.Name}({inf.FieldType.ToString()}): {msg}";
       Error(f, line, col, s);
     }
-    private void UnexpectedError(char c)
-    {
-      Gu.DebugBreak();
-      Error(_fileLoc, _line, _col, $"Unexpected '{c}'");
-    }
-    private void Error(FileLoc file, int line, int col, string s)
-    {
-      if (line == -1 && file == null)
-      {
-        _errors.Add($"{_fileLoc}: {s}");
-      }
-      else if (line == -1 && file != null)
-      {
-        _errors.Add($"{file.RawPath}: {s}");
-      }
-      else
-      {
-        _errors.Add($"{file.RawPath}:{line}:{col}: {s}");
-      }
-    }
+
     private void TryIncludeFile(string eated, int line, int col, JSONClassOrArray curClassOrArray, string curField)
     {
       var vals = eated.Split(':');
@@ -625,8 +531,8 @@ namespace PirateCraft
           FileLoc fl = new FileLoc(vals[0], storage_casted);
           try
           {
-            JSONXFile f = new JSONXFile(fl);
-            f.Load(curClassOrArray, _errors, curField);
+            JSONXFile f = new JSONXFile(fl, curClassOrArray, _errors, curField);
+            f.Load();
           }
           catch (Exception ex)
           {

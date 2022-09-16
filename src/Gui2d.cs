@@ -6,70 +6,6 @@ using System.Threading.Tasks;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using System.ComponentModel;
 
-// # API Overview
-// My guess is nobody is going to use this API (there are much better Game UI's out there). Plus, it's ingrained into this engine pretty well (MegaTexture).
-// It does work. As of writing this, a few bugs, notably, margin and border-radius do not respect the Top/Left of child elements.
-// 
-// ## Usage
-//  gui.StyleSheet.AddStyle(
-//     new UiStyle(new List<string>(){ "myinheritedclass1" , "myinheritedclass2" } , "mystyle") 
-//     {
-//        Margin = 0,
-//        Padding = 2,
-//        Color = new vec4(1,1,0,1),
-//        FontFace = FontFace.Lato,
-//        BorderRadius = 2,
-//        Border = 10,
-//        BorderColor = vec4(0,1,0,0.5f)
-//        //...
-//     }
-//  );
-//
-//  // Other styles.. 
-//
-//  var ele = new UiElement(gui.StyleSheet, new List<string>(){ "myotherstyle", "mystyle" }, "lblMyElement",  "Hello world!");// mystyle will override anything in myotherstyle
-//  gui.Add(ele)
-//
-//  var ele2 = new UiElement(gui.StyleSheet, null/*Does not use any classes*/, "lblDefault", "Default Styled Element");//default styled element
-//  ele.AddChild(ele2);
-//
-// ## Styles
-// UiStyle is a CSS style. Like CSS, UiStyle can be inherited and thus, "compiles" to a final "inline" style on each element. 
-// Elements have "inline" styles as well, like in HTML,  <div class=".." style="..."/>, style="" is the inline style.
-// UiStyle compilation is dynamic, and happens during the layout, when a value has been changed. The system then refreshes all elements that use that UiStyle.
-//    (We refresh the ENTIRE element(s) when changing ANY attribute, meaning like changing Color/Texture WILL affect position of an element. 
-//    Would be a nice optimization to fix this.)
-// 
-// Note: a few properties are different from HTML/CSS, notably:
-//   * Color: is the CSS background-color attribute, NOT text color. Colors can be semi-transparent as well using the alpha channel.
-//   * FontColor: The color of the text/font
-//   * Texture: Like background-image in CSS. Allows you to set a texture instead of a color. Images may be semi-transparent, alpha-blended or alpha masked. Note: a pixel alpha value of less than 0.01f is discarded.
-//   * ImageTiling: fill, repeat, wrap, clamp, etc.
-//   * SizeMode: allows you to expand an element to its parent, or shrink an element to its children. MaxWidth MaxHeight are important with Expand, as, without a maxWidth, child elements will epxand to the parent size (ultimately, RenderView size). 
-//        (We should also allow for Fixed width elements..)
-//   * PositionMode: is like the CSS Static, Relative or Absolute. 
-//        Static: Automatic layout; Top/Left are ignored. Width/Height
-//        Relative: Top/Left are relative to parent, Width/Height are used. 
-//        Absolute: Top/Left are relative to the RenderViewport, Width/Height are used.
-//   * OverflowMode: allows you to show or hide the contents of a child element.
-//   * DisplayMode: For PositionMode=Static elements only. Whether there is a break <br/> after the element.
-//  
-//   * Events: Mouse Down/Hover..etc.. These work, but their "inheritance" is questionable. We may end up not inheriting events.
-//
-// ## Values
-// Note: There are 2 Kinds of Values.
-// The **UiStyle** value (Get/Set ClassValue) , is nullable , and will return null if this style does not have the Prop set, for instance:
-//    div { width:200px; }
-//  is:
-//    UiStyle s = new UiStyle(<style1 style2>,"mystyle")
-//    s.Width = 200px;
-//  The **UiProp** value (Get/Set PropValue) can NEVER be null , if unset, uses the default field value:
-//     s._props.Width = 200
-//  And on UiStyle:
-//    s.Width = null
-//  will clear Width from the class, and it will INHERIT Width from a superclass, or, if there are no superclasses, it will set to the Default value for Width.
-//  So to actually use a value in the Layout algorithm, you muse use the UiStyle._prop field.
-//  In other words, UiProps stores concrete values, and cannot be null. UiStyle uses null (via the user) to signal that a property is to be inherited.
 
 namespace PirateCraft
 {
@@ -77,35 +13,37 @@ namespace PirateCraft
 
   public class FontFace : FileLoc
   {
-    protected FontFace(FileLoc loc) : base(loc.RawPath, loc.FileStorage) { }
-    public static FontFace Parisienne = new FontFace(new FileLoc("Parisienne-Regular.ttf", FileStorage.Embedded));
-    public static FontFace RobotoMono = new FontFace(new FileLoc("RobotoMono-Regular.ttf", FileStorage.Embedded));
-    public static FontFace PressStart2P = new FontFace(new FileLoc("PressStart2P-Regular.ttf", FileStorage.Embedded));
-    public static FontFace Entypo = new FontFace(new FileLoc("Entypo.ttf", FileStorage.Embedded));
-    public static FontFace Calibri = new FontFace(new FileLoc("calibri.ttf", FileStorage.Embedded));
-    public static FontFace EmilysCandy = new FontFace(new FileLoc("EmilysCandy-Regular.ttf", FileStorage.Embedded));
+    public string Name = "";
+    public FontFace(){}
+    protected FontFace(string name, FileLoc loc) : base(loc.RawPath, loc.FileStorage) { Name=name;}
+    public static FontFace Parisienne = new FontFace("Parisienne", new FileLoc("Parisienne-Regular.ttf", FileStorage.Embedded));
+    public static FontFace RobotoMono = new FontFace("RobotoMono", new FileLoc("RobotoMono-Regular.ttf", FileStorage.Embedded));
+    public static FontFace PressStart2P = new FontFace("PressStart2P", new FileLoc("PressStart2P-Regular.ttf", FileStorage.Embedded));
+    public static FontFace Entypo = new FontFace("Entypo", new FileLoc("Entypo.ttf", FileStorage.Embedded));
+    public static FontFace Calibri = new FontFace("Calibri", new FileLoc("calibri.ttf", FileStorage.Embedded));
+    public static FontFace EmilysCandy = new FontFace("EmilysCandy", new FileLoc("EmilysCandy-Regular.ttf", FileStorage.Embedded));
   }
   public enum UiDisplayMode
   {
-    Inline,
-    Block,
-    InlineNoWrap
+    [CSSAttribute("inline")] Inline,
+    [CSSAttribute("block")] Block,
+    [CSSAttribute("inline-no-wrap")] InlineNoWrap
   }
   public enum UiPositionMode
   {
     //Note: the position terminology here mirrors that of CSS. 
-    Static, // elements flow within the page.
-    Relative, // elements are relative to the container.
-    RelativeConstrainX, //Relative positioning, but cannot go outside parent boundary
-    RelativeConstrainY,
-    RelativeConstrainXY
+    [CSSAttribute("static")] Static, // elements flow within the page.
+    [CSSAttribute("relative")] Relative, // elements are relative to the container.
+    [CSSAttribute("relative-constrain-x")] RelativeConstrainX, //Relative positioning, but cannot go outside parent boundary
+    [CSSAttribute("relative-constrain-y")] RelativeConstrainY,
+    [CSSAttribute("relative-constrain-xy")] RelativeConstrainXY
     //absolute: relative to the whole document.
   }
   public enum UiSizeMode
   {
-    Shrink, //Shrink to size of child contents, taking Max Width/Height into account
-    Expand, //Expand to parent
-    Fixed // Fixed width/height
+   [CSSAttribute("shrink")] Shrink, //Shrink to size of child contents, taking Max Width/Height into account
+   [CSSAttribute("expand")] Expand, //Expand to parent
+   [CSSAttribute("fixed")] Fixed // Fixed width/height
   }
   public enum UiEventId
   {
@@ -137,15 +75,15 @@ namespace PirateCraft
   };
   public enum UiOverflowMode
   {
-    Show,
-    Hide
+    [CSSAttribute("hide")] Show,
+    [CSSAttribute("show")] Hide
   };
   public enum UiImageTiling
   {
-    Expand,
-    Tile,
-    Computed,
-    Proportion
+    [CSSAttribute("expand")] Expand,
+    [CSSAttribute("tile")] Tile,
+    [CSSAttribute("computed")] Computed,
+    [CSSAttribute("proportion")] Proportion
   }
   public enum UiMouseState
   {
@@ -206,9 +144,9 @@ namespace PirateCraft
   }
   public enum UiFontStyle
   {
-    Normal,
-    Bold,
-    Italic
+    [CSSAttribute("normal")] Normal,
+    [CSSAttribute("bold")] Bold,
+    [CSSAttribute("italic")] Italic
   }
 
   #endregion
@@ -419,6 +357,7 @@ namespace PirateCraft
 
     public string Name { get; set; } = "";
 
+    [CSSAttribute("margin")]
     public float? Margin
     {
       get { return (float?)_props.Get(UiPropName.MarginTop); }
@@ -427,6 +366,7 @@ namespace PirateCraft
         MarginTop = MarginRight = MarginBot = MarginLeft = value;
       }
     }
+    [CSSAttribute("border")]
     public float? Border
     {
       get { return (float?)_props.Get(UiPropName.BorderTop); }
@@ -435,6 +375,7 @@ namespace PirateCraft
         BorderTop = BorderRight = BorderLeft = BorderBot = value;
       }
     }
+    [CSSAttribute("border-radius")]
     public float? BorderRadius
     {
       get { return (float?)_props.Get(UiPropName.BorderTopLeftRadius); }
@@ -443,6 +384,7 @@ namespace PirateCraft
         BorderTopLeftRadius = BorderTopRightRadius = BorderBotRightRadius = BorderBotLeftRadius = value;
       }
     }
+    [CSSAttribute("padding")]
     public float? Padding
     {
       get { return (float?)_props.Get(UiPropName.PadTop); }
@@ -462,45 +404,45 @@ namespace PirateCraft
     //Manual setters.. these will cause this style class to own this property
     //**Note: Do not use nullable<> or ? types on class types here. This will return (null) even if the class type is set on the nullable boxer.
     //OK so you could actually just return _props.Top .. etc here, but for now we're doing this to simplify things (as they are written)
-    public float? Top { get { return (float?)GetClassValue(UiPropName.Top); } set { SetClassValue(UiPropName.Top, (float?)value); } }
-    public float? Left { get { return (float?)GetClassValue(UiPropName.Left); } set { SetClassValue(UiPropName.Left, (float?)value); } }
-    public float? Width { get { return (float?)GetClassValue(UiPropName.Width); } set { SetClassValue(UiPropName.Width, (float?)value); } }
-    public float? Height { get { return (float?)GetClassValue(UiPropName.Height); } set { SetClassValue(UiPropName.Height, (float?)value); } }
-    public float? MinWidth { get { return (float?)GetClassValue(UiPropName.MinWidth); } set { SetClassValue(UiPropName.MinWidth, (float?)value); } }
-    public float? MinHeight { get { return (float?)GetClassValue(UiPropName.MinHeight); } set { SetClassValue(UiPropName.MinHeight, (float?)value); } }
-    public float? MaxWidth { get { return (float?)GetClassValue(UiPropName.MaxWidth); } set { SetClassValue(UiPropName.MaxWidth, (float?)value); } }
-    public float? MaxHeight { get { return (float?)GetClassValue(UiPropName.MaxHeight); } set { SetClassValue(UiPropName.MaxHeight, (float?)value); } }
-    public float? PadTop { get { return (float?)GetClassValue(UiPropName.PadTop); } set { SetClassValue(UiPropName.PadTop, (float?)value); } }
-    public float? PadRight { get { return (float?)GetClassValue(UiPropName.PadRight); } set { SetClassValue(UiPropName.PadRight, (float?)value); } }
-    public float? PadBot { get { return (float?)GetClassValue(UiPropName.PadBot); } set { SetClassValue(UiPropName.PadBot, (float?)value); } }
-    public float? PadLeft { get { return (float?)GetClassValue(UiPropName.PadLeft); } set { SetClassValue(UiPropName.PadLeft, (float?)value); } }
-    public float? MarginTop { get { return (float?)GetClassValue(UiPropName.MarginTop); } set { SetClassValue(UiPropName.MarginTop, (float?)value); } }
-    public float? MarginRight { get { return (float?)GetClassValue(UiPropName.MarginRight); } set { SetClassValue(UiPropName.MarginRight, (float?)value); } }
-    public float? MarginBot { get { return (float?)GetClassValue(UiPropName.MarginBot); } set { SetClassValue(UiPropName.MarginBot, (float?)value); } }
-    public float? MarginLeft { get { return (float?)GetClassValue(UiPropName.MarginLeft); } set { SetClassValue(UiPropName.MarginLeft, (float?)value); } }
-    public float? BorderTop { get { return (float?)GetClassValue(UiPropName.BorderTop); } set { SetClassValue(UiPropName.BorderTop, (float?)value); } }
-    public float? BorderRight { get { return (float?)GetClassValue(UiPropName.BorderRight); } set { SetClassValue(UiPropName.BorderRight, (float?)value); } }
-    public float? BorderBot { get { return (float?)GetClassValue(UiPropName.BorderBot); } set { SetClassValue(UiPropName.BorderBot, (float?)value); } }
-    public float? BorderLeft { get { return (float?)GetClassValue(UiPropName.BorderLeft); } set { SetClassValue(UiPropName.BorderLeft, (float?)value); } }
-    public float? BorderTopLeftRadius { get { return (float?)GetClassValue(UiPropName.BorderTopLeftRadius); } set { SetClassValue(UiPropName.BorderTopLeftRadius, (float?)value); } }
-    public float? BorderTopRightRadius { get { return (float?)GetClassValue(UiPropName.BorderTopRightRadius); } set { SetClassValue(UiPropName.BorderTopRightRadius, (float?)value); } }
-    public float? BorderBotRightRadius { get { return (float?)GetClassValue(UiPropName.BorderBotRightRadius); } set { SetClassValue(UiPropName.BorderBotRightRadius, (float?)value); } }
-    public float? BorderBotLeftRadius { get { return (float?)GetClassValue(UiPropName.BorderBotLeftRadius); } set { SetClassValue(UiPropName.BorderBotLeftRadius, (float?)value); } }
-    public vec4? Color { get { return (vec4?)GetClassValue(UiPropName.Color); } set { SetClassValue(UiPropName.Color, (vec4?)value); } }
-    public vec4? BorderColor { get { return (vec4?)GetClassValue(UiPropName.BorderColor); } set { SetClassValue(UiPropName.BorderColor, (vec4?)value); } }
-    public FontFace FontFace { get { return (FontFace)GetClassValue(UiPropName.FontFace); } set { SetClassValue(UiPropName.FontFace, (FontFace)value); } }
-    public float? FontSize { get { return (float?)GetClassValue(UiPropName.FontSize); } set { SetClassValue(UiPropName.FontSize, (float?)value); } }
-    public UiFontStyle? FontStyle { get { return (UiFontStyle?)GetClassValue(UiPropName.FontStyle); } set { SetClassValue(UiPropName.FontStyle, (UiFontStyle?)value); } }
-    public vec4? FontColor { get { return (vec4?)GetClassValue(UiPropName.FontColor); } set { SetClassValue(UiPropName.FontColor, (vec4?)value); } }
-    public float? LineHeight { get { return (float?)GetClassValue(UiPropName.LineHeight); } set { SetClassValue(UiPropName.LineHeight, (float?)value); } }
-    public UiPositionMode? PositionMode { get { return (UiPositionMode?)GetClassValue(UiPropName.PositionMode); } set { SetClassValue(UiPropName.PositionMode, (UiPositionMode?)value); } }
-    public UiOverflowMode? OverflowMode { get { return (UiOverflowMode?)GetClassValue(UiPropName.OverflowMode); } set { SetClassValue(UiPropName.OverflowMode, (UiOverflowMode?)value); } }
-    public UiSizeMode? SizeModeWidth { get { return (UiSizeMode?)GetClassValue(UiPropName.SizeModeWidth); } set { SetClassValue(UiPropName.SizeModeWidth, (UiSizeMode?)value); } }
-    public UiSizeMode? SizeModeHeight { get { return (UiSizeMode?)GetClassValue(UiPropName.SizeModeHeight); } set { SetClassValue(UiPropName.SizeModeHeight, (UiSizeMode?)value); } }
-    public UiDisplayMode? DisplayMode { get { return (UiDisplayMode?)GetClassValue(UiPropName.DisplayMode); } set { SetClassValue(UiPropName.DisplayMode, (UiDisplayMode?)value); } }
-    public UiImageTiling? ImageTilingX { get { return (UiImageTiling?)GetClassValue(UiPropName.ImageTilingX); } set { SetClassValue(UiPropName.ImageTilingX, (UiImageTiling?)value); } }
-    public UiImageTiling? ImageTilingY { get { return (UiImageTiling?)GetClassValue(UiPropName.ImageTilingY); } set { SetClassValue(UiPropName.ImageTilingY, (UiImageTiling?)value); } }
-    public MtTex Texture { get { return (MtTex)GetClassValue(UiPropName.Texture); } set { SetClassValue(UiPropName.Texture, (MtTex)value); } }
+    [CSSAttribute("top")] public float? Top { get { return (float?)GetClassValue(UiPropName.Top); } set { SetClassValue(UiPropName.Top, (float?)value); } }
+    [CSSAttribute("left")] public float? Left { get { return (float?)GetClassValue(UiPropName.Left); } set { SetClassValue(UiPropName.Left, (float?)value); } }
+    [CSSAttribute("width")] public float? Width { get { return (float?)GetClassValue(UiPropName.Width); } set { SetClassValue(UiPropName.Width, (float?)value); } }
+    [CSSAttribute("height")] public float? Height { get { return (float?)GetClassValue(UiPropName.Height); } set { SetClassValue(UiPropName.Height, (float?)value); } }
+    [CSSAttribute("min-width")] public float? MinWidth { get { return (float?)GetClassValue(UiPropName.MinWidth); } set { SetClassValue(UiPropName.MinWidth, (float?)value); } }
+    [CSSAttribute("min-height")] public float? MinHeight { get { return (float?)GetClassValue(UiPropName.MinHeight); } set { SetClassValue(UiPropName.MinHeight, (float?)value); } }
+    [CSSAttribute("max-width")] public float? MaxWidth { get { return (float?)GetClassValue(UiPropName.MaxWidth); } set { SetClassValue(UiPropName.MaxWidth, (float?)value); } }
+    [CSSAttribute("max-height")] public float? MaxHeight { get { return (float?)GetClassValue(UiPropName.MaxHeight); } set { SetClassValue(UiPropName.MaxHeight, (float?)value); } }
+    [CSSAttribute("padding-top")] public float? PadTop { get { return (float?)GetClassValue(UiPropName.PadTop); } set { SetClassValue(UiPropName.PadTop, (float?)value); } }
+    [CSSAttribute("padding-right")] public float? PadRight { get { return (float?)GetClassValue(UiPropName.PadRight); } set { SetClassValue(UiPropName.PadRight, (float?)value); } }
+    [CSSAttribute("padding-bottom")] public float? PadBot { get { return (float?)GetClassValue(UiPropName.PadBot); } set { SetClassValue(UiPropName.PadBot, (float?)value); } }
+    [CSSAttribute("padding-left")] public float? PadLeft { get { return (float?)GetClassValue(UiPropName.PadLeft); } set { SetClassValue(UiPropName.PadLeft, (float?)value); } }
+    [CSSAttribute("margin-top")] public float? MarginTop { get { return (float?)GetClassValue(UiPropName.MarginTop); } set { SetClassValue(UiPropName.MarginTop, (float?)value); } }
+    [CSSAttribute("margin-right")] public float? MarginRight { get { return (float?)GetClassValue(UiPropName.MarginRight); } set { SetClassValue(UiPropName.MarginRight, (float?)value); } }
+    [CSSAttribute("margin-bottom")] public float? MarginBot { get { return (float?)GetClassValue(UiPropName.MarginBot); } set { SetClassValue(UiPropName.MarginBot, (float?)value); } }
+    [CSSAttribute("margin-left")] public float? MarginLeft { get { return (float?)GetClassValue(UiPropName.MarginLeft); } set { SetClassValue(UiPropName.MarginLeft, (float?)value); } }
+    [CSSAttribute("border-top")] public float? BorderTop { get { return (float?)GetClassValue(UiPropName.BorderTop); } set { SetClassValue(UiPropName.BorderTop, (float?)value); } }
+    [CSSAttribute("border-right")] public float? BorderRight { get { return (float?)GetClassValue(UiPropName.BorderRight); } set { SetClassValue(UiPropName.BorderRight, (float?)value); } }
+    [CSSAttribute("border-bottom")] public float? BorderBot { get { return (float?)GetClassValue(UiPropName.BorderBot); } set { SetClassValue(UiPropName.BorderBot, (float?)value); } }
+    [CSSAttribute("border-left")] public float? BorderLeft { get { return (float?)GetClassValue(UiPropName.BorderLeft); } set { SetClassValue(UiPropName.BorderLeft, (float?)value); } }
+    [CSSAttribute("border-top-left-radius")] public float? BorderTopLeftRadius { get { return (float?)GetClassValue(UiPropName.BorderTopLeftRadius); } set { SetClassValue(UiPropName.BorderTopLeftRadius, (float?)value); } }
+    [CSSAttribute("border-top-right-radius")] public float? BorderTopRightRadius { get { return (float?)GetClassValue(UiPropName.BorderTopRightRadius); } set { SetClassValue(UiPropName.BorderTopRightRadius, (float?)value); } }
+    [CSSAttribute("border-bottom-right-radius")] public float? BorderBotRightRadius { get { return (float?)GetClassValue(UiPropName.BorderBotRightRadius); } set { SetClassValue(UiPropName.BorderBotRightRadius, (float?)value); } }
+    [CSSAttribute("border-bottom-left-radius")] public float? BorderBotLeftRadius { get { return (float?)GetClassValue(UiPropName.BorderBotLeftRadius); } set { SetClassValue(UiPropName.BorderBotLeftRadius, (float?)value); } }
+    [CSSAttribute("font-color")] public vec4? Color { get { return (vec4?)GetClassValue(UiPropName.Color); } set { SetClassValue(UiPropName.Color, (vec4?)value); } }
+    [CSSAttribute("border-color")] public vec4? BorderColor { get { return (vec4?)GetClassValue(UiPropName.BorderColor); } set { SetClassValue(UiPropName.BorderColor, (vec4?)value); } }
+    [CSSAttribute("font-family")] public FontFace FontFace { get { return (FontFace)GetClassValue(UiPropName.FontFace); } set { SetClassValue(UiPropName.FontFace, (FontFace)value); } }
+    [CSSAttribute("font-size")] public float? FontSize { get { return (float?)GetClassValue(UiPropName.FontSize); } set { SetClassValue(UiPropName.FontSize, (float?)value); } }
+    [CSSAttribute("font-style")] public UiFontStyle? FontStyle { get { return (UiFontStyle?)GetClassValue(UiPropName.FontStyle); } set { SetClassValue(UiPropName.FontStyle, (UiFontStyle?)value); } }
+    [CSSAttribute("color")] public vec4? FontColor { get { return (vec4?)GetClassValue(UiPropName.FontColor); } set { SetClassValue(UiPropName.FontColor, (vec4?)value); } }
+    [CSSAttribute("line-height")] public float? LineHeight { get { return (float?)GetClassValue(UiPropName.LineHeight); } set { SetClassValue(UiPropName.LineHeight, (float?)value); } }
+    [CSSAttribute("position-mode")] public UiPositionMode? PositionMode { get { return (UiPositionMode?)GetClassValue(UiPropName.PositionMode); } set { SetClassValue(UiPropName.PositionMode, (UiPositionMode?)value); } }
+    [CSSAttribute("overflow-mode")] public UiOverflowMode? OverflowMode { get { return (UiOverflowMode?)GetClassValue(UiPropName.OverflowMode); } set { SetClassValue(UiPropName.OverflowMode, (UiOverflowMode?)value); } }
+    [CSSAttribute("size-mode-width")] public UiSizeMode? SizeModeWidth { get { return (UiSizeMode?)GetClassValue(UiPropName.SizeModeWidth); } set { SetClassValue(UiPropName.SizeModeWidth, (UiSizeMode?)value); } }
+    [CSSAttribute("size-mode-height")] public UiSizeMode? SizeModeHeight { get { return (UiSizeMode?)GetClassValue(UiPropName.SizeModeHeight); } set { SetClassValue(UiPropName.SizeModeHeight, (UiSizeMode?)value); } }
+    [CSSAttribute("display")] public UiDisplayMode? DisplayMode { get { return (UiDisplayMode?)GetClassValue(UiPropName.DisplayMode); } set { SetClassValue(UiPropName.DisplayMode, (UiDisplayMode?)value); } }
+    [CSSAttribute("image-tiling-x")] public UiImageTiling? ImageTilingX { get { return (UiImageTiling?)GetClassValue(UiPropName.ImageTilingX); } set { SetClassValue(UiPropName.ImageTilingX, (UiImageTiling?)value); } }
+    [CSSAttribute("image-tiling-y")] public UiImageTiling? ImageTilingY { get { return (UiImageTiling?)GetClassValue(UiPropName.ImageTilingY); } set { SetClassValue(UiPropName.ImageTilingY, (UiImageTiling?)value); } }
+    [CSSAttribute("texture")] public MtTex Texture { get { return (MtTex)GetClassValue(UiPropName.Texture); } set { SetClassValue(UiPropName.Texture, (MtTex)value); } }
 
     #endregion
     #region Public: Methods
@@ -1066,7 +1008,7 @@ namespace PirateCraft
     public UiElement(List<string> styleClasses, string name, Phrase phrase, List<UiElement> children)
     {
       init(styleClasses, name, Gu.Translator.Translate(phrase), children);
-    }    
+    }
     public UiElement(List<string> styleClasses, string name, string text, List<UiElement> children)
     {
       init(styleClasses, name, text, children);

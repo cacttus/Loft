@@ -33,69 +33,88 @@ namespace PirateCraft
     }
     public static Gui2d GameGui(RenderView rv)
     {
+      //TODO: in-game gui
       return GetOrCreateSharedGuiForView("game-gui", rv);
     }
     public static List<UiStyle> GetGlobalStylesThatWeWillLaterLoadViaCSSFile(Gui2d gui)
     {
+      //It works .. well .. ugh this is a nightmare
+      // the thing is.. it's easier just to hard code stuff
+      // how do i parse behaviors? well that is a problem.
+      // font face is a problem
+      // CSSFile css = new CSSFile(new FileLoc("ui-default.css", FileStorage.Embedded), gui);
+      // css.Load();
+      // css.PrintErrors();
+      // return css.Styles;
+
       return new List<UiStyle>()
+      {
+        new UiStyle(StyleName.Base)
         {
-          new UiStyle(StyleName.Base)
-          {
-            FontColor = new vec4(0.1f, 0.14f, 0.14f, 1),
-            Color = new vec4(0.63f, 0.7f, 0.7f, 1),
-            BorderColor = new vec4(0.14f, 0.16f, 0.16f, 1),
-            Padding = 2,
-            Margin = 0,
-            Border = 0,
-            MinWidth = 1,
-            MinHeight = 1,
-            MaxWidth = Gui2d.MaxSize,
-            MaxHeight = Gui2d.MaxSize,
-            FontFace = FontFace.RobotoMono,
-            FontStyle = UiFontStyle.Normal,
-            FontSize = 22,
-            LineHeight = 1.0f,
-            PositionMode = UiPositionMode.Static,
-            SizeModeHeight = UiSizeMode.Shrink,
-            SizeModeWidth = UiSizeMode.Shrink,
-            DisplayMode = UiDisplayMode.Inline,
-            OverflowMode = UiOverflowMode.Hide,
-          },
-          new UiStyle(StyleName.Label, new List<string>() { StyleName.Base })
-          {
-            Texture = gui.DefaultPixel,
-            SizeModeWidth = UiSizeMode.Shrink,
-            SizeModeHeight = UiSizeMode.Shrink,
-            PositionMode = UiPositionMode.Static,
-            FontSize = 30,
-            Padding = 10,
-          },
-          new UiStyle(StyleName.DebugLabel, new List<string>() { StyleName.Label })
-          {
-            Color = new vec4(0.63f, 0.7f, 0.7f, 0.3f)
-          },
-          new UiStyle(StyleName.Toolbar, new List<string>() { StyleName.Base })
-          {
-            Texture = gui.DefaultPixel,
-            MinWidth = 0,
-            MinHeight = 30,
-            SizeModeWidth = UiSizeMode.Expand,
-            SizeModeHeight = UiSizeMode.Shrink,
-            FontSize = 40,
-            FontFace = FontFace.Parisienne,
-          },
-          new UiStyle(StyleName.Panel, new List<string>() { StyleName.Base })
-          {
-            Texture = gui.DefaultPixel,
-            SizeModeWidth = UiSizeMode.Expand,
-            SizeModeHeight = UiSizeMode.Expand,
-            Padding = 10,
-            Margin = 0,
-            BorderRadius = 0,
-            FontFace = FontFace.PressStart2P,
-            FontSize = 16
-          }
-        };
+          FontColor = new vec4(0.1f, 0.14f, 0.14f, 1),
+          Color = new vec4(0.63f, 0.7f, 0.7f, 1),
+          BorderColor = new vec4(0.14f, 0.16f, 0.16f, 1),
+          Padding = 2,
+          Margin = 0,
+          Border = 0,
+          MinWidth = 1,
+          MinHeight = 1,
+          MaxWidth = Gui2d.MaxSize,
+          MaxHeight = Gui2d.MaxSize,
+          FontFace = FontFace.RobotoMono,
+          FontStyle = UiFontStyle.Normal,
+          FontSize = 22,
+          LineHeight = 1.0f,
+          PositionMode = UiPositionMode.Static,
+          SizeModeHeight = UiSizeMode.Shrink,
+          SizeModeWidth = UiSizeMode.Shrink,
+          DisplayMode = UiDisplayMode.Inline,
+          OverflowMode = UiOverflowMode.Hide,
+        },
+        new UiStyle(StyleName.Button)
+        {
+          PositionMode = UiPositionMode.Static,
+          SizeModeHeight = UiSizeMode.Shrink,
+          SizeModeWidth = UiSizeMode.Shrink,
+          DisplayMode = UiDisplayMode.Inline,
+          OverflowMode = UiOverflowMode.Hide,
+        },        
+        new UiStyle(StyleName.Label, new List<string>() { StyleName.Base })
+        {
+          Texture = gui.DefaultPixel,
+          SizeModeWidth = UiSizeMode.Shrink,
+          SizeModeHeight = UiSizeMode.Shrink,
+          PositionMode = UiPositionMode.Static,
+          FontSize = 30,
+          Padding = 10,
+        },
+        new UiStyle(StyleName.DebugLabel, new List<string>() { StyleName.Label })
+        {
+          Color = new vec4(0.63f, 0.7f, 0.7f, 0.3f)
+        },
+        new UiStyle(StyleName.Toolbar, new List<string>() { StyleName.Base })
+        {
+          Texture = gui.DefaultPixel,
+          MinWidth = 0,
+          MinHeight = 30,
+          SizeModeWidth = UiSizeMode.Expand,
+          SizeModeHeight = UiSizeMode.Shrink,
+          FontSize = 40,
+          FontFace = FontFace.Parisienne,
+        },
+        new UiStyle(StyleName.Panel, new List<string>() { StyleName.Base })
+        {
+          Texture = gui.DefaultPixel,
+          SizeModeWidth = UiSizeMode.Expand,
+          SizeModeHeight = UiSizeMode.Expand,
+          Padding = 10,
+          Margin = 0,
+          BorderRadius = 0,
+          FontFace = FontFace.PressStart2P,
+          FontSize = 16
+        }
+      };
+
     }
     public static Gui2d EditGui(RenderView rv)
     {
@@ -105,15 +124,42 @@ namespace PirateCraft
 
       gui.StyleSheet.AddStyles(GuiBuilder.GetGlobalStylesThatWeWillLaterLoadViaCSSFile(gui));
 
-      gui.AddChild(new UiElement(new List<string> { StyleName.Toolbar }, "tlbToolbar", Phrase.None));//testing all the jacked up chagnes
+      var toolbar = new UiElement(new List<string> { StyleName.Toolbar }, "tlbToolbar", Phrase.None);
+      gui.AddChild(toolbar);//testing all the jacked up chagnes
+      var toolbar_button_file = new UiElement(new List<string> { StyleName.Button }, "btnFile", Phrase.File);
+      toolbar.AddChild(toolbar_button_file);
+     // toolbar_button_file.DoMouseEvents
+
+      //var toolbar_menu = new UiElement(new List<string> { StyleName.Panel }, "mnuToolbarMenu");
+
       rv.DebugInfo = new UiElement(new List<string> { StyleName.DebugLabel }, "lblDebugInfo", Phrase.None, null);
       gui.AddChild(rv.DebugInfo);
-      gui.AddChild(new UiElement(new List<string> { StyleName.Panel }, "lblDebugInfo2", Phrase.None, null));
+      //gui.AddChild(new UiElement(new List<string> { StyleName.Panel }, "lblDebugInfo2", Phrase.None, null));
 
       return gui;
     }
   }
+
+
+// public class Toolbar : UiElement { 
+//  public Toolbar(string name) : base(StyleName.Toolbar) {
+//  }
+// }
+public class PopupMenuButton : UiElement { 
+  List<UiElement> _items = new List<UiElement>();
+ public PopupMenuButton(string name) : base(StyleName.Label) {
+
+
+
+ }
+ public void AddMenuItem(UiElement item){
+_items.Add(item);
+ }
 }
+
+
+}//ns
+
 
 
 // var test = new Dictionary<string, string>(){

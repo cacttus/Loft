@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections;
+using System.Diagnostics;
 using System.Reflection;
 using System.Text;
 
@@ -156,8 +157,8 @@ namespace PirateCraft
     private int c_EOF = -1;//I guess, -1 in .net
 
     public static FileLoc Generated = new FileLoc("<generated>", FileStorage.Generated);
-    public FileStorage FileStorage { get; private set; } = FileStorage.Disk;
-    public string RawPath { get; private set; } = "";
+    public FileStorage FileStorage { get; set; } = FileStorage.Disk;
+    public string RawPath { get; set; } = "";
     public FileLoc Clone()
     {
       FileLoc ret = new FileLoc();
@@ -985,6 +986,7 @@ namespace PirateCraft
 
   public class ByteParser
   {
+    //Parse utilities
     public static bool IsWS(char c)
     {
       return c == ' ' || c == '\n' || c == '\r' || c == '\t';
@@ -1005,6 +1007,10 @@ namespace PirateCraft
       char c = (char)b;
       index++;
       return c;
+    }
+    public static bool IsDigit(char c)
+    {
+      return c == '0' || c == '1' || c == '2' || c == '3' || c == '4' || c == '5' || c == '6' || c == '7' || c == '8' || c == '9';
     }
     public static bool IsAlpha(char c)
     {
@@ -1028,6 +1034,36 @@ namespace PirateCraft
         return false;
       }
       return null;
+    }
+    public static string ParseIdentifier(byte[] data, ref int line, ref int col, ref int index)
+    {
+      //parse [a-zA-Z0-9_]
+      string tok = "";
+      bool first = true;
+      while (index < data.Length)
+      {
+        char c = PeekChar(data, index);
+
+        if (IsAlpha(c) || (IsDigit(c) && first == false) || (c == '_') || (c == '-' && first == false))
+        {
+          tok += c;
+          index++;
+          first = false;
+        }
+        else if ((IsDigit(c) && first == true))
+        {
+          throw new Exception("Invalid identifier [0-9]..");
+        }
+        else if ((c == '-' && first == true))
+        {
+          throw new Exception("Invalid identifier [-]..");
+        }
+        else
+        {
+          break;
+        }
+      }
+      return tok;
     }
     public static string ParseAlphaToken(byte[] data, ref int line, ref int col, ref int index)
     {
@@ -1116,7 +1152,220 @@ namespace PirateCraft
         }
       }
     }
+    public static bool ParseFunc_NO_ARG_PARENS(string token, out string funcname, out List<string> parms, bool allowDashesInName)
+    {
+      parms = new List<string>();
+      funcname = "";
+      token = token.Trim().Trim(';');
 
+      var vals = token.Split('(');
+      if (vals.Length == 2)
+      {
+        funcname = vals[0].Trim();
+        if (!CheckValidId(funcname, allowDashesInName))
+        {
+          return false;
+        }
+
+        vals[1] = vals[1].Trim(')');
+        parms = vals[1].Split(',').ToList();
+        for (int i = 0; i < parms.Count; i++)
+        {
+          parms[i] = parms[i].Trim();
+        }
+        return true;
+      }
+      return false;
+    }
+    public static bool CheckValidId(string tok, bool allowDash)
+    {
+      //check that token is a valid identifier.
+      if (tok.Length == 0)
+      {
+        return false;
+      }
+      if (IsDigit(tok[0]))
+      {
+        return false;
+      }
+      if (tok[0] == '-')
+      {
+        return false;
+      }
+      for (int i = 0; i < tok.Length; i++)
+      {
+        char c = tok[i];
+        if (IsAlpha(c) || c == '_' || (allowDash && c == '-'))
+        {
+        }
+        else
+        {
+          return false;
+        }
+      }
+      return true;
+    }
+  }
+
+  public abstract class ByteForByteFile
+  {
+    //text file we parse each byte
+
+    #region Members
+
+    protected List<string> _errors = new List<string>();
+    protected List<string> _warnings = new List<string>();
+    protected FileLoc _fileLoc = null;
+    protected int _line = 1;//current line
+    protected int _col = 1;//current col
+    protected string _tok = ""; //cur token
+    protected char _clast = ' ';//last char
+    protected byte[] _data = null;
+    protected int _idx = 0;//index of _data
+
+    protected abstract bool DoParse(char c, string eated, ref bool requestBreak);//return true if the given character was handled.
+  
+    protected virtual void BeforeParse() { }
+    protected virtual void AfterParse() { }
+
+    protected bool EatWhiteSpace = true;
+    protected bool EatLineComments = true;
+    protected bool EatStarComments = true;
+
+    #endregion
+    #region Public methods
+
+    public ByteForByteFile(FileLoc loc)
+    {
+      _fileLoc = loc;
+    }
+    public void DebugWriteFileToPos()
+    {
+      //Just because.. vscode can't show blocks of text afaik
+#if DEBUG
+      System.IO.File.WriteAllBytes(System.IO.Path.Combine(Gu.LocalTmpPath, _fileLoc.RawPath + "_debug.txt"), _data.Take(_idx).ToArray());
+#endif
+    }
+    public bool Load()
+    {
+      Gu.Assert(_fileLoc.Exists);
+      var sw = new Stopwatch();
+      sw.Start();
+
+      _data = _fileLoc.ReadAllData();
+
+      BeforeParse();
+      ParseLoop();
+      AfterParse();
+
+      Gu.Log.Debug($"Parse: {_data.Length}B took: {sw.ElapsedMilliseconds}ms");
+      return true;
+    }
+    public bool PrintErrors()
+    {
+      //Return true if there were errors
+      if (_errors != null && _errors.Count > 0)
+      {
+        System.Text.StringBuilder sb = new System.Text.StringBuilder();
+        sb.AppendLine("");
+        sb.AppendLine($"---{_fileLoc.RawPath} Errors---");
+        foreach (var e in _errors)
+        {
+          sb.AppendLine($"  {e}");
+        }
+        Gu.Log.Error(sb.ToString());
+        return true;
+      }
+      if (_warnings != null && _warnings.Count > 0)
+      {
+        System.Text.StringBuilder sb = new System.Text.StringBuilder();
+        sb.AppendLine("");
+        sb.AppendLine($"---{_fileLoc.RawPath} Warnings---");
+        foreach (var e in _warnings)
+        {
+          sb.AppendLine($"  {e}");
+        }
+        Gu.Log.Error(sb.ToString());
+      }
+
+      return false;
+    }
+
+    #endregion
+    #region Protected: Methods
+
+    private void ParseLoop()
+    {
+      string eated = "";
+
+      bool requestBreak = false;
+      _idx = 0;
+      while (_idx < _data.Length)
+      {
+        char c = ByteParser.GetChar(_data, ref _idx);
+        if (c == '\n')
+        {
+          _line++;
+          _col = 0;
+        }
+        _col++;
+
+        if (EatWhiteSpace && ByteParser.IsWS(c))
+        {
+          //eat
+        }
+        else if (EatLineComments && ((c == '/') && (_clast == '/')))
+        {
+          ByteParser.EatTo(_data, ref _line, ref _col, ref eated, ref _idx, '\n');
+        }
+        else if (EatStarComments && ((c == '*') && (_clast == '/')))
+        {
+          ByteParser.EatTo(_data, ref _line, ref _col, ref eated, ref _idx, '*', '\\');
+        }
+        else if (DoParse(c, eated, ref requestBreak))
+        {
+          //User parse routine
+        }
+        else
+        {
+          _tok += c;
+        }
+
+        if (requestBreak)
+        {
+          break;
+        }
+
+        _clast = c;
+      }
+    }
+    protected void UnexpectedError(char c)
+    {
+      Gu.DebugBreak();
+      Error(_fileLoc, _line, _col, $"Unexpected '{c}'");
+    }
+    protected void Error(FileLoc file, int line, int col, string s, bool warning = false)
+    {
+      List<string> msg = warning ? _warnings : _errors;
+
+      if (line == -1 && file == null)
+      {
+        msg.Add($"{_fileLoc}: {s}");
+      }
+      else if (line == -1 && file != null)
+      {
+        msg.Add($"{file.RawPath}: {s}");
+      }
+      else
+      {
+        msg.Add($"{file.RawPath}:{line}:{col}: {s}");
+      }
+    }
+    protected void Warning(FileLoc file, int line, int col, string s)
+    {
+      Error(file, line, col, s, true);
+    }
+    #endregion
   }
 
 }//ns
