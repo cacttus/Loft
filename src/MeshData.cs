@@ -168,7 +168,7 @@ namespace PirateCraft
     }
     public bool DebugBreakRender = false;
 
-    public void Draw(GpuInstanceData[] instances)
+    public void Draw(GpuInstanceData[] instances, OpenTK.Graphics.OpenGL4.PrimitiveType? primTypeOverride = null)
     {
       //@param instances - Can be null in which case we draw a mesh without an accompanying instance transform
 
@@ -186,11 +186,17 @@ namespace PirateCraft
       //*****
       if (Gu.BreakRenderState || DebugBreakRender)
       {
-        GpuDebug.DebugGetRenderState(true);
+        GpuDebugInfo.DebugGetRenderState(true);
         Gu.DebugBreak();
         Gu.BreakRenderState = false;
       }
       //*****
+
+      OpenTK.Graphics.OpenGL4.PrimitiveType primType = this.PrimitiveType;
+      if (primTypeOverride != null)
+      {
+        primType = primTypeOverride.Value;
+      }
 
       //This is assuming the VAO and all other bindings are already called.
       if (HasIndexes)
@@ -201,7 +207,7 @@ namespace PirateCraft
 
           if (instances != null && instances.Length > 0)
           {
-            GL.DrawElementsInstanced(PrimitiveType,
+            GL.DrawElementsInstanced(primType,
               _indexBuffer.ItemCount,
               _indexBuffer.DrawElementsType,
               IntPtr.Zero,
@@ -216,7 +222,7 @@ namespace PirateCraft
             Gu.DebugBreak();
 
             Gu.Log.ErrorCycle("Instances were not specified for mesh " + this.Name);
-            GL.DrawElements(PrimitiveType,
+            GL.DrawElements(primType,
               _indexBuffer.ItemCount,
               _indexBuffer.DrawElementsType,
               IntPtr.Zero
@@ -321,14 +327,9 @@ namespace PirateCraft
         Gu.Log.Warn("Could not compute bound box for mesh " + this.Name + " No default position data supplied.");
       }
     }
-    public static GPUBuffer GenerateQuadIndicesArray(string name, int numQuads, bool flip = false)
+    private static ushort[] GenerateQuadIndices(int numQuads, bool flip = false)
     {
-      ushort[] uu = GenerateQuadIndices(numQuads, flip);
-      var ret = Gpu.CreateIndexBuffer(name, uu);
-      return ret;
-    }
-    public static ushort[] GenerateQuadIndices(int numQuads, bool flip = false)
-    {
+      //Generate proper winding quad indexes
       //0  1
       //2  3
       ushort idx = 0;
@@ -345,7 +346,7 @@ namespace PirateCraft
       }
       return inds;
     }
-    public static MeshData GenPlane(float w, float h, vec2[] side = null)
+    public static MeshData GenPlane(float w, float h, vec2[] side = null, string name = "generated-plane")
     {
       //Left Righ, Botom top, back front
       vec3[] box = new vec3[4];
@@ -365,18 +366,21 @@ namespace PirateCraft
       texs[2] = new vec2(0, 1);
       texs[3] = new vec2(1, 1);
 
-      v_v3n3x2[] verts = new v_v3n3x2[4];
-      verts[0 * 4 + 0] = new v_v3n3x2() { _v = box[0], _n = norms[0], _x = (side != null) ? side[0] : texs[0] };
-      verts[0 * 4 + 1] = new v_v3n3x2() { _v = box[1], _n = norms[0], _x = (side != null) ? side[1] : texs[1] };
-      verts[0 * 4 + 2] = new v_v3n3x2() { _v = box[2], _n = norms[0], _x = (side != null) ? side[2] : texs[2] };
-      verts[0 * 4 + 3] = new v_v3n3x2() { _v = box[3], _n = norms[0], _x = (side != null) ? side[3] : texs[3] };
+      v_v3n3x2f3t3[] verts = new v_v3n3x2f3t3[4];
+      verts[0 * 4 + 0] = new v_v3n3x2f3t3() { _v = box[0], _n = norms[0], _x = (side != null) ? side[0] : texs[0] };
+      verts[0 * 4 + 1] = new v_v3n3x2f3t3() { _v = box[1], _n = norms[0], _x = (side != null) ? side[1] : texs[1] };
+      verts[0 * 4 + 2] = new v_v3n3x2f3t3() { _v = box[2], _n = norms[0], _x = (side != null) ? side[2] : texs[2] };
+      verts[0 * 4 + 3] = new v_v3n3x2f3t3() { _v = box[3], _n = norms[0], _x = (side != null) ? side[3] : texs[3] };
 
-      return new MeshData("generated-plane", PrimitiveType.Triangles,
-        Gpu.CreateVertexBuffer("generated-plane", verts),
-        GenerateQuadIndicesArray("generated-plane", verts.Length / 4));
+      ushort[] qinds = GenerateQuadIndices(verts.Length / 4, false);
+      ComputeTangentsAndFaces(verts, qinds);
+
+      return new MeshData(name, PrimitiveType.Triangles,
+        Gpu.CreateVertexBuffer(name, verts),
+        Gpu.CreateIndexBuffer(name, qinds));
     }
 
-    public static MeshData GenBox(float w, float h, float d, vec2[] top = null, vec2[] side = null, vec2[] bot = null)
+    public static MeshData GenBox(float w, float h, float d, vec2[] top = null, vec2[] side = null, vec2[] bot = null, string name = "generated-box")
     {
       //Left Righ, Botom top, back front
       vec3[] box = new vec3[8];
@@ -408,84 +412,65 @@ namespace PirateCraft
       // 2      3
       //     4       5
       // 0      1
-      v_v3n3x2[] verts = new v_v3n3x2[6 * 4];//lrbtaf
-      verts[0 * 4 + 0] = new v_v3n3x2() { _v = box[4], _n = norms[0], _x = (side != null) ? side[0] : texs[0] };
-      verts[0 * 4 + 1] = new v_v3n3x2() { _v = box[0], _n = norms[0], _x = (side != null) ? side[1] : texs[1] };
-      verts[0 * 4 + 2] = new v_v3n3x2() { _v = box[6], _n = norms[0], _x = (side != null) ? side[2] : texs[2] };
-      verts[0 * 4 + 3] = new v_v3n3x2() { _v = box[2], _n = norms[0], _x = (side != null) ? side[3] : texs[3] };
+      v_v3n3x2f3t3[] verts = new v_v3n3x2f3t3[6 * 4];//lrbtaf
+      verts[0 * 4 + 0] = new v_v3n3x2f3t3() { _v = box[4], _n = norms[0], _x = (side != null) ? side[0] : texs[0] };
+      verts[0 * 4 + 1] = new v_v3n3x2f3t3() { _v = box[0], _n = norms[0], _x = (side != null) ? side[1] : texs[1] };
+      verts[0 * 4 + 2] = new v_v3n3x2f3t3() { _v = box[6], _n = norms[0], _x = (side != null) ? side[2] : texs[2] };
+      verts[0 * 4 + 3] = new v_v3n3x2f3t3() { _v = box[2], _n = norms[0], _x = (side != null) ? side[3] : texs[3] };
 
-      verts[1 * 4 + 0] = new v_v3n3x2() { _v = box[1], _n = norms[1], _x = (side != null) ? side[0] : texs[0] };
-      verts[1 * 4 + 1] = new v_v3n3x2() { _v = box[5], _n = norms[1], _x = (side != null) ? side[1] : texs[1] };
-      verts[1 * 4 + 2] = new v_v3n3x2() { _v = box[3], _n = norms[1], _x = (side != null) ? side[2] : texs[2] };
-      verts[1 * 4 + 3] = new v_v3n3x2() { _v = box[7], _n = norms[1], _x = (side != null) ? side[3] : texs[3] };
+      verts[1 * 4 + 0] = new v_v3n3x2f3t3() { _v = box[1], _n = norms[1], _x = (side != null) ? side[0] : texs[0] };
+      verts[1 * 4 + 1] = new v_v3n3x2f3t3() { _v = box[5], _n = norms[1], _x = (side != null) ? side[1] : texs[1] };
+      verts[1 * 4 + 2] = new v_v3n3x2f3t3() { _v = box[3], _n = norms[1], _x = (side != null) ? side[2] : texs[2] };
+      verts[1 * 4 + 3] = new v_v3n3x2f3t3() { _v = box[7], _n = norms[1], _x = (side != null) ? side[3] : texs[3] };
 
-      verts[2 * 4 + 0] = new v_v3n3x2() { _v = box[4], _n = norms[2], _x = (bot != null) ? bot[0] : texs[0] };
-      verts[2 * 4 + 1] = new v_v3n3x2() { _v = box[5], _n = norms[2], _x = (bot != null) ? bot[1] : texs[1] };
-      verts[2 * 4 + 2] = new v_v3n3x2() { _v = box[0], _n = norms[2], _x = (bot != null) ? bot[2] : texs[2] };
-      verts[2 * 4 + 3] = new v_v3n3x2() { _v = box[1], _n = norms[2], _x = (bot != null) ? bot[3] : texs[3] };
+      verts[2 * 4 + 0] = new v_v3n3x2f3t3() { _v = box[4], _n = norms[2], _x = (bot != null) ? bot[0] : texs[0] };
+      verts[2 * 4 + 1] = new v_v3n3x2f3t3() { _v = box[5], _n = norms[2], _x = (bot != null) ? bot[1] : texs[1] };
+      verts[2 * 4 + 2] = new v_v3n3x2f3t3() { _v = box[0], _n = norms[2], _x = (bot != null) ? bot[2] : texs[2] };
+      verts[2 * 4 + 3] = new v_v3n3x2f3t3() { _v = box[1], _n = norms[2], _x = (bot != null) ? bot[3] : texs[3] };
 
-      verts[3 * 4 + 0] = new v_v3n3x2() { _v = box[2], _n = norms[3], _x = (top != null) ? top[0] : texs[0] };
-      verts[3 * 4 + 1] = new v_v3n3x2() { _v = box[3], _n = norms[3], _x = (top != null) ? top[1] : texs[1] };
-      verts[3 * 4 + 2] = new v_v3n3x2() { _v = box[6], _n = norms[3], _x = (top != null) ? top[2] : texs[2] };
-      verts[3 * 4 + 3] = new v_v3n3x2() { _v = box[7], _n = norms[3], _x = (top != null) ? top[3] : texs[3] };
+      verts[3 * 4 + 0] = new v_v3n3x2f3t3() { _v = box[2], _n = norms[3], _x = (top != null) ? top[0] : texs[0] };
+      verts[3 * 4 + 1] = new v_v3n3x2f3t3() { _v = box[3], _n = norms[3], _x = (top != null) ? top[1] : texs[1] };
+      verts[3 * 4 + 2] = new v_v3n3x2f3t3() { _v = box[6], _n = norms[3], _x = (top != null) ? top[2] : texs[2] };
+      verts[3 * 4 + 3] = new v_v3n3x2f3t3() { _v = box[7], _n = norms[3], _x = (top != null) ? top[3] : texs[3] };
 
-      verts[4 * 4 + 0] = new v_v3n3x2() { _v = box[0], _n = norms[4], _x = (side != null) ? side[0] : texs[0] };
-      verts[4 * 4 + 1] = new v_v3n3x2() { _v = box[1], _n = norms[4], _x = (side != null) ? side[1] : texs[1] };
-      verts[4 * 4 + 2] = new v_v3n3x2() { _v = box[2], _n = norms[4], _x = (side != null) ? side[2] : texs[2] };
-      verts[4 * 4 + 3] = new v_v3n3x2() { _v = box[3], _n = norms[4], _x = (side != null) ? side[3] : texs[3] };
+      verts[4 * 4 + 0] = new v_v3n3x2f3t3() { _v = box[0], _n = norms[4], _x = (side != null) ? side[0] : texs[0] };
+      verts[4 * 4 + 1] = new v_v3n3x2f3t3() { _v = box[1], _n = norms[4], _x = (side != null) ? side[1] : texs[1] };
+      verts[4 * 4 + 2] = new v_v3n3x2f3t3() { _v = box[2], _n = norms[4], _x = (side != null) ? side[2] : texs[2] };
+      verts[4 * 4 + 3] = new v_v3n3x2f3t3() { _v = box[3], _n = norms[4], _x = (side != null) ? side[3] : texs[3] };
 
-      verts[5 * 4 + 0] = new v_v3n3x2() { _v = box[5], _n = norms[5], _x = (side != null) ? side[0] : texs[0] };
-      verts[5 * 4 + 1] = new v_v3n3x2() { _v = box[4], _n = norms[5], _x = (side != null) ? side[1] : texs[1] };
-      verts[5 * 4 + 2] = new v_v3n3x2() { _v = box[7], _n = norms[5], _x = (side != null) ? side[2] : texs[2] };
-      verts[5 * 4 + 3] = new v_v3n3x2() { _v = box[6], _n = norms[5], _x = (side != null) ? side[3] : texs[3] };
+      verts[5 * 4 + 0] = new v_v3n3x2f3t3() { _v = box[5], _n = norms[5], _x = (side != null) ? side[0] : texs[0] };
+      verts[5 * 4 + 1] = new v_v3n3x2f3t3() { _v = box[4], _n = norms[5], _x = (side != null) ? side[1] : texs[1] };
+      verts[5 * 4 + 2] = new v_v3n3x2f3t3() { _v = box[7], _n = norms[5], _x = (side != null) ? side[2] : texs[2] };
+      verts[5 * 4 + 3] = new v_v3n3x2f3t3() { _v = box[6], _n = norms[5], _x = (side != null) ? side[3] : texs[3] };
 
-      return new MeshData("generated-box", PrimitiveType.Triangles,
-        Gpu.CreateVertexBuffer("generated-box", verts),
-        GenerateQuadIndicesArray("generated-box", verts.Length / 4)
+      ushort[] qinds = GenerateQuadIndices(verts.Length / 4, false);
+      ComputeTangentsAndFaces(verts, qinds);
+
+      return new MeshData(name, PrimitiveType.Triangles,
+        Gpu.CreateVertexBuffer(name, verts),
+        Gpu.CreateIndexBuffer(name, qinds)
         );
     }
-    public static MeshData GenTextureFront(Camera3D c, float x, float y, float w, float h)
+    public static MeshData GenSphere(float radius, int slices = 128, int stacks = 128, bool smooth = false, bool flip_tris = false, string name = "gen-ellipsoid")
     {
-      //Let's do the UI from bottom left like OpenGL
-      v_v3n3x2[] verts = new v_v3n3x2[4];
-      verts[0]._v = c.Frustum.ScreenToWorld(new vec2(x, y), TransformSpace.Local, 0.01f).p0;
-      verts[1]._v = c.Frustum.ScreenToWorld(new vec2(x + w, y), TransformSpace.Local, 0.01f).p0;
-      verts[2]._v = c.Frustum.ScreenToWorld(new vec2(x, y + h), TransformSpace.Local, 0.01f).p0;
-      verts[3]._v = c.Frustum.ScreenToWorld(new vec2(x + w, y + h), TransformSpace.Local, 0.01f).p0;
-
-      verts[0]._x = new vec2(1, 0);
-      verts[1]._x = new vec2(1, 1);
-      verts[2]._x = new vec2(1, 0);
-      verts[3]._x = new vec2(0, 0);
-
-      verts[0]._n = new vec3(0, 0, -1);
-      verts[1]._n = new vec3(0, 0, -1);
-      verts[2]._n = new vec3(0, 0, -1);
-      verts[3]._n = new vec3(0, 0, -1);
-
-      return new MeshData("generated-texturefront", PrimitiveType.Triangles,
-        Gpu.CreateVertexBuffer("generated-texturefront", verts),
-        GenerateQuadIndicesArray("generated-texturefront", verts.Length / 4)
-        );
+      return GenEllipsoid(new vec3(radius, radius, radius), slices, stacks, smooth, flip_tris, name);
     }
-    public static MeshData GenSphere(float radius, int slices = 128, int stacks = 128, bool smooth = false, bool flip_tris = false)
+    public static MeshData GenEllipsoid(vec3 radius, int slices = 128, int stacks = 128, bool smooth = false, bool flip_tris = false, string name = "gen-ellipsoid")
     {
-      return GenEllipsoid(new vec3(radius, radius, radius), slices, stacks, smooth, flip_tris);
-    }
-    public static MeshData GenEllipsoid(vec3 radius, int slices = 128, int stacks = 128, bool smooth = false, bool flip_tris = false)
-    {
-      v_v3n3x2[] verts;
+      v_v3n3x2f3t3[] verts;
       ushort[] inds;
+
       GenEllipsoid(out verts, out inds, radius, slices, stacks, smooth, flip_tris);
-      return new MeshData("generated-sphere", PrimitiveType.Triangles,
-        Gpu.CreateVertexBuffer("generated-sphere", verts),
-        Gpu.CreateIndexBuffer("generated-sphere", inds)
+
+      return new MeshData(name, PrimitiveType.Triangles,
+        Gpu.CreateVertexBuffer(name, verts),
+        Gpu.CreateIndexBuffer(name, inds)
         );
     }
-    public static void GenEllipsoid(out v_v3n3x2[] verts, out ushort[] inds, vec3 radius, int slices = 128, int stacks = 128, bool smooth = false, bool flip_tris = false)
+    public static void GenEllipsoid(out v_v3n3x2f3t3[] verts, out ushort[] inds, vec3 radius, int slices = 128, int stacks = 128, bool smooth = false, bool flip_tris = false)
     {
       int vcount = slices * stacks * 4;
-      verts = new v_v3n3x2[vcount];
+      verts = new v_v3n3x2f3t3[vcount];
 
       //Use a 2D grid as a sphere. This is less optimal but doesn't mess up the tex coords.
       for (int stack = 0; stack < stacks; stack++)
@@ -555,9 +540,9 @@ namespace PirateCraft
       }
 
       inds = GenerateQuadIndices(verts.Length / 4, !flip_tris);
-
+      ComputeTangentsAndFaces(verts, inds);
     }
-    public static MeshData CreateScreenQuadMesh(float fw, float fh)
+    public static MeshData CreateScreenQuadMesh(float fw, float fh, string name = "screenquad")
     {
       v_v3x2[] verts = new v_v3x2[] {
         new v_v3x2() { _v = new vec3(0, 0, 0), _x = new vec2(0, 1) } ,
@@ -576,14 +561,53 @@ namespace PirateCraft
       2,
       };
 
-      return new MeshData("screenquad", PrimitiveType.Triangles,
-        Gpu.CreateVertexBuffer("screenquad", verts.ToArray()),
-        Gpu.CreateIndexBuffer("screenquad", inds)
+      return new MeshData(name, PrimitiveType.Triangles,
+        Gpu.CreateVertexBuffer(name, verts.ToArray()),
+        Gpu.CreateIndexBuffer(name, inds)
         );
     }
+    public static void ComputeTangentsAndFaces(v_v3n3x2f3t3[] verts, uint[] inds)
+    {
+      for (int vi = 0; vi < inds.Length; vi += 3)
+      {
+        ComputeTangentsAndFaces(verts, (int)inds[vi + 0], (int)inds[vi + 1], (int)inds[vi + 2]);
+      }
+    }
+    public static void ComputeTangentsAndFaces(v_v3n3x2f3t3[] verts, ushort[] inds)
+    {
+      for (int vi = 0; vi < inds.Length; vi += 3)
+      {
+        ComputeTangentsAndFaces(verts, (int)inds[vi + 0], (int)inds[vi + 1], (int)inds[vi + 2]);
+      }
+    }
+    public static void ComputeTangentsAndFaces(v_v3n3x2f3t3[] verts)
+    {
+      for (int vi = 0; vi < verts.Length; vi += 3)
+      {
+        ComputeTangentsAndFaces(verts, vi + 0, vi + 1, vi + 2);
+      }
+    }
+    private static void ComputeTangentsAndFaces(v_v3n3x2f3t3[] verts, int vi0, int vi1, int vi2)
+    {
+      //Compute face normal
+      vec3 d10 = verts[vi1]._v - verts[vi0]._v;
+      vec3 d20 = verts[vi2]._v - verts[vi0]._v;
 
-  }
+      verts[vi0]._f = d20.cross(d10).normalize();
+      verts[vi1]._f = verts[vi0]._f;
+      verts[vi2]._f = verts[vi0]._f;
+
+      //Compute tangent if none supplied
+      verts[vi0]._t = VertexFormat.ComputeTangent(verts[vi0]._f, verts[vi0]._v, verts[vi1]._v, verts[vi2]._v, verts[vi0]._x, verts[vi1]._x, verts[vi2]._x);
+      verts[vi1]._t = verts[vi0]._t;
+      verts[vi2]._t = verts[vi0]._t;
+    }
+
+
+  }//MeshData
 
 
 
-}
+
+
+}//NS

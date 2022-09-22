@@ -14,7 +14,7 @@ namespace PirateCraft
   }
   public enum KeyframeInterpolation
   {
-    Constant,
+    Step,
     Linear,
     Ease,
     Cubic,
@@ -110,89 +110,118 @@ namespace PirateCraft
       return c;
     }
   }
-  public class Keyframe : Cloneable<Keyframe>
+  public abstract class KeyframeBase : Cloneable<KeyframeBase>
   {
-    //This is a Q&D animation sys em for realtime matrix animations
-
     public double Time = 0;
-    public quat Rot { get; set; } = quat.identity();
-    public vec3 Pos { get; set; } = new vec3(0, 0, 0);
-    public vec3 Scale { get; set; } = new vec3(1, 1, 1);
-    public KeyframeInterpolation PosInterp { get; private set; } = KeyframeInterpolation.Cubic;
-    public KeyframeInterpolation RotInterp { get; private set; } = KeyframeInterpolation.Slerp;
-    public KeyframeInterpolation SclInterp { get; private set; } = KeyframeInterpolation.Cubic;
-    public Keyframe(double time, quat quat, KeyframeInterpolation rotInt, vec3 pos, KeyframeInterpolation posInt)
+    public KeyframeInterpolation Interpolation { get; set; } = KeyframeInterpolation.Cubic;
+  }
+  public class Vec3Keyframe : KeyframeBase
+  {
+    public vec3 Value { get; set; } = new vec3(0, 0, 0);
+    public Vec3Keyframe() { }
+    public Vec3Keyframe(double t, vec3 p, KeyframeInterpolation n) { Time = t; Value = p; Interpolation = n; }
+    public override Vec3Keyframe Clone(bool shallow = true)
     {
-      Rot = quat;
-      Pos = pos;
-      Time = time;
-      RotInterp = rotInt;
-      PosInterp = posInt;
+      Vec3Keyframe other = new Vec3Keyframe(this.Time, this.Value, this.Interpolation);
+      return other;
     }
-    public Keyframe(double time, quat quat, vec3 pos)
+  }
+  public class QuatKeyframe : KeyframeBase
+  {
+    public quat Value { get; set; } = quat.identity();
+    public QuatKeyframe() { }
+    public QuatKeyframe(double t, quat r, KeyframeInterpolation n) { Time = t; Value = r; Interpolation = n; }
+    public override QuatKeyframe Clone(bool shallow = true)
     {
-      Rot = quat;
-      Pos = pos;
-      Time = time;
-    }
-    public Keyframe(double time, quat quat)
-    {
-      Rot = quat;
-      Time = time;
-    }
-    public Keyframe(double time, vec3 pos)
-    {
-      Pos = pos;
-      Time = time;
-    }
-    public Keyframe() { }
-    public override Keyframe Clone(bool shallow = true)
-    {
-      Keyframe other = new Keyframe();
-      other.Time = this.Time;
-      other.Rot = this.Rot;
-      other.Pos = this.Pos;
-      other.Scale = this.Scale;
-      other.PosInterp = this.PosInterp;
-      other.RotInterp = this.RotInterp;
-      other.SclInterp = this.SclInterp;
+      QuatKeyframe other = new QuatKeyframe(this.Time, this.Value, this.Interpolation);
       return other;
     }
   }
   public class AnimationComponent : Component
   {
-
+    public double Time { get; private set; } = 0;
     public ActionState AnimationState { get; private set; } = ActionState.Stop;
-    public double Time { get; private set; } = 0;//Seconds
     public bool Repeat { get; set; } = false;
-    public Keyframe Current { get; private set; } = new Keyframe(); // Current interpolated Keyframe
-    public List<Keyframe> KeyFrames { get; private set; } = new List<Keyframe>(); //This must be sorted by Time
+    public List<Vec3Keyframe> PosChannel { get; private set; } = null;
+    public List<QuatKeyframe> RotChannel { get; private set; } = null;
+    public List<Vec3Keyframe> ScaleChannel { get; private set; } = null;
 
-    public double MaxTime
-    {
-      //Note: Keyframes should be sorted.
-      get
-      {
-        if (KeyFrames.Count == 0)
-        {
-          return 0;
-        }
-        return KeyFrames[KeyFrames.Count - 1].Time;
-      }
-    }
-    public double MinTime
-    {
-      get
-      {
-        if (KeyFrames.Count == 0)
-        {
-          return 0;
-        }
-        return KeyFrames[0].Time;
-      }
-    }
+    private vec3? _currentPos = null;
+    private quat? _currentRot = null;
+    private vec3? _currentScl = null;
+    private double _maxTime = 0;
+
     public AnimationComponent() { }
-    public AnimationComponent(List<Keyframe> keyframes, bool repeat = false) { KeyFrames = keyframes; Repeat = repeat; }
+
+    public void FillRot(float[] times, quat[] rots, KeyframeInterpolation interp, bool data_is_wxyz, bool flipy_gl)
+    {
+      Gu.Assert(times != null);
+      Gu.Assert(rots != null);
+      Gu.Assert(times.Length == rots.Length);
+      RotChannel = RotChannel.ConstructIfNeeded();
+      for (var i = 0; i < times.Length; ++i)
+      {
+        quat q = rots[i];
+        if (data_is_wxyz)
+        {
+          var w = q.x;
+          q.x = q.y;
+          q.y = q.z;
+          q.z = q.w;
+          q.w = w;
+        }
+        if (flipy_gl)
+        {
+          var tmp = q.y;
+          q.y = q.z;
+          q.z = tmp;
+        }
+        RotChannel.Add(new QuatKeyframe((double)times[i], q, interp));
+      }
+    }
+    public void FillPos(float[] times, vec3[] vals, KeyframeInterpolation interp)
+    {
+      Gu.Assert(times != null);
+      Gu.Assert(vals != null);
+      Gu.Assert(times.Length == vals.Length);
+      PosChannel = PosChannel.ConstructIfNeeded();
+      for (var i = 0; i < times.Length; ++i)
+      {
+        PosChannel.Add(new Vec3Keyframe((double)times[i], vals[i], interp));
+      }
+    }
+    public void FillScale(float[] times, vec3[] vals, KeyframeInterpolation interp)
+    {
+      Gu.Assert(times != null);
+      Gu.Assert(vals != null);
+      Gu.Assert(times.Length == vals.Length);
+      ScaleChannel = ScaleChannel.ConstructIfNeeded();
+      for (var i = 0; i < times.Length; ++i)
+      {
+        ScaleChannel.Add(new Vec3Keyframe((double)times[i], vals[i], interp));
+      }
+    }
+    public void AddFrame(double time, vec3? pos, quat? rot, vec3? scl)
+    {
+      KeyframeInterpolation posInterp = KeyframeInterpolation.Ease;
+      KeyframeInterpolation rotInterp = KeyframeInterpolation.Slerp;
+      KeyframeInterpolation sclInterp = KeyframeInterpolation.Ease;
+      if (pos != null)
+      {
+        PosChannel = PosChannel.ConstructIfNeeded();
+        PosChannel.Add(new Vec3Keyframe(time, pos.Value, posInterp));
+      }
+      if (rot != null)
+      {
+        RotChannel = RotChannel.ConstructIfNeeded();
+        RotChannel.Add(new QuatKeyframe(time, rot.Value, rotInterp));
+      }
+      if (scl != null)
+      {
+        ScaleChannel = ScaleChannel.ConstructIfNeeded();
+        ScaleChannel.Add(new Vec3Keyframe(time, scl.Value, sclInterp));
+      }
+    }
     public override void OnCreate(WorldObject myObj)
     {
     }
@@ -201,11 +230,11 @@ namespace PirateCraft
       if (AnimationState == ActionState.Run)
       {
         Time += dt;
-        if (Time > MaxTime)
+        if (Time > _maxTime)
         {
           if (Repeat)
           {
-            Time = Time % MaxTime;
+            Time = Time % _maxTime;
           }
           else
           {
@@ -213,12 +242,20 @@ namespace PirateCraft
           }
         }
 
-
         SlerpFrames();
 
-        myObj.AnimatedPosition = Current.Pos;
-        myObj.AnimatedRotation = Current.Rot;
-        myObj.AnimatedScale = Current.Scale;
+        if (_currentPos != null)
+        {
+          myObj.AnimatedPosition = _currentPos.Value;
+        }
+        if (_currentRot != null)
+        {
+          myObj.AnimatedRotation = _currentRot.Value;
+        }
+        if (_currentScl != null)
+        {
+          myObj.AnimatedScale = _currentScl.Value;
+        }
       }
 
       //mat4 mScl = mat4.CreateScale(Current.Scale);
@@ -232,25 +269,39 @@ namespace PirateCraft
     public override void OnDestroy(WorldObject myObj)
     {
     }
-    private void NormalizeState()
-    {
-      if (KeyFrames.Count > 0)
-      {
-        //foreach(var k in KeyFrames)
-        {
-          //TODO: find equal keyframe times as this could be an error.
-          // Gu.Log.Warn("Keyframes had equal times.");
-        }
-      }
-    }
+    // private void NormalizeState()
+    // {
+    //   if (KeyFrames.Count > 0)
+    //   {
+    //     //foreach(var k in KeyFrames)
+    //     {
+    //       //TODO: find equal keyframe times as this could be an error.
+    //       // Gu.Log.Warn("Keyframes had equal times.");
+    //     }
+    //   }
+    // }
     public void Play(bool? repeat = null)
     {
-      if (KeyFrames.Count == 0)
+      //Sort.
+      if (
+        (PosChannel == null || PosChannel.Count == 0) &&
+        (RotChannel == null || RotChannel.Count == 0) &&
+        (ScaleChannel == null || ScaleChannel.Count == 0)
+        )
       {
         Gu.Log.Error("Animation had no keyframes.");
         Gu.DebugBreak();
       }
-      KeyFrames.Sort((x, y) => x.Time.CompareTo(y.Time));
+      PosChannel?.Sort((x, y) => x.Time.CompareTo(y.Time));
+      RotChannel?.Sort((x, y) => x.Time.CompareTo(y.Time));
+      ScaleChannel?.Sort((x, y) => x.Time.CompareTo(y.Time));
+
+      //Calc max time.
+      _maxTime = 0;
+      if (PosChannel != null) { _maxTime = Math.Max(PosChannel[PosChannel.Count - 1].Time, _maxTime); }
+      if (RotChannel != null) { _maxTime = Math.Max(RotChannel[RotChannel.Count - 1].Time, _maxTime); }
+      if (ScaleChannel != null) { _maxTime = Math.Max(ScaleChannel[ScaleChannel.Count - 1].Time, _maxTime); }
+
       AnimationState = ActionState.Run;
       if (repeat != null)
       {
@@ -268,25 +319,32 @@ namespace PirateCraft
     {
       AnimationState = ActionState.Pause;
     }
-    private void SlerpFrames()
+    private void AdvanceFrame(List<KeyframeBase> frames, ref KeyframeBase? current, ref KeyframeBase? next, ref double out_time)
     {
-      if (KeyFrames.Count == 0)
+      current = null;
+      next = null;
+      out_time = 0;
+      if (frames == null)
+      {
+        //empty channel
+      }
+      else if (frames.Count == 0)
       {
         //No animation.
       }
-      else if (KeyFrames.Count == 1)
+      else if (frames.Count == 1)
       {
         //Set to this key frame.
-        Current = KeyFrames[0];
+        current = frames[0];
       }
       else
       {
         //Grab 0 and 1
-        Keyframe f0 = null, f1 = null;
-        for (int i = 0; i < KeyFrames.Count - 1; i++)
+        KeyframeBase? f0 = null, f1 = null;
+        for (int i = 0; i < frames.Count - 1; i++)
         {
-          var k0 = KeyFrames[i];
-          var k1 = KeyFrames[i + 1];
+          var k0 = frames[i];
+          var k1 = frames[i + 1];
           if (k0.Time <= Time && k1.Time >= Time)
           {
             f0 = k0;
@@ -297,34 +355,84 @@ namespace PirateCraft
         if (f0 == null || f1 == null)
         {
           //This should not be possible as the MaxTime must be the last of the keyframes.
-          if (Time > KeyFrames[KeyFrames.Count - 1].Time)
+          if (Time > frames[frames.Count - 1].Time)
           {
-            f0 = KeyFrames[KeyFrames.Count - 1];
+            f0 = frames[frames.Count - 1];
             f1 = f0;
           }
           else //if (Time < KeyFrames[0].Time)
           {
-            f0 = KeyFrames[0];
+            f0 = frames[0];
             f1 = f0;
           }
         }
 
         Gu.Assert(f0 != null && f1 != null);
         double denom = f1.Time - f0.Time;
-        double slerpTime = 0;
         if (denom == 0)
         {
-          slerpTime = 1; //If f0 and f1 are euqal in time it's an error.
+          out_time = 1; //If f0 and f1 are euqal in time it's an error.
         }
         else
         {
-          slerpTime = (Time - f0.Time) / denom;
+          out_time = (Time - f0.Time) / denom;
         }
+        current = f0;
+        next = f1;
+      }
+    }
+    private void SlerpFrames()
+    {
+      KeyframeBase? c = null, n = null;
+      double t = 0;
 
-        //Ok, now slerp it up
-        Current.Rot = f0.Rot.slerpTo(f1.Rot, (float)slerpTime);
-        Current.Pos = InterpolateV3(f1.PosInterp, f0.Pos, f1.Pos, slerpTime);
-        Current.Scale = InterpolateV3(f1.SclInterp, f0.Scale, f1.Scale, slerpTime);
+      if (PosChannel != null && PosChannel.Count > 0)
+      {
+        AdvanceFrame(PosChannel.OfType<KeyframeBase>().ToList(), ref c, ref n, ref t);
+        if (c != null && n == null)
+        {
+          _currentPos = (c as Vec3Keyframe).Value;
+        }
+        else if (c != null && n != null)
+        {
+          _currentPos = InterpolateV3((n as Vec3Keyframe).Interpolation, (c as Vec3Keyframe).Value, (n as Vec3Keyframe).Value, t);
+        }
+        else
+        {
+          _currentPos = null;
+        }
+      }
+      if (RotChannel != null && RotChannel.Count > 0)
+      {
+        AdvanceFrame(RotChannel.OfType<KeyframeBase>().ToList(), ref c, ref n, ref t);
+        if (c != null && n == null)
+        {
+          _currentRot = (c as QuatKeyframe).Value;
+        }
+        else if (c != null && n != null)
+        {
+          _currentRot = (c as QuatKeyframe).Value.slerpTo((n as QuatKeyframe).Value, (float)t);
+        }
+        else
+        {
+          _currentRot = null;
+        }
+      }
+      if (ScaleChannel != null && ScaleChannel.Count > 0)
+      {
+        AdvanceFrame(ScaleChannel.OfType<KeyframeBase>().ToList(), ref c, ref n, ref t);
+        if (c != null && n == null)
+        {
+          _currentScl = (c as Vec3Keyframe).Value;
+        }
+        else if (c != null && n != null)
+        {
+          _currentScl = InterpolateV3((n as Vec3Keyframe).Interpolation, (c as Vec3Keyframe).Value, (n as Vec3Keyframe).Value, t);
+        }
+        else
+        {
+          _currentScl = null;
+        }
       }
     }
     private vec3 InterpolateV3(KeyframeInterpolation interp, vec3 f0, vec3 f1, double slerpTime)
@@ -341,7 +449,7 @@ namespace PirateCraft
       {
         return EaseInterpolate(f0, f1, slerpTime);
       }
-      else if (interp == KeyframeInterpolation.Constant)
+      else if (interp == KeyframeInterpolation.Step)
       {
         return ConstantInterpolate(f0, f1, slerpTime);
       }
@@ -380,8 +488,13 @@ namespace PirateCraft
       other.AnimationState = this.AnimationState;
       other.Time = this.Time;
       other.Repeat = this.Repeat;
-      other.Current = this.Current;
-      other.KeyFrames = this.KeyFrames.Clone();
+      other._currentPos = this._currentPos;
+      other._currentScl = this._currentScl;
+      other._currentRot = this._currentRot;
+      if (this.PosChannel != null) other.PosChannel = new List<Vec3Keyframe>(this.PosChannel);
+      if (this.RotChannel != null) other.RotChannel = new List<QuatKeyframe>(this.RotChannel);
+      if (this.ScaleChannel != null) other.ScaleChannel = new List<Vec3Keyframe>(this.ScaleChannel);
+
       return other;
     }
   }
@@ -711,12 +824,23 @@ namespace PirateCraft
 
   #endregion
 
+  public class PRS
+  {
+    private quat _rotation = new quat(0, 0, 0, 1); //Axis-Angle xyz,ang
+    private vec3 _scale = new vec3(1, 1, 1);
+    private vec3 _position = new vec3(0, 0, 0);
+    public vec3 Position { get { return _position; } set { _position = value; } }
+    public quat Rotation { get { return _rotation; } set { _rotation = value; } }//xyz,angle
+    public vec3 Scale { get { return _scale; } set { _scale = value; } }
+  }
+
   public class WorldObject : DataBlock
   {
     // main object that stores matrix for pos/rot/scale, and components for mesh, sound, script .. GameObject ..
     #region Public:Members
 
     public object LoaderTempData = null;
+    public int LoaderTempDataNodeId = -1;
     public bool DebugBreakRender = false;
     public uint PickId { get { return _pickId; } }
     public WorldObjectState State { get { return _state; } set { _state = value; } }
@@ -768,6 +892,8 @@ namespace PirateCraft
     public bool Collides { get { return _collides; } set { _collides = value; } }
     public float AirFriction { get { return _airFriction; } set { _airFriction = value; } }
 
+    public bool Selectable { get { return _selectable; } set { _selectable = value; } }
+
     //public WindowContext ExclusiveRenderContext { get; set; } = null; //ONLY render this object in THIS context, regardless of whether it is visible. This is for multiple-windows. If null: render in any context.
     //public WindowContext ExcludeFromRenderContext { get; set; } = null; //DO NOT render in THIS context. Used for an FPS seeing other characters.
     public WeakReference<RenderView> ExcludeFromRenderView { get; set; } = null; //DO NOT render in THIS context. Used for an FPS seeing other characters.
@@ -776,6 +902,22 @@ namespace PirateCraft
 
     #endregion
     #region Public:Propfuncs
+
+    public PRS GetPRS_Local()
+    {
+      return new PRS()
+      {
+        Position = this.Position_Local,
+        Rotation = this.Rotation_Local,
+        Scale = this.Scale_Local,
+      };
+    }
+    public void SetPRS_Local(PRS p)
+    {
+      this.Position_Local = p.Position;
+      this.Rotation_Local = p.Rotation;
+      this.Scale_Local = p.Scale;
+    }
 
     public static WorldObject Default
     {
@@ -904,6 +1046,7 @@ namespace PirateCraft
     private vec3 _scaleWorld = vec3.Zero;
     private uint _pickId = 0;
     private bool _pickable = true;
+    private bool _selectable = true;
 
     #endregion
     #region Public:Methods
@@ -1082,6 +1225,9 @@ namespace PirateCraft
       other._collides = this._collides;
       other._airFriction = this._airFriction;
       other._hasPhysics = this._hasPhysics;
+      other._pickable = this._pickable;
+      other._pickId = Gu.Context.Renderer.Picker.GenPickId();
+      other._selectable = this._selectable;
 
       //Create an instance copy of the data blocks.
       other._meshData = this._meshData;
@@ -1233,20 +1379,29 @@ namespace PirateCraft
         _world = _local;
       }
     }
-    public T Component<T>() where T : class
+    public bool Component<T>(out T comp) where T : class
     {
-      T found = null;
       //Gets the first component of the given template type
+      bool res = false;
+      comp = null;
+      T found = null;
       IterateComponentsSafe((c) =>
       {
         if (c is T)
         {
           found = c as T;
+          res = true;
           return LambdaBool.Break;
         }
         return LambdaBool.Continue;
       });
-      return found;
+      comp = found;
+      return res;
+    }
+    public T Component<T>() where T : class
+    {
+      Component<T>(out var x);
+      return x;
     }
     public void IterateComponentsSafe(Func<Component, LambdaBool> act)
     {
@@ -1336,7 +1491,7 @@ namespace PirateCraft
     }
     public float Radius { get; set; } = 100;//Distance in the case of directional light
     public vec3 Color { get; set; } = vec3.One;
-    public float Power { get; set; } = 1;
+    public float Power { get; set; } = 10;
     public LightType Type { get; set; } = LightType.Point;
 
     public override void Update(World world, double dt, ref Box3f parentBoundBox)

@@ -30,6 +30,7 @@ namespace PirateCraft
     [Description("_ufGpuMaterial_s2Position")] _ufGpuMaterial_s2Position,
     [Description("_ufGpuMaterial_Block")] _ufGpuMaterial_Block,
     [Description("_ufGpuWorld_Block")] _ufGpuWorld_Block,
+    [Description("_ufGpuDebug_Block")] _ufGpuDebug_Block,
     [Description("_ufGpuCamera_Block")] _ufGpuCamera_Block,
     [Description("_ufGpuWorld_s2EnvironmentMap")] _ufGpuWorld_s2EnvironmentMap,
     [Description("_ufGpuWorld_s2IrradianceMap")] _ufGpuWorld_s2IrradianceMap,
@@ -59,6 +60,7 @@ namespace PirateCraft
     public uvec2 _pickId = 0;
     public float _pad0 = 0.0f;
     public float _pad1 = 0.0f;
+    public mat4 _model_inverse = mat4.Identity;
   }
   [StructLayout(LayoutKind.Sequential)]
   public struct GpuPointLight
@@ -108,7 +110,7 @@ namespace PirateCraft
     public int _pad1 = 0;
     //
     public vec3 _vAmbientColor = new vec3(1, 1, 1);
-    public float _fAmbientIntensity = 0.1f;
+    public float _fAmbientIntensity = 0.0f;
   }
   [StructLayout(LayoutKind.Sequential)]
   public struct GpuCamera
@@ -143,6 +145,22 @@ namespace PirateCraft
     public float _pad1 = 0;
     public float _pad2 = 0;
   }
+  [StructLayout(LayoutKind.Sequential)]
+  public struct GpuDebug
+  {
+    public GpuDebug() { }
+    //
+    public vec4 _tangentColor = new vec4(1, 0, 0, 1);
+    public vec4 _normalColor = new vec4(0, 1, 0, 1);
+    public vec4 _binormalColor = new vec4(0, 0, 1, 1);
+    public vec4 _vertexNormalColor = new vec4(1, 0, 1, 1);
+    //
+    public float _normalLength = 0.1f;
+    public float _lineWidth = 1.0f;
+    public float _pad0 = 0.0f;
+    public float _pad1 = 0.0f;
+  }
+
   #endregion
 
   public class ShaderControlVars
@@ -285,6 +303,7 @@ namespace PirateCraft
     public GpuWorld GpuWorld { get { return _gpuWorld; } }
     public GpuDirLight[] GpuDirLights { get { return _gpuDirLights; } }
     public GpuPointLight[] GpuPointLights { get { return _gpuPointLights; } }
+    public GpuDebug GpuDebug { get; private set; } = new GpuDebug();//just set it directly
 
     #endregion
     #region Private: Members
@@ -296,7 +315,7 @@ namespace PirateCraft
     private float _fogDivisor = 1200.0f; //Begin of fog distance
     private vec3 _fogColor = new vec3(0.8407f, 0.89349f, 0.981054f);
     private vec3 _ambient = new vec3(1, 1, 1);
-    private float _ambientIntensity = 0.1f;
+    private float _ambientIntensity = 0.0f;
     private DayNightCycle _dayNightCycle = null;
     private ModifiedList<Light> _lights = new ModifiedList<Light>();
     private GpuWorld _gpuWorld = new GpuWorld();
@@ -420,6 +439,7 @@ namespace PirateCraft
           Gu.Assert(Objects[iob] != null);
           //we could have the objects also contain a GpuInstanceData themselves.. this may be too much extra data though
           GpuInstanceData[iob]._model = Objects[iob].WorldMatrix;
+          GpuInstanceData[iob]._model_inverse = GpuInstanceData[iob]._model.inverseOf();
           GpuInstanceData[iob]._pickId.x = Objects[iob].PickId;
         }
         Modified = false;
@@ -444,7 +464,7 @@ namespace PirateCraft
         Add(ob);
       }
     }
-    public void Draw(WorldProps wp, RenderView rv)
+    public void Draw(WorldProps wp, RenderView rv, Material? customMaterial)
     {
       if (Objects != null)
       {
@@ -452,24 +472,36 @@ namespace PirateCraft
 
         foreach (var mk in Objects)
         {
-          var mat = mk.Key;
-          mat.GpuRenderState.SetState();
-          var cs = mat.Shader.GetShaderForCurrentContext();
-          cs.BeginRender(wp, rv, mat);
-          foreach (var ob_set in mk.Value)
+          if (customMaterial != null)
           {
-            ob_set.Value.CompileGpuData();
-            cs.BindInstanceUniforms(ob_set.Value.GpuInstanceData);
-
-            cs.CheckAllUniformsSet();
-
-            var mesh = ob_set.Value.Mesh;
-            Gu.Assert(mesh != null);
-            mesh.Draw(ob_set.Value.GpuInstanceData);
+            // Draw for a given material / shader
+            DrawForMaterial(wp, rv, customMaterial, mk.Value);
           }
-          cs.EndRender();
+          else
+          {
+            // Draw object material
+            DrawForMaterial(wp, rv, mk.Key, mk.Value);
+          }
         }
       }
+    }
+    private void DrawForMaterial(WorldProps wp, RenderView rv, Material mat, Dictionary<long, VisibleObjectInstances> instances)
+    {
+      mat.GpuRenderState.SetState();
+      var cs = mat.Shader.GetShaderForCurrentContext();
+      cs.BeginRender(wp, rv, mat);
+      foreach (var ob_set in instances)
+      {
+        ob_set.Value.CompileGpuData();
+        cs.BindInstanceUniforms(ob_set.Value.GpuInstanceData);
+
+        cs.CheckAllUniformsSet();
+
+        var mesh = ob_set.Value.Mesh;
+        Gu.Assert(mesh != null);
+        mesh.Draw(ob_set.Value.GpuInstanceData, mat.Shader.GSPrimType);
+      }
+      cs.EndRender();
     }
     public void CompileGpuData()
     {
@@ -547,13 +579,13 @@ namespace PirateCraft
       _visibleObjects = VisibleObjects.ConstructIfNeeded();
       _visibleObjects.Add(ob);
     }
-    public void Draw(WorldProps p, RenderView rv)
+    public void Draw(WorldProps p, RenderView rv, Material? customMaterial = null)
     {
       Gu.Assert(p != null);
       Gu.Assert(rv != null);
       if (_visibleObjects != null)
       {
-        _visibleObjects.Draw(p, rv);
+        _visibleObjects.Draw(p, rv, customMaterial);
       }
     }
   }
@@ -653,7 +685,7 @@ namespace PirateCraft
 
     private string Name = "";
 
-    public ContextShader(string name, WindowContext ct, string vsSrc_raw, string psSrc_raw, string gsSrc_raw, DateTime maxmodifytime, PipelineStageEnum stage) : base(name + "-prog")
+    public ContextShader(string name, WindowContext ct, string vsSrc_raw, string psSrc_raw, string gsSrc_raw, DateTime maxmodifytime, PipelineStageEnum stage, bool is_hot_reload) : base(name + "-prog")
     {
       Gu.Assert(ct != null);
       Gu.Assert(ct.Renderer != null);
@@ -665,7 +697,7 @@ namespace PirateCraft
       Gu.Log.Info($"{Name}: ..Context = {ct.Name}");
       Gu.Log.Info($"{Name}: ..Stage = {stage.Description()}");
 
-      Gpu.CheckGpuErrorsDbg();
+      Gpu.CheckGpuErrorsRt();
       {
         State = ShaderLoadState.Loading;
 
@@ -704,10 +736,6 @@ namespace PirateCraft
           CreateShaders(vsSrc, psSrc, gsSrc);
           CreateProgramFromShaders();
           ValidateProgram();
-          if (Gu.EngineConfig.ShaderCaching)
-          {
-            SaveBinary();
-          }
 
           if (State == ShaderLoadState.Failed)
           {
@@ -723,21 +751,22 @@ namespace PirateCraft
             if (!String.IsNullOrEmpty(vsSrc))
             {
               all_src_errs += Environment.NewLine + blip + Environment.NewLine + "--VERTEX SOURCE--" + Environment.NewLine + blip + Environment.NewLine + v_src + Environment.NewLine;
-              SaveShaderSource(v_src, Name + ".vs.glsl", errors);
             }
             if (!String.IsNullOrEmpty(gsSrc))/*  */
             {
               all_src_errs += Environment.NewLine + blip + Environment.NewLine + "--GEOM SOURCE--" + Environment.NewLine + blip + Environment.NewLine + g_src + Environment.NewLine;
-              SaveShaderSource(v_src, Name + ".gs.glsl", errors);
             }
             if (!String.IsNullOrEmpty(psSrc))
             {
               all_src_errs += Environment.NewLine + blip + Environment.NewLine + "--FRAG SOURCE--" + Environment.NewLine + blip + Environment.NewLine + f_src + Environment.NewLine;
-              SaveShaderSource(v_src, Name + ".fs.glsl", errors);
             }
             Gu.Log.Info(all_src_errs);
             Gu.Log.Error($"{Name}: ..Failed to load shader '" + Name + "'." + Environment.NewLine + errors);
-            Gu.DebugBreak();
+            // only break on first compile. If we're a hot reload don't break.
+            if (is_hot_reload == false)
+            {
+              Gu.DebugBreak();
+            }
           }
         }
         //If either state has failed, print
@@ -746,14 +775,22 @@ namespace PirateCraft
         {
           Bind();
           ParseUniforms();
-          Unbind();
+          if (State == ShaderLoadState.Validated)
+          {
+            Unbind();
 
-          State = ShaderLoadState.Success;
-          Gu.Log.Info($"{Name}: ..Succssfully processed and loaded shader to GPU (glId={GetGlId()})");
+            State = ShaderLoadState.Success;
+            SetObjectLabel();
+
+            Gu.Log.Info($"{Name}: ..Succssfully processed and loaded shader to GPU (glId={GetGlId()})");
+            if (Gu.EngineConfig.ShaderCaching)
+            {
+              SaveBinary();
+            }
+          }
         }
       }
-      Gpu.CheckGpuErrorsDbg();
-      SetObjectLabel();
+      Gpu.CheckGpuErrorsRt();
     }
     private void SaveShaderSource(string src, string filename, string? errors)
     {
@@ -844,7 +881,6 @@ namespace PirateCraft
         _boundTextures.Clear();
 
         Bind();
-        BindUniformBlock(ShaderUniformName._ufGpuCamera_Block.Description(), new GpuWorld[] { world.GpuWorld });
         BindViewUniforms(rv);
         BindWorldUniforms(world);
         BindMaterialUniforms(mat);
@@ -1076,6 +1112,22 @@ namespace PirateCraft
         ShaderUniformBlock su = new ShaderUniformBlock(u_name, iBlock, binding, buffer_size_bytes, active);// u_size, u_type, u_name);
         _uniformBlocks.Add(u_name, su);
       }
+      //check duplicate binding indexes for blocks
+      for (int dupe_loc = 0; dupe_loc < _uniformBlocks.Count; dupe_loc++)
+      {
+        for (int dupe_loc2 = dupe_loc + 1; dupe_loc2 < _uniformBlocks.Count; dupe_loc2++)
+        {
+          var ub0 = _uniformBlocks.ElementAt(dupe_loc).Value;
+          var ub1 = _uniformBlocks.ElementAt(dupe_loc2).Value;
+
+          if (ub0.BindingIndex == ub1.BindingIndex)
+          {
+            Gu.Log.Error($"Duplicate Uniform buffer binding index {ub0.BindingIndex} for {ub0.Name} and {ub1.Name} ");
+            Gu.DebugBreak();
+            this.State = ShaderLoadState.Failed;
+          }
+        }
+      }
     }
     private void BindWorldUniforms(WorldProps world)
     {
@@ -1086,6 +1138,7 @@ namespace PirateCraft
       BindTexture(ShaderUniformName._ufGpuWorld_s2IrradianceMap.Description(), world.IrradianceMap);
       BindUniformBlock(ShaderUniformName._ufGpuPointLights_Block.Description(), world.GpuPointLights);
       BindUniformBlock(ShaderUniformName._ufGpuDirLights_Block.Description(), world.GpuDirLights);
+      BindUniformBlock(ShaderUniformName._ufGpuDebug_Block.Description(), new GpuDebug[] { world.GpuDebug });
     }
     private void BindViewUniforms(RenderView rv)
     {
@@ -1097,6 +1150,11 @@ namespace PirateCraft
     {
       Gu.Assert(mat != null);
       mat.CompileGpuData();
+      if (mat.Name.ToLower().Contains("gear") || mat.Name.ToLower().Contains("plane"))
+      {
+        int n = 0;
+        n++;
+      }
       BindUniformBlock(ShaderUniformName._ufGpuMaterial_Block.Description(), new GpuMaterial[] { mat.GpuMaterial });
       BindTexture(ShaderUniformName._ufGpuMaterial_s2Albedo.Description(), mat.AlbedoSlot.GetTextureOrDefault());
       BindTexture(ShaderUniformName._ufGpuMaterial_s2Normal.Description(), mat.NormalSlot.GetTextureOrDefault());
@@ -1480,31 +1538,7 @@ namespace PirateCraft
 
 
   }
-  public class TextureInput : DataBlock
-  {
-    public Texture2D Texture { get { return _texture; } set { _texture = value; SetModified(); } }
-    public Texture2D GetTextureOrDefault()
-    {
-      if (Texture == null)
-      {
-        Gu.Assert(_default != null);//default shader inputs cant be null
-        return _default;
-      }
-      else
-      {
-        return Texture;
-      }
-    }
 
-    private Texture2D _default = null;
-    private Texture2D _texture = null;
-
-    public TextureInput(Texture2D default_tex)
-    {
-      _default = default_tex;
-    }
-
-  }
   public class Shader : OpenGLContextDataManager<Dictionary<PipelineStageEnum, ContextShader>>
   {
     //The Shader is an opaque type Basically it owns shaders per context, as programs can't be shared with OPenTK (afaik)
@@ -1515,6 +1549,7 @@ namespace PirateCraft
 
     public string Name { get; private set; } = Gu.UnsetName;
     public DateTime MaxModifyTime { get; private set; } = DateTime.MinValue;
+    public OpenTK.Graphics.OpenGL4.PrimitiveType? GSPrimType { get; private set; } = null; //if we have a GS, this must be set.
 
     #endregion
     #region Private: Members
@@ -1549,7 +1584,7 @@ namespace PirateCraft
       //Returns a basic v3 n3 x2 lambert+blinn-phong shader.
       if (_defaultDiffuseShader == null)
       {
-        _defaultDiffuseShader = Gu.Resources.LoadShader("v_v3n3x2", false, FileStorage.Embedded);
+        _defaultDiffuseShader = Gu.Resources.LoadShader("v_DefaultObjectShader", false, FileStorage.Embedded);
       }
       return _defaultDiffuseShader;
     }
@@ -1566,11 +1601,17 @@ namespace PirateCraft
     #endregion
     #region Public:Methods 
 
-    public Shader(string generic_name, bool gs, FileStorage storage)
+
+    public Shader(string generic_name, bool gs, FileStorage storage, OpenTK.Graphics.OpenGL4.PrimitiveType? gs_primType)
     {
       Name = generic_name;
       _hasGS = gs;
       _storage = storage;
+      if (gs)
+      {
+        Gu.Assert(gs_primType != null);
+      }
+      GSPrimType = gs_primType;
     }
     public void CheckSourceChanged()
     {
@@ -1587,6 +1628,9 @@ namespace PirateCraft
         if (wt > MaxModifyTime)
         {
           mustUpdate = true;
+
+          // ** Set the modify time to the maximum file mod - even if compile fails. This prevents infinite checking
+          MaxModifyTime = wt;
 
           break;
         }
@@ -1608,14 +1652,20 @@ namespace PirateCraft
             //If it fails, it won't break the program, we just keep the old shader in memory.
             var oldShader = context_pipeshader.Value[pipeshader];
 
-            var newshader = CreateNewShaderForContextPipe(context_pipeshader.Key, pipeshader);
+            var newshader = CreateNewShaderForContextPipe(context_pipeshader.Key, pipeshader, true);
             if (newshader.State == ShaderLoadState.Success)
             {
               //remove old shader, set new shader.
               context_pipeshader.Value[pipeshader] = newshader;
+              oldShader.DestroyForGC();
+              oldShader = null;
             }
-            oldShader.DestroyForGC();
-            oldShader = null;
+            else
+            {
+              newshader.DestroyForGC();
+              newshader = null;
+            }
+            Gpu.CheckGpuErrorsRt();
             GC.Collect();
           }
 
@@ -1736,16 +1786,16 @@ namespace PirateCraft
       ContextShader? shader = null;
       if (!dict.TryGetValue(stage, out shader))
       {
-        shader = CreateNewShaderForContextPipe(ct, stage);
+        shader = CreateNewShaderForContextPipe(ct, stage, false);
         dict.Add(stage, shader);
       }
       Gu.Assert(shader.PipelineStageEnum == stage);
 
       return shader;
     }
-    private ContextShader CreateNewShaderForContextPipe(WindowContext ct, PipelineStageEnum stage)
+    private ContextShader CreateNewShaderForContextPipe(WindowContext ct, PipelineStageEnum stage, bool is_hot_reload)
     {
-      var shader = new ContextShader(Name, ct, _vsSrc, _fsSrc, _gsSrc, MaxModifyTime, stage);
+      var shader = new ContextShader(Name, ct, _vsSrc, _fsSrc, _gsSrc, MaxModifyTime, stage, is_hot_reload);
       return shader;
     }
     #endregion

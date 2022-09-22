@@ -4,6 +4,31 @@ using System.Collections.Generic;
 
 namespace PirateCraft
 {
+  public class TextureInput : DataBlock
+  {
+    public Texture2D Texture { get { return _texture; } set { _texture = value; SetModified(); } }
+    public Texture2D GetTextureOrDefault()
+    {
+      if (Texture == null)
+      {
+        Gu.Assert(_default != null);//default shader inputs cant be null
+        return _default;
+      }
+      else
+      {
+        return Texture;
+      }
+    }
+
+    private Texture2D _default = null;
+    private Texture2D _texture = null;
+
+    public TextureInput(string name, Texture2D default_tex) : base(name + "-textureinput")
+    {
+      _default = default_tex;
+    }
+
+  }
   public enum PBRTextureType
   {
     Albedo,
@@ -40,7 +65,7 @@ namespace PirateCraft
       Gu.Log.Debug("..Creating Normal Map.");
       if (Imgs.TryGetValue(PBRTextureType.Albedo, out Img32 img))
       {
-        var normal = img.CreateNormalMap();
+        var normal = img.CreateNormalMap(false);
         Imgs.Add(PBRTextureType.Normal, normal);
         var txNormal = new Texture2D(normal, generateMipmaps, texFilter);
         Texs.Add(PBRTextureType.Normal, txNormal);
@@ -82,6 +107,7 @@ namespace PirateCraft
   //Material, input to a shader & gpu state for material FBO (blending, etc)
   public class Material : DataBlock
   {
+    private static Material _debugdraw_normals_material = null; //Default color material / shader.
     private static Material _defaultObjectMaterial = null; //Default color material / shader.
     private static Material _defaultFlatColorMaterial = null; //Default color material / shader.
 
@@ -160,11 +186,11 @@ namespace PirateCraft
     private Material() { }//clone ctor
     public Material(string name, Shader s) : base(name + "-mat")
     {
-      this._albedoSlot = new TextureInput(Texture2D.Default1x1ColorPixel_RGBA32ub(vec4ub.White));
-      this._normalSlot = new TextureInput(Texture2D.Default1x1NormalPixel_RGBA32ub());
-      this._roughnessSlot = new TextureInput(Texture2D.Default1x1ColorPixel_RGBA32ub(vec4ub.White));
-      this._metalnessSlot = new TextureInput(Texture2D.Default1x1ColorPixel_RGBA32ub(vec4ub.White));
-      this._positionSlot = new TextureInput(Texture2D.Default1x1ColorPixel_RGBA32ub(vec4ub.White));
+      this._albedoSlot = new TextureInput(name + "-albedo", Texture2D.Default1x1ColorPixel_RGBA32ub(vec4ub.White));
+      this._normalSlot = new TextureInput(name + "-normal", Texture2D.Default1x1NormalPixel_RGBA32ub());
+      this._roughnessSlot = new TextureInput(name + "-roughness", Texture2D.Default1x1ColorPixel_RGBA32ub(vec4ub.White));
+      this._metalnessSlot = new TextureInput(name + "-metalness", Texture2D.Default1x1ColorPixel_RGBA32ub(vec4ub.White));
+      this._positionSlot = new TextureInput(name + "-position", Texture2D.Default1x1ColorPixel_RGBA32ub(vec4ub.White));
 
       Shader = s;
     }
@@ -174,6 +200,7 @@ namespace PirateCraft
     }
     public Material(string name, Shader s, Texture2D albedo, Texture2D normal) : this(name, s)
     {
+      _albedoSlot.Texture = albedo;
       _normalSlot.Texture = normal;
     }
     public Material Clone()
@@ -204,10 +231,9 @@ namespace PirateCraft
     {
       get
       {
-        //TODO: - the input shader should also be default.
         if (_defaultFlatColorMaterial == null)
         {
-          _defaultFlatColorMaterial = new Material("DefaultFlatColorMaterial", Shader.DefaultFlatColorShader());
+          _defaultFlatColorMaterial = new Material(System.Reflection.MethodBase.GetCurrentMethod().Name, Shader.DefaultFlatColorShader());
           _defaultObjectMaterial.AlbedoSlot.Texture = Texture2D.Default1x1ColorPixel_RGBA32ub(new vec4ub(255, 255, 255, 255));
         }
         return _defaultFlatColorMaterial;
@@ -217,13 +243,26 @@ namespace PirateCraft
     {
       get
       {
-        //TODO: - the input shader should also be default.
         if (_defaultObjectMaterial == null)
         {
-          _defaultObjectMaterial = new Material("DefaultObjectMaterial", Shader.DefaultObjectShader());
+          _defaultObjectMaterial = new Material(System.Reflection.MethodBase.GetCurrentMethod().Name, Shader.DefaultObjectShader());
           _defaultObjectMaterial.AlbedoSlot.Texture = Texture2D.Default1x1ColorPixel_RGBA32ub(new vec4ub(255, 0, 255, 255));
         }
         return _defaultObjectMaterial;
+      }
+    }
+    public static Material DebugDraw_VertexNormals_FlatColor
+    {
+      get
+      {
+        if (_debugdraw_normals_material == null)
+        {
+          _debugdraw_normals_material = new Material(System.Reflection.MethodBase.GetCurrentMethod().Name, 
+          Gu.Resources.LoadShader("v_normals", true, FileStorage.Embedded, OpenTK.Graphics.OpenGL4.PrimitiveType.Triangles));
+          _debugdraw_normals_material.GpuRenderState.Blend = false;
+          _debugdraw_normals_material.BaseColor = new vec4(0.827f,0.933f,0.113f,1);
+        }
+        return _debugdraw_normals_material;
       }
     }
     //     public static Material DefaultBillboard()

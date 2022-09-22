@@ -22,13 +22,18 @@ namespace PirateCraft
   public class FrameDataTimer
   {
     //Manages: Delta, FPS, Uptime, Ticks, FrameStamp
+    private const long c_dblFpsAvgSampleTimeNs = 250 * (1000 * 1000);
     public Int64 FrameStamp { get; private set; }
     public double UpTime { get; private set; } = 0; //Time since engine started.
     public double Fps { get; private set; } = 60;
+    public double FpsAvg { get; private set; } = 60;
     public double Delta { get; private set; } = 1 / 60;
+
+    private List<double> _fpsSamples = new List<double>();
 
     private DateTime _startTime = DateTime.Now;
     private long _lastTime = Gu.Nanoseconds();
+    private long _lastTotal = Gu.Nanoseconds();
 
     public void Update()
     {
@@ -41,6 +46,18 @@ namespace PirateCraft
       FrameStamp++;
 
       Fps = 1 / Delta;
+
+      if ((curTime - _lastTotal) >= c_dblFpsAvgSampleTimeNs)
+      {
+        FpsAvg = _fpsSamples.Count > 0 ? _fpsSamples.Average() : 0;
+        _fpsSamples.Clear();
+        _lastTotal = curTime;
+      }
+      if (_fpsSamples.Count < 1000)
+      {
+        _fpsSamples.Add(Fps);
+      }
+
       UpTime = (DateTime.Now - _startTime).TotalSeconds;
     }
   }
@@ -55,6 +72,7 @@ namespace PirateCraft
     public Int64 FrameStamp { get { return ContextFrameTimer.FrameStamp; } }
     public double UpTime { get { return ContextFrameTimer.UpTime; } }
     public double Fps { get { return ContextFrameTimer.Fps; } }
+    public double FpsAvg { get { return ContextFrameTimer.FpsAvg; } }
     public double Delta { get { return ContextFrameTimer.Delta; } }
 
     public Gpu Gpu { get; private set; } = null;

@@ -1,4 +1,5 @@
 ﻿using OpenTK.Graphics.OpenGL4;
+using OpenTK.Windowing.GraphicsLibraryFramework;
 
 namespace PirateCraft
 {
@@ -86,16 +87,16 @@ namespace PirateCraft
         }
       }
     }
-    public Line3f ScreenToWorld(vec2 point_on_screen_topleftorigin, TransformSpace space = TransformSpace.World, float additionalZDepthNear = 0, float maxDistance = -1)
+    public Line3f? ScreenToWorld(vec2 point_on_screen_topleftorigin, TransformSpace space = TransformSpace.World, float additionalZDepthNear = 0, float maxDistance = -1)
     {
-      //Note it is good to Set maxDistance to what you need instead of using the whole frustum. A long ray can affect physics accuracy.
-      Line3f pt = new Line3f();
+      //Returns null if the camera or view are not set.
+      Line3f? pt_ret = null;
 
-      if (_camera != null && _camera.TryGetTarget(out Camera3D cam))
+      if (_camera != null && _camera.TryGetTarget(out var cam))
       {
         if (cam.View != null && cam.View.TryGetTarget(out var view))
         {
-
+          Line3f pt = new Line3f();
           float left_pct = (float)point_on_screen_topleftorigin.x / (float)view.Viewport.Width;
           float top_pct = (float)point_on_screen_topleftorigin.y / (float)view.Viewport.Height;
 
@@ -123,11 +124,12 @@ namespace PirateCraft
             {
               pt.p1 = pt.p0 + (pt.p1 - pt.p0).normalize() * (maxDistance - additionalZDepthNear);
             }
-
           }
+
+          pt_ret = pt;
         }
       }
-      return pt;
+      return pt_ret;
     }
     public vec3? WorldToScreen(vec3 v)
     {
@@ -278,6 +280,245 @@ namespace PirateCraft
     }
   }
 
+  //temp location for this class
+  //so, this is separate from picker because picker is generally a rendering layer thing, that comes at the end
+  //of rendering.. this comes within the update, and specifically the world- update- input- control logic
+  // however it is dependent on the current RenderView.
+  public enum InputState
+  {
+    Select,//Global state
+    Camera_Move,//TODO:
+    Camera_Pan, //TODO:
+    Selected_Move
+  }
+  public class KeyMap
+  {
+    //Pretty much, ready for this guy
+    //KeyCombo Ctrl+L
+    //KeyStroke Action KeyCombo(Ctrl+L) | KeyCombo(Ctrl+W)
+  }
+  public class ObjectSelector
+  {
+    public InputState InputState { get; private set; } = InputState.Select;
+    public List<WorldObject> SelectedObjects { get; set; } = new List<WorldObject>();
+
+    private List<PRS> _selectedObjectsPreviousState = new List<PRS>();
+    private vec3 _selectionOrigin = new vec3(0, 0, 0);
+    private Plane3f _selectionPlane = new Plane3f();
+    private bool _xform_XAxis = true;
+    private bool _xform_YAxis = true;
+    private bool _xform_ZAxis = true;
+    private vec2 _xform_MouseStart;
+    private vec2 _xform_WrapCount;
+    private Line3f? _xform_startRay = null;
+
+    public void Update(RenderView v)
+    {
+      var m = Gu.Context.PCMouse;
+      var k = Gu.Context.PCKeyboard;
+
+      if (InputState == InputState.Selected_Move)
+      {
+        //Grab the delta point 
+        if (k.Press(Keys.X))
+        {
+          if (k.PressOrDown(Keys.LeftShift) || k.PressOrDown(Keys.RightShift))
+          {
+            _xform_XAxis = false;
+            _xform_YAxis = true;
+            _xform_ZAxis = true;
+            _selectionPlane = new Plane3f(new vec3(1, 0, 0), _selectionOrigin);
+          }
+          else
+          {
+            _xform_XAxis = true;
+            _xform_YAxis = false;
+            _xform_ZAxis = false;
+            _selectionPlane = new Plane3f(new vec3(0, 1, 0), _selectionOrigin);
+          }
+        }
+        if (k.Press(Keys.Y))
+        {
+          if (k.PressOrDown(Keys.LeftShift) || k.PressOrDown(Keys.RightShift))
+          {
+            _xform_XAxis = true;
+            _xform_YAxis = false;
+            _xform_ZAxis = true;
+            _selectionPlane = new Plane3f(new vec3(0, 1, 0), _selectionOrigin);
+          }
+          else
+          {
+            _xform_XAxis = false;
+            _xform_YAxis = true;
+            _xform_ZAxis = false;
+            _selectionPlane = new Plane3f(new vec3(1, 0, 0), _selectionOrigin);
+          }
+        }
+        if (k.Press(Keys.Z))
+        {
+          if (k.PressOrDown(Keys.LeftShift) || k.PressOrDown(Keys.RightShift))
+          {
+            _xform_XAxis = true;
+            _xform_YAxis = true;
+            _xform_ZAxis = false;
+            _selectionPlane = new Plane3f(new vec3(0, 0, 1), _selectionOrigin);
+          }
+          else
+          {
+            _xform_XAxis = false;
+            _xform_YAxis = false;
+            _xform_ZAxis = true;
+            _selectionPlane = new Plane3f(new vec3(1, 0, 0), _selectionOrigin);
+          }
+        }
+
+        if (k.Press(Keys.Escape) || m.Press(MouseButton.Right))
+        {
+          //Revert changes
+          Gu.Assert(SelectedObjects.Count == _selectedObjectsPreviousState.Count);
+          for (var obi = 0; obi < _selectedObjectsPreviousState.Count; obi++)
+          {
+            SelectedObjects[obi].SetPRS_Local(_selectedObjectsPreviousState[obi]);
+          }
+          _selectedObjectsPreviousState.Clear();
+
+          InputState = InputState.Select;
+        }
+        else if (k.Press(Keys.Enter) || m.Press(MouseButton.Left))
+        {
+          //Keep changes.
+          InputState = InputState.Select;
+        }
+        else
+        {
+          //wrap mouse
+          var vwrap = Gu.Mouse.WarpMouse(v, WarpMode.Wrap, 0.001f);
+          if (vwrap != null)
+          {
+            _xform_WrapCount += vwrap.Value;
+          }
+          var mouse_wrapped = Gu.Mouse.GetWrappedPosition(v, _xform_WrapCount);
+          var xform_curRay = Gu.CastRayFromScreen(mouse_wrapped);
+
+          //Update
+          if (xform_curRay != null)
+          {
+            vec3 delta_pos = new vec3(0, 0, 0);
+            float tcur = _selectionPlane.IntersectLine(xform_curRay.Value.p0, xform_curRay.Value.p1);
+            //  float tstart = _selectionPlane.IntersectLine(_xform_startRay.Value.p0, _xform_startRay.Value.p1);
+            //  if (tcur >= 0 && tcur <= 1 /*&& tstart >= 0 && tstart <= 1*/)
+            // {
+            //dont check ray for [0,1] because we may be on any side of the plane.
+            //from the projected mouse points, start, and cur, get an "axis ray" that defines the xform axis.
+            //multiply this vector by the mouse movement distance adding wraps
+            var mouse_hit_plane_c = xform_curRay.Value.p0 + (xform_curRay.Value.p1 - xform_curRay.Value.p0) * tcur;
+            // var mouse_hit_plane_s = (_xform_startRay.Value.p1 - _xform_startRay.Value.p0) * tstart;
+            // var axis = mouse_hit_plane_c - mouse_hit_plane_s;
+
+            delta_pos = mouse_hit_plane_c - _selectionOrigin;
+            // }
+            Gu.CustomDebugBreak();
+
+            //Constrain
+            delta_pos = new vec3(
+              delta_pos.x * (_xform_XAxis ? 1.0f : 0.0f),
+              delta_pos.y * (_xform_YAxis ? 1.0f : 0.0f),
+              delta_pos.z * (_xform_ZAxis ? 1.0f : 0.0f)
+            );
+
+            Gu.Assert(SelectedObjects.Count == _selectedObjectsPreviousState.Count);
+            for (var obi = 0; obi < _selectedObjectsPreviousState.Count; obi++)
+            {
+              var newpos = _selectedObjectsPreviousState[obi].Position + delta_pos;
+              SelectedObjects[obi].Position_Local = newpos;
+            }
+          }
+
+
+        }
+      }
+      else if (InputState == InputState.Select)
+      {
+        if (m.Press(MouseButton.Left))
+        {
+          bool did_act = false;
+          var ob = Gu.Context.Renderer.Picker.PickedObjectFrame;
+          if (ob is WorldObject)
+          {
+            var wob = ob as WorldObject;
+            if (wob.Selectable)
+            {
+              if (k.PressOrDown(Keys.LeftShift) || k.PressOrDown(Keys.RightShift))
+              {
+                if (!SelectedObjects.Contains(wob))
+                {
+                  SelectedObjects.Add(wob);
+                  did_act = true;
+                }
+                else
+                {
+                  SelectedObjects.Remove(wob);
+                  did_act = true;
+                }
+              }
+              else
+              {
+                if (SelectedObjects.Contains(wob))
+                {
+                  SelectedObjects.Remove(wob);
+                  did_act = true;
+                }
+                else
+                {
+                  SelectedObjects.Clear();
+                  SelectedObjects.Add(wob);
+                  did_act = true;
+                }
+              }
+            }
+          }
+
+          //Deselect all if user clicked something that is not the UI 
+          // but isn't selectable or outside selection
+          if (did_act == false)
+          {
+            if (
+              ((ob is WorldObject) && ((ob as WorldObject).Selectable == false)) ||
+              (ob == null)
+              )
+            {
+              SelectedObjects.Clear();
+            }
+          }
+
+        }
+        else if (k.Press(Keys.G))
+        {
+          if (SelectedObjects.Count > 0)
+          {
+            InputState = InputState.Selected_Move;
+            _selectedObjectsPreviousState.Clear();
+            _selectionOrigin = new vec3();
+            foreach (var ob in SelectedObjects)
+            {
+              _selectionOrigin += ob.Position_World;
+              _selectedObjectsPreviousState.Add(ob.GetPRS_Local());
+            }
+            _selectionOrigin = _selectionOrigin / (float)SelectedObjects.Count;
+            _selectionPlane = new Plane3f(new vec3(0, 1, 0), _selectionOrigin);
+
+            _xform_XAxis = _xform_YAxis = _xform_ZAxis = true;
+            _xform_MouseStart = m.Pos;
+            _xform_WrapCount = new vec2(0, 0);
+            _xform_startRay = Gu.CastRayFromScreen(_xform_MouseStart);
+
+          }
+        }
+      }
+
+    }
+  }
+
   public class RenderView : MutableState
   {
     //RenderView: The part of the window in which to render.
@@ -295,6 +536,8 @@ namespace PirateCraft
     public PolygonMode PolygonMode = PolygonMode.Fill;
     public ViewInputMode ViewInputMode = ViewInputMode.Edit;
     //public bool Visible { get; set; } = true;
+    public ObjectSelector ObjectSelector { get; private set; } = new ObjectSelector();
+    public Line3f? MouseRay { get; private set; } = null;
 
     private mat4 _projLast = mat4.Identity;
     private GpuCamera _gpuCamera = new GpuCamera();
@@ -314,6 +557,20 @@ namespace PirateCraft
       Gu.Assert(_uv0.y < _uv1.y);
       OnResize(sw, sh);
       SetModified();
+    }
+    public void Update_PostView()
+    {
+      ActiveGui?.Update(Gu.Context.Delta);
+      ObjectSelector?.Update(this);
+
+      //Update Mouse Ray
+      if (Gu.Context.GameWindow.ActiveViewCamera != null)
+      {
+        if (Gu.Context.GameWindow.ActiveViewCamera.Frustum != null)
+        {
+          MouseRay = Gu.Context.GameWindow.ActiveViewCamera.Frustum.ScreenToWorld(Gu.Mouse.Pos);
+        }
+      }
     }
     public void SetCurrent()
     {
@@ -342,6 +599,8 @@ namespace PirateCraft
         //Viewport.SetupViewport();
         _projLast = ProjectionMatrix;
         ProjectionMatrix = mat4.projection(c.FOV, Viewport.Width, Viewport.Height, c.Near, c.Far);
+
+        GL.PolygonMode(MaterialFace.Front, this.PolygonMode);
 
         SetCurrent();
         return true;

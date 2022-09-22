@@ -11,11 +11,13 @@ namespace PirateCraft
 {
   #region Enums
 
+  using UiAction = Action<UiEventId, UiElement, PCMouse, Gui2d>;
+
   public class FontFace : FileLoc
   {
     public string Name = "";
-    public FontFace(){}
-    protected FontFace(string name, FileLoc loc) : base(loc.RawPath, loc.FileStorage) { Name=name;}
+    public FontFace() { }
+    protected FontFace(string name, FileLoc loc) : base(loc.RawPath, loc.FileStorage) { Name = name; }
     public static FontFace Parisienne = new FontFace("Parisienne", new FileLoc("Parisienne-Regular.ttf", FileStorage.Embedded));
     public static FontFace RobotoMono = new FontFace("RobotoMono", new FileLoc("RobotoMono-Regular.ttf", FileStorage.Embedded));
     public static FontFace PressStart2P = new FontFace("PressStart2P", new FileLoc("PressStart2P-Regular.ttf", FileStorage.Embedded));
@@ -32,18 +34,18 @@ namespace PirateCraft
   public enum UiPositionMode
   {
     //Note: the position terminology here mirrors that of CSS. 
-    [CSSAttribute("static")] Static, // elements flow within the page.
-    [CSSAttribute("relative")] Relative, // elements are relative to the container.
-    [CSSAttribute("relative-constrain-x")] RelativeConstrainX, //Relative positioning, but cannot go outside parent boundary
+    [CSSAttribute("static")] Static, // elements flow within the page/container.
+    [CSSAttribute("relative")] Relative, // elements are positioned absolutely, relative to the container.
+    [CSSAttribute("relative-constrain-x")] RelativeConstrainX, //Relative positioning, but cannot go outside parent boundary. For scrollbars.
     [CSSAttribute("relative-constrain-y")] RelativeConstrainY,
-    [CSSAttribute("relative-constrain-xy")] RelativeConstrainXY
-    //absolute: relative to the whole document.
+    [CSSAttribute("relative-constrain-xy")] RelativeConstrainXY,
+    [CSSAttribute("absolute")] Absolute,
   }
   public enum UiSizeMode
   {
-   [CSSAttribute("shrink")] Shrink, //Shrink to size of child contents, taking Max Width/Height into account
-   [CSSAttribute("expand")] Expand, //Expand to parent
-   [CSSAttribute("fixed")] Fixed // Fixed width/height
+    [CSSAttribute("shrink")] Shrink, //Shrink to size of child contents, taking Max Width/Height into account
+    [CSSAttribute("expand")] Expand, //Expand to parent
+    [CSSAttribute("fixed")] Fixed // Fixed width/height
   }
   public enum UiEventId
   {
@@ -65,11 +67,12 @@ namespace PirateCraft
     Mouse_Mmb_Release,
     Mouse_Mmb_None,
 
-    Scrollbar_Pos_Change,
-
     Mouse_Enter,
     Mouse_Move,
     Mouse_Leave,
+
+    Scrollbar_Pos_Change,
+
     Drag,
     Tick, //tick event like every x ms
   };
@@ -396,7 +399,6 @@ namespace PirateCraft
     public float? Bottom { get { return (float?)GetClassValue(UiPropName.Top) + (float?)GetClassValue(UiPropName.Height); } }
     public float? Right { get { return (float?)GetClassValue(UiPropName.Left) + (float?)GetClassValue(UiPropName.Width); } }
 
-    public Dictionary<UiEventId, MultiMap<string, Action<UiEventId, UiElement, PCMouse>>> Events { get { return _events; } set { _events = value; } }
 
     #endregion
     #region Public: User Prop Setters
@@ -455,7 +457,6 @@ namespace PirateCraft
     private long _changedFrameId = 0;
     private long _compiledFrameId = 0;
     private HashSet<WeakReference<UiElement>> _eles = null;
-    private Dictionary<UiEventId, MultiMap<string, Action<UiEventId, UiElement, PCMouse>>> _events = null;
     private BitArray _owned = new BitArray((int)UiPropName.MaxUiProps);//This bitset tells us which props were set
     private BitArray _inherited = new BitArray((int)UiPropName.MaxUiProps);
     private BitArray _defaulted = new BitArray((int)UiPropName.MaxUiProps);
@@ -690,48 +691,6 @@ namespace PirateCraft
       bool ret = ss_owned || ss_inherited;
       return ret;
     }
-    public void AddEvent(UiEventId evId, Action<UiEventId, UiElement, PCMouse> f, string tag = "")
-    {
-      // Layman's: For each Mouse Button State we have a list of functions that get called when it is active (like clicked)
-      _events = _events.ConstructIfNeeded();
-
-      MultiMap<string, Action<UiEventId, UiElement, PCMouse>>? evList = null;
-      if (!_events.TryGetValue(evId, out evList))
-      {
-        evList = new MultiMap<string, Action<UiEventId, UiElement, PCMouse>>();
-        _events.Add(evId, evList);
-      }
-      evList.Add(tag, f);
-    }
-    public bool RemoveEvents(UiEventId evId, string tag)
-    {
-      if (_events.TryGetValue(evId, out var evList))
-      {
-        return evList.Remove(tag);
-      }
-      return false;
-    }
-
-    public void DoEvents(UiEventId evid, UiElement e, PCMouse m)
-    {
-      if (Events.TryGetValue(evid, out var s_actions))
-      {
-        foreach (var act in s_actions)
-        {
-          act.Value(evid, e, m);
-        }
-      }
-      //I am not sure abou thtis. I think each element should have it's own style or behavior. Man, IDK about this.
-      //Style Button needs to have its own behavior. Etc. But the inline style of what inherits Button itself may have no behavior. Or, It may override the behavior
-      //So what we need to do is override events, just like props. However some events need to NOT propogate down, like the window events 
-      //That is inline style, however, we don't have inline style per. se. anymore.
-      int n = 0;
-      n++;
-
-      //      foreach(var super in this.SuperStyles){
-      //        super.DoMouseEvents(evid,m);
-      //      }
-    }
     public UiStyle Clone()
     {
       UiStyle ret = new UiStyle(this.Name + Gu.CopyName, this._superStylesNames);
@@ -938,8 +897,6 @@ namespace PirateCraft
       }
       //Can't set Style since it must be owned by this class. Inherit the on the style to add subclasses
     }
-    public bool IsPickRoot { get { return _isPickRoot; } set { _isPickRoot = value; } }
-    public bool PickEnabled { get { return _pickEnabled; } set { _pickEnabled = value; } } //Prevents the pick algorithm from running on misc elements (such as glyphs).
     public bool DragEnabled { get; private set; } = false;
     public Action<vec2> DragFunc { get; private set; } = null;
     public float MinValue { get; set; } = 0;
@@ -948,6 +905,9 @@ namespace PirateCraft
     public bool LayoutChanged { get; private set; } = true;
     public bool LayoutVisible { get { return _layoutVisible; } set { _layoutVisible = value; SetLayoutChanged(); } }
     public bool RenderVisible { get { return _renderVisible; } set { _renderVisible = value; SetLayoutChanged(); } }
+    public Dictionary<UiEventId, MultiMap<string, UiAction>> Events { get { return _events; } set { _events = value; } }
+
+    public Box2f Computed { get { return _contentArea._b2ComputedQuad; } }
 
     #endregion
     #region Private: Members
@@ -961,10 +921,7 @@ namespace PirateCraft
     protected UiStyle _style = null;      //Inline style
     protected MultiMap<int, UiElement> _children { get; set; } = null;
     private WeakReference<UiElement> _parent = null;
-    //TODO:
-    //if an item has mouse events it is an automatic pick root, AND generate a pickID, if no events then not a pick root
-    private bool _isPickRoot = false;
-    private bool _pickEnabled = true;
+    private bool _pickEnabled = false;
     private MtFontLoader _cachedFont = null;//For labels that contain glyphs
     private MtCachedCharData? _cachedGlyph = null;//For glyphs
     private bool _layoutVisible = true;
@@ -982,6 +939,7 @@ namespace PirateCraft
     protected string _strText = "";
     private string _strTextLast = "";
     private bool _bMustRedoTextBecauseOfStyle = false;
+    private Dictionary<UiEventId, MultiMap<string, UiAction>> _events = null;
 
     #endregion
     #region Public: Methods
@@ -1022,7 +980,6 @@ namespace PirateCraft
     {
       _layoutVisible = _renderVisible = true;
     }
-
     public void ResetPick()
     {
       this._bPickedPreviousFrame = _bPickedThisFrame;
@@ -1122,36 +1079,36 @@ namespace PirateCraft
         }
       }
     }
-    public void DoMouseEvents(PCMouse mouse, bool iswindow = false)
+    public void DoMouseEvents(PCMouse mouse, Gui2d g, bool iswindow = false)
     {
       if (_bPickedThisFrame || iswindow)
       {
         if (_bPickedPreviousFrame || iswindow)
         {
-          DoMouseEvent(mouse, UiEventId.Mouse_Move);
+          DoEvents(g, UiEventId.Mouse_Move, mouse);
         }
         else
         {
-          DoMouseEvent(mouse, UiEventId.Mouse_Enter);
+          DoEvents(g, UiEventId.Mouse_Enter, mouse);
         }
 
         ButtonState eLmb = mouse.GetButtonState(MouseButton.Left);
         ButtonState eRmb = mouse.GetButtonState(MouseButton.Right);
         ButtonState eMmb = mouse.GetButtonState(MouseButton.Middle);
 
-        DoMouseButtonEvent(mouse, UiEventId.Mouse_Lmb_Up, eLmb, ButtonState.Up);
-        DoMouseButtonEvent(mouse, UiEventId.Mouse_Lmb_Hold, eLmb, ButtonState.Hold);
-        DoMouseButtonEvent(mouse, UiEventId.Mouse_Lmb_Press, eLmb, ButtonState.Press);
-        DoMouseButtonEvent(mouse, UiEventId.Mouse_Lmb_Release, eLmb, ButtonState.Release);
+        DoMouseButtonEvent(g, mouse, UiEventId.Mouse_Lmb_Up, eLmb, ButtonState.Up);
+        DoMouseButtonEvent(g, mouse, UiEventId.Mouse_Lmb_Hold, eLmb, ButtonState.Hold);
+        DoMouseButtonEvent(g, mouse, UiEventId.Mouse_Lmb_Press, eLmb, ButtonState.Press);
+        DoMouseButtonEvent(g, mouse, UiEventId.Mouse_Lmb_Release, eLmb, ButtonState.Release);
 
-        DoMouseButtonEvent(mouse, UiEventId.Mouse_Rmb_Up, eRmb, ButtonState.Up);
-        DoMouseButtonEvent(mouse, UiEventId.Mouse_Rmb_Hold, eRmb, ButtonState.Hold);
-        DoMouseButtonEvent(mouse, UiEventId.Mouse_Rmb_Press, eRmb, ButtonState.Press);
-        DoMouseButtonEvent(mouse, UiEventId.Mouse_Rmb_Release, eRmb, ButtonState.Release);
+        DoMouseButtonEvent(g, mouse, UiEventId.Mouse_Rmb_Up, eRmb, ButtonState.Up);
+        DoMouseButtonEvent(g, mouse, UiEventId.Mouse_Rmb_Hold, eRmb, ButtonState.Hold);
+        DoMouseButtonEvent(g, mouse, UiEventId.Mouse_Rmb_Press, eRmb, ButtonState.Press);
+        DoMouseButtonEvent(g, mouse, UiEventId.Mouse_Rmb_Release, eRmb, ButtonState.Release);
       }
       else if (_bPickedPreviousFrame)
       {
-        DoMouseEvent(mouse, UiEventId.Mouse_Leave);
+        DoEvents(g, UiEventId.Mouse_Leave, mouse);
         _bPickedPreviousFrame = false;
       }
     }
@@ -1203,8 +1160,10 @@ namespace PirateCraft
       {
         if (RenderVisible)
         {
+          //Set child element pick Ids equal to the parent element so it is picked as one element,
+          // or, if parent is pickable, change the pick ID
           uint pickId = rootPickId;
-          if (IsPickRoot && PickEnabled)
+          if (_pickEnabled)
           {
             pickId = _iPickId;
           }
@@ -1505,7 +1464,6 @@ namespace PirateCraft
         ComputeVertexTexcoord(ref dbgv, defaultPixel, UiImageTiling.Expand, UiImageTiling.Expand, pixAdjust);
         SetVertexPickAndColor(ref dbgv, dd.OverlayColor, rootPickId);
         verts.Add(dbgv);
-
       }
     }
     private void SetVertexPickAndColor(ref v_v4v4v4v2u2v4v4 vc, vec4 color, uint rootPickId)
@@ -1529,63 +1487,75 @@ namespace PirateCraft
     }
     protected virtual bool Pick(PCMouse mous, long frameStamp)
     {
-      //Recursive method to pick visible elements.
-      //Of course..quadtree but that's just.. not needed
+      bool picked = false;
       Box2f q = GetPickableQuad();
-      if (LayoutVisible == true && RenderVisible == true && PickEnabled == true)
+      if (LayoutVisible == true && RenderVisible == true)
       {
         if (q.ContainsPointInclusive(mous.Pos))
         {
-          if (IsPickRoot)
+          if (_children != null)
           {
-            //Pick root means we don't pick any children deeper than this element.
-            var pixid = Gu.Context.Renderer.Picker.GetSelectedPixelId();
-            if (pixid != Picker.c_iInvalidPickId)
-            {
-              if (pixid == _iPickId)
-              {
-                _iPickedFrameId = frameStamp;
-                _bPickedThisFrame = true;
-                Gu.Context.Renderer.Picker.PickedObjectFrame = this;
-              }
-            }
-          }
-          else if (_children != null)
-          {
+            //Avoiding picking children was essentially the reason behind PickRoot, however 
+            // Automatic picking with MouseEvents now has us doing it this way. It is easier for usability.
+            // The other option is to have a big std::map of pickable UIE's. This is probably the way to go, considering picking is exact.
+            // the only reason for doing it this way, is to prevent having to add std::map to Gui2d. So we offload the dependnecy.
             foreach (var ele in _children)
             {
               if (ele.Value.Pick(mous, frameStamp))
               {
-                //This is ok to skip other children, reason being, we use a pixel-precise pick buffer, not just rectangle.
+                //This is ok to skip other children. We use a pixel-precise pick buffer, not just rectangle.
+                picked = true;
                 break;
+              }
+              else
+              {
+                //child wasn't picked, try parent.
+                var pixid = Gu.Context.Renderer.Picker.GetSelectedPixelId();
+                if (pixid != Picker.c_iInvalidPickId)
+                {
+                  if (pixid == _iPickId)
+                  {
+                    _iPickedFrameId = frameStamp;
+                    _bPickedThisFrame = true;
+                    picked = true;
+                    Gu.Context.Renderer.Picker.PickedObjectFrame = this;
+                  }
+                }
               }
             }
           }
+
         }
       }
-      return _bPickedThisFrame;
+      return picked;
     }
-    private void DoMouseButtonEvent(PCMouse m, UiEventId evid, ButtonState curstate, ButtonState evstate)
+    private void DoMouseButtonEvent(Gui2d g, PCMouse m, UiEventId evid, ButtonState curstate, ButtonState evstate)
     {
       if (curstate == evstate)
       {
-        DoMouseEvent(m, evid);
+        DoEvents(g, evid, m);
       }
     }
-    private void DoMouseEvent(PCMouse m, UiEventId evid)
+    private void DoEvents(Gui2d g, UiEventId evid, PCMouse m)
     {
-      //Events.. we can only have them in styles and we do not inherit them.
-      //Events..are selectors as in CSS..
-      if (Style != null)
+      if (Events.TryGetValue(evid, out var s_actions))
       {
-        Style.DoEvents(evid, this, m);
+        foreach (var act in s_actions)
+        {
+          act.Value(evid, this, m, g);
+        }
       }
+    }
+    protected virtual void BeforeLayout_SizeElements()
+    {
+      //override
     }
     protected virtual void PerformLayout_SizeElements(MegaTex mt, bool bForce, vec2 parentMaxWH, UiStyle parent, UiStyleSheet sheet, long framesatmp)
     {
       //Build the UI depth-first. Children elements are sized. Then we got hrough again and position them from the top.
       if (LayoutChanged || bForce)
       {
+        BeforeLayout_SizeElements();
         Style.CompileStyleTree(sheet, framesatmp, parent);
         UpdateBorder();
 
@@ -1753,7 +1723,9 @@ namespace PirateCraft
               }
               bucket.Add(p.Value);
             }
-            else if (ele.Style._props.PositionMode == UiPositionMode.Relative ||
+            else if (
+              ele.Style._props.PositionMode == UiPositionMode.Absolute ||
+              ele.Style._props.PositionMode == UiPositionMode.Relative ||
             ele.Style._props.PositionMode == UiPositionMode.RelativeConstrainX ||
             ele.Style._props.PositionMode == UiPositionMode.RelativeConstrainY ||
             ele.Style._props.PositionMode == UiPositionMode.RelativeConstrainXY)
@@ -1762,6 +1734,9 @@ namespace PirateCraft
               ComputePositionalElement(ele,
               ele.Style._props.PositionMode == UiPositionMode.RelativeConstrainX || ele.Style._props.PositionMode == UiPositionMode.RelativeConstrainXY,
               ele.Style._props.PositionMode == UiPositionMode.RelativeConstrainY || ele.Style._props.PositionMode == UiPositionMode.RelativeConstrainXY);
+
+              //contentWH.x = Math.Max(contentWH.x, ele.Style.Left.Value + ele.Style.Width.Value + Style._props.PadLeft + Style._props.PadRight);
+              //contentWH.y = Math.Max(contentWH.y, ele.Style.Top.Value + ele.Style.Height.Value + Style._props.PadTop + Style._props.PadBot);
             }
             else
             {
@@ -1770,7 +1745,7 @@ namespace PirateCraft
             //Absolute - relative to entire document.
           }
         }
-        //Position final layer
+        //Position final static layer
         if (bucket.Count > 0)
         {
           LayoutLayer(bucket, maxWH, ref contentWH);
@@ -2135,6 +2110,36 @@ namespace PirateCraft
       }
       return _contentArea._b2RasterQuad;
     }
+    public void AddEvent(UiEventId evId, UiAction f, string tag = "")
+    {
+      // Layman's: For each Mouse Button State we have a list of functions that get called when it is active (like clicked)
+      _events = _events.ConstructIfNeeded();
+
+      if (evId.ToString().Contains("Mouse"))
+      {
+        //has mouse events = pick enabled.
+        _pickEnabled = true;
+        _iPickId = Gu.Context.Renderer.Picker.GenPickId();
+      }
+
+      MultiMap<string, UiAction>? evList = null;
+      if (!_events.TryGetValue(evId, out evList))
+      {
+        evList = new MultiMap<string, UiAction>();
+        _events.Add(evId, evList);
+      }
+      evList.Add(tag, f);
+    }
+    public bool RemoveEvents(UiEventId evId, string tag)
+    {
+      Gu.Log.Warn("TODO: remove pick id if no mouse events");
+      if (_events.TryGetValue(evId, out var evList))
+      {
+        return evList.Remove(tag);
+      }
+      return false;
+    }
+
 
     #endregion
 
@@ -2239,11 +2244,9 @@ namespace PirateCraft
       Styles.TryGetValue(s, out var x);
       return x;
     }
-
   }
   public class Gui2d : UiElement
   {
-
     #region Public: Members
 #if DEBUG
     private v_v4v4v4v2u2v4v4[] _debug_pt = new v_v4v4v4v2u2v4v4[3]; //save 3 points to see what they are (debug)
@@ -2251,8 +2254,6 @@ namespace PirateCraft
 
     public const int MaxSize = 9999999;
     public const int SlidingDiffWindow = 16;//16 chars for the string difference window. Replacement of a full float string.
-
-    //public static UiRef<MtTex> SolidColorTexture { get { return new UiRef<MtTex>(new MtTex()); } }
 
     public WeakReference<RenderView> RenderView { get; private set; } = new WeakReference<RenderView>(null);
     public UiDebugDraw DebugDraw { get; set; } = new UiDebugDraw();
@@ -2329,13 +2330,13 @@ namespace PirateCraft
       //Do Pick
       Pick(ct.PCMouse, ct.FrameStamp);
 
-      //Fire events
+      //Do mouse events for picked UIE
       long a = Gu.Milliseconds();
       if (picker.PickedObjectFrameLast != null)
       {
         if (picker.PickedObjectFrameLast is UiElement)
         {
-          (picker.PickedObjectFrameLast as UiElement).DoMouseEvents(ct.PCMouse);
+          (picker.PickedObjectFrameLast as UiElement).DoMouseEvents(ct.PCMouse, this);
         }
       }
       if (picker.PickedObjectFrameLast != picker.PickedObjectFrame)
@@ -2344,7 +2345,7 @@ namespace PirateCraft
         {
           if (picker.PickedObjectFrame is UiElement)
           {
-            (picker.PickedObjectFrame as UiElement).DoMouseEvents(ct.PCMouse);
+            (picker.PickedObjectFrame as UiElement).DoMouseEvents(ct.PCMouse, this);
           }
         }
       }
@@ -2352,7 +2353,7 @@ namespace PirateCraft
 
       //Window events
       a = Gu.Milliseconds();
-      DoMouseEvents(ct.PCMouse, true);
+      DoMouseEvents(ct.PCMouse, this, true);
       this.WindowEventsMs = Gu.Milliseconds() - a;
     }
 
@@ -2425,16 +2426,16 @@ namespace PirateCraft
     {
       //Drag Info..
       //Context Menus..
-      Style.AddEvent(UiEventId.Mouse_Lmb_Press, (UiEventId evId, UiElement ele, PCMouse m) =>
+      AddEvent(UiEventId.Mouse_Lmb_Press, (UiEventId evId, UiElement ele, PCMouse m, Gui2d g) =>
       {
         var e = (Gu.Context.Renderer.Picker.PickedObjectFrame as UiElement);
         _dragInfo.StartDrag(e, m);
       });
-      Style.AddEvent(UiEventId.Mouse_Move, (UiEventId evId, UiElement ele, PCMouse m) =>
+      AddEvent(UiEventId.Mouse_Move, (UiEventId evId, UiElement ele, PCMouse m, Gui2d g) =>
       {
         _dragInfo.UpdateDrag(m);
       });
-      Style.AddEvent(UiEventId.Mouse_Lmb_Release, (UiEventId evId, UiElement ele, PCMouse m) =>
+      AddEvent(UiEventId.Mouse_Lmb_Release, (UiEventId evId, UiElement ele, PCMouse m, Gui2d g) =>
       {
         _dragInfo.EndDrag();
         // if (ContextMenu.RenderVisible)
@@ -2442,7 +2443,7 @@ namespace PirateCraft
         //   ContextMenu?.Hide();
         // }
       });
-      Style.AddEvent(UiEventId.Mouse_Rmb_Press, (UiEventId evId, UiElement ele, PCMouse m) =>
+      AddEvent(UiEventId.Mouse_Rmb_Press, (UiEventId evId, UiElement ele, PCMouse m, Gui2d g) =>
       {
         // if (ContextMenu != null)
         // {
@@ -2450,7 +2451,7 @@ namespace PirateCraft
         //   ContextMenu.InlineStyle.Pos = m.Pos;
         // }
       });
-      Style.AddEvent(UiEventId.Mouse_Rmb_Release, (UiEventId evId, UiElement ele, PCMouse m) =>
+      AddEvent(UiEventId.Mouse_Rmb_Release, (UiEventId evId, UiElement ele, PCMouse m, Gui2d g) =>
       {
         // if (ContextMenu.RenderVisible)
         // {
@@ -2488,7 +2489,7 @@ namespace PirateCraft
 
       if (tx != null)
       {
-        var shader = Gu.Resources.LoadShader("v_gui", true, FileStorage.Embedded);
+        var shader = Gu.Resources.LoadShader("v_gui", true, FileStorage.Embedded, OpenTK.Graphics.OpenGL4.PrimitiveType.Points);
         Dummy = new WorldObject("gui");
         Dummy.Material = new Material("GuiMT", shader);
         Dummy.Material.GpuRenderState.DepthTest = false;

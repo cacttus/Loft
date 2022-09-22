@@ -10,7 +10,7 @@ float pointOnRay_t( vec3 a, vec3 p ) {
   return t;
 }
 
-#if defined(DEF_SHADER_STAGE_VERTEX)
+#if defined(DEF_SHADER_STAGE_VERTEX) //|| defined(DEF_SHADER_STAGE_GEOMETRY) 
 
 mat4 getPVMMatrix() {
   mat4 m = _ufGpuCamera._m4Projection * _ufGpuCamera._m4View * getModelMatrix();
@@ -105,21 +105,6 @@ vec4 mirror(in vec4 vColor, in float fMirrorAmount, in vec3 vFragToViewDir, in v
   vec3 vOut = mix( vec3(vColor), vec3(texture(_ufGpuWorld_s2EnvironmentMap, tex)), fMirrorAmount);
   return vec4(vOut, vColor.a);
 }
-mat3 getLightMatrix(in vec3 planeNormal, in vec3 planeVertex){
-	float d = - dot(planeVertex, planeNormal);
-	vec3 pv = planeVertex+1.0;	//random neighbor vertex
-	float dist = dot(planeNormal, pv) + d;	//distnace from p to plane
-	vec3 pp = pv - (planeNormal * dist); // - project p onto plane
-	vec3 tangent = normalize(pp - planeVertex); // normalize tangent arbitrary direction
-	vec3 bitangent = cross(planeNormal, tangent);
-
-	// vec3 tangent = normalize(cross(vec3(1,0,0), planeNormal));
-	// vec3 binormal = normalize(cross(planeNormal, tangent));
-		
-	//note this should produce a matrix the same as the plaen matrix for normals at 0,1,0
-	
-	return mat3(tangent, planeNormal, bitangent);
-}
 vec3 lightFragmentCookTorrence(in vec3 in_vpos, in vec4 in_albedo, in vec3 in_normal, in float in_rough, in float in_spec, in float in_IOR) {
 
   vec3 finalColor = vec3(0,0,0);
@@ -163,32 +148,28 @@ vec3 lightFragmentCookTorrence(in vec3 in_vpos, in vec4 in_albedo, in vec3 in_no
 
   return finalColor;
 }
-vec3 lightFragmentBlinnPhong(in vec3 in_vpos, in vec4 in_albedo, in vec3 in_normal) {
+vec3 lightFragmentBlinnPhong(in vec3 in_vertex, in vec4 in_albedo, in vec3 in_normal) {
     
   vec3 finalColor = vec3(0,0,0);
 
   for(int iLight = 0; iLight <  _ufGpuWorld._iPointLightCount; iLight++) {
     vec3 vLightPos = _ufGpuPointLights[iLight]._pos;
+    float fLightRadius = _ufGpuPointLights[iLight]._radius;
+    vec3 vLightColor = _ufGpuPointLights[iLight]._color;
+    float fLightPower = _ufGpuPointLights[iLight]._power;
 
-    vec3 eye_vector = normalize(_ufGpuCamera._vViewPos - in_vpos);
-    vec3 light_vector = normalize(_ufGpuPointLights[iLight]._pos - in_vpos);    
+    vec3 eye_vector = normalize(_ufGpuCamera._vViewPos - in_vertex);
+    vec3 light_vector = normalize(vLightPos - in_vertex);    
     vec3 half_vector = (light_vector + eye_vector) / length(light_vector + eye_vector);
 
-    float power = 100;
-    float dist = pow(length(_ufGpuPointLights[iLight]._pos - in_vpos),2);
-
     //Blinn-Phong
-
     float lambert = max(dot(light_vector, in_normal), 0.0);
     float spec = pow(max(dot(normalize(light_vector + eye_vector), in_normal), 0.0), 100);
+    vec3 specColor = vec3(1,1,1);
 
-    //Attenuation
-    //float fFragToLightDistance = distance(_ufGpuPointLights[iLight]._pos, in_vpos);
-    //float power = clamp(_ufGpuPointLights[iLight]._power, 0.000001f, 0.999999f);
-    //float fQuadraticAttenuation = 1- pow(clamp(fFragToLightDistance/_ufGpuPointLights[iLight]._radius, 0, 1),(power)/(1-power)); //works well: x^(p/(1-p)) where x is pos/radius
-    
     //Final
-    finalColor += (in_albedo.rgb * lambert + vec3(1,1,1) * spec) * _ufGpuPointLights[iLight]._color *power / dist;
+    float dist = pow(length(vLightPos - in_vertex),2);
+    finalColor += (in_albedo.rgb * lambert + specColor * spec) * vLightColor * fLightPower / dist;
   }
 
   finalColor += _ufGpuWorld._vAmbientColor * _ufGpuWorld._fAmbientIntensity;

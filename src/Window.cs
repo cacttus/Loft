@@ -9,7 +9,6 @@ using OpenTK.Windowing.GraphicsLibraryFramework;
 
 namespace PirateCraft
 {
-
   public class UiWindowBase : NativeWindow
   {
     #region Public:Members
@@ -24,7 +23,6 @@ namespace PirateCraft
 
     protected List<PipelineStageEnum> _pipelineStages = null; //set this to render only to specific stages.
     protected InfoWindow InfoWindow { get; set; } = null;
-    //protected int iActiveView { get; set; } = 0;
 
     public RenderView ActiveView { get; private set; } = null;
     public void SetActiveView()
@@ -53,24 +51,12 @@ namespace PirateCraft
         return base.Size;
       }
     }
-    // public RenderView ActiveView
-    // {
-    //   //So this is the view that is being interacted with by the user.
-    //   //Mouse click / etc.
-    //   get
-    //   {
-    //     if (iActiveView >= RenderViews.Count || iActiveView < 0)
-    //     {
-    //       return null;
-    //     }
-    //     return this.RenderViews[iActiveView];
-    //   }
-    // }
     public Camera3D ActiveViewCamera
     {
       //returns the camera for the given active view, or null if there is
       // 1. no active view
       // 2. the active view has no camera attached.
+      // *Active View* = The current view on which rendering is taking place.
       get
       {
         var v = ActiveView;
@@ -95,7 +81,7 @@ namespace PirateCraft
     public UiWindowBase(string title, bool isMain, ivec2 pos, ivec2 size, vec2? scale = null, WindowBorder border = WindowBorder.Resizable, bool visible = true, IGLFWGraphicsContext sharedCtx = null) : base(
        new NativeWindowSettings()
        {
-         Profile = ContextProfile.Core,//Forward compati
+         Profile = Gu.EngineConfig.Debug_EnableCompatibilityProfile ? ContextProfile.Compatability : ContextProfile.Core,
          Flags = ContextFlags.Debug,
          AutoLoadBindings = true,
          APIVersion = new Version(4, 1),//BlendFuncSeparate>=4.0
@@ -168,18 +154,6 @@ namespace PirateCraft
       SetGameMode(Gu.World.GameMode);
       IsLoaded = true;
     }
-    // public void SetActiveView()
-    // {
-    //   if (iActiveView >= 0 && iActiveView < RenderViews.Count)
-    //   {
-    //     RenderViews[iActiveView].SetCurrent();
-    //   }
-    //   else
-    //   {
-    //     //   Gu.Log.Debug("TODO: fix this");
-    //     //Camera.View = null;
-    //   }
-    // }
     public void UpdateAsync()
     {
       OnUpdateInput();
@@ -192,7 +166,8 @@ namespace PirateCraft
           rv.ActiveGui?.Pick();
         }
         OnView(rv);
-        rv.ActiveGui?.Update(Gu.Context.Delta);
+
+        rv.Update_PostView();
       }
     }
     public void RenderAsync()
@@ -370,8 +345,21 @@ namespace PirateCraft
         return;
       }
 
-      if (Gu.Keyboard.PressOrDown(Keys.Escape))
+      //exit if we are not editing.
+      if (Gu.Keyboard.Press(Keys.Escape))
       {
+        foreach (var rv in this.RenderViews)
+        {
+          if (rv.ObjectSelector != null)
+          {
+            if (rv.ObjectSelector.InputState != InputState.Select)
+            {
+              //we are moving sth..
+              return;
+            }
+          }
+        }
+        Gu.CloseWindow(InfoWindow);
         Gu.CloseWindow(this);
       }
       DebugKeyboard();
@@ -437,15 +425,10 @@ namespace PirateCraft
       }
       if (Gu.Keyboard.Press(Keys.F3))
       {
-        if (InfoWindow == null)
-        {
-          InfoWindow = new InfoWindow(new ivec2(200, 200), new ivec2(500, 400));
-        }
         IterateActiveViews((rv) =>
         {
           if (_polygonMode == 0)
           {
-
             rv.PolygonMode = PolygonMode.Line;
             _polygonMode = 1;
           }
@@ -462,8 +445,8 @@ namespace PirateCraft
       }
       if (Gu.Keyboard.Press(Keys.F5))
       {
-        //Box3f.nugs = (Box3f.nugs + 1) % Box3f.maxnugs;
-        //Material.DefaultDiffuse().Shader.GGX_X = (Material.DefaultDiffuse().Shader.GGX_X + 0.01f) % 3.0f;
+        Gu.Context.DebugDraw.DrawVertexNormals = !Gu.Context.DebugDraw.DrawVertexNormals;
+        Gu.Context.DebugDraw.DrawFaceNormals = !Gu.Context.DebugDraw.DrawFaceNormals;
       }
       if (Gu.Keyboard.Press(Keys.F6))
       {
@@ -482,7 +465,13 @@ namespace PirateCraft
         // Player.HasGravity = !Player.HasGravity;
         // Player.AirFriction = MaxAirFriction - Player.AirFriction;// ; //Movement Damping
       }
-
+      if (Gu.Keyboard.Press(Keys.F9))
+      {
+        if (InfoWindow == null)
+        {
+          InfoWindow = new InfoWindow(new ivec2(200, 200), new ivec2(500, 400));
+        }
+      }
       if (Gu.Keyboard.Press(Keys.F10))
       {
         OperatingSystem.ToggleShowConsole();
@@ -498,7 +487,10 @@ namespace PirateCraft
           WindowState = WindowState.Fullscreen;
         }
       }
-
+      if (Gu.Keyboard.Press(Keys.F12))
+      {
+        Gu.PostCustomDebugBreak();
+      }
     }
     protected virtual void CullView(RenderView rv)
     {
@@ -570,10 +562,10 @@ namespace PirateCraft
       gui.StyleSheet.AddStyles(styles);
 
       var background = new UiElement(new List<string> { StyleName.Panel }, "pnlPanel");
-      gui.AddChild(background); 
+      gui.AddChild(background);
 
       //Header
-      background.AddChild(new UiElement(new List<string> { StyleName.Label, "lighterLabel" }, "lblDebugInfoHeader", Phrase.DebugInfoHeader) );
+      background.AddChild(new UiElement(new List<string> { StyleName.Label, "lighterLabel" }, "lblDebugInfoHeader", Phrase.DebugInfoHeader));
 
       //Debug info
       rv.DebugInfo = new UiElement(new List<string> { StyleName.Label }, "lblDebugInfo", "N/A");
@@ -635,25 +627,7 @@ namespace PirateCraft
     }
     protected override void OnUpdateFrame()
     {
-      //_boxMeshThing.Rotation = quaternion.FromAxisAngle(new vec3(0, 1, 0), (float)rot);
-      //rot += Math.PI * 2.0f * Gu.CurrentWindowContext.Delta * 0.0125f;
 
-      //checks out
-      if (Sphere_Rotate_Quat_Test != null)
-      {
-        Sphere_Rotate_Quat_Test.Position_Local = new vec3(0, 3, 0);
-        Sphere_Rotate_Quat_Test.Rotation_Local = quat.fromAxisAngle(new vec3(1, 1, 1).normalized(), (float)Gu.RotationPerSecond(10));
-      }
-      if (Sphere_Rotate_Quat_Test2 != null)
-      {
-        Sphere_Rotate_Quat_Test2.Position_Local = new vec3(-3, 3, 0);
-        Sphere_Rotate_Quat_Test2.Rotation_Local = mat4.getRotation(new vec3(-1, -1, -1).normalized(), (float)Gu.RotationPerSecond(10)).toQuat();
-      }
-      if (Sphere_Rotate_Quat_Test3 != null)
-      {
-        Sphere_Rotate_Quat_Test3.Position_Local = new vec3(3, 3, 0);
-        Sphere_Rotate_Quat_Test3.Rotation_Local = quat.fromAxisAngle(new vec3(1, 1, 1).normalized(), (float)Gu.RotationPerSecond(3));
-      }
     }
     protected override void OnView(RenderView rv)
     {
@@ -672,7 +646,7 @@ namespace PirateCraft
           + $"{Profile.ToString()}\n"
           + $"{build} {Gu.GetAssemblyVersion()}\n"
           + $"(Cam = {cpos.ToString(2)})\n"
-          + $"FPS: {(int)Gu.Context.Fps}\n"
+          + $"FPS: {(int)Gu.Context.FpsAvg}\n"
           + $"nyugs b: {Box3f.nugs}\n"
           + $"Globs: {Gu.World.NumGlobs}\n"
           + $"Visible Glob: {Gu.World.NumVisibleRenderGlobs}\n"
@@ -688,6 +662,7 @@ namespace PirateCraft
           + $"UI window events:{rv.ActiveGui?.WindowEventsMs}ms\n"
           + $"UI tot:{rv.ActiveGui?.MeshMs + rv.ActiveGui?.UpdateMs + rv.ActiveGui?.PickMs}ms\n"
           + $"Picked Ob:{Gu.Context.Renderer.Picker.PickedObjectName}\n"
+          + $"Selected Ob:{rv.ObjectSelector.SelectedObjects.Count}\n"
           ;
 
       //UI Test
@@ -772,55 +747,18 @@ namespace PirateCraft
     }
     protected void OnCreateCamera(Camera3D c)
     {
-      InitHandObjects(c);
       CreateCrosshair(c);
     }
     private void CreateLight()
     {
       var l = new Light("pt");
       l.Radius = 1000;
-      l.Power = 1;
+      l.Power = 50;
       l.Position_Local = new vec3(0, 10, 0);
       Gu.World.AddObject(l);
 
     }
-    private void InitHandObjects(Camera3D c)
-    {
-      vec3 right_pos = new vec3(3.0f, -2.1f, 4.5f);
-      vec3 left_pos = new vec3(-3.0f, -2.1f, 4.5f);
 
-      List<WorldObject> objs;
-      objs = Gu.Resources.LoadObjects(new FileLoc("pick.glb", FileStorage.Embedded));
-      if (objs?.Count > 0)
-      {
-        pick = objs[0];
-        pick.Position_Local = left_pos;
-        pick.Scale_Local *= new vec3(0.7f, 0.7f, 0.7f);
-        pick.Rotation_Local *= quat.fromAxisAngle(new vec3(0, 1, 0), MathUtils.M_PI * 0.5f);
-        pick.Rotation_Local *= quat.fromAxisAngle(new vec3(1, 0, 1), MathUtils.M_PI_2 * 0.125f);
-
-        var cmp = new AnimationComponent();
-        vec3 raxis = new vec3(-1, 1, 0);
-        float t_seconds = 0.5f; // swipe time in seconds
-        float kf_count = 3;
-        cmp.KeyFrames.Add(new Keyframe(t_seconds / kf_count * 0, mat3.getRotation(raxis, 0).toQuat()));
-        cmp.KeyFrames.Add(new Keyframe(t_seconds / kf_count * 1, mat3.getRotation(raxis, (float)(MathUtils.M_PI_2 * 0.5 - 0.001)).toQuat()));
-        cmp.KeyFrames.Add(new Keyframe(t_seconds / kf_count * 2, mat3.getRotation(raxis, (float)(MathUtils.M_PI_2 - 0.002)).toQuat())); ;
-        pick.Components.Add(cmp);
-
-        c.AddChild(pick);
-      }
-      objs = Gu.Resources.LoadObjects(new FileLoc("sword.glb", FileStorage.Embedded));
-      if (objs?.Count > 0)
-      {
-        sword = objs[0];
-        sword.Position_Local = right_pos;
-        sword.Scale_Local *= new vec3(0.7f, 0.7f, 0.7f);
-        sword.Rotation_Local *= quat.fromAxisAngle(new vec3(1, 0, 1).normalized(), MathUtils.M_PI_2 * 0.125f);
-
-        c.AddChild(sword);
-      }
-    }
     private void CreateCrosshair(Camera3D c)
     {
       vec4 ch_c = new vec4(0.31f, 0, 0, .1f);
@@ -856,6 +794,7 @@ namespace PirateCraft
       sky_mat.Flat = true;
       sky_mat.GpuRenderState.DepthTest = false;//Disable depth test.
       var sky = Gu.World.CreateAndAddObject("sky", MeshData.GenSphere(DayNightCycle.SkyRadius, 128, 128, true, true), sky_mat);
+      sky.Selectable = false;
       sky.Mesh.DrawOrder = DrawOrder.First;
       sky.Mesh.DrawMode = DrawMode.Deferred;
       //sky.Constraints.Add(new FollowConstraint(Player, FollowConstraint.FollowMode.Snap)); ;
@@ -973,40 +912,35 @@ namespace PirateCraft
       };
       moon.AddChild(moon_bloom);
 
-
     }
     private void TestCreateDebugObjects()
     {
       //Textures
-      //   Texture2D noise = Noise3D.TestNoise();
+      var grass = new FileLoc("grass_base.png", FileStorage.Embedded);
+      var gates = new FileLoc("gates.jpg", FileStorage.Embedded);
+      var brady = new FileLoc("brady.jpg", FileStorage.Embedded);
       Texture2D tx_peron = Gu.Resources.LoadTexture(new FileLoc("main char.png", FileStorage.Embedded), true, TexFilter.Bilinear);
-      Texture2D tx_grass = Gu.Resources.LoadTexture(new FileLoc("grass_base.png", FileStorage.Embedded), true, TexFilter.Bilinear);
-      Texture2D tx_mclovin = Gu.Resources.LoadTexture(new FileLoc("gates.jpg", FileStorage.Embedded), true, TexFilter.Nearest);
-      Texture2D tx_usopp = Gu.Resources.LoadTexture(new FileLoc("zuck.jpg", FileStorage.Embedded), true, TexFilter.Bilinear);
-      Texture2D tx_hogback = Gu.Resources.LoadTexture(new FileLoc("brady.jpg", FileStorage.Embedded), true, TexFilter.Trilinear);
+      Texture2D tx_grass = Gu.Resources.LoadTexture(grass, true, TexFilter.Bilinear);
+      Texture2D tx_gates = Gu.Resources.LoadTexture(gates, true, TexFilter.Nearest);
+      Texture2D tx_zuck = Gu.Resources.LoadTexture(new FileLoc("zuck.jpg", FileStorage.Embedded), true, TexFilter.Bilinear);
+      Texture2D tx_brady = Gu.Resources.LoadTexture(brady, true, TexFilter.Trilinear);
 
       //Objects
-      //Integrity test of GPU memory.
-      //for (int i = 0; i < 100; ++i)
-      //{
-      //  Gu.World.CreateAndAddObject("BoxMesh", MeshData.GenBox(1, 1, 1), new Material(Shader.DefaultDiffuse(), noise));
-      //}
-      //for (int i = 1; i < 100; ++i)
-      //{
-      //  Gu.World.RemoveObject("BoxMesh-" + i.ToString());
-      //}
-      //   Gu.World.CreateAndAddObject("TextureFront", MeshData.GenTextureFront(this.Camera, 0, 0, this.W9idth, this.Height), new Material("texturefront", Shader.DefaultObjectShader(), tx_peron));
-      Gu.World.CreateAndAddObject("Plane.", MeshData.GenPlane(10, 10), new Material("plane", Shader.DefaultObjectShader(), tx_grass));
-      //  _boxMeshThing = Gu.World.FindObject("BoxMesh");
-      //_boxMeshThing.Position = new vec3(0, _boxMeshThing.BoundBoxMeshBind.Height() * 0.5f, 0);
+      Gu.World.CreateAndAddObject("Grass-Plane.", MeshData.GenPlane(10, 10), new Material("grass-plane", Shader.DefaultObjectShader(), tx_grass, new Texture2D(ResourceManager.LoadImage(grass).CreateNormalMap(false), true, TexFilter.Linear)));
 
-      testobjs[0] = new Material("sphere_rot", Shader.DefaultObjectShader(), tx_mclovin);
-      testobjs[1] = new Material("sphere_rot2", Shader.DefaultObjectShader(), tx_usopp);
-      testobjs[2] = new Material("sphere_rot3", Shader.DefaultObjectShader(), tx_hogback);
+      //Gu.Debug_IntegrityTestGPUMemory();
 
-      Sphere_Rotate_Quat_Test = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test", MeshData.GenSphere(1), testobjs[0]);
-      Sphere_Rotate_Quat_Test2 = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test2", MeshData.GenEllipsoid(new vec3(1f, 1, 1f), 128, 128, true), testobjs[1]);
-      Sphere_Rotate_Quat_Test3 = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test3", MeshData.GenEllipsoid(new vec3(1, 1, 1), 128, 128, true), testobjs[2]);
+      testobjs[0] = new Material("sphere_rot", Shader.DefaultObjectShader(), tx_gates);//, new Texture2D(ResourceManager.LoadImage(gates).CreateNormalMap(false), true, TexFilter.Linear));
+      testobjs[1] = new Material("sphere_rot2", Shader.DefaultObjectShader(), tx_zuck);
+      testobjs[1].Flat = true;
+      testobjs[2] = new Material("sphere_rot3", Shader.DefaultObjectShader(), tx_brady, new Texture2D(ResourceManager.LoadImage(brady).CreateNormalMap(false), true, TexFilter.Linear));
+
+      Sphere_Rotate_Quat_Test = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test", MeshData.GenSphere(1,12,12,true), testobjs[0]);
+      Sphere_Rotate_Quat_Test2 = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test2", MeshData.GenEllipsoid(new vec3(1f, 1, 1f), 32, 32, true), testobjs[1]);
+      Sphere_Rotate_Quat_Test3 = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test3", MeshData.GenEllipsoid(new vec3(1, 1, 1), 32, 32, true), testobjs[2]);
+      Sphere_Rotate_Quat_Test.Position_Local = new vec3(0, 3, 0);
+      Sphere_Rotate_Quat_Test2.Position_Local = new vec3(-3, 3, 0);
+      Sphere_Rotate_Quat_Test3.Position_Local = new vec3(3, 3, 0);
 
       //Test STB laoding EXR images.
       Texture2D tx_exr = Gu.Resources.LoadTexture(new FileLoc("hilly_terrain_01_2k.hdr", FileStorage.Embedded), true, TexFilter.Bilinear);
@@ -1017,37 +951,26 @@ namespace PirateCraft
 
       //Animation test
       var cmp = new AnimationComponent();
+      cmp.Repeat = true;
       vec3 raxis = new vec3(0, 1, 0);
-      cmp.KeyFrames.Add(new Keyframe(0, mat3.getRotation(raxis, 0).toQuat(), KeyframeInterpolation.Slerp, new vec3(0, 0, 0), KeyframeInterpolation.Ease));
-      cmp.KeyFrames.Add(new Keyframe(1, mat3.getRotation(raxis, (float)(MathUtils.M_PI_2 * 0.5 - 0.001)).toQuat(), KeyframeInterpolation.Slerp, new vec3(0, 1, 0), KeyframeInterpolation.Ease));
-      cmp.KeyFrames.Add(new Keyframe(2, mat3.getRotation(raxis, (float)(MathUtils.M_PI_2 - 0.002)).toQuat(), KeyframeInterpolation.Slerp, new vec3(1, 1, 0), KeyframeInterpolation.Ease)); ;
-      cmp.KeyFrames.Add(new Keyframe(3, mat3.getRotation(raxis, (float)(MathUtils.M_PI_2 + MathUtils.M_PI_2 * 0.5 - 0.004)).toQuat(), KeyframeInterpolation.Slerp, new vec3(1, 0, 0), KeyframeInterpolation.Ease)); ;
-      cmp.KeyFrames.Add(new Keyframe(4, mat3.getRotation(raxis, (float)(MathUtils.M_PI * 2 - 0.006)).toQuat(), KeyframeInterpolation.Slerp, new vec3(0, 0, 0), KeyframeInterpolation.Ease)); ;
+      cmp.AddFrame(0, new vec3(0, 0, 0), mat3.getRotation(raxis, 0).toQuat(), new vec3(1, 1, 1));
+      cmp.AddFrame(1, new vec3(0, 1, 0), mat3.getRotation(raxis, (float)(MathUtils.M_PI_2 * 0.5 - 0.001)).toQuat(), new vec3(.5f, .5f, 3));
+      cmp.AddFrame(2, new vec3(1, 1, 0), mat3.getRotation(raxis, (float)(MathUtils.M_PI_2 - 0.002)).toQuat(), new vec3(2, 2, 2));
+      cmp.AddFrame(3, new vec3(1, 0, 0), mat3.getRotation(raxis, (float)(MathUtils.M_PI_2 + MathUtils.M_PI_2 * 0.5 - 0.004)).toQuat(), new vec3(2, 3, 1));
+      cmp.AddFrame(4, new vec3(0, 0, 0), mat3.getRotation(raxis, (float)(MathUtils.M_PI * 2 - 0.006)).toQuat(), new vec3(1, 1, 1));
       cmp.Play();
       Sphere_Rotate_Quat_Test.Components.Add(cmp);
 
-      //Some fun parenting stuff.
-      //  Sphere_Rotate_Quat_Test.AddChild(Sphere_Rotate_Quat_Test2.AddChild(Sphere_Rotate_Quat_Test3.AddChild(_boxMeshThing)));
+      WorldObject gearob = null;
+      Gu.Resources.LoadObject(new FileLoc("gear.glb", FileStorage.Embedded), out gearob);
+      Gu.World.AddObject(gearob);
+      if (gearob.Component<AnimationComponent>(out var x))
+      {
+        x.Repeat = true;
+        x.Play();
+      }
+
     }
-    // private vec2 Get_Interaction_Pos()
-    // {
-    //   //Depending on game mode
-    //   //Returns either world editing projection position, or, the mouse position if we are in inventory
-    //   vec2 projec_pos = new vec2(0, 0);
-    //   if (this.InputState == InputState.Edit)
-    //   {
-    //     projec_pos = Gu.Mouse.Pos;
-    //   }
-    //   else if (this.InputState == InputState.Play)
-    //   {
-    //     projec_pos = new vec2(this.Camera.Viewport.Width * 0.5f, this.Camera.Viewport.Height * 0.5f);
-    //   }
-    //   else
-    //   {
-    //     Gu.Log.Error("Invalid projection position for raycast blocks.");
-    //   }
-    //   return projec_pos;
-    // }
 
     #endregion
   }

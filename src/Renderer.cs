@@ -1,10 +1,8 @@
 ﻿using System;
 using System.Drawing;
 using OpenTK.Graphics.OpenGL4;
-using OpenTK.Windowing.Desktop;
-using System.Collections.Generic;
-using System.Runtime.InteropServices;
 using System.ComponentModel;
+
 namespace PirateCraft
 {
   #region Enums
@@ -66,18 +64,12 @@ namespace PirateCraft
     {
       _pRenderer = new WeakReference<Renderer>(rp);
     }
-    public void Update()
+    public void UpdatePick()
     {
       PickedObjectFrameLast = PickedObjectFrame;
       PickedObjectFrame = null;
 
       UpdatePickedPixel((int)Gu.Mouse.Pos.x, (int)Gu.Mouse.Pos.y);
-
-      if (PickedObjectFrame != PickedObjectFrameLast)
-      {
-        int n = 0;
-        n++;
-      }
     }
     public uint GenPickId()
     {
@@ -136,6 +128,8 @@ namespace PirateCraft
       Gpu.CheckGpuErrorsDbg();
       return pixel;
     }
+
+
   }
 
   public class PipelineStage
@@ -430,6 +424,7 @@ namespace PirateCraft
         (rv) =>
         {
           Gu.World.RenderForward(Gu.Context.Delta, rv);
+          Gu.World.RenderDebugForward(Gu.Context.Delta, rv);
           rv.ActiveGui?.Render(rv);
         },
         (rv) =>
@@ -504,8 +499,9 @@ namespace PirateCraft
     }
     public void BeginRenderToWindow()
     {
-      if(Gu.EngineConfig.Debug_ShowPipelineClearMessage){
-      Gu.Log.WarnCycle("Clearing all pipelines, when it is not necessary (debug)");
+      if (Gu.EngineConfig.Debug_ShowPipelineClearMessage)
+      {
+        Gu.Log.WarnCycle("Clearing all pipelines, when it is not necessary (debug)");
       }
 
       //**FULL CLEAR
@@ -519,7 +515,7 @@ namespace PirateCraft
     }
     public void EndRenderToWindow()
     {
-      Picker.Update();
+      Picker.UpdatePick();
       _requestSaveFBOs = false;
     }
     public void RenderViewToWindow(RenderView rv, List<PipelineStageEnum> stages = null)
@@ -781,7 +777,7 @@ namespace PirateCraft
           var pTarget = bind.Attachment;
           string fname = prefix + " " + pTarget.Texture.Name + " index-" + bind.LayoutIndex + ".png";//names may be the same
           fname = System.IO.Path.Combine(Gu.LocalTmpPath, fname);
-          ResourceManager.SaveTexture(new FileLoc(fname, FileStorage.Disk), pTarget.Texture, true);
+          ResourceManager.SaveTexture(new FileLoc(fname, FileStorage.Disk), pTarget.Texture, true, true, -1, true);
           Gu.Log.Info("[Renderer] Screenshot '" + fname + "' saved");
         }
       }

@@ -28,11 +28,11 @@ float p1x(vec4 f) { return f.z; }
 float p1y(vec4 f) { return f.w; }
 
 void setGS(){
-//Uniform primitie values
+  //Uniform primitive values
   _clip        = _clipVS[0];
   _texSiz      = _texsizVS[0];
   _pick_color  = _pick_colorVS[0];
-  _texPos      = _texVS[0].xy;//not sure why xw.  x,y is already in opengl's BL oeiinf
+  _texPos      = _texVS[0].xy;
   _rtl_rtr     = _rtl_rtrVS[0];
   _rbr_rbl     = _rbr_rblVS[0];
   _rect        = _rectVS[0];

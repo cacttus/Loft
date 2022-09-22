@@ -51,6 +51,7 @@ namespace PirateCraft
     #region Private: Static Members
 
     private static List<UiWindowBase> toClose = new List<UiWindowBase>();
+    private static bool _customDebugBreak = false;
 
     #endregion
     #region Public: Static Methods
@@ -72,7 +73,7 @@ namespace PirateCraft
       Log = new Log(Gu.LocalTmpPath);
       Gu.Log.Info("Initializing Globals");
       Gu.Log.Info("CurrentDirectory =" + System.IO.Directory.GetCurrentDirectory());
-     
+
       //Config
       EngineConfig = new EngineConfig(new FileLoc("config.json", FileStorage.Embedded));
 
@@ -143,6 +144,7 @@ namespace PirateCraft
             }
             toClose.Clear();
 
+            _customDebugBreak = false;
           }
         }
       }
@@ -153,8 +155,10 @@ namespace PirateCraft
     }
     public static void CloseWindow(UiWindowBase win)
     {
-      toClose.Add(win);
-
+      if (win != null)
+      {
+        toClose.Add(win);
+      }
     }
     public static void CreateContext(string name, UiWindowBase uw)
     {
@@ -359,9 +363,9 @@ namespace PirateCraft
       //simple while loop guard used in a for loop to prevent infinite execution
       //log when we take too long.
       //the while true loop should always break 
-      if(whileloop_index > 1000)
+      if (whileloop_index > 1000)
       {
-        int n=0; n++;
+        int n = 0; n++;
       }
       if (whileloop_index < whileloop_maxlen)
       {
@@ -371,6 +375,43 @@ namespace PirateCraft
       Gu.DebugBreak();
       return false;
     }
+    public static Line3f? CastRayFromScreen(vec2 screen_pt)
+    {
+      Line3f? v = null;
+      if (Gu.Context.GameWindow.ActiveViewCamera != null)
+      {
+        if (Gu.Context.GameWindow.ActiveViewCamera.Frustum != null)
+        {
+          v = Gu.Context.GameWindow.ActiveViewCamera.Frustum.ScreenToWorld(screen_pt);
+        }
+      }
+      return v;
+    }
+    public static void PostCustomDebugBreak()
+    {
+      _customDebugBreak = true;
+    }
+    public static void CustomDebugBreak()
+    {
+      if (_customDebugBreak)
+      {
+        Gu.DebugBreak();
+      }
+    }
+    public static void Debug_IntegrityTestGPUMemory()
+    {
+      int obcount = 1000;
+      //Integrity test of GPU memory management.
+      for (int i = 0; i < obcount; ++i)
+      {
+        Gu.World.CreateAndAddObject("BoxMesh", MeshData.GenBox(1, 1, 1), Material.DefaultFlatColor);
+      }
+      for (int i = 1; i < obcount; ++i)
+      {
+        Gu.World.DestroyObject("BoxMesh-" + i.ToString());
+      }
+    }
+
     #endregion
 
 

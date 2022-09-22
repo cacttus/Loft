@@ -299,7 +299,7 @@ namespace PirateCraft
           {
             errmsg += Environment.NewLine + " -> shader: " + shaderName;
           }
-          errmsg += GpuDebug.DebugGetRenderState();
+          errmsg += GpuDebugInfo.DebugGetRenderState();
           Gu.Log.Error(errmsg);
         }
 
@@ -471,7 +471,7 @@ namespace PirateCraft
           _bPrintingGPULog = true;
           //This isn't necessary. We can just add it above. what's happening is calling renderstate() resets the glError.
           // Also the GL Error automatically resets.
-          strRenderState = (severity == DebugSeverity.DebugSeverityNotification) ? "" : GpuDebug.DebugGetRenderState(true, false, false);
+          strRenderState = (severity == DebugSeverity.DebugSeverityNotification) ? "" : GpuDebugInfo.DebugGetRenderState(true, false, false);
           strStackInfo = "";//(type ==GLenum.GL_DEBUG_TYPE_ERROR || type ==GLenum.GL_DEBUG_SEVERITY_NOTIFICATION) ? "" : DebugHelper::getStackTrace();  //error prints stack.
           _bPrintingGPULog = false;
         }
@@ -988,7 +988,7 @@ namespace PirateCraft
     }
   }//Gpu
 
-  public class GpuDebug
+  public class GpuDebugInfo
   {
     private static bool _bGettingRenderState = false;
     public static string DebugGetRenderState(bool bForceRun = false, bool bPrintToStdout = true, bool bSaveFramebufferTexture = false) //DebugGetGpuState

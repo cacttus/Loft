@@ -68,13 +68,13 @@ namespace PirateCraft
     private Img32()
     {
     }
-    public static Img32 Default1x1_RGBA32ub(byte r, byte g, byte b, byte a)
+    public static Img32 Default1x1_RGBA32ub(byte r, byte g, byte b, byte a, string nameapp)
     {
-      return new Img32("default1x1", 1, 1, new byte[] { r, g, b, a }, ImagePixelFormat.RGBA32ub);
+      return new Img32("default1x1-" + nameapp, 1, 1, new byte[] { r, g, b, a }, ImagePixelFormat.RGBA32ub);
     }
-    public static Img32 Default1x1_RGBA32ub(vec4ub v4)
+    public static Img32 Default1x1_RGBA32ub(vec4ub v4, string nameapp)
     {
-      return Default1x1_RGBA32ub(v4.r, v4.g, v4.b, v4.a);
+      return Default1x1_RGBA32ub(v4.r, v4.g, v4.b, v4.a, nameapp);
     }
     public Img32 Clone()
     {
@@ -208,7 +208,7 @@ namespace PirateCraft
     {
       return (col * items_per_row + row);
     }
-    public Img32 CreateNormalMap()
+    public Img32 CreateNormalMap(bool isbumpmap, float depth_amount = 0.70f)/*testing*/
     {
       //This is too slow for C# //TODO: put on GPU
       if (Data == null)
@@ -221,7 +221,7 @@ namespace PirateCraft
       {
         for (int i = 0; i < ret.Width; ++i)
         {
-          ret.SetPixel32(i, j, normalizePixel32(i, j));
+          ret.SetPixel32(i, j, normalizePixel32(i, j, isbumpmap, depth_amount));
         }
       }
 
@@ -295,17 +295,19 @@ namespace PirateCraft
         ret += Height;
       return ret;
     }
-    Pixel4ub normalizePixel32(int x, int y)
+    Pixel4ub normalizePixel32(int x, int y, bool is_bump_map_pixel, float depth_amount)
     {
+      //is_bump_map_pixel - if we are a bump map, use the pixel's grayscale value for the normal depth.
       Gu.Assert(Data != null);
 
       Pixel4ub pix;
       int Gh = 0, Gv = 0, i;
       float len;
-      int[] mat = {
+      int[] mat = new int[]{
             toGray(GetPixel32(hwrap(x - 1), vwrap(y - 1))), toGray(GetPixel32(hwrap(x - 0), vwrap(y - 1))), toGray(GetPixel32(hwrap(x + 1), vwrap(y - 1))),
             toGray(GetPixel32(hwrap(x - 1), vwrap(y + 0))), toGray(GetPixel32(hwrap(x - 0), vwrap(y + 0))), toGray(GetPixel32(hwrap(x + 1), vwrap(y + 0))),
             toGray(GetPixel32(hwrap(x - 1), vwrap(y + 1))), toGray(GetPixel32(hwrap(x - 0), vwrap(y + 1))), toGray(GetPixel32(hwrap(x + 1), vwrap(y + 1)))};
+
       int[] sobel_v = {
             -1, -2, -1,
 
@@ -323,15 +325,34 @@ namespace PirateCraft
       for (i = 0; i < 9; ++i)
         Gv += mat[i] * sobel_v[i];
 
-      //Max value of a sobel kernel with char bytes is 255 * +-4 = [-1020,1020] mapped [-1,1]=>[0,1]
-      float Fh = (float)(Gh + 1020.0f) / 2040.0f;
-      float Fv = (float)(Gv + 1020.0f) / 2040.0f;
+      float Fh = (float)Gh / (float)(255 * 4);// [-1,1]
+      float Fv = (float)Gv / (float)(255 * 4);// [-1,1]
 
-      //To get a full hemisphere of values.
-      //Partial depth can be blended with surface normal if less bump is needed.
-      float depth = ((2 - Fh - Fv) + 1.0f) / 2.0f;
+      float depth = 0;
+      if (is_bump_map_pixel)
+      {
+        //Use as bump map  depth
+        var pr = GetPixel32(hwrap(x), vwrap(y)).r;
+        var pg = GetPixel32(hwrap(x), vwrap(y)).g;
+        var pb = GetPixel32(hwrap(x), vwrap(y)).b;
+        depth = (float)(pr - 127) / 127.0f;//[-1,1]
+        if (depth < -0.1)
+        {
+          int n = 0;
+          n++;
+        }
+        Fh *= (1.0f - Math.Abs(depth)) * Math.Sign(depth);//use sign to flip h/v direction
+        Fv *= (1.0f - Math.Abs(depth)) * Math.Sign(depth);
+      }
+      else
+      {
+        depth = 1.0f - depth_amount;
+        Fh *= depth_amount;
+        Fv *= depth_amount;
+      }
 
-      len = (float)Math.Sqrt((Fh * Fh) + (Fv * Fv) + depth * depth);
+      //Normalize
+      len = (float)Math.Sqrt((Fh * Fh) + (Fv * Fv) + (depth * depth));
       if (len > 0)
       {
         Fh /= len;
@@ -340,12 +361,15 @@ namespace PirateCraft
       }
       else
       {
-        Fh = Fv = depth = 0;
+        Fh = Fv = 0;
+        depth = 1;
       }
 
-      pix.r = (byte)(Math.Floor(Fh * 255.0f));
-      pix.g = (byte)(Math.Floor(depth * 255.0f));
-      pix.b = (byte)(Math.Floor(Fv * 255.0f));
+      //x * 2 - 1 = y
+      //x = (y + 1 )/ 2
+      pix.r = (byte)(Math.Floor((Fh + 1.0f) / 2.0f * 255.0f));
+      pix.g = (byte)(Math.Floor((depth + 1.0f) / 2.0f * 255.0f));
+      pix.b = (byte)(Math.Floor((Fv + 1.0f) / 2.0f * 255.0f));
       pix.a = 255;
 
       //This format must match the Texutre.default normal map

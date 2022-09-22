@@ -138,8 +138,10 @@ namespace PirateCraft
   }
   public class PCMouse : ButtonInputDevice<OpenTK.Windowing.GraphicsLibraryFramework.MouseState, OpenTK.Windowing.GraphicsLibraryFramework.MouseButton>
   {
+    private long _warp_frame_stamp = 0;
     private vec2 _last = new vec2(0, 0);
     private vec2 _pos = new vec2(0, 0);
+
     public vec2 Last { get { return _last; } }
     public vec2 Pos { get { return _pos; } } //Position relative to Top Left corner of window client area (excluding borders and titlebar)
     public vec2 PosAbsolute
@@ -182,16 +184,18 @@ namespace PirateCraft
     {
       return _deviceState.IsButtonDown(button);
     }
-    private float Warpx_or_y(float ms_x_or_y, float vp_x_or_y, float vp_w_or_h, WarpMode warpMode, float boundary = 0)//warp_boundary < [0,1]
+    private float Warpx_or_y(float ms_x_or_y, float vp_x_or_y, float vp_w_or_h, WarpMode warpMode, out float delta, float boundary = 0)//warp_boundary < [0,1]
     {
       //Warp X or Y
       float ret = ms_x_or_y;
-      float ms_rel = ms_x_or_y - vp_x_or_y;
+      float ms_rel = ms_x_or_y - vp_x_or_y; //mpos - vp top left
+      delta = 0;
       if (warpMode == WarpMode.Center)
       {
         if ((ms_rel <= vp_w_or_h * boundary) || (ms_rel >= vp_w_or_h - vp_w_or_h * boundary))
         {
           ret = vp_x_or_y + (int)(vp_w_or_h * 0.5f);
+          delta = 0.5f;
         }
       }
       else if (warpMode == WarpMode.Clamp)
@@ -199,10 +203,12 @@ namespace PirateCraft
         if (ms_rel <= vp_w_or_h * boundary)
         {
           ret = vp_x_or_y + vp_w_or_h * boundary;
+          delta = -1;
         }
         else if (ms_rel >= vp_w_or_h - vp_w_or_h * boundary)
         {
           ret = vp_x_or_y + vp_w_or_h - vp_w_or_h * boundary;
+          delta = 1;
         }
       }
       else if (warpMode == WarpMode.Wrap)
@@ -210,10 +216,12 @@ namespace PirateCraft
         if (ms_rel <= vp_w_or_h * boundary)
         {
           ret = vp_x_or_y + vp_w_or_h - vp_w_or_h * boundary;
+          delta = -1;
         }
         else if (ms_rel >= vp_w_or_h - vp_w_or_h * boundary)
         {
           ret = vp_x_or_y + vp_w_or_h * boundary;
+          delta = 1;
         }
       }
       else
@@ -222,51 +230,57 @@ namespace PirateCraft
       }
       return ret;
     }
-    long _stamp = 0;
-    public void WarpMouse(RenderView vp, WarpMode warpMode, float boundary = 0, bool zeroDelta = true)
+    public vec2? WarpMouse(RenderView vp, WarpMode warpMode, float boundary = 0, bool zeroDelta = true)
     {
       //@note Mouse is relative to top left of window
       //@note RenderView can be anywhere in the window
-      //@param warpMode: Center - center of screen
-      //           Wrap - wrap around to other side of screen.
+      //@param warpMode: Center - put mouse center of screen
+      //                 Wrap - wrap around to other side of screen.
       //@param boundary [0,1]: the amount of padding from edge. Default is zero (exact edge of screen)
       //@param ZeroDelta: set delta to zero after warp, to avoid the system thinking the mouse warp is a valid user movement.
-      var w = Gu.Context.GameWindow;
-      if (w != null)
+      //Returns the mouse's wrap -1 for negative x/y, +1 for positive x/y, 0.5 for center of screen, or, null if window is not focused
+      Gu.Assert(vp != null);
+      Gu.Assert(Gu.Context.GameWindow != null);
+
+      if (Gu.Context.GameWindow.IsFocused)
       {
-        if (w.IsFocused)
+        vec2 ret = new vec2(0, 0);
+        float px = Warpx_or_y(_pos.x, vp.Viewport.X, vp.Viewport.Width, warpMode, out ret.x, boundary);
+        float py = Warpx_or_y(_pos.y, vp.Viewport.Y, vp.Viewport.Height, warpMode, out ret.y, boundary);
+
+        if ((int)_pos.x != (float)px || (int)_pos.y != (float)py)
         {
-          float px = Warpx_or_y(_pos.x, vp.Viewport.X, vp.Viewport.Width, warpMode, boundary);
-          float py = Warpx_or_y(_pos.y, vp.Viewport.Y, vp.Viewport.Height, warpMode, boundary);
+          _pos.x = px;
+          _pos.y = py;
+          //Do not use TK.MousePosition after setting it. It does not update immediately.
 
-          if ((int)_pos.x != (float)px || (int)_pos.y != (float)py)
+          if (_warp_frame_stamp == Gu.Context.FrameStamp)
           {
-            _pos.x = px;
-            _pos.y = py;
-            //Do not use TK.MousePosition after setting it. It does not update immediately.
-
-            if (_stamp == Gu.Context.FrameStamp)
-            {
-              Gu.Log.Warn("Mouse warped multiple times in single frame. This may be a bug, and will definitely cause mouse 'wrap' feature to not work.");
-              Gu.DebugBreak();
-            }
-            _stamp = Gu.Context.FrameStamp;
-
-            w.MousePosition = new OpenTK.Mathematics.Vector2i((int)_pos.x, (int)_pos.y);
-
-            if (zeroDelta)
-            {
-              _last = _pos;
-            }
+            Gu.Log.Warn("Mouse warped multiple times in single frame. This may be a bug, and will definitely cause mouse 'wrap' feature to not work.");
+            Gu.DebugBreak();
           }
+          _warp_frame_stamp = Gu.Context.FrameStamp;
 
+          Gu.Context.GameWindow.MousePosition = new OpenTK.Mathematics.Vector2i((int)_pos.x, (int)_pos.y);
 
+          if (zeroDelta)
+          {
+            _last = _pos;
+          }
         }
+
+        return ret;
       }
-      else
-      {
-        Gu.Log.Error("Mouse Input: Window was null...");
-      }
+
+      return null;
+    }
+    public vec2 GetWrappedPosition(RenderView vp, vec2 wrap_sum)
+    {
+      vec2 p_wrap = new vec2(
+        Pos.x + vp.Viewport.Width * wrap_sum.x,
+        Pos.y + vp.Viewport.Height * wrap_sum.y
+      );
+      return p_wrap;
     }
 
     public override void Update()

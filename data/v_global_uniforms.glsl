@@ -75,7 +75,7 @@ uniform sampler2D _ufGpuMaterial_s2Position;   //
 vec4 getMRT_Color(vec2 tcoord)    { return texture(_ufGpuMaterial_s2Albedo, vec2(tcoord)); }   
 vec4 getMRT_Normal(vec2 tcoord)   { return texture(_ufGpuMaterial_s2Normal, vec2(tcoord)); }   
 vec4 getMRT_Position(vec2 tcoord) { return texture(_ufGpuMaterial_s2Position, vec2(tcoord)); } 
-vec4 getMRT_Material(vec2 tcoord) { return texture(_ufGpuMaterial_s2Metalness, vec2(tcoord)); }
+vec4 getMRT_Plane_And_Mat(vec2 tcoord) { return texture(_ufGpuMaterial_s2Metalness, vec2(tcoord)); }
 
 struct GpuPointLight {
   vec3 _pos;
@@ -84,7 +84,7 @@ struct GpuPointLight {
   vec3 _color;
   float _power;
 };
-layout(std140,  binding = 3) uniform _ufGpuPointLights_Block {
+layout(std140, binding = 3) uniform _ufGpuPointLights_Block {
   GpuPointLight _ufGpuPointLights[DEF_MAX_POINT_LIGHTS];
 };
 struct GpuDirLight {
@@ -104,46 +104,86 @@ layout(std140, binding = 4) uniform _ufGpuDirLights_Block {
 uniform samplerCube _ufShadowBoxSamples[DEF_MAX_CUBE_SHADOW_SAMPLES];
 uniform samplerCube _ufShadowFrustumSamples[DEF_MAX_FRUS_SHADOW_SAMPLES];
 
+struct GpuDebug {
+  vec4 _tangentColor;
+  vec4 _faceNormalColor;
+  vec4 _binormalColor;
+  vec4 _vertexNormalColor;
+  //
+  float _normalLength;
+  float _lineWidth;
+  float _pad0;
+  float _pad1;
+ };
+layout(std140, binding = 5) uniform _ufGpuDebug_Block {
+  GpuDebug _ufGpuDebug;
+};
+
 struct GpuInstanceData {
   mat4 _model;
   uvec2 _pickId;
   float _pad0;
   float _pad1;
+  mat4 _model_inverse;
 };
 
 #if defined(DEF_SHADER_STAGE_VERTEX)
+int getInstanceID() {
+  return gl_InstanceID;
+}
+out int _uf_InstanceIDVS;
+void setInstanceIDForGS() {
+  _uf_InstanceIDVS = gl_InstanceID;
+}
+#elif defined(DEF_SHADER_STAGE_GEOMETRY)
+in int _uf_InstanceIDVS[];
+int getInstanceID() {
+  return _uf_InstanceIDVS[0];
+}
+#else
+//We can use instance ID in the Frag shader, however, we would need to reformat how we are doing this.
+//#error No instance id was set for the given stage (not implemented)
+#endif
+
+#if defined(DEF_SHADER_STAGE_VERTEX) || defined(DEF_SHADER_STAGE_GEOMETRY)
 #if defined(DEF_INSTANCED)
 
-layout(std140, binding = 5) uniform _ufGpuInstanceData_Block {
+layout(std140, binding = 6) uniform _ufGpuInstanceData_Block {
   GpuInstanceData _ufGpuInstanceData[DEF_MAX_INSTANCES];
 };
 
-mat4 getModelMatrix()
-{
-  return _ufGpuInstanceData[gl_InstanceID]._model;
+mat4 getModelMatrix() {
+  return _ufGpuInstanceData[getInstanceID()]._model;
 }
-uint getPick()
-{
-  return _ufGpuInstanceData[gl_InstanceID]._pickId.x;
+mat4 getInverseModelMatrix() {
+  return _ufGpuInstanceData[getInstanceID()]._model_inverse;
+}
+uint getPick() {
+  return _ufGpuInstanceData[getInstanceID()]._pickId.x;
 }
 
 #else
 
+//This is here, on the assumption we'll allow non-instanced rendering (performance)..but there is no reason right now.
+
 #error Instancing must always be on for now.
 
 uniform mat4 _ufMatrix_Model;
+uniform mat4 _ufMatrix_Model_Inverse;
 uniform uint _ufPickId;
 
-mat4 getModelMatrix()
-{
+mat4 getModelMatrix() {
   return _ufMatrix_Model;
 }
-uint getPick()
-{
+mat4 getInverseModelMatrix() {
+  return _ufMatrix_Model_Inverse;
+}
+uint getPick() {
   return _ufPickId;
 }
 
 #endif
+
 #endif
 
 

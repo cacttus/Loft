@@ -11,13 +11,16 @@ namespace PirateCraft
     [JSONXIgnore()] public bool Debug_AlwaysCompileAndReloadGpuUniformData = true; //Don't try to optimize out modification, and always compile the structs (for debugging)
     [JSONXIgnore()] public bool Debug_Print_Shader_Uniform_Details_Verbose = false; //So this is to be turned on for debug
     [JSONXIgnore()] public bool Debug_ShowPipelineClearMessage = false;
-    [JSONXIgnore()] public bool Debug_CheckSortedLists_Slow = true;
+    [JSONXIgnore()] public bool Debug_EnableCompatibilityProfile = true;
     [JSONXIgnore()] public bool SaveFBOsEveryFrame = false;
     [JSONXIgnore()] public bool SaveAllFBOsEveryStageOfPipeline = false;
 
     //Debug Configs
     [JSONXIgnore()] public bool UseLang_RU = true;//russian
     [JSONXIgnore()] public bool UseLang_ZH = true;//Mandarin
+    [JSONXIgnore()] public bool RenderDebug_ShowNormals = true;//Mandarin
+    [JSONXIgnore()] public bool RenderDebug_ShowTangents = true;//Mandarin
+    [JSONXIgnore()] public bool RenderDebug_ShowOrigins = true;//Mandarin
 
     //Basic configs
     public bool LogErrors = true;
@@ -40,6 +43,8 @@ namespace PirateCraft
     public int WindowInitH = 1080;
     public float WindowInitScaleW = 0.75f;
     public float WindowInitScaleH = 0.75f;
+
+
 
     public EngineConfig(FileLoc loc)
     {

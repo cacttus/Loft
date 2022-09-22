@@ -43,6 +43,18 @@ namespace PirateCraft
     n3_04,
     n3_05,
 
+    f3_01,//face
+    f3_02,
+    f3_03,
+    f3_04,
+    f3_05,
+
+    t3_01, //tangent
+    t3_02,
+    t3_03,
+    t3_04,
+    t3_05,
+
     x2_01,
     x2_02,
     x2_03,
@@ -116,7 +128,6 @@ namespace PirateCraft
 
   public class VertexComponent
   {
-
     public int SizeBytes { get; set; }
     public int ComponentCount { get; set; }
     public VertexAttribPointerType DataType { get; set; }
@@ -405,29 +416,31 @@ namespace PirateCraft
     {
       switch (st)
       {
-        case "v2": return VertexComponentType.v2_01;
+        case "v2": return VertexComponentType.v2_01;//vertex
         case "v3": return VertexComponentType.v3_01;
         case "v4": return VertexComponentType.v4_01;
-        case "n3": return VertexComponentType.n3_01;
-        case "c3": return VertexComponentType.c3_01;
+        case "n3": return VertexComponentType.n3_01;//normal
+        case "f3": return VertexComponentType.f3_01;//face normal
+        case "t3": return VertexComponentType.t3_01;//tangent
+        case "c3": return VertexComponentType.c3_01;//color
         case "c4": return VertexComponentType.c4_01;
-        case "x2": return VertexComponentType.x2_01;
-        case "i1": return VertexComponentType.i1_01;
+        case "x2": return VertexComponentType.x2_01;//texcoord
+        case "i1": return VertexComponentType.i1_01;//signed int
         case "i2": return VertexComponentType.i2_01;
         case "i3": return VertexComponentType.i3_01;
-        case "u1": return VertexComponentType.u1_01;
+        case "u1": return VertexComponentType.u1_01;//unsigned int
         case "u2": return VertexComponentType.u2_01;
         case "u3": return VertexComponentType.u3_01;
-        case "s1": return VertexComponentType.s1_01;//short
+        case "s1": return VertexComponentType.s1_01;//signed short
         case "s2": return VertexComponentType.s2_01;
         case "s3": return VertexComponentType.s3_01;
-        case "S1": return VertexComponentType.S1_01;//unsigned short .. 
+        case "S1": return VertexComponentType.S1_01;//unsigned short 
         case "S2": return VertexComponentType.S2_01;
         case "S3": return VertexComponentType.S3_01;
-        case "b1": return VertexComponentType.b1_01;//short
+        case "b1": return VertexComponentType.b1_01;//signed byte
         case "b2": return VertexComponentType.b2_01;
         case "b3": return VertexComponentType.b3_01;
-        case "B1": return VertexComponentType.B1_01;//unsigned short .. 
+        case "B1": return VertexComponentType.B1_01;//unsigned byte
         case "B2": return VertexComponentType.B2_01;
         case "B3": return VertexComponentType.B3_01;
       }
@@ -448,6 +461,11 @@ namespace PirateCraft
         case VertexComponentType.v2_03:
         case VertexComponentType.v2_04:
         case VertexComponentType.v2_05:
+        case VertexComponentType.x2_01:
+        case VertexComponentType.x2_02:
+        case VertexComponentType.x2_03:
+        case VertexComponentType.x2_04:
+        case VertexComponentType.x2_05:
           eType = VertexAttribPointerType.Float;
           compCount = 2;
           size = Marshal.SizeOf(default(vec2));
@@ -457,6 +475,26 @@ namespace PirateCraft
         case VertexComponentType.v3_03:
         case VertexComponentType.v3_04:
         case VertexComponentType.v3_05:
+        case VertexComponentType.c3_01:
+        case VertexComponentType.c3_02:
+        case VertexComponentType.c3_03:
+        case VertexComponentType.c3_04:
+        case VertexComponentType.c3_05:
+        case VertexComponentType.n3_01:
+        case VertexComponentType.n3_02:
+        case VertexComponentType.n3_03:
+        case VertexComponentType.n3_04:
+        case VertexComponentType.n3_05:
+        case VertexComponentType.f3_01:
+        case VertexComponentType.f3_02:
+        case VertexComponentType.f3_03:
+        case VertexComponentType.f3_04:
+        case VertexComponentType.f3_05:
+        case VertexComponentType.t3_01:
+        case VertexComponentType.t3_02:
+        case VertexComponentType.t3_03:
+        case VertexComponentType.t3_04:
+        case VertexComponentType.t3_05:
           //*******************************************
           //**note this from the opengl wiki
           //"Implementations sometimes get the std140 layout wrong for vec3 components.
@@ -471,19 +509,6 @@ namespace PirateCraft
         case VertexComponentType.v4_03:
         case VertexComponentType.v4_04:
         case VertexComponentType.v4_05:
-          eType = VertexAttribPointerType.Float;
-          compCount = 4;
-          size = Marshal.SizeOf(default(vec4));
-          break;
-        case VertexComponentType.c3_01:
-        case VertexComponentType.c3_02:
-        case VertexComponentType.c3_03:
-        case VertexComponentType.c3_04:
-        case VertexComponentType.c3_05:
-          eType = VertexAttribPointerType.Float;
-          compCount = 3;
-          size = Marshal.SizeOf(default(vec3));  //**Look at the size: vec4 - OpenGL requires components to be 64 byte aligned.
-          break;
         case VertexComponentType.c4_01:
         case VertexComponentType.c4_02:
         case VertexComponentType.c4_03:
@@ -492,24 +517,6 @@ namespace PirateCraft
           eType = VertexAttribPointerType.Float;
           compCount = 4;
           size = Marshal.SizeOf(default(vec4));
-          break;
-        case VertexComponentType.n3_01:
-        case VertexComponentType.n3_02:
-        case VertexComponentType.n3_03:
-        case VertexComponentType.n3_04:
-        case VertexComponentType.n3_05:
-          eType = VertexAttribPointerType.Float;
-          compCount = 3;
-          size = Marshal.SizeOf(default(vec3));  //**Look at the size: vec4  - OpenGL requires components to be 64 byte aligned.
-          break;
-        case VertexComponentType.x2_01:
-        case VertexComponentType.x2_02:
-        case VertexComponentType.x2_03:
-        case VertexComponentType.x2_04:
-        case VertexComponentType.x2_05:
-          eType = VertexAttribPointerType.Float;
-          compCount = 2;
-          size = Marshal.SizeOf(default(vec2));  //**Look at the size: vec4  - OpenGL requires components to be 64 byte aligned.
           break;
         case VertexComponentType.i1_01:
         case VertexComponentType.i1_02:
@@ -532,7 +539,6 @@ namespace PirateCraft
           compCount = 3;
           size = Marshal.SizeOf(default(Int32)) * 3;
           break;
-
         case VertexComponentType.u1_01:
         case VertexComponentType.u1_02:
         case VertexComponentType.u1_03:
@@ -822,6 +828,23 @@ namespace PirateCraft
       Gu.BRThrowNotImplementedException();
       return ("Unknown User Type name.");
     }
+    public static vec3 ComputeTangent(vec3 n, vec3 p0, vec3 p1, vec3 p2, vec2 x0, vec2 x1, vec2 x2)
+    {
+      //https://learnopengl.com/Advanced-Lighting/Normal-Mapping
+      vec3 ret;
+      vec3 dp0 = p1 - p0;
+      vec3 dp1 = p2 - p0;
+      vec2 dx0 = x1 - x0;
+      vec2 dx1 = x2 - x0;
+
+      float f = 1.0f / (dx0.x * dx1.y - dx1.x * dx0.y);
+      ret.x = f * (dx1.y * dp0.x - dx0.y * dp1.x);
+      ret.y = f * (dx1.y * dp0.y - dx0.y * dp1.y);
+      ret.z = f * (dx1.y * dp0.z - dx0.y * dp1.z);
+      ret.normalize();
+
+      return ret;
+    }
   }
   //public enum IndexFormatType
   //{
@@ -893,11 +916,15 @@ namespace PirateCraft
   //Base object vertex, with picking
   [Serializable]
   [StructLayout(LayoutKind.Sequential)]
-  public struct v_v3n3x2
+  public struct v_v3n3x2f3t3
   {
     public vec3 _v;
     public vec3 _n;
     public vec2 _x;
+    public vec3 _f;
+    public vec3 _t;
+    public float _pad0;
+    public float _pad1;
   }
   //GlobVert
   [Serializable]
@@ -919,7 +946,7 @@ namespace PirateCraft
     public vec2 _texsiz;
     public uvec2 _pick_color;
     public vec4 _rtl_rtr; //css corners = tl, tr, br, bl = xyzw
-    public vec4 _rbr_rbl; 
+    public vec4 _rbr_rbl;
   };
   [StructLayout(LayoutKind.Sequential)]
   public struct v_v3x2

@@ -1772,6 +1772,18 @@ namespace PirateCraft
     {
       return new vec4(a.x * b.x, a.y * b.y, a.z * b.z, a.w * b.w);
     }
+    public static vec4 operator /(vec4 a, vec4 b)
+    {
+      return new vec4(a.x / b.x, a.y / b.y, a.z / b.z, a.w / b.w);
+    }
+    public static vec4 operator +(vec4 a, float b)
+    {
+      return new vec4(a.x + b, a.y + b, a.z + b, a.w + b);
+    }
+    public static vec4 operator -(vec4 a, float b)
+    {
+      return new vec4(a.x - b, a.y - b, a.z - b, a.w - b);
+    }
     public static vec4 operator *(vec4 a, float b)
     {
       return new vec4(a.x * b, a.y * b, a.z * b, a.w * b);
@@ -2605,6 +2617,28 @@ namespace PirateCraft
       _m43 = t14;
       _m44 = t15;
     }
+    public mat4(OpenTK.Mathematics.Matrix4 m)
+    {
+      _m11 = m.M11;
+      _m12 = m.M12;
+      _m13 = m.M13;
+      _m14 = m.M14;
+
+      _m21 = m.M21;
+      _m22 = m.M22;
+      _m23 = m.M23;
+      _m24 = m.M24;
+
+      _m31 = m.M31;
+      _m32 = m.M32;
+      _m33 = m.M33;
+      _m34 = m.M34;
+
+      _m41 = m.M41;
+      _m42 = m.M42;
+      _m43 = m.M43;
+      _m44 = m.M44;
+    }
     public OpenTK.Mathematics.Matrix4 ToOpenTK()
     {
       //Note: this does not convert between row/column major. 
@@ -2932,28 +2966,16 @@ namespace PirateCraft
     }
     public mat4 invert()
     {
-      //**Note:
-      //Transpose of an orthogonal matrix is it's inverse
-      //If we're orthogonal return the transpose.
-      //   return this.transposed();
-
-      // - Convert the matrix to Reduced RE form
-      mat4 m = new mat4();
-      // - If the determinant is zero, return m.
-      if (det() == 0)
+      var m = this.ToOpenTK();
+      try
       {
-        return m;
+        m.Transpose();
+        m.Invert(); //may throw
+        this = new mat4(m);
       }
-      // - Classical adjoint is favored here over Gaussian and reduced row-echlon form.
-      m = adj();
-      float d = m.det();
-      for (int i = 0; i < 16; ++i)
+      catch (Exception ex)
       {
-        m[i] /= d;
       }
-
-      m.clone(out this);
-
       return this;
     }
     public mat4 inverseOf()

@@ -51,7 +51,7 @@ namespace PirateCraft
       {
         new UiStyle(StyleName.Base)
         {
-          FontColor = new vec4(0.1f, 0.14f, 0.14f, 1),
+          FontColor = new vec4(0.2f, 0.14f, 0.14f, 1),
           Color = new vec4(0.63f, 0.7f, 0.7f, 1),
           BorderColor = new vec4(0.14f, 0.16f, 0.16f, 1),
           Padding = 2,
@@ -78,7 +78,7 @@ namespace PirateCraft
           SizeModeWidth = UiSizeMode.Shrink,
           DisplayMode = UiDisplayMode.Inline,
           OverflowMode = UiOverflowMode.Hide,
-        },        
+        },
         new UiStyle(StyleName.Label, new List<string>() { StyleName.Base })
         {
           Texture = gui.DefaultPixel,
@@ -87,6 +87,19 @@ namespace PirateCraft
           PositionMode = UiPositionMode.Static,
           FontSize = 30,
           Padding = 10,
+        },
+        new UiStyle("vbar", new List<string>() { StyleName.Base })
+        {
+          Texture = gui.DefaultPixel,
+          SizeModeWidth = UiSizeMode.Shrink,
+          SizeModeHeight = UiSizeMode.Shrink,
+          PositionMode = UiPositionMode.Static,
+          DisplayMode = UiDisplayMode.Inline,
+          Width = 2,
+          MinHeight = 30,
+          MarginTop= 10,
+          Padding = 1,
+          Color = new vec4(0.1f, 0.1f, 0.1f, 1),
         },
         new UiStyle(StyleName.DebugLabel, new List<string>() { StyleName.Label })
         {
@@ -101,6 +114,8 @@ namespace PirateCraft
           SizeModeHeight = UiSizeMode.Shrink,
           FontSize = 40,
           FontFace = FontFace.Parisienne,
+          Margin=0,
+          Padding=0,
         },
         new UiStyle(StyleName.Panel, new List<string>() { StyleName.Base })
         {
@@ -119,43 +134,92 @@ namespace PirateCraft
     public static Gui2d EditGui(RenderView rv)
     {
       var gui = GetOrCreateSharedGuiForView("edit-gui", rv);
-
-      //TODO: StyleSheet.Load()..
-
       gui.StyleSheet.AddStyles(GuiBuilder.GetGlobalStylesThatWeWillLaterLoadViaCSSFile(gui));
 
       var toolbar = new UiElement(new List<string> { StyleName.Toolbar }, "tlbToolbar", Phrase.None);
       gui.AddChild(toolbar);//testing all the jacked up chagnes
-      var toolbar_button_file = new UiElement(new List<string> { StyleName.Button }, "btnFile", Phrase.File);
+      var toolbar_button_file = new MenuItem("btnFile", Phrase.File);
+      toolbar_button_file.AddMenuItem(new MenuItem("mnuExit", Phrase.Help));
+      toolbar_button_file.AddMenuItem(new MenuItem("mnuExit", Phrase.Settings));
+      toolbar_button_file.AddMenuItem(new MenuItem("mnuExit", Phrase.About));
+      toolbar_button_file.AddMenuItem(new MenuItem("mnuExit", Phrase.Test1));
+      toolbar_button_file.AddMenuItem(new MenuItem("mnuExit", Phrase.Test2));
+      toolbar_button_file.AddMenuItem(new MenuItem("mnuExit", Phrase.Exit));
       toolbar.AddChild(toolbar_button_file);
-     // toolbar_button_file.DoMouseEvents
+      toolbar.AddChild(new UiElement(new List<string> { "vbar" }, "vbar"));
 
-      //var toolbar_menu = new UiElement(new List<string> { StyleName.Panel }, "mnuToolbarMenu");
+      var toolbar_button_help = new MenuItem("btnHelp", Phrase.Help);
+      toolbar_button_help.AddMenuItem(new MenuItem("mnuAbout", Phrase.About));
+      toolbar_button_help.AddMenuItem(new MenuItem("mnuVersion", Phrase.Version));
+      toolbar.AddChild(toolbar_button_help);
 
       rv.DebugInfo = new UiElement(new List<string> { StyleName.DebugLabel }, "lblDebugInfo", Phrase.None, null);
       gui.AddChild(rv.DebugInfo);
-      //gui.AddChild(new UiElement(new List<string> { StyleName.Panel }, "lblDebugInfo2", Phrase.None, null));
 
       return gui;
     }
   }
+  public class UiContextMenu : UiElement
+  {
+    public UiContextMenu() : base(new List<string>() { StyleName.Label }, "container")
+    {
+    }
+    protected override void BeforeLayout_SizeElements()
+    {
+      int n = 0;
+      n++;
+    }
+  }
+  public class MenuItem : UiElement
+  {
+    UiContextMenu _container = null;
+    private bool _isTopLevel = true;
+    public MenuItem(string name, Phrase p = Phrase.None) : base(new List<string>() { StyleName.Label }, name, p)
+    {
+      var that = this;
+      this.Style.DisplayMode = UiDisplayMode.Inline;
+      this.AddEvent(UiEventId.Mouse_Enter, (i, e, m, g) =>
+      {
+        if (_container != null)
+        {
+          _container.Style.PositionMode = UiPositionMode.Absolute;
+          if (_isTopLevel)
+          {
+            _container.Style.Top = this.Computed.Bottom;
+            _container.Style.Left = this.Computed.Left;
+          }
+          else
+          {
+            _container.Style.Top = this.Computed.Top;
+            _container.Style.Left = this.Computed.Right;
+          }
+          g.AddChild(_container);
+          _container.SetLayoutChanged();
+          _container.Show();
+        }
+        that.Style.FontColor = that.Style.FontColor + 0.5f;
+      });
+      this.AddEvent(UiEventId.Mouse_Leave, (i, e, m, g) =>
+      {
+        if (_container != null)
+        {
+          _container.Hide();
+        }
+        that.Style.FontColor = that.Style.FontColor - 0.5f;
+      });
+    }
+    public void AddMenuItem(MenuItem item)
+    {
+      if (_container == null)
+      {
+        _container = new UiContextMenu();
+      }
+      item._isTopLevel = false;
+      item.Style.DisplayMode = UiDisplayMode.Block;
 
-
-// public class Toolbar : UiElement { 
-//  public Toolbar(string name) : base(StyleName.Toolbar) {
-//  }
-// }
-public class PopupMenuButton : UiElement { 
-  List<UiElement> _items = new List<UiElement>();
- public PopupMenuButton(string name) : base(StyleName.Label) {
-
-
-
- }
- public void AddMenuItem(UiElement item){
-_items.Add(item);
- }
-}
+      _container.AddChild(item);
+    }
+  }
 
 
 }//ns

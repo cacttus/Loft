@@ -1,3 +1,12 @@
+* Fix current active view for editing
+
+
+it would make more sense instead of polling for events.. to have an event queue.
+
+Gui2d controls evnets and fires them.
+Mouse movement
+Show / Hide UI element
+
 
 a chile element is pick root if
 it has a texture and has mouse events

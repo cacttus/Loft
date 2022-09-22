@@ -1,6 +1,4 @@
 ﻿using OpenTK.Graphics.OpenGL4;
-using OpenTK.Graphics.OpenGL4;
-using System.Runtime.InteropServices;
 using System.Text;
 
 namespace PirateCraft
@@ -120,12 +118,12 @@ namespace PirateCraft
     private static vec3[] bx_box = new vec3[8];
     public static vec3[] bx_norms = new vec3[6];//lrbtaf
     private static vec2[] bx_texs = new vec2[4];
-    public static v_v3n3x2[,] bx_verts_face { get; private set; } = new v_v3n3x2[6, 4];//lrbtaf
+    public static v_v3n3x2f3t3[,] bx_verts_face { get; private set; } = new v_v3n3x2f3t3[6, 4];//lrbtaf
     public static uint[] bx_face_inds { get; private set; }
 
     private static vec3[] bb_planes_Zup = new vec3[8];
     private static vec3[] bb_norms_Zup = new vec3[2];
-    public static v_v3n3x2[,] bb_verts_face_zup { get; private set; } = new v_v3n3x2[2, 4];//normals point +x, +z
+    public static v_v3n3x2f3t3[,] bb_verts_face_zup { get; private set; } = new v_v3n3x2f3t3[2, 4];//normals point +x, +z
     public static uint[] bb_face_inds_zup { get; private set; }
 
     private static void DoBox(float w2, float h2, float d2)
@@ -157,35 +155,35 @@ namespace PirateCraft
       //     4       5
       // 0      1
       //Order of faces: Left, Right, Bottom, Top, Back Front (LRBTAF)
-      bx_verts_face[0, 0] = new v_v3n3x2() { _v = bx_box[4], _n = bx_norms[0], _x = bx_texs[0] };
-      bx_verts_face[0, 1] = new v_v3n3x2() { _v = bx_box[0], _n = bx_norms[0], _x = bx_texs[1] };
-      bx_verts_face[0, 2] = new v_v3n3x2() { _v = bx_box[6], _n = bx_norms[0], _x = bx_texs[2] };
-      bx_verts_face[0, 3] = new v_v3n3x2() { _v = bx_box[2], _n = bx_norms[0], _x = bx_texs[3] };
+      bx_verts_face[0, 0] = new v_v3n3x2f3t3() { _v = bx_box[4], _n = bx_norms[0], _x = bx_texs[0] };
+      bx_verts_face[0, 1] = new v_v3n3x2f3t3() { _v = bx_box[0], _n = bx_norms[0], _x = bx_texs[1] };
+      bx_verts_face[0, 2] = new v_v3n3x2f3t3() { _v = bx_box[6], _n = bx_norms[0], _x = bx_texs[2] };
+      bx_verts_face[0, 3] = new v_v3n3x2f3t3() { _v = bx_box[2], _n = bx_norms[0], _x = bx_texs[3] };
 
-      bx_verts_face[1, 0] = new v_v3n3x2() { _v = bx_box[1], _n = bx_norms[1], _x = bx_texs[0] };
-      bx_verts_face[1, 1] = new v_v3n3x2() { _v = bx_box[5], _n = bx_norms[1], _x = bx_texs[1] };
-      bx_verts_face[1, 2] = new v_v3n3x2() { _v = bx_box[3], _n = bx_norms[1], _x = bx_texs[2] };
-      bx_verts_face[1, 3] = new v_v3n3x2() { _v = bx_box[7], _n = bx_norms[1], _x = bx_texs[3] };
+      bx_verts_face[1, 0] = new v_v3n3x2f3t3() { _v = bx_box[1], _n = bx_norms[1], _x = bx_texs[0] };
+      bx_verts_face[1, 1] = new v_v3n3x2f3t3() { _v = bx_box[5], _n = bx_norms[1], _x = bx_texs[1] };
+      bx_verts_face[1, 2] = new v_v3n3x2f3t3() { _v = bx_box[3], _n = bx_norms[1], _x = bx_texs[2] };
+      bx_verts_face[1, 3] = new v_v3n3x2f3t3() { _v = bx_box[7], _n = bx_norms[1], _x = bx_texs[3] };
 
-      bx_verts_face[2, 0] = new v_v3n3x2() { _v = bx_box[4], _n = bx_norms[2], _x = bx_texs[0] };
-      bx_verts_face[2, 1] = new v_v3n3x2() { _v = bx_box[5], _n = bx_norms[2], _x = bx_texs[1] };
-      bx_verts_face[2, 2] = new v_v3n3x2() { _v = bx_box[0], _n = bx_norms[2], _x = bx_texs[2] };
-      bx_verts_face[2, 3] = new v_v3n3x2() { _v = bx_box[1], _n = bx_norms[2], _x = bx_texs[3] };
+      bx_verts_face[2, 0] = new v_v3n3x2f3t3() { _v = bx_box[4], _n = bx_norms[2], _x = bx_texs[0] };
+      bx_verts_face[2, 1] = new v_v3n3x2f3t3() { _v = bx_box[5], _n = bx_norms[2], _x = bx_texs[1] };
+      bx_verts_face[2, 2] = new v_v3n3x2f3t3() { _v = bx_box[0], _n = bx_norms[2], _x = bx_texs[2] };
+      bx_verts_face[2, 3] = new v_v3n3x2f3t3() { _v = bx_box[1], _n = bx_norms[2], _x = bx_texs[3] };
 
-      bx_verts_face[3, 0] = new v_v3n3x2() { _v = bx_box[2], _n = bx_norms[3], _x = bx_texs[0] };
-      bx_verts_face[3, 1] = new v_v3n3x2() { _v = bx_box[3], _n = bx_norms[3], _x = bx_texs[1] };
-      bx_verts_face[3, 2] = new v_v3n3x2() { _v = bx_box[6], _n = bx_norms[3], _x = bx_texs[2] };
-      bx_verts_face[3, 3] = new v_v3n3x2() { _v = bx_box[7], _n = bx_norms[3], _x = bx_texs[3] };
+      bx_verts_face[3, 0] = new v_v3n3x2f3t3() { _v = bx_box[2], _n = bx_norms[3], _x = bx_texs[0] };
+      bx_verts_face[3, 1] = new v_v3n3x2f3t3() { _v = bx_box[3], _n = bx_norms[3], _x = bx_texs[1] };
+      bx_verts_face[3, 2] = new v_v3n3x2f3t3() { _v = bx_box[6], _n = bx_norms[3], _x = bx_texs[2] };
+      bx_verts_face[3, 3] = new v_v3n3x2f3t3() { _v = bx_box[7], _n = bx_norms[3], _x = bx_texs[3] };
 
-      bx_verts_face[4, 0] = new v_v3n3x2() { _v = bx_box[0], _n = bx_norms[4], _x = bx_texs[0] };
-      bx_verts_face[4, 1] = new v_v3n3x2() { _v = bx_box[1], _n = bx_norms[4], _x = bx_texs[1] };
-      bx_verts_face[4, 2] = new v_v3n3x2() { _v = bx_box[2], _n = bx_norms[4], _x = bx_texs[2] };
-      bx_verts_face[4, 3] = new v_v3n3x2() { _v = bx_box[3], _n = bx_norms[4], _x = bx_texs[3] };
+      bx_verts_face[4, 0] = new v_v3n3x2f3t3() { _v = bx_box[0], _n = bx_norms[4], _x = bx_texs[0] };
+      bx_verts_face[4, 1] = new v_v3n3x2f3t3() { _v = bx_box[1], _n = bx_norms[4], _x = bx_texs[1] };
+      bx_verts_face[4, 2] = new v_v3n3x2f3t3() { _v = bx_box[2], _n = bx_norms[4], _x = bx_texs[2] };
+      bx_verts_face[4, 3] = new v_v3n3x2f3t3() { _v = bx_box[3], _n = bx_norms[4], _x = bx_texs[3] };
 
-      bx_verts_face[5, 0] = new v_v3n3x2() { _v = bx_box[5], _n = bx_norms[5], _x = bx_texs[0] };
-      bx_verts_face[5, 1] = new v_v3n3x2() { _v = bx_box[4], _n = bx_norms[5], _x = bx_texs[1] };
-      bx_verts_face[5, 2] = new v_v3n3x2() { _v = bx_box[7], _n = bx_norms[5], _x = bx_texs[2] };
-      bx_verts_face[5, 3] = new v_v3n3x2() { _v = bx_box[6], _n = bx_norms[5], _x = bx_texs[3] };
+      bx_verts_face[5, 0] = new v_v3n3x2f3t3() { _v = bx_box[5], _n = bx_norms[5], _x = bx_texs[0] };
+      bx_verts_face[5, 1] = new v_v3n3x2f3t3() { _v = bx_box[4], _n = bx_norms[5], _x = bx_texs[1] };
+      bx_verts_face[5, 2] = new v_v3n3x2f3t3() { _v = bx_box[7], _n = bx_norms[5], _x = bx_texs[2] };
+      bx_verts_face[5, 3] = new v_v3n3x2f3t3() { _v = bx_box[6], _n = bx_norms[5], _x = bx_texs[3] };
 
       bool flip = false;
       bx_face_inds = new uint[6] {
@@ -220,15 +218,15 @@ namespace PirateCraft
       bb_norms_Zup[1] = new vec3(0, 0, 1);
 
       //using box textures here because we won't need it in a normal case anyway.
-      bb_verts_face_zup[0, 0] = new v_v3n3x2() { _v = bb_planes_Zup[0], _n = bb_norms_Zup[0], _x = bx_texs[0] };
-      bb_verts_face_zup[0, 1] = new v_v3n3x2() { _v = bb_planes_Zup[1], _n = bb_norms_Zup[0], _x = bx_texs[1] };
-      bb_verts_face_zup[0, 2] = new v_v3n3x2() { _v = bb_planes_Zup[2], _n = bb_norms_Zup[0], _x = bx_texs[2] };
-      bb_verts_face_zup[0, 3] = new v_v3n3x2() { _v = bb_planes_Zup[3], _n = bb_norms_Zup[0], _x = bx_texs[3] };
+      bb_verts_face_zup[0, 0] = new v_v3n3x2f3t3() { _v = bb_planes_Zup[0], _n = bb_norms_Zup[0], _x = bx_texs[0] };
+      bb_verts_face_zup[0, 1] = new v_v3n3x2f3t3() { _v = bb_planes_Zup[1], _n = bb_norms_Zup[0], _x = bx_texs[1] };
+      bb_verts_face_zup[0, 2] = new v_v3n3x2f3t3() { _v = bb_planes_Zup[2], _n = bb_norms_Zup[0], _x = bx_texs[2] };
+      bb_verts_face_zup[0, 3] = new v_v3n3x2f3t3() { _v = bb_planes_Zup[3], _n = bb_norms_Zup[0], _x = bx_texs[3] };
 
-      bb_verts_face_zup[1, 0] = new v_v3n3x2() { _v = bb_planes_Zup[4], _n = bb_norms_Zup[1], _x = bx_texs[0] };
-      bb_verts_face_zup[1, 1] = new v_v3n3x2() { _v = bb_planes_Zup[5], _n = bb_norms_Zup[1], _x = bx_texs[1] };
-      bb_verts_face_zup[1, 2] = new v_v3n3x2() { _v = bb_planes_Zup[6], _n = bb_norms_Zup[1], _x = bx_texs[2] };
-      bb_verts_face_zup[1, 3] = new v_v3n3x2() { _v = bb_planes_Zup[7], _n = bb_norms_Zup[1], _x = bx_texs[3] };
+      bb_verts_face_zup[1, 0] = new v_v3n3x2f3t3() { _v = bb_planes_Zup[4], _n = bb_norms_Zup[1], _x = bx_texs[0] };
+      bb_verts_face_zup[1, 1] = new v_v3n3x2f3t3() { _v = bb_planes_Zup[5], _n = bb_norms_Zup[1], _x = bx_texs[1] };
+      bb_verts_face_zup[1, 2] = new v_v3n3x2f3t3() { _v = bb_planes_Zup[6], _n = bb_norms_Zup[1], _x = bx_texs[2] };
+      bb_verts_face_zup[1, 3] = new v_v3n3x2f3t3() { _v = bb_planes_Zup[7], _n = bb_norms_Zup[1], _x = bx_texs[3] };
 
       bool flip = false;
       bb_face_inds_zup = new uint[6] {
@@ -457,15 +455,16 @@ namespace PirateCraft
       };
       float animationTime = 5.0f; //seconds
 
-      float h = World.BlockSizeY * 0.1f;
-      List<Keyframe> keys = new List<Keyframe>();
-      keys.Add(new Keyframe(0.0f / 4.0f * animationTime, quat.fromAxisAngle(axis, 0), KeyframeInterpolation.Ease, new vec3(0, h * 0.0f, 0), KeyframeInterpolation.Ease));
-      keys.Add(new Keyframe(2.0f / 4.0f * animationTime, quat.fromAxisAngle(axis, MathUtils.M_PI - 0.001f), KeyframeInterpolation.Ease, new vec3(0, h * 1.0f, 0), KeyframeInterpolation.Ease));
-      keys.Add(new Keyframe(4.0f / 4.0f * animationTime, quat.fromAxisAngle(axis, MathUtils.M_PI * 2.0f - 0.001f), KeyframeInterpolation.Ease, new vec3(0, h * 0.0f, 0), KeyframeInterpolation.Ease));
+      //This was for rotating blocks..w ed on't need it..
+      // float h = World.BlockSizeY * 0.1f;
+      // List<Keyframe> keys = new List<Keyframe>();
+      // keys.Add(new Keyframe(0.0f / 4.0f * animationTime, quat.fromAxisAngle(axis, 0), KeyframeInterpolation.Ease, new vec3(0, h * 0.0f, 0), KeyframeInterpolation.Ease));
+      // keys.Add(new Keyframe(2.0f / 4.0f * animationTime, quat.fromAxisAngle(axis, MathUtils.M_PI - 0.001f), KeyframeInterpolation.Ease, new vec3(0, h * 1.0f, 0), KeyframeInterpolation.Ease));
+      // keys.Add(new Keyframe(4.0f / 4.0f * animationTime, quat.fromAxisAngle(axis, MathUtils.M_PI * 2.0f - 0.001f), KeyframeInterpolation.Ease, new vec3(0, h * 0.0f, 0), KeyframeInterpolation.Ease));
 
-      var ac = new AnimationComponent(keys, true);
-      Entity.Components.Add(ac);
-      ac.Play();
+      // var ac = new AnimationComponent(keys, true);
+      // Entity.Components.Add(ac);
+      // ac.Play();
     }
 
   }
@@ -543,6 +542,7 @@ namespace PirateCraft
     private WorldObject dummy = new WorldObject("dummy_beginrender");
     private WorldObject _debugDrawLines = null;
     private WorldObject _debugDrawPoints = null;
+    private DrawCall _visibleObsAll = new DrawCall();
     private DrawCall _visibleObsFirst_FW = new DrawCall();
     private DrawCall _visibleObsMid_FW = new DrawCall();
     private DrawCall _visibleObsLast_FW = new DrawCall();
@@ -636,6 +636,7 @@ namespace PirateCraft
       AutoSaveWorld(dt);
 
       _worldProps.DayNightCycle.Update(dt);
+
     }
     public void BuildAndCull(RenderView rv)
     {
@@ -703,6 +704,11 @@ namespace PirateCraft
     }
     public WorldObject AddObject(WorldObject ob)
     {
+      if (ob == null)
+      {
+        Gu.Log.Error("Object was null adding to world.");
+        return null;
+      }
       //TODO: optimize (hash map or something)
       foreach (var ob2 in _objects.Values)
       {
@@ -1000,6 +1006,7 @@ namespace PirateCraft
       _visibleObsFirst_DF.BeginCollectVisibleObjects();
       _visibleObsMid_DF.BeginCollectVisibleObjects();
       _visibleObsLast_DF.BeginCollectVisibleObjects();
+      _visibleObsAll.BeginCollectVisibleObjects();
 
       NumCulledObjects = 0;
 
@@ -1056,130 +1063,43 @@ namespace PirateCraft
     }
     public void RenderForward(double Delta, RenderView rv)
     {
-      //Render to this camera.
       _visibleObsFirst_FW.Draw(_worldProps, rv);
       _visibleObsMid_FW.Draw(_worldProps, rv);
       _visibleObsLast_FW.Draw(_worldProps, rv);
-
-      // //Draw First World Objects (sky)
-      // if (_visible_objects_ordered.Keys.Contains(DrawOrder.First))
-      // {
-      //   _visible_objects_ordered[DrawOrder.First].Sort((x, y) => x.UniqueID.CompareTo(y.UniqueID));
-      //   foreach (var ob in _visible_objects_ordered[DrawOrder.First])
-      //   {
-      //     ud.Draw(ob);
-      //   }
-      // }
-      // //Second World Objects
-      // if (_visible_objects_ordered.Keys.Contains(DrawOrder.Mid))
-      // {
-      //   _visible_objects_ordered[DrawOrder.Mid].Sort((x, y) => x.UniqueID.CompareTo(y.UniqueID));
-      //   foreach (var ob in _visible_objects_ordered[DrawOrder.Mid])
-      //   {
-      //     ud.Draw(ob);
-      //     _visible_objects_ordered[DrawOrder.First].Sort((x, y) => x.UniqueID.CompareTo(y.UniqueID));
-      //   }
-      // }
-
-      //ud.WorldObject = dummy;
-      //Globs
-      // Glob.dbg_ncalc = 0;
-      // List<MeshData> visible_op = new List<MeshData>();
-      // List<MeshData> visible_tp = new List<MeshData>();
-      // foreach (var g in _stuff.visible_globs)
-      // {
-      //   bool gvisible = false;
-      //   //No PVS, render all at first
-      //   if (g.Value.Opaque != null)
-      //   {
-      //     visible_op.Add(g.Value.Opaque);
-      //     gvisible = true;
-      //   }
-      //   if (g.Value.Transparent != null)
-      //   {
-      //     visible_tp.Add(g.Value.Transparent);
-      //     gvisible = true;
-      //   }
-      //   if (gvisible)
-      //   {
-      //     //g.Value.CalculateLightsIfNeeded(); //TODO: this should probably be async and launched for all globs via thread pool
-      //   }
-      // }
-
-      // //TESTING Disable fog when under water -- not really but if the b
-      // //int he futruer player block (camer visible)= water then diable fog
-      // ud.shaderData._fFogBlend = 0.56361f;
-      // if (Player.Position_World.y < 0)
-      // {
-      //   ud.shaderData._fFogBlend = 0.0f;
-      // }
-
-      // _worldMaterial_Op.Draw(visible_op.ToArray(), ud);
-      // float min = 0;
-      // float max = 1;
-      // int steps = 4;
-      // {
-      //   //need 2 zbuffers. we won't getinto MRT until later
-      //   // GL.DepthRange(0.75f, 1.0f);
-      //   // _worldMaterial_Tp.Draw(Delta, visible_tp.ToArray(), camera, dummy);
-      //   //  GL.DepthRange(0.50f, 0.75f);
-      //   // _worldMaterial_Tp.Draw(Delta, visible_tp.ToArray(), camera, dummy);
-      //   // GL.DepthRange(0.25f, 0.50f);
-      //   //_worldMaterial_Tp.Draw(Delta, visible_tp.ToArray(), camera, dummy);
-      //   // GL.DepthRange(0.0f, 0.25f);
-      //   _worldMaterial_Tp.Draw(visible_tp.ToArray(), ud);
-
-      // }
-
-      // //Block Objects DrawBlockObjects
-      // foreach (var ite in _stuff.visible_blockitems)
-      // {
-      //   Box3f dummy = Box3f.Zero;
-      //   dummy.genResetLimits();
-      //   //Update the base object, blockobjects share a single object
-      //   if (ite.Value.Count > 0)
-      //   {
-      //     ite.Key.WorldObject.Update(this, Delta, ref dummy);
-      //     BlockItem bi = ite.Key;
-      //     ud.instanceData = new mat4[ite.Value.Count];
-      //     int i_inst = 0;
-      //     foreach (var kvp in ite.Value)
-      //     {
-      //       //we are iterating by distance here so we are automatically sorted
-      //       ud.instanceData[i_inst] = mat4.getTranslation(kvp.Value);
-      //       i_inst++;
-      //     }
-      //     DrawObMesh(bi.WorldObject, ud);
-      //   }
-      // }
-      // ud.instanceData = null;//null this so we dont f up
-
-
-      //Draw Last order World Objects
-      // if (_visible_objects_ordered.Keys.Contains(DrawOrder.Last))
-      // {
-      //   _visible_objects_ordered[DrawOrder.Last].Sort((x, y) => x.UniqueID.CompareTo(y.UniqueID));
-      //   foreach (var ob in _visible_objects_ordered[DrawOrder.Last])
-      //   {
-      //     ud.Draw(ob);
-      //   }
-      // }
-
     }
-    public void RenderDebug(double Delta, RenderView rv)
+    public void RenderDebugForward(double Delta, RenderView rv)
     {
       var frame = Gu.Context.FrameStamp;
 
-      if (Gu.Context.DebugDraw.DrawBoundBoxes)
+      //Debug object attribs
+      if (_visibleObsAll != null)
       {
-        vec4 bbcolor = new vec4(1, 0, 0, 1);
-        foreach (var ob in _objects.Values)
+        //Bound box
+        if (Gu.Context.DebugDraw.DrawBoundBoxes)
         {
-          Gu.Context.DebugDraw.Box(ob.BoundBoxMeshTransform, ob.Material.BaseColor);
-          Gu.Context.DebugDraw.Box(ob.BoundBox, bbcolor);
+          vec4 bbcolor = new vec4(1, 0, 0, 1);
+          foreach (var obm in _visibleObsAll.VisibleObjects.Objects)
+          {
+            foreach (var obi in obm.Value)
+            {
+              foreach (var ob in obi.Value.Objects)
+              {
+                Gu.Assert(ob != null);
+                Gu.Assert(ob.Material != null);
+                Gu.Context.DebugDraw.Box(ob.BoundBoxMeshTransform, ob.Material.BaseColor);
+                Gu.Context.DebugDraw.Box(ob.BoundBox, bbcolor);
+              }
+            }
+          }
+        }
+        
+        //Normals
+        if (Gu.Context.DebugDraw.DrawVertexNormals || Gu.Context.DebugDraw.DrawFaceNormals)
+        {
+          _visibleObsAll.Draw(_worldProps, rv, Material.DebugDraw_VertexNormals_FlatColor);
         }
       }
-
+      // Debug helpers
       if (Gu.Context.DebugDraw.LinePoints.Count > 0)
       {
         GL.LineWidth(1.5f);
@@ -1209,6 +1129,9 @@ namespace PirateCraft
           );
         DrawCall.Draw(_worldProps, rv, _debugDrawPoints);
       }
+
+
+
     }
     private void CollectObjects(RenderView rv, Camera3D cam, WorldObject ob)
     {
@@ -1262,7 +1185,7 @@ namespace PirateCraft
               _visibleObsLast_FW.AddVisibleObject(ob);
             }
           }
-          //_visible_objects_ordered[ob.Mesh.DrawOrder].Add(ob);
+          _visibleObsAll.AddVisibleObject(ob);
         }
         else
         {

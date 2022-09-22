@@ -222,7 +222,7 @@ namespace PirateCraft
   public enum Phrase
   {
     //The name of this enum must match the name in the Phrases.csv file.
-    None,
+    None,//Empty, nothing, do not translate
     Foob,
     LongText,
     ImagesFolder,
@@ -285,7 +285,11 @@ namespace PirateCraft
     ProjectFolderExists,
     ConfirmOverwrite,
     About,
+    Version,
     Help,
+    Settings,
+    Test1,
+    Test2,
     PleaseCorrectTheFollowingErrors,
     PathHasInvalidChars,
     Close,
@@ -323,7 +327,7 @@ namespace PirateCraft
       }
     }
   }
-    public class FontRangeUTF8
+  public class FontRangeUTF8
   {
     //Not using System.Text.Unicode.UnicodeRange being, possibly we just want subsets of most ranges (for example CJKU)
     //Character ranges correspond to the chars we 'try' to fit on a single texture.
@@ -446,7 +450,7 @@ namespace PirateCraft
   }
   public class Translator
   {
-    public LanguageCode LanguageCode { get; set; } = LanguageCode.es;
+    public LanguageCode LanguageCode { get; set; } = LanguageCode.en;
     private BoJankEnumDataTable<LanguageCode, Phrase, String> _translateDataTable = null;
     public Translator()
     {
@@ -469,6 +473,10 @@ namespace PirateCraft
     {
       string? dat = "";
       bool found = false;
+      if (p == Phrase.None)
+      {
+        return "";
+      }
       if (_translateDataTable == null)
       {
         dat = GetDefaultUntranslated(p);
@@ -503,14 +511,14 @@ namespace PirateCraft
       }
       if (found == false)
       {
-        //Since it wasn't found, add not found asterisks.
-        dat = $"**{dat}";
+        dat = $"{dat}";
       }
 
       return dat;
     }
     private String GetDefaultUntranslated(Phrase p)
     {
+      //Since it wasn't found, add not found asterisks.
       return $"*{p.ToString()}*";
     }
     private string? GetInlineTrans(LanguageCode c, Phrase p)

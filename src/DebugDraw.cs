@@ -13,6 +13,8 @@ namespace PirateCraft
     public List<v_v3c4> Points = new List<v_v3c4>();
 
     public bool DrawBoundBoxes { get; set; } = false;
+    public bool DrawVertexNormals { get; set; } = false;
+    public bool DrawFaceNormals { get; set; } = false;
 
     public DebugDraw()
     {
@@ -45,7 +47,7 @@ namespace PirateCraft
     }
     public void Ellipsoid(int slices, int stacks, vec3 radius, vec3 pos, vec4 color)
     {
-      v_v3n3x2[] verts;
+      v_v3n3x2f3t3[] verts;
       ushort[] inds;
 
       MeshData.GenEllipsoid(out verts, out inds, radius, slices, stacks, false, false);
