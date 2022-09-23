@@ -56,6 +56,17 @@ namespace PirateCraft
         {
           return (PickedObjectFrame as UiElement).Name;
         }
+        else if (PickedObjectFrame is SoloMesh)
+        {
+          if ((PickedObjectFrame as SoloMesh).Mesh != null)
+          {
+            return (PickedObjectFrame as SoloMesh).Mesh.Name;
+          }
+          else
+          {
+            return "SoloMesh (no mesh)";
+          }
+        }
         return "<Unhandled object type>" + PickedObjectFrame.GetType().Name;
       }
     }

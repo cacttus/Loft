@@ -47,7 +47,7 @@ namespace PirateCraft
     }
     public void Ellipsoid(int slices, int stacks, vec3 radius, vec3 pos, vec4 color)
     {
-      v_v3n3x2f3t3[] verts;
+      v_v3n3x2t3u1[] verts;
       ushort[] inds;
 
       MeshData.GenEllipsoid(out verts, out inds, radius, slices, stacks, false, false);

@@ -2401,6 +2401,7 @@ namespace PirateCraft
 
       Mesh = new MeshData(rv.Name + "gui-mesh", OpenTK.Graphics.OpenGL4.PrimitiveType.Points,
       Gpu.CreateVertexBuffer(rv.Name + "gui-mesh", verts.ToArray()),
+      null,
       false
       );
       Mesh.DrawMode = DrawMode.Forward;

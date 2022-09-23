@@ -112,6 +112,9 @@ namespace PirateCraft
       Height = base.Size.Y;
       //Register this window with the system. We load all window data in the main loop.
       Gu.CreateContext("ctx" + Gu.Contexts.Count, this);
+
+      //Init with vsync off.
+      VSync = VSyncMode.Off;
     }
     private void CreateCameraView(vec2 xy, vec2 wh)
     {
@@ -151,7 +154,6 @@ namespace PirateCraft
     }
     public virtual void Load()
     {
-      SetGameMode(Gu.World.GameMode);
       IsLoaded = true;
     }
     public void UpdateAsync()
@@ -292,7 +294,9 @@ namespace PirateCraft
     }
     protected override void OnClosing(CancelEventArgs e)
     {
+      //The closing event does not seem to propogate for some reason..?
       base.OnClosing(e);
+      Gu.CloseWindow(this);
     }
     protected override void OnClosed()
     {
@@ -609,7 +613,7 @@ namespace PirateCraft
     }
     public override void Load()
     {
-      Gu.World = new World(Gu.GetContextForWindow(this));
+
       base.Load();
       InitMainWindow();
     }
@@ -641,34 +645,35 @@ namespace PirateCraft
         cpos = cm.Position_World;
       }
 
-      var info = ""
-          + $"{rv.Name}\n"
-          + $"{Profile.ToString()}\n"
-          + $"{build} {Gu.GetAssemblyVersion()}\n"
-          + $"(Cam = {cpos.ToString(2)})\n"
-          + $"FPS: {(int)Gu.Context.FpsAvg}\n"
-          + $"nyugs b: {Box3f.nugs}\n"
-          + $"Globs: {Gu.World.NumGlobs}\n"
-          + $"Visible Glob: {Gu.World.NumVisibleRenderGlobs}\n"
-          + $"DrawElements_Frame:{MeshData.dbg_numDrawElements_Frame}\n"
-          + $"Arrays_Frame: {MeshData.dbg_numDrawArrays_Frame}\n"
-          + $"OBs culled:{Gu.World.NumCulledObjects}\n"
-          + $"Mouse:{Gu.Mouse.Pos.x},{Gu.Mouse.Pos.y}\n"
-          + $"Memory:{StringUtil.FormatPrec((float)System.Diagnostics.Process.GetCurrentProcess().PrivateMemorySize64 / 1024 / 1024, 2)}MB\n"
-          + $"UI Update:{rv.ActiveGui?.UpdateMs}ms\n"
-          + $"UI pick:{rv.ActiveGui?.PickMs}ms\n"
-          + $"UI mesh:{rv.ActiveGui?.MeshMs}ms\n"
-          + $"UI obj events:{rv.ActiveGui?.ObjectEventsMs}ms\n"
-          + $"UI window events:{rv.ActiveGui?.WindowEventsMs}ms\n"
-          + $"UI tot:{rv.ActiveGui?.MeshMs + rv.ActiveGui?.UpdateMs + rv.ActiveGui?.PickMs}ms\n"
-          + $"Picked Ob:{Gu.Context.Renderer.Picker.PickedObjectName}\n"
-          + $"Selected Ob:{rv.ObjectSelector.SelectedObjects.Count}\n"
-          ;
+      var info = new System.Text.StringBuilder();
+      info.AppendLine($"{rv.Name}");
+      info.AppendLine($"{Profile.ToString()}");
+      info.AppendLine($"{build} {Gu.GetAssemblyVersion()}");
+      info.AppendLine($"(Cam = {cpos.ToString(2)})");
+      info.AppendLine($"FPS: {(int)Gu.Context.FpsAvg}");
+      info.AppendLine($"nyugs b: {Box3f.nugs}");
+      info.AppendLine($"Globs: {Gu.World.NumGlobs}");
+      info.AppendLine($"Visible Glob: {Gu.World.NumVisibleRenderGlobs}");
+      info.AppendLine($"DrawElements_Frame:{MeshData.dbg_numDrawElements_Frame}");
+      info.AppendLine($"Arrays_Frame: {MeshData.dbg_numDrawArrays_Frame}");
+      info.AppendLine($"OBs culled:{Gu.World.NumCulledObjects}");
+      info.AppendLine($"Mouse:{Gu.Mouse.Pos.x},{Gu.Mouse.Pos.y}");
+      info.AppendLine($"Memory:{StringUtil.FormatPrec((float)System.Diagnostics.Process.GetCurrentProcess().PrivateMemorySize64 / 1024 / 1024, 2)}MB");
+      info.AppendLine($"UI Update:{rv.ActiveGui?.UpdateMs}ms");
+      info.AppendLine($"UI pick:{rv.ActiveGui?.PickMs}ms");
+      info.AppendLine($"UI mesh:{rv.ActiveGui?.MeshMs}ms");
+      info.AppendLine($"UI obj events:{rv.ActiveGui?.ObjectEventsMs}ms");
+      info.AppendLine($"UI window events:{rv.ActiveGui?.WindowEventsMs}ms");
+      info.AppendLine($"UI tot:{rv.ActiveGui?.MeshMs + rv.ActiveGui?.UpdateMs + rv.ActiveGui?.PickMs}ms");
+      info.AppendLine($"Picked Ob:{Gu.Context.Renderer.Picker.PickedObjectName}");
+      info.AppendLine($"Selected Ob:{rv.ObjectSelector.SelectedObjects.Count}");
+      info.AppendLine($"GPU Memory");
+      info.AppendLine(Gu.Context.Gpu.GetMemoryInfo().ToString());
 
       //UI Test
       if (rv.DebugInfo != null)
       {
-        rv.DebugInfo.Text = info;
+        rv.DebugInfo.Text = info.ToString();
       }
 
       UpdateInfoWindowInfo();
@@ -735,9 +740,11 @@ namespace PirateCraft
         OperatingSystem.HideConsole();
 #endif
       Title = "Slaver " + VersionId.ToString();
-
-      Gu.World.Initialize("MyWorld", DELETE_WORLD_START_FRESH, 2);
-      Gu.Context.DebugDraw.DrawBoundBoxes = false;
+      Gu.WorldLoader = new WorldLoader(Gu.GetContextForWindow(this));
+     
+      var w = Gu.WorldLoader.CreateNewWorld(new WorldInfo("MyWorld", DELETE_WORLD_START_FRESH, 2));
+     
+      SetGameMode(Gu.World.GameMode);
 
       TestCreateDebugObjects();
       CreateSky();
@@ -926,7 +933,7 @@ namespace PirateCraft
       Texture2D tx_brady = Gu.Resources.LoadTexture(brady, true, TexFilter.Trilinear);
 
       //Objects
-      Gu.World.CreateAndAddObject("Grass-Plane.", MeshData.GenPlane(10, 10), new Material("grass-plane", Shader.DefaultObjectShader(), tx_grass, new Texture2D(ResourceManager.LoadImage(grass).CreateNormalMap(false), true, TexFilter.Linear)));
+      Gu.World.CreateAndAddObject("Grass-Plane.", MeshData.GenPlane(10, 10), new Material("grass-plane", Shader.DefaultObjectShader(), tx_grass, new Texture2D(ResourceManager.LoadImage(grass).CreateNormalMap(false, 0.2f), true, TexFilter.Linear)));
 
       //Gu.Debug_IntegrityTestGPUMemory();
 
@@ -935,7 +942,7 @@ namespace PirateCraft
       testobjs[1].Flat = true;
       testobjs[2] = new Material("sphere_rot3", Shader.DefaultObjectShader(), tx_brady, new Texture2D(ResourceManager.LoadImage(brady).CreateNormalMap(false), true, TexFilter.Linear));
 
-      Sphere_Rotate_Quat_Test = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test", MeshData.GenSphere(1,12,12,true), testobjs[0]);
+      Sphere_Rotate_Quat_Test = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test", MeshData.GenSphere(1, 12, 12, true), testobjs[0]);
       Sphere_Rotate_Quat_Test2 = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test2", MeshData.GenEllipsoid(new vec3(1f, 1, 1f), 32, 32, true), testobjs[1]);
       Sphere_Rotate_Quat_Test3 = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test3", MeshData.GenEllipsoid(new vec3(1, 1, 1), 32, 32, true), testobjs[2]);
       Sphere_Rotate_Quat_Test.Position_Local = new vec3(0, 3, 0);

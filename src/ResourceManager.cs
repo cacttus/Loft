@@ -1007,10 +1007,10 @@ namespace PirateCraft
      ushort[] indices_ushort, uint[] indices_uint, vec3[] positions, vec3[] normals, vec2[] texs_0, vec3[] tangents, bool flip_tris)
     {
       //Pack everything
-      v_v3n3x2f3t3[] verts = new v_v3n3x2f3t3[positions.Length];
+      v_v3n3x2t3u1[] verts = new v_v3n3x2t3u1[positions.Length];
       for (int ivert = 0; ivert < positions.Length; ivert++)
       {
-        verts[ivert] = new v_v3n3x2f3t3();
+        verts[ivert] = new v_v3n3x2t3u1();
         verts[ivert]._v = positions[ivert];
         if (normals != null)
         {
@@ -1034,17 +1034,11 @@ namespace PirateCraft
         {
           for (int vi = 0; vi < verts.Length; vi += 3)
           {
-            v_v3n3x2f3t3 vert = verts[vi];
+            v_v3n3x2t3u1 vert = verts[vi];
             verts[vi] = verts[vi + 1];
             verts[vi + 1] = vert;
           }
         }
-        if (tangents == null)
-        {
-          MeshData.ComputeTangentsAndFaces(verts);
-        }
-        root.Mesh = new MeshData(mesh_name, mesh_prim_type,
-          Gpu.CreateVertexBuffer(mesh_name, verts));
       }
       else if (indices_uint != null)
       {
@@ -1057,14 +1051,6 @@ namespace PirateCraft
             indices_uint[vi + 1] = idx;
           }
         }
-        if (tangents == null)
-        {
-          MeshData.ComputeTangentsAndFaces(verts, indices_uint);
-        }
-        root.Mesh = new MeshData(mesh_name, mesh_prim_type,
-          Gpu.CreateVertexBuffer(mesh_name, verts),
-          Gpu.CreateIndexBuffer(mesh_name, indices_uint)
-          );
       }
       else if (indices_ushort != null)
       {
@@ -1077,18 +1063,32 @@ namespace PirateCraft
             indices_ushort[vi + 1] = idx;
           }
         }
-        if (tangents == null)
-        {
-          MeshData.ComputeTangentsAndFaces(verts, indices_ushort);
-        }        
-        root.Mesh = new MeshData(mesh_name, mesh_prim_type,
-          Gpu.CreateVertexBuffer(mesh_name, verts),
-          Gpu.CreateIndexBuffer(mesh_name, indices_ushort)
-          );
       }
       else
       {
         Gu.BRThrowNotImplementedException();
+      }
+
+      if (indices_uint == null && indices_ushort == null)
+      {
+        var fd = MeshData.ComputeNormalsAndTangents(verts, null, normals == null, tangents == null);
+
+        root.Mesh = new MeshData(mesh_name, mesh_prim_type,
+          Gpu.CreateVertexBuffer(mesh_name, verts),
+          Gpu.CreateVertexBuffer(mesh_name, fd),
+          Gpu.CreateShaderStorageBuffer(mesh_name, fd),
+          true
+          );
+      }
+      else
+      {
+        var fd = MeshData.ComputeNormalsAndTangents(verts, indices_uint != null ? indices_uint : indices_ushort.AsUIntArray(), normals == null, tangents == null);
+        root.Mesh = new MeshData(mesh_name, mesh_prim_type,
+          Gpu.CreateVertexBuffer(mesh_name, verts),
+          indices_uint != null ? Gpu.CreateIndexBuffer(mesh_name, indices_uint) : Gpu.CreateIndexBuffer(mesh_name, indices_ushort),
+          Gpu.CreateShaderStorageBuffer(mesh_name, fd),
+          true
+          );
       }
 
     }

@@ -626,6 +626,10 @@ namespace PirateCraft
 
   }
 
+  public enum GPUVendor
+  {
+    Undefined, ATI, NVIDIA, INTEL
+  }
   public class Gpu
   {
     private Dictionary<WindowContext, List<Action<WindowContext>>> RenderThreadActions = new Dictionary<WindowContext, List<Action<WindowContext>>>();
@@ -633,13 +637,25 @@ namespace PirateCraft
     //  public GpuRenderState GpuRenderState { get; set; } = new GpuRenderState();
     public int RenderThreadID { get; private set; } = -1;
 
+    public GPUVendor Vendor = GPUVendor.Undefined;
+    public string VendorString = "";
     public Gpu()
     {
       //Initializes gpu info
+      RenderThreadID = Thread.CurrentThread.ManagedThreadId;
+
       int[] maxTextureSize = new int[2];
       GL.GetInteger(GetPName.MaxTextureSize, maxTextureSize);
       _maxTextureSize = maxTextureSize[0];
-      RenderThreadID = Thread.CurrentThread.ManagedThreadId;
+
+      VendorString = GL.GetString​(StringName.Vendor);
+      if (VendorString.Contains("ATI")) { Vendor = GPUVendor.ATI; }
+      else if (VendorString.Contains("NVIDIA")) { Vendor = GPUVendor.NVIDIA; }
+      else if (VendorString.Contains("INTEL") || VendorString.Contains("Intel")) { Vendor = GPUVendor.INTEL; }
+      else
+      {
+        Gu.BRThrowException("Invalid GPU vendor string: " + VendorString);
+      }
     }
     public int GetMaxTextureSize()
     {
@@ -961,31 +977,122 @@ namespace PirateCraft
       GL.GetObjectLabel(idt, id, 256, out length, out label);
       return label;
     }
-    public static GPUBuffer CreateBuffer<T>(string name, BufferTarget t, T[] data)
+    public static GPUBuffer CreateUniformBuffer<T>(string name, T[] items)
     {
-      int size = 0;
-      int length = data.Length;
-      if (data.Length == 0)
-      {
-        size = 0;
-      }
-      else
-      {
-        size = Marshal.SizeOf(data[0]);
-      }
-
-      var fmt = VertexFormat.GetVertexFormat<T>();
-      GPUBuffer b = new GPUBuffer(name, fmt, t, size, length, (object)data);
-      return b;
+      return new GPUBuffer(name + "-ubo", null, BufferTarget.UniformBuffer, items.ElementSize(), items.Length, items);
+    }
+    public static GPUBuffer CreateUniformBuffer(string name, int item_size_bytes, int item_count)
+    {
+      return new GPUBuffer(name + "-ubo", null, BufferTarget.UniformBuffer, item_size_bytes, item_count, null);
+    }
+    public static GPUBuffer CreateShaderStorageBuffer<T>(string name, T[] items)
+    {
+      return new GPUBuffer(name + "-ssbo", null, BufferTarget.ShaderStorageBuffer, items.ElementSize(), items.Length, items);
+    }
+    public static GPUBuffer CreateShaderStorageBuffer(string name, int item_size_bytes, int item_count)
+    {
+      return new GPUBuffer(name + "-ssbo", null, BufferTarget.ShaderStorageBuffer, item_size_bytes, item_count, null);
     }
     public static GPUBuffer CreateVertexBuffer<T>(string name, T[] verts)
     {
-      return CreateBuffer(name + "-vertex", BufferTarget.ArrayBuffer, verts);
+      Gu.Assert(verts != null);
+      return new GPUBuffer(name + "-vbo", VertexFormat.GetVertexFormat<T>(), BufferTarget.ArrayBuffer, verts.ElementSize(), verts.Length, verts);
     }
     public static GPUBuffer CreateIndexBuffer<T>(string name, T[] inds)
     {
-      return CreateBuffer(name + "-index", BufferTarget.ElementArrayBuffer, inds);
+      Gu.Assert(inds != null);
+      return new GPUBuffer(name + "-ibo", VertexFormat.GetVertexFormat<T>(), BufferTarget.ElementArrayBuffer, inds.ElementSize(), inds.Length, inds);
     }
+
+    public class GPUMemInfo
+    {
+      public int? Free = null;
+      public int? Total = null;
+
+      public int? GPU_MEMORY_INFO_DEDICATED_VIDMEM_NVX = null;
+      public int? GPU_MEMORY_INFO_EVICTION_COUNT_NVX = null;
+      public int? GPU_MEMORY_INFO_EVICTED_MEMORY_NVX = null;
+
+      public int? VBO_FREE_MEMORY_ATI = null;
+      public int? TEXTURE_FREE_MEMORY_ATI = null;
+      public int? RENDERBUFFER_FREE_MEMORY_ATI = null;
+
+      public override string ToString()
+      {
+        StringBuilder s = new StringBuilder();
+        if (this.Free != null) { s.AppendLine($"Free :{this.Free}kB"); }
+        if (this.Total != null) { s.AppendLine($"Total:{this.Total}kB"); }
+        if (this.GPU_MEMORY_INFO_DEDICATED_VIDMEM_NVX != null) { s.AppendLine($"GPU_MEMORY_INFO_DEDICATED_VIDMEM_NVX :{this.GPU_MEMORY_INFO_DEDICATED_VIDMEM_NVX}kB"); }
+        if (this.GPU_MEMORY_INFO_EVICTION_COUNT_NVX != null) { s.AppendLine($"GPU_MEMORY_INFO_EVICTION_COUNT_NVX :{this.GPU_MEMORY_INFO_EVICTION_COUNT_NVX}"); }
+        if (this.GPU_MEMORY_INFO_EVICTED_MEMORY_NVX != null) { s.AppendLine($"GPU_MEMORY_INFO_EVICTED_MEMORY_NVX :{this.GPU_MEMORY_INFO_EVICTED_MEMORY_NVX}"); }
+        if (this.VBO_FREE_MEMORY_ATI != null) { s.AppendLine($"VBO_FREE_MEMORY_ATI :{this.VBO_FREE_MEMORY_ATI}kB"); }
+        if (this.TEXTURE_FREE_MEMORY_ATI != null) { s.AppendLine($"TEXTURE_FREE_MEMORY_ATI :{this.TEXTURE_FREE_MEMORY_ATI}kB"); }
+        if (this.RENDERBUFFER_FREE_MEMORY_ATI != null) { s.AppendLine($"RENDERBUFFER_FREE_MEMORY_ATI :{this.RENDERBUFFER_FREE_MEMORY_ATI}kB"); }
+        return s.ToString();
+      }
+    }
+
+    public GPUMemInfo GetMemoryInfo()
+    {
+      Gpu.CheckGpuErrorsRt();
+      GPUMemInfo m = new GPUMemInfo();
+      if (Vendor == GPUVendor.NVIDIA)
+      {
+        //NV
+        //https://developer.download.nvidia.com/opengl/specs/GL_NVX_gpu_memory_info.txt
+        const int GPU_MEMORY_INFO_DEDICATED_VIDMEM_NVX = 0x9047;
+        const int GPU_MEMORY_INFO_TOTAL_AVAILABLE_MEMORY_NVX = 0x9048;
+        const int GPU_MEMORY_INFO_CURRENT_AVAILABLE_VIDMEM_NVX = 0x9049;
+        const int GPU_MEMORY_INFO_EVICTION_COUNT_NVX = 0x904A;
+        const int GPU_MEMORY_INFO_EVICTED_MEMORY_NVX = 0x904B;
+
+        //All values return kb
+        int current = 0, total = 0, dedicated = 0, eviction = 0, evicted = 0;
+        GL.GetInteger((GetPName)GPU_MEMORY_INFO_DEDICATED_VIDMEM_NVX, out dedicated);
+        GL.GetInteger((GetPName)GPU_MEMORY_INFO_TOTAL_AVAILABLE_MEMORY_NVX, out total);
+        GL.GetInteger((GetPName)GPU_MEMORY_INFO_CURRENT_AVAILABLE_VIDMEM_NVX, out current);
+        GL.GetInteger((GetPName)GPU_MEMORY_INFO_EVICTION_COUNT_NVX, out eviction);
+        GL.GetInteger((GetPName)GPU_MEMORY_INFO_EVICTED_MEMORY_NVX, out evicted);
+        m.Free = current;
+        m.Total = total;
+        m.GPU_MEMORY_INFO_DEDICATED_VIDMEM_NVX = dedicated;
+        m.GPU_MEMORY_INFO_EVICTION_COUNT_NVX = eviction;
+        m.GPU_MEMORY_INFO_EVICTED_MEMORY_NVX = evicted;
+      }
+      else if (Vendor == GPUVendor.ATI)
+      {
+        //ATI
+        //https://registry.khronos.org/OpenGL/extensions/ATI/ATI_meminfo.txt
+        //All values return kb, like NV
+        //      param[0] - total memory free in the pool
+        //        param[1] - largest available free block in the pool
+        //        param[2] - total auxiliary memory free
+        //        param[3] - largest auxiliary free block
+
+        const int VBO_FREE_MEMORY_ATI = 0x87FB;
+        const int TEXTURE_FREE_MEMORY_ATI = 0x87FC;
+        const int RENDERBUFFER_FREE_MEMORY_ATI = 0x87FD;
+        int[] vbo = new int[4];
+        int[] texture = new int[4];
+        int[] renderbuffer = new int[4];
+        GL.GetInteger((GetPName)VBO_FREE_MEMORY_ATI, vbo);
+        GL.GetInteger((GetPName)TEXTURE_FREE_MEMORY_ATI, texture);
+        GL.GetInteger((GetPName)RENDERBUFFER_FREE_MEMORY_ATI, renderbuffer);
+        m.Free = vbo[0] + texture[0] + renderbuffer[0];
+        m.Total = m.Free;
+        m.VBO_FREE_MEMORY_ATI = vbo[0];
+        m.TEXTURE_FREE_MEMORY_ATI = texture[0];
+        m.RENDERBUFFER_FREE_MEMORY_ATI = renderbuffer[0];
+      }
+      else
+      {
+        Gu.Log.Error($"Vendor {Vendor.ToString()} not supported for memoryinfo()");
+      }
+      Gpu.CheckGpuErrorsRt();
+
+      return m;
+    }
+
   }//Gpu
 
   public class GpuDebugInfo

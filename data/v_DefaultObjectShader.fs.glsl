@@ -5,7 +5,6 @@ in vec2 _vsTcoords;
 in vec3 _vsVertex;
 flat in uint _vsPick;
 in vec3 _vsTangent;
-in vec3 _vsFaceNormal;
 
 void main(void) 
 {
@@ -27,5 +26,5 @@ void main(void)
   setOutput_Pick(_vsPick);  
   setOutput_Normal(vec4(final_normal, 1));  
   setOutput_Position(vec4(_vsVertex, _ufGpuMaterial._flat));   
-  setOutput_Plane(vec4(_vsFaceNormal, 1));        
+  setOutput_Plane(vec4(0,0,0, 1));        
 }   

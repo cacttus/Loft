@@ -32,6 +32,7 @@ namespace PirateCraft
     public static Log Log { get; set; } = null;
     public static WindowContext Context { get; set; } = null;
     public static World World = null;
+    public static WorldLoader WorldLoader = null;
     public static PCMouse Mouse { get { return Context.PCMouse; } }
     public static PCKeyboard Keyboard { get { return Context.PCKeyboard; } }
     public static string ExePath { get; private set; } = "";

@@ -11,8 +11,7 @@ namespace PirateCraft
   }
   public enum GameMode
   {
-    Play
-    , Edit
+    Play, Edit
   }
   public enum TileImage
   {
@@ -67,15 +66,15 @@ namespace PirateCraft
     };
     //Unit box for creating mesh cubes, Tiles, Material
 
-    public static vec3[] BlockNeighborOffsets = new vec3[6]
-    {
-      new vec3(-World.BlockSizeX, 0, 0),
-      new vec3(World.BlockSizeX, 0, 0),
-      new vec3(0, -World.BlockSizeY, 0),
-      new vec3(0, World.BlockSizeY, 0),
-      new vec3(0, 0, -World.BlockSizeZ),
-      new vec3(0, 0, World.BlockSizeZ),
-    };
+    // public static vec3[] BlockNeighborOffsets = new vec3[6]
+    // {
+    //   new vec3(-World.BlockSizeX, 0, 0),
+    //   new vec3(World.BlockSizeX, 0, 0),
+    //   new vec3(0, -World.BlockSizeY, 0),
+    //   new vec3(0, World.BlockSizeY, 0),
+    //   new vec3(0, 0, -World.BlockSizeZ),
+    //   new vec3(0, 0, World.BlockSizeZ),
+    // };
 
     public static Dictionary<TileImage, FileLoc> TileImages = new Dictionary<TileImage, FileLoc>() {
             { TileImage.Grass, new FileLoc("tx64_grass.png", FileStorage.Embedded) },
@@ -118,12 +117,12 @@ namespace PirateCraft
     private static vec3[] bx_box = new vec3[8];
     public static vec3[] bx_norms = new vec3[6];//lrbtaf
     private static vec2[] bx_texs = new vec2[4];
-    public static v_v3n3x2f3t3[,] bx_verts_face { get; private set; } = new v_v3n3x2f3t3[6, 4];//lrbtaf
+    public static v_v3n3x2t3u1[,] bx_verts_face { get; private set; } = new v_v3n3x2t3u1[6, 4];//lrbtaf
     public static uint[] bx_face_inds { get; private set; }
 
     private static vec3[] bb_planes_Zup = new vec3[8];
     private static vec3[] bb_norms_Zup = new vec3[2];
-    public static v_v3n3x2f3t3[,] bb_verts_face_zup { get; private set; } = new v_v3n3x2f3t3[2, 4];//normals point +x, +z
+    public static v_v3n3x2t3u1[,] bb_verts_face_zup { get; private set; } = new v_v3n3x2t3u1[2, 4];//normals point +x, +z
     public static uint[] bb_face_inds_zup { get; private set; }
 
     private static void DoBox(float w2, float h2, float d2)
@@ -155,35 +154,35 @@ namespace PirateCraft
       //     4       5
       // 0      1
       //Order of faces: Left, Right, Bottom, Top, Back Front (LRBTAF)
-      bx_verts_face[0, 0] = new v_v3n3x2f3t3() { _v = bx_box[4], _n = bx_norms[0], _x = bx_texs[0] };
-      bx_verts_face[0, 1] = new v_v3n3x2f3t3() { _v = bx_box[0], _n = bx_norms[0], _x = bx_texs[1] };
-      bx_verts_face[0, 2] = new v_v3n3x2f3t3() { _v = bx_box[6], _n = bx_norms[0], _x = bx_texs[2] };
-      bx_verts_face[0, 3] = new v_v3n3x2f3t3() { _v = bx_box[2], _n = bx_norms[0], _x = bx_texs[3] };
+      bx_verts_face[0, 0] = new v_v3n3x2t3u1() { _v = bx_box[4], _n = bx_norms[0], _x = bx_texs[0] };
+      bx_verts_face[0, 1] = new v_v3n3x2t3u1() { _v = bx_box[0], _n = bx_norms[0], _x = bx_texs[1] };
+      bx_verts_face[0, 2] = new v_v3n3x2t3u1() { _v = bx_box[6], _n = bx_norms[0], _x = bx_texs[2] };
+      bx_verts_face[0, 3] = new v_v3n3x2t3u1() { _v = bx_box[2], _n = bx_norms[0], _x = bx_texs[3] };
 
-      bx_verts_face[1, 0] = new v_v3n3x2f3t3() { _v = bx_box[1], _n = bx_norms[1], _x = bx_texs[0] };
-      bx_verts_face[1, 1] = new v_v3n3x2f3t3() { _v = bx_box[5], _n = bx_norms[1], _x = bx_texs[1] };
-      bx_verts_face[1, 2] = new v_v3n3x2f3t3() { _v = bx_box[3], _n = bx_norms[1], _x = bx_texs[2] };
-      bx_verts_face[1, 3] = new v_v3n3x2f3t3() { _v = bx_box[7], _n = bx_norms[1], _x = bx_texs[3] };
+      bx_verts_face[1, 0] = new v_v3n3x2t3u1() { _v = bx_box[1], _n = bx_norms[1], _x = bx_texs[0] };
+      bx_verts_face[1, 1] = new v_v3n3x2t3u1() { _v = bx_box[5], _n = bx_norms[1], _x = bx_texs[1] };
+      bx_verts_face[1, 2] = new v_v3n3x2t3u1() { _v = bx_box[3], _n = bx_norms[1], _x = bx_texs[2] };
+      bx_verts_face[1, 3] = new v_v3n3x2t3u1() { _v = bx_box[7], _n = bx_norms[1], _x = bx_texs[3] };
 
-      bx_verts_face[2, 0] = new v_v3n3x2f3t3() { _v = bx_box[4], _n = bx_norms[2], _x = bx_texs[0] };
-      bx_verts_face[2, 1] = new v_v3n3x2f3t3() { _v = bx_box[5], _n = bx_norms[2], _x = bx_texs[1] };
-      bx_verts_face[2, 2] = new v_v3n3x2f3t3() { _v = bx_box[0], _n = bx_norms[2], _x = bx_texs[2] };
-      bx_verts_face[2, 3] = new v_v3n3x2f3t3() { _v = bx_box[1], _n = bx_norms[2], _x = bx_texs[3] };
+      bx_verts_face[2, 0] = new v_v3n3x2t3u1() { _v = bx_box[4], _n = bx_norms[2], _x = bx_texs[0] };
+      bx_verts_face[2, 1] = new v_v3n3x2t3u1() { _v = bx_box[5], _n = bx_norms[2], _x = bx_texs[1] };
+      bx_verts_face[2, 2] = new v_v3n3x2t3u1() { _v = bx_box[0], _n = bx_norms[2], _x = bx_texs[2] };
+      bx_verts_face[2, 3] = new v_v3n3x2t3u1() { _v = bx_box[1], _n = bx_norms[2], _x = bx_texs[3] };
 
-      bx_verts_face[3, 0] = new v_v3n3x2f3t3() { _v = bx_box[2], _n = bx_norms[3], _x = bx_texs[0] };
-      bx_verts_face[3, 1] = new v_v3n3x2f3t3() { _v = bx_box[3], _n = bx_norms[3], _x = bx_texs[1] };
-      bx_verts_face[3, 2] = new v_v3n3x2f3t3() { _v = bx_box[6], _n = bx_norms[3], _x = bx_texs[2] };
-      bx_verts_face[3, 3] = new v_v3n3x2f3t3() { _v = bx_box[7], _n = bx_norms[3], _x = bx_texs[3] };
+      bx_verts_face[3, 0] = new v_v3n3x2t3u1() { _v = bx_box[2], _n = bx_norms[3], _x = bx_texs[0] };
+      bx_verts_face[3, 1] = new v_v3n3x2t3u1() { _v = bx_box[3], _n = bx_norms[3], _x = bx_texs[1] };
+      bx_verts_face[3, 2] = new v_v3n3x2t3u1() { _v = bx_box[6], _n = bx_norms[3], _x = bx_texs[2] };
+      bx_verts_face[3, 3] = new v_v3n3x2t3u1() { _v = bx_box[7], _n = bx_norms[3], _x = bx_texs[3] };
 
-      bx_verts_face[4, 0] = new v_v3n3x2f3t3() { _v = bx_box[0], _n = bx_norms[4], _x = bx_texs[0] };
-      bx_verts_face[4, 1] = new v_v3n3x2f3t3() { _v = bx_box[1], _n = bx_norms[4], _x = bx_texs[1] };
-      bx_verts_face[4, 2] = new v_v3n3x2f3t3() { _v = bx_box[2], _n = bx_norms[4], _x = bx_texs[2] };
-      bx_verts_face[4, 3] = new v_v3n3x2f3t3() { _v = bx_box[3], _n = bx_norms[4], _x = bx_texs[3] };
+      bx_verts_face[4, 0] = new v_v3n3x2t3u1() { _v = bx_box[0], _n = bx_norms[4], _x = bx_texs[0] };
+      bx_verts_face[4, 1] = new v_v3n3x2t3u1() { _v = bx_box[1], _n = bx_norms[4], _x = bx_texs[1] };
+      bx_verts_face[4, 2] = new v_v3n3x2t3u1() { _v = bx_box[2], _n = bx_norms[4], _x = bx_texs[2] };
+      bx_verts_face[4, 3] = new v_v3n3x2t3u1() { _v = bx_box[3], _n = bx_norms[4], _x = bx_texs[3] };
 
-      bx_verts_face[5, 0] = new v_v3n3x2f3t3() { _v = bx_box[5], _n = bx_norms[5], _x = bx_texs[0] };
-      bx_verts_face[5, 1] = new v_v3n3x2f3t3() { _v = bx_box[4], _n = bx_norms[5], _x = bx_texs[1] };
-      bx_verts_face[5, 2] = new v_v3n3x2f3t3() { _v = bx_box[7], _n = bx_norms[5], _x = bx_texs[2] };
-      bx_verts_face[5, 3] = new v_v3n3x2f3t3() { _v = bx_box[6], _n = bx_norms[5], _x = bx_texs[3] };
+      bx_verts_face[5, 0] = new v_v3n3x2t3u1() { _v = bx_box[5], _n = bx_norms[5], _x = bx_texs[0] };
+      bx_verts_face[5, 1] = new v_v3n3x2t3u1() { _v = bx_box[4], _n = bx_norms[5], _x = bx_texs[1] };
+      bx_verts_face[5, 2] = new v_v3n3x2t3u1() { _v = bx_box[7], _n = bx_norms[5], _x = bx_texs[2] };
+      bx_verts_face[5, 3] = new v_v3n3x2t3u1() { _v = bx_box[6], _n = bx_norms[5], _x = bx_texs[3] };
 
       bool flip = false;
       bx_face_inds = new uint[6] {
@@ -218,15 +217,15 @@ namespace PirateCraft
       bb_norms_Zup[1] = new vec3(0, 0, 1);
 
       //using box textures here because we won't need it in a normal case anyway.
-      bb_verts_face_zup[0, 0] = new v_v3n3x2f3t3() { _v = bb_planes_Zup[0], _n = bb_norms_Zup[0], _x = bx_texs[0] };
-      bb_verts_face_zup[0, 1] = new v_v3n3x2f3t3() { _v = bb_planes_Zup[1], _n = bb_norms_Zup[0], _x = bx_texs[1] };
-      bb_verts_face_zup[0, 2] = new v_v3n3x2f3t3() { _v = bb_planes_Zup[2], _n = bb_norms_Zup[0], _x = bx_texs[2] };
-      bb_verts_face_zup[0, 3] = new v_v3n3x2f3t3() { _v = bb_planes_Zup[3], _n = bb_norms_Zup[0], _x = bx_texs[3] };
+      bb_verts_face_zup[0, 0] = new v_v3n3x2t3u1() { _v = bb_planes_Zup[0], _n = bb_norms_Zup[0], _x = bx_texs[0] };
+      bb_verts_face_zup[0, 1] = new v_v3n3x2t3u1() { _v = bb_planes_Zup[1], _n = bb_norms_Zup[0], _x = bx_texs[1] };
+      bb_verts_face_zup[0, 2] = new v_v3n3x2t3u1() { _v = bb_planes_Zup[2], _n = bb_norms_Zup[0], _x = bx_texs[2] };
+      bb_verts_face_zup[0, 3] = new v_v3n3x2t3u1() { _v = bb_planes_Zup[3], _n = bb_norms_Zup[0], _x = bx_texs[3] };
 
-      bb_verts_face_zup[1, 0] = new v_v3n3x2f3t3() { _v = bb_planes_Zup[4], _n = bb_norms_Zup[1], _x = bx_texs[0] };
-      bb_verts_face_zup[1, 1] = new v_v3n3x2f3t3() { _v = bb_planes_Zup[5], _n = bb_norms_Zup[1], _x = bx_texs[1] };
-      bb_verts_face_zup[1, 2] = new v_v3n3x2f3t3() { _v = bb_planes_Zup[6], _n = bb_norms_Zup[1], _x = bx_texs[2] };
-      bb_verts_face_zup[1, 3] = new v_v3n3x2f3t3() { _v = bb_planes_Zup[7], _n = bb_norms_Zup[1], _x = bx_texs[3] };
+      bb_verts_face_zup[1, 0] = new v_v3n3x2t3u1() { _v = bb_planes_Zup[4], _n = bb_norms_Zup[1], _x = bx_texs[0] };
+      bb_verts_face_zup[1, 1] = new v_v3n3x2t3u1() { _v = bb_planes_Zup[5], _n = bb_norms_Zup[1], _x = bx_texs[1] };
+      bb_verts_face_zup[1, 2] = new v_v3n3x2t3u1() { _v = bb_planes_Zup[6], _n = bb_norms_Zup[1], _x = bx_texs[2] };
+      bb_verts_face_zup[1, 3] = new v_v3n3x2t3u1() { _v = bb_planes_Zup[7], _n = bb_norms_Zup[1], _x = bx_texs[3] };
 
       bool flip = false;
       bb_face_inds_zup = new uint[6] {
@@ -240,58 +239,399 @@ namespace PirateCraft
     }
     public static void Generate()
     {
-      float w2 = World.BlockSizeX, h2 = World.BlockSizeY, d2 = World.BlockSizeZ;
-      DoBox(w2, h2, d2);
-      DoBillboard(w2, h2, d2);
+      // float w2 = World.BlockSizeX, h2 = World.BlockSizeY, d2 = World.BlockSizeZ;
+      // DoBox(w2, h2, d2);
+      // DoBillboard(w2, h2, d2);
     }
   }
-  public class Support
+
+  //Flags for bars.
+  public enum BarVertFlags
   {
-    public Support() { }
-    public byte Height = 0;
-    public byte Flags = 0;
+    /*
+         V2-----V3 Quad Side /Top / bot order
+    z    |      |      
+    ^ |  |      |
+      V1 V0-----V1      
+     -V3 V2--      
+      >x  |           
+    */
+    AttachedV0 = 0x01,//whether bar is attached
+    AttachedV1 = 0x02,
+    AttachedV2 = 0x04,
+    AttachedV3 = 0x08,
+    CapFlat_or_Overhang = 0x16, //if set, we are overhang
+    AttachedALL = AttachedV0 | AttachedV1 | AttachedV2 | AttachedV3
   }
-  public class Bar
+  public struct BeamEdge
   {
-    public Bar() { }
-    public Support[] Supports = new Support[4];
-    int flags = 0;
+    public float Bot = 0;//Bottom y
+    public float Top = 0;// Top Y
+    public byte Flags = 0; //BarVertFlag
+
+    public BeamEdge() { }
+    public BeamEdge(float b, float t, byte flags = 0)
+    {
+      Bot = b;
+      Top = t;
+      Flags = flags;
+    }
   }
-  public enum CapGeometry
+  public enum EdgeIndex
   {
-    Flat,
-    Overhang,
-    Bevel
+    BL, BR, TL, TR
   }
+  public struct Beam
+  {
+    //we could store BeamEdge verts in a grid and have "on/off" for the voxel, however, that is inefficient given what we're trying to achieve.
+    public const int c_iEdgeCount = 4;
+
+    public BeamEdge[] Edges = new BeamEdge[4];
+    public int Flags = 0;
+
+    public BeamEdge EdgeBL { get { return Edges[(int)EdgeIndex.BL]; } }
+    public BeamEdge EdgeBR { get { return Edges[(int)EdgeIndex.BR]; } }
+    public BeamEdge EdgeTL { get { return Edges[(int)EdgeIndex.TL]; } }
+    public BeamEdge EdgeTR { get { return Edges[(int)EdgeIndex.TR]; } }
+    public float TopY { get { return Math.Max(EdgeBL.Top, Math.Max(EdgeBR.Top, Math.Max(EdgeTL.Top, EdgeTR.Top))); } }
+    public float BotY { get { return Math.Min(EdgeBL.Bot, Math.Min(EdgeBR.Bot, Math.Min(EdgeTL.Bot, EdgeTR.Bot))); } }
+
+    public Beam() { }
+    public Beam(float bot, float top, byte? flags = null)
+    {
+      for (int i = 0; i < c_iEdgeCount; i++)
+      {
+        Edges[i] = new BeamEdge(bot, top, (flags != null ? flags.Value : (byte)0));
+      }
+    }
+
+  }
+  public class BeamList : List<Beam>, ICanSerializeMyself
+  {
+    public void Serialize(BinaryWriter bw)
+    {
+      Gu.BRThrowNotImplementedException();
+    }
+    public void Deserialize(BinaryReader br)
+    {
+      Gu.BRThrowNotImplementedException();
+    }
+  }
+  public class BarGrid : Grid2D<BeamList>, ICanSerializeMyself
+  {
+    private WeakReference<WorldInfo> _info = null;
+
+    //Editable bar grid for generation
+    public BarGrid(WorldInfo inf) : base(inf.GlobBlocksX, inf.GlobBlocksZ)
+    {
+      _info = new WeakReference<WorldInfo>(inf);
+    }
+    public void Edit_GenFlat(float y_base_rel, float y_height_rel)
+    {
+      if (_info.TryGetTarget(out var inf))
+      {
+        Iterate((g, x, z) =>
+        {
+          byte flags = (byte)BarVertFlags.AttachedALL;
+          BeamList bl = new BeamList();
+          bl.Add(new Beam(y_base_rel, y_height_rel + Random.Next(0, 3), flags));
+
+          Set(new ivec2(x, z), bl);
+          return LambdaBool.Continue;
+        });
+      }
+    }
+    public new void Serialize(BinaryWriter bw)
+    {
+      base.Serialize(bw);
+      Gu.BRThrowNotImplementedException();
+    }
+    public new void Deserialize(BinaryReader br)
+    {
+      base.Deserialize(br);
+      Gu.BRThrowNotImplementedException();
+    }
+
+
+
+  }
+  // public class ChunkStats
+  // {
+  //   public int LeafCount = 0;
+  // }
+  // public class ChunkRoot : ChunkNode
+  // {
+  //   public ChunkStats Stats { get; private set; } = new ChunkStats(); //root only
+
+  //   //The number of bars per glob will depend on the WorldInfo so we cant hard code this
+  //   public Int64 GeneratedFrameStamp { get; private set; } = 0;
+  //   public MeshData Transparent = null;
+  //   public MeshData Opaque = null;
+  //   public ivec3 Pos = new ivec3(0, 0, 0);
+  //   private World _world = null;
+
+  //   public ChunkRoot()
+  //   {
+  //   }
+  // }
+  // public class ChunkLeaf : ChunkNode
+  // {
+  //   public List<Beam> Beams;
+  // }
+  // public class ChunkNode
+  // {
+  //   public ChunkNode[] Children = null; //octree .. 
+  //   private bool[] ChildWasProcessed = new bool[8] { false, false, false, false, false, false, false, false }; //this could be just a byte but man it sucks doing bit shit in c number
+  //   protected Box3f _box;
+  //   public bool IsStaticHierarchy = false; //Static leaf box block
+  //   public bool IsDirty = true;
+  //   public long LastVisible_ms = 0; //Last time this glob was visible.
+  //   public bool IsLeaf { get { return this is ChunkLeaf; } }
+  //   public bool IsRoot { get { return this is ChunkRoot; } }
+
+  //   public static bool IsVisible(World w, Camera3D cam, Box3f box)
+  //   {
+  //     float dist_cam2 = box.DistanceToCam2(cam.Position_World);
+  //     bool vis = cam.Frustum.HasBox(box) && (dist_cam2 < (w.RenderDistance * w.RenderDistance));
+  //     return vis;
+  //   }
+  //   public Box3f Box
+  //   {
+  //     get
+  //     {
+  //       return _box;
+  //     }
+  //   }
+  //   public vec3 OriginR3 { get { return _box._min; } }
+  //   // public void Subdivide_Static_Hierarchy(bool isroot)
+  //   // {
+  //   //   IsStaticHierarchy = true;
+
+  //   //   //treat this as a static glob that we subdivide until we hit blocks. This is used for raycasting.
+  //   //   if (isroot)
+  //   //   {
+  //   //     _box = new Box3f(new vec3(0, 0, 0), new vec3(World.GlobWidthX, World.GlobWidthY, World.GlobWidthZ));
+  //   //   }
+
+  //   //   if ((Box.Width() < World.BlockSizeX + 0.01f) &&
+  //   //     (Box.Height() < World.BlockSizeY + 0.01f) &&
+  //   //     (Box.Depth() < World.BlockSizeZ + 0.01f))
+  //   //   {
+  //   //     IsLeaf = true;
+  //   //   }
+  //   //   else
+  //   //   {
+  //   //     Children = new ChunkNode[8];
+  //   //     Box3f[] cbox = Box.Divide();
+  //   //     for (int ci = 0; ci < 8; ci++)
+  //   //     {
+  //   //       Children[ci] = new ChunkNode();
+  //   //       Children[ci]._box = cbox[ci];
+  //   //       Children[ci].Subdivide_Static_Hierarchy(false);
+  //   //     }
+  //   //   }
+  //   // }
+  //   private static bool CheckLeaf(WorldInfo info, ChunkRoot root, Box3f box)
+  //   {
+  //     //check if leaf
+  //     //also check region state if we are. 
+  //     if (
+  //         (box.Width() < info.GlobWidthX + 0.01f) &&
+  //         (box.Height() < info.GlobWidthY + 0.01f) &&
+  //         (box.Depth() < info.GlobWidthZ + 0.01f))
+  //     {
+  //       return true;
+  //       //So, we either did, or didn't divide the child.
+
+  //       // var state = root.GetRegionStateForDromeNodeLeaf(this);
+  //       // if (state.IsEmpty /*|| rs.IsSolid*/)//.. ?Makes no sesne for solid as cubers generate their own topology.
+  //       // {
+  //       //   root.dbg_nCount_Empty_Leaves++;
+
+  //       //   return 8; //Parent culls any nodes that return 8.
+  //       // }
+  //     }
+  //     return false;
+  //   }
+
+  //   public int DoLiterallyEverything(World w, ChunkRoot root, Camera3D cam, BlockWorldVisibleStuff stuff = null, ModifiedBlock mb = null)
+  //   {
+  //     //What this does:
+  //     // subdivide drome into node hierarchy
+  //     // create globs (world meshes)
+  //     // edit globs
+  //     // delete globs
+  //     // delete node hierarchy
+  //     // collect visible objects visible globs for render
+
+  //     Gu.Assert((w != null) && (root != null) && (cam != null));
+
+  //     int nculled = 0;
+
+  //     //return the number of children that are empty or, have no topology
+  //     Gu.Assert(root != null);
+
+  //     LastVisible_ms = Gu.Milliseconds();
+
+  //     if (IsLeaf)
+  //     {
+  //       //Note - We already checked for region state when CREATING this leaf - so if we get here
+  //       //it means we have a non-empty region state and this leaf does have visible data. (however we dont' check for world objects here)
+  //       // if ((mb != null) || (Glob == null))
+  //       // {
+  //       //   vec3 box_center = _box.center();
+  //       //   ivec3 gpos = World.R3toI3Glob(box_center);
+  //       //   Glob = w.QueueGlob(Glob, root, gpos);
+  //       // }
+  //       // else if ((Glob != null) && (Glob.State == GenState.Ready) && (stuff != null))
+  //       // {
+  //       //   //We have a glob and we are collecting stuff to render
+  //       //   stuff.Collect(cam, Glob, this);
+  //       // }
+
+  //       return 0;
+  //     }
+  //     else
+  //     {
+  //       //Create or recreate missing children
+  //       for (int ci = 0; ci < 8; ci++)
+  //       {
+  //         var box = ((Children != null) && (Children[ci] != null)) ? Children[ci].Box : Box.GetDivisionChild(ci);
+
+  //         //Check if we must go on
+  //         bool must_process_child = false;
+  //         if (mb == null)
+  //         {
+  //           //visible
+  //           if (ChunkNode.IsVisible(w, cam, box))
+  //           {
+  //             must_process_child = true;
+  //           }
+  //         }
+  //         else if (mb != null)
+  //         {
+  //           //dividing by a modified block / point. Node may not be visible but we still divide.
+  //           if (Children != null && Children[ci] != null)
+  //           {
+  //             must_process_child = box.containsPointBottomLeftInclusive(mb.Pos);
+  //           }
+  //           else
+  //           {
+  //             must_process_child = box.containsPointBottomLeftInclusive(mb.Pos);
+  //           }
+  //         }
+
+  //         if (must_process_child)
+  //         {
+  //           ChildWasProcessed[ci] = true;
+
+  //           if (Children == null)
+  //           {
+  //             Children = new ChunkNode[8] { null, null, null, null, null, null, null, null };
+  //           }
+
+  //           int num_culled_child = 0;
+
+  //           if (Children[ci] == null)
+  //           {
+  //             //num_culled_child = 
+  //             if (CheckLeaf(w.Info, root, box))
+  //             {
+  //               Children[ci] = new ChunkLeaf();
+  //             }
+  //             else
+  //             {
+  //               Children[ci] = new ChunkNode();
+  //             }
+
+  //             Children[ci]._box = Box.GetDivisionChild(ci);
+  //             //** Check the region state, exit if it is empty
+  //             if (num_culled_child == 8)
+  //             {
+  //               Children[ci] = null;
+  //             }
+  //           }
+
+  //           if (Children[ci] != null)
+  //           {
+  //             num_culled_child = Children[ci].DoLiterallyEverything(w, root, cam, stuff, mb);
+  //           }
+
+  //           //cull empty child
+  //           if (num_culled_child == 8)
+  //           {
+  //             Children[ci] = null;
+  //             root.dbg_nCountCulled++;
+  //           }
+  //         }
+
+  //         if (Children == null || Children[ci] == null)
+  //         {
+  //           nculled++;
+  //         }
+  //       }
+
+  //       //We culled all the kids - set children to  null. and get ourselves culled.
+  //       if (nculled == 8)
+  //       {
+  //         Children = null;
+  //       }
+  //     }
+
+  //     //Delete check.. Make sure the Gen  < delete distance or we gen/delete over and over..
+  //     if (w.Drome_or_Node_Can_Delete_Distance(_box) && ((Gu.Milliseconds() - LastVisible_ms) > World.Abandon_DeleteTime_DromeNode_ms))
+  //     {
+  //       //Delete if we are invisible
+  //       nculled = 8;
+  //     }
+  //     if (this == root)
+  //     {
+  //       //Do not cull dromes here. We cull them outside here
+  //       nculled = 0;
+  //     }
+
+  //     return nculled;
+  //   }
+  // }
+
 
   public class Glob
   {
     public enum GlobState
     {
-      None, LoadedAndQueued, Topologized
+      None, Loaded, Queued, Edited, Done
     }
     public Int64 GeneratedFrameStamp { get; private set; } = 0;
-    public MeshData Transparent = null;
-    public MeshData Opaque = null;
+    public SoloMesh Transparent = null;
+    //MeshData Walls
+    public SoloMesh Opaque = null;
     public ivec3 Pos = new ivec3(0, 0, 0);
-    private WeakReference<World> _world = null;
-    public Grid2D<List<Bar>> Bars = null; // Empty globs can have no bars.
+    private World _world = null;
+    public BarGrid BarGrid = null; // Empty globs can have no bars.
     public GlobState State = GlobState.None;
 
     public vec3 OriginR3
     {
       get
       {
-        vec3 r = new vec3(Pos.x * World.GlobWidthX, Pos.y * World.GlobWidthY, Pos.z * World.GlobWidthZ);
+        vec3 r = new vec3(Pos.x * _world.Info.GlobWidthX, Pos.y * _world.Info.GlobWidthY, Pos.z * _world.Info.GlobWidthZ);
         return r;
       }
     }
-
     public Glob(World w, ivec3 pos, Int64 genframeStamp)
     {
-      _world = new WeakReference<World>(w);
+      _world = w;
       Pos = pos;
       GeneratedFrameStamp = genframeStamp;
+    }
+    public void DestroyGlob()
+    {
+      _world = null;
+    }
+    public void DoLiterallyEverything()
+    {
+
+
     }
 
   }
@@ -403,26 +743,26 @@ namespace PirateCraft
 
       if (MeshType == BlockMeshType.Block)
       {
-        float size = 0.25142f;
-        Gu.Assert(FaceInfos[BlockTileUVSide.Top].UV != null);
-        Gu.Assert(FaceInfos[BlockTileUVSide.Side].UV != null);
-        Gu.Assert(FaceInfos[BlockTileUVSide.Bottom].UV != null);
+        // float size = 0.25142f;
+        // Gu.Assert(FaceInfos[BlockTileUVSide.Top].UV != null);
+        // Gu.Assert(FaceInfos[BlockTileUVSide.Side].UV != null);
+        // Gu.Assert(FaceInfos[BlockTileUVSide.Bottom].UV != null);
 
-        var t0 = FaceInfos[BlockTileUVSide.Top].UV.GetQuadTexs();
-        var t1 = FaceInfos[BlockTileUVSide.Side].UV.GetQuadTexs();
-        var t2 = FaceInfos[BlockTileUVSide.Bottom].UV.GetQuadTexs();
+        // var t0 = FaceInfos[BlockTileUVSide.Top].UV.GetQuadTexs();
+        // var t1 = FaceInfos[BlockTileUVSide.Side].UV.GetQuadTexs();
+        // var t2 = FaceInfos[BlockTileUVSide.Bottom].UV.GetQuadTexs();
 
-        md = MeshData.GenBox(World.BlockSizeX, World.BlockSizeY, World.BlockSizeZ, t0, t1, t2);
-        Entity.Scale_Local = new vec3(size, size, size);
+        // md = MeshData.GenBox(World.BlockSizeX, World.BlockSizeY, World.BlockSizeZ, t0, t1, t2);
+        // Entity.Scale_Local = new vec3(size, size, size);
       }
       else if (MeshType == BlockMeshType.Billboard)
       {
-        float size = 0.39142f;
-        Gu.Assert(FaceInfos[BlockTileUVSide.Side].UV != null);
-        var t1 = FaceInfos[BlockTileUVSide.Side].UV.GetQuadTexs();
-        md = MeshData.GenPlane(World.BlockSizeX, World.BlockSizeY, t1);
-        Entity.Rotation_Local = quat.fromAxisAngle(new vec3(1, 0, 0), -MathUtils.M_PI_2, true);//rotate quad so it is upright
-        Entity.Scale_Local = new vec3(size, size, size);
+        // float size = 0.39142f;
+        // Gu.Assert(FaceInfos[BlockTileUVSide.Side].UV != null);
+        // var t1 = FaceInfos[BlockTileUVSide.Side].UV.GetQuadTexs();
+        // md = MeshData.GenPlane(World.BlockSizeX, World.BlockSizeY, t1);
+        // Entity.Rotation_Local = quat.fromAxisAngle(new vec3(1, 0, 0), -MathUtils.M_PI_2, true);//rotate quad so it is upright
+        // Entity.Scale_Local = new vec3(size, size, size);
       }
       else if (MeshType == BlockMeshType.Liquid)
       {
@@ -450,7 +790,7 @@ namespace PirateCraft
         var ec = new EventComponent((self) =>
         {
           self.Destroy();
-        }, World.DropDestroyTime_Seconds, ActionRepeat.DoNotRepeat, ActionState.Run);
+        }, 6, ActionRepeat.DoNotRepeat, ActionState.Run);//Info.DropDestroyTime_Seconds
         self.Components.Add(ec);
       };
       float animationTime = 5.0f; //seconds
@@ -468,33 +808,174 @@ namespace PirateCraft
     }
 
   }
-
   public class EditState
   {
     public int EditView { get; set; } = 1;
     public const int c_MaxEditViews = 4;
   }
 
+  public class WorldInfo
+  {
+    //Contains base metrics for creating a world, size, voxels .. 
+    //Constants before, now drive the individual world areas.
+    public string Name { get; private set; } = Gu.UnsetName;
+    public FileLoc FileLoc { get; private set; } = null;
+
+    public const float DropDestroyTime_Seconds = (60) * 3; // x minutes
+    public const int MaxGlobsToGeneratePerFrame_Sync = 32;//number of glob copy operations per render side frame. This can slow down / speed up rendering.
+
+    public float BlockSize { get; private set; } = 25.0f;
+    public float HeightScale { get; private set; } = 0.25f; // Height of a block relative to BlockSize
+    public float WallXFactor { get; private set; } = 0.1f; // Width of a wall / [0,1] = % of BlockSize
+    public float WallYFactor { get; private set; } = 0.1f; // 
+    public float WallZFactor { get; private set; } = 0.1f; // 
+
+    //This will allow us to have variable width blocks, to make the topo less regular.
+    public Func<WorldInfo, float, float> GlobWidthXFunction = (i, x) => { return i.BlockSizeX; };
+    public Func<WorldInfo, float, float> GlobWidthZFunction = (i, z) => { return i.BlockSizeZ; };
+
+    public float BlockSizeX { get; private set; } = 0;
+    public float BlockSizeY { get; private set; } = 0; // BlockSizeX * HeightScale;
+    public float BlockSizeZ { get; private set; } = 0; // BlockSizeX;
+    public int GlobBlocksX { get; private set; } = 0;
+    public int GlobBlocksYSnap { get; private set; } = 0; //No y, but we can have a Y Snap
+    public int GlobBlocksZ { get; private set; } = 0;
+    public float GlobWidthX { get; private set; } = 0;
+    public float GlobWidthY { get; private set; } = 0;
+    public float GlobWidthZ { get; private set; } = 0;
+
+    public bool DeleteStartFresh = false;
+    public int LimitYAxisGeneration = 0;//0 = off, >0 - limit globs generated along Y axis (faster generation)
+
+    //Player
+    public float PlayerHeight { get; private set; } = 2.0f;
+    public float PlayerWidth { get; private set; } = 0.5f;
+    public float PlayerDepth { get; private set; } = 0.1f;
+
+    //Generation shell
+    private int _currentShell = 1;
+    private const int _maxShells = 4;//keep this < Min(DromeGlobs) to prevent generating more dromes
+    public float GenRadiusShell { get { return GlobWidthX; } }
+    public float DeleteMaxDistance { get { return (GenRadiusShell * (float)(_maxShells + 1)); } }//distance beyond which things are deleted, this must be greater than max gen distance to prevent ping pong loading
+    public float GenerateDistance { get { return (GenRadiusShell * (float)_currentShell); } } //distance under which things are generated
+    public float RenderDistance { get { return (GenRadiusShell) * _maxShells; /* (GlobWidthX * 16) * (GlobWidthX * 16); */ } }
+
+    // public ushort QuantitizeHeight(float h, bool glob_relative = true)
+    // {
+    //   //return a short representing the input height, relative of the glob
+    //   // [0,65535)
+    //   ushort s = 0;
+    //   if (!glob_relative)
+    //   {
+    //     h = HeightGlobalToHeightGlob(h);
+    //   }
+
+    //   Gu.Assert(h >= 0 && h < GlobWidthY);
+
+    //   s = (ushort)((float)ushort.MaxValue * (h / GlobWidthY));
+    //   return s;
+    // }
+    // public float UnquantitizeHeight(ushort h, bool glob_relative = true)
+    // {
+
+    // }
+    public WorldInfo(string worldName, bool delete_world_start_fresh, int limit_y_axis = 0, float blockSize = 4.0f, float playerHeight = 2.0f, int globBlocksX = 16)
+    {
+      Name = worldName;
+      LimitYAxisGeneration = limit_y_axis;
+      DeleteStartFresh = delete_world_start_fresh;
+
+      BlockSizeX = blockSize;
+
+      PlayerHeight = playerHeight;
+
+      GlobBlocksX = globBlocksX;
+
+      Compute();
+    }
+    public void Compute()
+    {
+      float playerSizeChangeRatio = PlayerHeight / 2.0f;
+      PlayerWidth = PlayerWidth * playerSizeChangeRatio;
+      PlayerDepth = PlayerDepth * playerSizeChangeRatio;
+
+      BlockSizeY = BlockSizeX * HeightScale;
+      BlockSizeZ = BlockSizeX;
+      //Relative to player who is 2 meters tlal
+
+      GlobBlocksYSnap = (int)(BlockSizeX / BlockSizeY * GlobBlocksX);
+      GlobBlocksZ = GlobBlocksX;
+
+      GlobWidthX = GlobBlocksX * BlockSizeX;
+      GlobWidthY = GlobWidthX;
+      GlobWidthZ = GlobBlocksZ * BlockSizeZ;
+
+      if (!MathUtils.IsPowerOfTwo(GlobBlocksX) || !MathUtils.IsPowerOfTwo(GlobBlocksYSnap) || !MathUtils.IsPowerOfTwo(GlobBlocksZ))
+      {
+        Gu.BRThrowException("Glob blocks x,y,z must be a power of 2.");
+      }
+    }
+
+    private float R3toI3BlockComp(float R3, float BlocksAxis, float BlockWidth)
+    {
+      float bpos;
+      if (R3 < 0)
+      {
+        bpos = (float)Math.Floor((R3 % BlocksAxis + BlocksAxis) / BlockWidth);
+      }
+      else
+      {
+        bpos = (float)Math.Floor((R3 % BlocksAxis) / BlockWidth);
+      }
+      return bpos;
+    }
+    public ivec3 R3ToI3BlockLocal_Any(vec3 R3, float cont_w_x, float cont_w_y, float cont_w_z)
+    {
+      vec3 bpos = new vec3(
+       R3toI3BlockComp(R3.x, cont_w_x, BlockSizeX),
+       R3toI3BlockComp(R3.y, cont_w_y, BlockSizeY),
+       R3toI3BlockComp(R3.z, cont_w_z, BlockSizeZ));
+
+      return new ivec3((int)bpos.x, (int)bpos.y, (int)bpos.z);
+    }
+    public ivec3 R3toI3BlockLocal_Glob(vec3 R3)
+    {
+      ivec3 bpos = R3ToI3BlockLocal_Any(R3, GlobWidthX, GlobWidthY, GlobWidthZ);
+
+      if (bpos.x < 0 || bpos.y < 0 || bpos.z < 0 || bpos.x >= GlobBlocksX || bpos.y >= GlobBlocksYSnap || bpos.z >= GlobBlocksZ)
+      {
+        Gu.DebugBreak();
+      }
+      return bpos;
+    }
+    public float HeightGlobalToHeightGlob(float h)
+    {
+      var ret = h % GlobWidthY;
+      if (h < 0)
+      {
+        ret += GlobWidthY;
+      }
+      return ret;
+    }
+    public ivec3 R3GlobaltoI3Glob(vec3 R3)
+    {
+      //v3toi3Node
+      ivec3 gpos = new ivec3(
+         (int)Math.Floor(R3.x / GlobWidthX),
+         (int)Math.Floor(R3.y / GlobWidthY),
+         (int)Math.Floor(R3.z / GlobWidthZ));
+      return gpos;
+    }
+    public vec3 GlobI3PosToGlobR3Pos(ivec3 i)
+    {
+      vec3 gpos = new vec3((float)i.x * GlobWidthX, (float)i.y * GlobWidthY, (float)i.z * GlobWidthZ);
+      return gpos;
+    }
+
+  }
+
   public class World
   {
-    #region Public:Constants
-
-    //generation control variables.
-    public int LimitYAxisGeneration = 0;//0 = off, >0 - limit globs generated along Y axis (faster generation)
-    public int MaxGlobsToGeneratePerFrame_Sync = 32;//number of glob copy operations per render side frame. This can slow down / speed up rendering.
-    public const float HeightScale = 0.25f;
-    public const float BlockSizeX = 32.0f;
-    public const float BlockSizeY = BlockSizeX * HeightScale;
-    public const float BlockSizeZ = BlockSizeX;
-    public const int GlobBlocksX = 16;
-    public const int GlobBlocksY = (int)(BlockSizeX / BlockSizeY * GlobBlocksX);
-    public const int GlobBlocksZ = GlobBlocksX;
-    public const float GlobWidthX = GlobBlocksX * BlockSizeX;
-    public const float GlobWidthY = GlobBlocksY * BlockSizeY;
-    public const float GlobWidthZ = GlobBlocksZ * BlockSizeZ;
-    public const float DropDestroyTime_Seconds = (60) * 3; // x minutes
-
-    #endregion
     #region Private:Constants
 
     private const long c_lngAbandon_DeleteTime_DromeNode_ms = 1000 * 5; // * X seconds
@@ -507,17 +988,15 @@ namespace PirateCraft
     #endregion
     #region Public:Members
 
+    public WorldInfo Info { get; private set; } = null;
     public WorldObject SceneRoot { get; private set; } = new WorldObject("Scene_Root");
     public int NumCulledObjects { get; private set; } = 0;
     public int NumGlobs { get { return _globs.Count; } }
     public int NumRenderGlobs { get { return _renderGlobs.Count; } }
     public int NumVisibleRenderGlobs { get { return _visibleRenderGlobs.Count; } }
-    public float GenRadiusShell { get { return BlockSizeX * 100; } }
     public WorldProps WorldProps { get { return _worldProps; } }
-    public float DeleteMaxDistance { get { return (GenRadiusShell * (float)(_maxShells + 1)); } }//distance beyond which things are deleted, this must be greater than max gen distance to prevent ping pong loading
-    public float GenerateDistance { get { return (GenRadiusShell * (float)_currentShell); } } //distance under which things are generated
-    public float RenderDistance { get { return (GenRadiusShell) * _maxShells; /* (GlobWidthX * 16) * (GlobWidthX * 16); */ } }
-    public WindowContext UpdateContext { get { return _updateContext; } }
+
+
     public GameMode GameMode
     {
       get { return _eGameMode; }
@@ -535,8 +1014,7 @@ namespace PirateCraft
     #endregion
     #region Private:Members
 
-    private int _currentShell = 1;
-    private const int _maxShells = 4;//keep this < Min(DromeGlobs) to prevent generating more dromes
+
     private long _lastShellIncrementTimer_ms = 0;
     private long _lastShellIncrementTimer_ms_Max = 500;
     private WorldObject dummy = new WorldObject("dummy_beginrender");
@@ -552,39 +1030,33 @@ namespace PirateCraft
     private Dictionary<ivec3, Glob> _globs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //All globs
     private Dictionary<ivec3, Glob> _renderGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
     private Dictionary<ivec3, Glob> _visibleRenderGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
-    private Dictionary<ivec3, Glob> _globsToUpdate = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
     private Dictionary<string, WorldObject> _objects = new Dictionary<string, WorldObject>();//Flat list of all objects
     private Dictionary<ushort, BlockTile> _blockTiles = null;
+    private MultiMap<float, Glob> _wipGlobs = new MultiMap<float, Glob>();
     private WorldProps _worldProps = null; //Environment props.
     private string _worldSavePath = "";
-    private string _worldName = "";
     private Material _worldMaterial_Op = null;
     private Material _worldMaterial_Tp = null;
     private MegaTex _worldMegatex = null;
     private Material _blockObjectMaterial = null;
     private double _autoSaveTimeoutSeconds = 2;
     private double _autoSaveTimeout = 0;
-    private WindowContext _updateContext = null;
     private GameMode _eGameMode = GameMode.Edit;
+    public WindowContext UpdateContext { get; private set; } = null;
 
     #endregion
 
     public World(WindowContext updateContext)
     {
-      _updateContext = updateContext;
+      UpdateContext = updateContext;
     }
-    public void Initialize(string worldName, bool delete_world_start_fresh, int limit_y_axis = 0)
+    public void Initialize(WorldInfo info)
     {
-      _worldName = worldName;
-      LimitYAxisGeneration = limit_y_axis;
+      Info = info;
+
       _worldProps = new WorldProps("WorldProps");
 
       GameMode = Gu.EngineConfig.StartInEditMode ? GameMode.Edit : GameMode.Play;
-
-      if (!MathUtils.IsPowerOfTwo(GlobBlocksX) || !MathUtils.IsPowerOfTwo(GlobBlocksY) || !MathUtils.IsPowerOfTwo(GlobBlocksZ))
-      {
-        Gu.BRThrowException("Glob blocks x,y,z must be a power of 2.");
-      }
 
       //This would actually be incorrect world OBs should be instanced
       //Init draw array.
@@ -601,7 +1073,7 @@ namespace PirateCraft
       //Generate the mesh data we use to create cubess
       WorldStaticData.Generate();
 
-      InitWorldDiskFile(delete_world_start_fresh);
+      InitWorldDiskFile(info.DeleteStartFresh);
 
       _worldProps.EnvironmentMap = Gu.Resources.LoadTexture(new FileLoc("hilly_terrain_01_2k.hdr", FileStorage.Embedded), true, TexFilter.Nearest);
       _worldProps.DayNightCycle = new DayNightCycle();
@@ -623,7 +1095,7 @@ namespace PirateCraft
     }
     public void Update(double dt)
     {
-      if (_updateContext != Gu.Context)
+      if (UpdateContext != Gu.Context)
       {
         Gu.Log.Error("Tried to call update twice between two windows. Update must be called once on a single window (or, we could put it on its own thread, unless we do end up with OpenGL stuff.)");
         Gu.DebugBreak();
@@ -635,18 +1107,130 @@ namespace PirateCraft
       //LaunchGlobAndDromeQueues();
       AutoSaveWorld(dt);
 
-      _worldProps.DayNightCycle.Update(dt);
+      PickGLobs();
+      //topo
+      foreach (var g in _globs)
+      {
+        if (g.Value.State == Glob.GlobState.Edited
+        || g.Value.State == Glob.GlobState.Loaded
+        || g.Value.State == Glob.GlobState.Queued)
+        {
+          if (g.Value.BarGrid != null)
+          {
+            Topologize(g.Value);
+          }
+        }
+      }
 
+      _worldProps.DayNightCycle.Update(dt);
+    }
+    private void PickGLobs()
+    {
+      //TODO: picking code is copied from worldobject  we can share this..sloppy fn
+      foreach (var g in _visibleRenderGlobs)
+      {
+        if (Gu.Context.Renderer.Picker.PickedObjectFrame != null)
+        {
+          //Picking is pixel perfect, so the first picked object is the exact object.
+          //However objects may have children, and components which can also be picked, and may not be in the global list.
+          //Obviously, a list of pickid->obj would be the fastest.
+          break;
+        }
+        if (g.Value.Opaque != null)
+        {
+          if (g.Value.Opaque.PickId != Picker.c_iInvalidPickId)
+          {
+            var pixid = Gu.Context.Renderer.Picker.GetSelectedPixelId();
+            if (pixid != 0)
+            {
+              if (pixid == g.Value.Opaque.PickId)
+              {
+                Gu.Context.Renderer.Picker.PickedObjectFrame = g.Value.Opaque;
+              }
+            }
+          }
+        }
+        if (g.Value.Transparent != null)
+        {
+          if (g.Value.Transparent.PickId != Picker.c_iInvalidPickId)
+          {
+            var pixid = Gu.Context.Renderer.Picker.GetSelectedPixelId();
+            if (pixid != 0)
+            {
+              if (pixid == g.Value.Transparent.PickId)
+              {
+                Gu.Context.Renderer.Picker.PickedObjectFrame = g.Value.Transparent;
+              }
+            }
+          }
+        }
+      }
     }
     public void BuildAndCull(RenderView rv)
     {
       if (rv.Camera != null && rv.Camera.TryGetTarget(out var cm))
       {
-        BuildGrid(cm.Position_World, GenerateDistance);
+        BuildGrid(cm.Position_World, Info.GenerateDistance);
         View(rv);
         CollectVisibleGlobs(cm);
         CollectVisibleObjects(rv, cm);
       }
+    }
+    private void Topologize(Glob g)
+    {
+      //We should figure out how ot make this more regular,
+      //or, split the guy up, to avoid remakign this with each edit
+
+      Gu.Assert(g.BarGrid != null);
+
+      v_v3n3x2t3u1[]? verts = null;
+
+      g.BarGrid.Iterate((grid, x, z) =>
+      {
+        var bl = grid.Get(x, z);
+        if (bl != null)
+        {
+          foreach (var b in bl)
+          {
+            var h = b.TopY - b.BotY;
+            var p = g.OriginR3 + new vec3(x * Info.BlockSizeX, b.BotY, z * Info.BlockSizeZ);
+            MeshData.GenBoxVerts(ref verts, Info.BlockSizeX, h, Info.BlockSizeZ, null, null, null, p, true);
+          }
+        }
+
+        return LambdaBool.Continue;
+      });
+
+      if (verts != null && verts.Length > 0)
+      {
+        ushort[] inds = MeshData.GenerateQuadIndices(verts.Length / 4, false);
+
+        string name = "glob:" + g.Pos.ToString();
+        if (g.Opaque == null)
+        {
+          var pickid = Gu.Context.Renderer.Picker.GenPickId();
+          var mat = this._worldMaterial_Op;
+          mat4 mworld = mat4.getTranslation(Info.GlobI3PosToGlobR3Pos(g.Pos));
+          g.Opaque = new SoloMesh(null, mat, mworld, pickid);
+        }
+
+        var faces = MeshData.ComputeNormalsAndTangents(verts, inds.AsUIntArray(), true, true);
+
+        g.Opaque.Mesh = new MeshData(name, PrimitiveType.Triangles,
+          Gpu.CreateVertexBuffer(name, verts),
+          Gpu.CreateIndexBuffer(name, inds.ToArray()),
+          Gpu.CreateShaderStorageBuffer(name, faces.ToArray()),
+          true
+        );
+
+        _renderGlobs.Add(g.Pos, g);
+      }
+      else
+      {
+        _renderGlobs.Remove(g.Pos);
+      }
+
+      g.State = Glob.GlobState.Done;
     }
 
     #region Objects
@@ -665,7 +1249,6 @@ namespace PirateCraft
       c.Update(this, 0, ref dummy);
       return c;
     }
-
     public WorldObject CreateObject(string name, MeshData mesh, Material material, vec3 pos = default(vec3))
     {
       WorldObject ob = new WorldObject(name);
@@ -772,7 +1355,7 @@ namespace PirateCraft
       toRemove.Clear();
     }
     private float Gravity = -9.8f * 0.5f; //m/s
-    private const float MaxVelocity_Second_Frame = World.BlockSizeY * 2.32f;//max length of vel per second / frame *NOT PER FRAME but by dt*
+    private const float MaxVelocity_Second_Frame = 5 * 2.32f;//max length of vel per second / frame *NOT PER FRAME but by dt*
     private const float MinVelocity = 0.000001f;
     private const float MinVelocity2 = (MinVelocity * MinVelocity);
     private const float MinTimeStep = 0.00001f;
@@ -1013,9 +1596,27 @@ namespace PirateCraft
       _worldProps.Reset();
 
       CollectObjects(rv, cm, SceneRoot);
+
+      //Collect globs
+      foreach (var kp in this._visibleRenderGlobs)
+      {
+        var g = kp.Value;
+        if (g.Opaque != null)
+        {
+          _visibleObsMid_DF.AddVisibleObject(g.Opaque);
+          _visibleObsAll.AddVisibleObject(g.Opaque);
+        }
+        if (g.Transparent != null)
+        {
+          _visibleObsMid_DF.AddVisibleObject(g.Transparent);
+          _visibleObsAll.AddVisibleObject(g.Opaque);
+        }
+      }
+
     }
     private void CollectVisibleGlobs(Camera3D cam)
     {
+      _visibleRenderGlobs.Clear();
       foreach (var g in _renderGlobs)
       {
         if (cam.Frustum.HasBox(GetGlobBoxGlobalI3(g.Key)))
@@ -1038,16 +1639,16 @@ namespace PirateCraft
 
     #region Index
 
-    private static Box3f GetGlobBoxGlobalI3(ivec3 pt)
+    private Box3f GetGlobBoxGlobalI3(ivec3 pt)
     {
       //Return the bound box for the glob at the integer glob grid position
       Box3f box = new Box3f();
-      box._min.x = (float)(pt.x + 0) * GlobWidthX;
-      box._min.y = (float)(pt.y + 0) * GlobWidthY;
-      box._min.z = (float)(pt.z + 0) * GlobWidthZ;
-      box._max.x = (float)(pt.x + 1) * GlobWidthX;
-      box._max.y = (float)(pt.y + 1) * GlobWidthY;
-      box._max.z = (float)(pt.z + 1) * GlobWidthZ;
+      box._min.x = (float)(pt.x + 0) * this.Info.GlobWidthX;
+      box._min.y = (float)(pt.y + 0) * this.Info.GlobWidthY;
+      box._min.z = (float)(pt.z + 0) * this.Info.GlobWidthZ;
+      box._max.x = (float)(pt.x + 1) * this.Info.GlobWidthX;
+      box._max.y = (float)(pt.y + 1) * this.Info.GlobWidthY;
+      box._max.z = (float)(pt.z + 1) * this.Info.GlobWidthZ;
       return box;
     }
 
@@ -1060,6 +1661,7 @@ namespace PirateCraft
       _visibleObsFirst_DF.Draw(_worldProps, rv);
       _visibleObsMid_DF.Draw(_worldProps, rv);
       _visibleObsLast_DF.Draw(_worldProps, rv);
+
     }
     public void RenderForward(double Delta, RenderView rv)
     {
@@ -1086,13 +1688,16 @@ namespace PirateCraft
               {
                 Gu.Assert(ob != null);
                 Gu.Assert(ob.Material != null);
-                Gu.Context.DebugDraw.Box(ob.BoundBoxMeshTransform, ob.Material.BaseColor);
-                Gu.Context.DebugDraw.Box(ob.BoundBox, bbcolor);
+                if (ob is WorldObject)
+                {
+                  Gu.Context.DebugDraw.Box((ob as WorldObject).BoundBoxMeshTransform, ob.Material.BaseColor);
+                  Gu.Context.DebugDraw.Box((ob as WorldObject).BoundBox, bbcolor);
+                }
               }
             }
           }
         }
-        
+
         //Normals
         if (Gu.Context.DebugDraw.DrawVertexNormals || Gu.Context.DebugDraw.DrawFaceNormals)
         {
@@ -1111,6 +1716,7 @@ namespace PirateCraft
         _debugDrawLines.Mesh = new MeshData("debug_lines", PrimitiveType.Lines,
           Gpu.CreateVertexBuffer("debug_lines", Gu.Context.DebugDraw.LinePoints.ToArray()),
           Gpu.CreateIndexBuffer("debug_lines", Gu.Context.DebugDraw.LineInds.ToArray()),
+          null,
           false
           );
         DrawCall.Draw(_worldProps, rv, _debugDrawLines);
@@ -1125,12 +1731,11 @@ namespace PirateCraft
         }
         _debugDrawPoints.Mesh = new MeshData("debug_points", PrimitiveType.Points,
           Gpu.CreateVertexBuffer("debug_points", Gu.Context.DebugDraw.Points.ToArray()),
+          null,
           false
           );
         DrawCall.Draw(_worldProps, rv, _debugDrawPoints);
       }
-
-
 
     }
     private void CollectObjects(RenderView rv, Camera3D cam, WorldObject ob)
@@ -1198,7 +1803,6 @@ namespace PirateCraft
         CollectObjects(rv, cam, c);
       }
     }
-
     private BlockTile AddBlockTile(ushort code, BlockFaceInfo[] faces, float hardness_pickaxe, BlockMeshType meshType, bool is_chained, float opacity)
     {
       if (_blockTiles == null)
@@ -1208,18 +1812,6 @@ namespace PirateCraft
       var bt = new BlockTile(code, faces, hardness_pickaxe, meshType, is_chained, opacity);
       _blockTiles.Add(code, bt);
       return bt;
-    }
-    private class HardnessValue
-    {
-      public const float Leaf = 0.1716f;
-      public const float Dirt = 0.9716f;
-      public const float Wood = 3.201f;
-      public const float Gravel = 2.482f;
-      public const float Rock = 4.15f;
-      public const float DeepRock = 7.89f;
-      public const float Diamond = 12.51f;
-      public const float Carbide = 21.2101f;
-      public const float Water = 1;
     }
     public BlockFaceInfo[] MakeFaces_x3(TileImage topsidebot_img, TileVis topsidebot_vis = TileVis.Opaque)
     {
@@ -1343,8 +1935,7 @@ namespace PirateCraft
     }
 
     #endregion
-
-    #region Private: Globs & Dromes
+    #region Private: Globs
 
     private void BuildGrid(vec3 origin, float awareness_radius, bool logprogress = false)
     {
@@ -1354,18 +1945,18 @@ namespace PirateCraft
 
       Box3i ibox_glob;
       ibox_glob._min = new ivec3(
-        (int)Math.Floor(awareness._min.x / GlobWidthX),
-        (int)Math.Floor(awareness._min.y / GlobWidthY),
-        (int)Math.Floor(awareness._min.z / GlobWidthZ));
+        (int)Math.Floor(awareness._min.x / Info.GlobWidthX),
+        (int)Math.Floor(awareness._min.y / Info.GlobWidthY),
+        (int)Math.Floor(awareness._min.z / Info.GlobWidthZ));
       ibox_glob._max = new ivec3(
-        (int)Math.Ceiling(awareness._max.x / GlobWidthX),
-        (int)Math.Ceiling(awareness._max.y / GlobWidthY),
-        (int)Math.Ceiling(awareness._max.z / GlobWidthZ));
+        (int)Math.Ceiling(awareness._max.x / Info.GlobWidthX),
+        (int)Math.Ceiling(awareness._max.y / Info.GlobWidthY),
+        (int)Math.Ceiling(awareness._max.z / Info.GlobWidthZ));
 
-      //Limit Y axis ..  Tehnically we need maybe 2-4 dromes up and down
-      if (LimitYAxisGeneration > 0)
+      //Limit Y axis ..  Tehnically we need maybe 2-4  up and down
+      if (Info.LimitYAxisGeneration > 0)
       {
-        int ylimit = LimitYAxisGeneration;
+        int ylimit = Info.LimitYAxisGeneration;
         if (ibox_glob._min.y > ylimit) { ibox_glob._min.y = ylimit; }
         if (ibox_glob._min.y < -ylimit) { ibox_glob._min.y = -ylimit; }
         if (ibox_glob._max.y > ylimit) { ibox_glob._max.y = ylimit; }
@@ -1389,7 +1980,7 @@ namespace PirateCraft
         {
           if (!_globs.TryGetValue(gpos, out g))
           {
-            g = GenerateAndSaveOrLoadGlob(gpos);
+            g = MakeOrLoadGlob(gpos);
             _globs.Add(g.Pos, g);
           }
         }
@@ -1399,7 +1990,11 @@ namespace PirateCraft
     }
     private bool Glob_Can_Generate_Distance(vec3 pos, Box3f drome_box)
     {
-      return Box_IsWithin_Distance(pos, drome_box, GenerateDistance);
+      return Box_IsWithin_Distance(pos, drome_box, Info.GenerateDistance);
+    }
+    private bool Glob_Can_Delete_Distance(vec3 pos, Box3f drome_box)
+    {
+      return Box_IsWithin_Distance(pos, drome_box, Info.GenerateDistance);
     }
     private bool Box_IsWithin_Distance(vec3 pos, Box3f box, float genDistance)
     {
@@ -1424,24 +2019,31 @@ namespace PirateCraft
     private string GetWorldFileName()
     {
       Gu.Assert(System.IO.Directory.Exists(_worldSavePath));
-      string worldfile = _worldName + ".world";
+      string worldfile = Info.Name + ".world";
       return System.IO.Path.Combine(_worldSavePath, worldfile);
     }
-    private Glob GenerateAndSaveOrLoadGlob(ivec3 gpos)
+    private Glob MakeOrLoadGlob(ivec3 gpos)
     {
       Glob g = TryLoadGlob(gpos);
       if (g == null)
       {
         //empty glob
         g = new Glob(this, gpos, Gu.Context.FrameStamp);
+
+        if (gpos.y == 0)
+        {
+          //TESTING
+          g.BarGrid = new BarGrid(this.Info);
+          g.BarGrid.Edit_GenFlat(0, this.Info.BlockSizeY);
+        }
       }
-      _globsToUpdate.Add(gpos, g);
-      g.State = Glob.GlobState.LoadedAndQueued;
+      g.State = Glob.GlobState.Loaded;
 
       return g;
     }
-    #endregion
 
+
+    #endregion
     #region Private: Files
 
     private FileLoc GetTileFile(TileImage img)
@@ -1452,7 +2054,7 @@ namespace PirateCraft
     }
     private void InitWorldDiskFile(bool delete_world_start_fresh)
     {
-      _worldSavePath = System.IO.Path.Combine(Gu.SavePath, _worldName);
+      _worldSavePath = System.IO.Path.Combine(Gu.SavePath, Info.Name);
 
       if (delete_world_start_fresh)
       {
@@ -1653,5 +2255,100 @@ namespace PirateCraft
     #endregion
 
 
-  }
-}
+  }//World
+
+
+  public class WorldLoader
+  {
+    //Store all the world files in one place, plus global settings.
+    private string c_strWorldFileName = "Worlds.dat";//If multple worlds.. will change
+
+    private WindowContext _updateContext = null;
+    private FileLoc _worldFileLoc = null;
+
+    private List<string> _worldNames = new List<string>();
+
+    public WorldLoader(WindowContext update)
+    {
+      _updateContext = update;
+      _worldFileLoc = new FileLoc(System.IO.Path.Combine(Gu.SavePath, c_strWorldFileName), FileStorage.Disk);
+      if (!LoadWorldsFile(_worldFileLoc))
+      {
+        SaveWorldsFile(_worldFileLoc);
+      }
+    }
+    public void GoToArea(string areaName)
+    {
+      //Destroy World.
+      //LoadWorldFile
+      // WorldInfo wi = new WorldInfo();
+      //CurWorld = new WorldArea(inf);
+    }
+    public World CreateNewWorld(WorldInfo wi)
+    {
+      var w = Gu.World = new World(_updateContext);
+      w.Initialize(wi);
+      return w;
+    }
+    private bool SaveWorldsFile(FileLoc loc)
+    {
+      try
+      {
+        var enc = Encoding.GetEncoding("iso-8859-1");
+        using (var fs = loc.OpenWrite())
+        using (var bw = new System.IO.BinaryWriter(fs, enc))
+        {
+          bw.Write((Int32)_worldNames.Count);
+          foreach (var s in _worldNames)
+          {
+            bw.Write((string)s);
+          }
+
+          bw.Close();
+        }
+      }
+      catch (Exception ex)
+      {
+        //br.close
+        Gu.Log.Error("Error", ex);
+        return false;
+      }
+      return true;
+    }
+    private bool LoadWorldsFile(FileLoc loc)
+    {
+      if (!loc.Exists)
+      {
+        return false;
+      }
+      try
+      {
+        var enc = Encoding.GetEncoding("iso-8859-1");
+        using (var fs = loc.OpenRead())
+        using (var br = new System.IO.BinaryReader(fs, enc))
+        {
+          Int32 c = br.ReadInt32();
+          _worldNames = new List<string>();
+          for (var i = 0; i < c; ++i)
+          {
+            _worldNames.Add(br.ReadString());
+          }
+
+          br.Close();
+        }
+      }
+      catch (Exception ex)
+      {
+        //br.close
+        Gu.Log.Error("Error", ex);
+        return false;
+      }
+      return true;
+    }
+
+  }//Class
+
+
+
+
+}//NS

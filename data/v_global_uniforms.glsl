@@ -25,7 +25,7 @@ struct GpuWorld {
   vec3 _vAmbientColor;
   float _fAmbientIntensity;
 };
-layout(std140, binding = 0) uniform _ufGpuWorld_Block {
+layout(std140, binding = <UBO_BINDING_ID>) uniform _ufGpuWorld_Block {
   GpuWorld _ufGpuWorld;
 };
 uniform sampler2D _ufGpuWorld_s2EnvironmentMap;//Equirectangular ENv map
@@ -42,7 +42,7 @@ struct GpuCamera {
 //
   vec4 _vWindowViewport;//x,y,w,h
 };
-layout(std140, binding = 1) uniform _ufGpuCamera_Block {
+layout(std140, binding = <UBO_BINDING_ID>) uniform _ufGpuCamera_Block {
   GpuCamera _ufGpuCamera;
 };
 // uniform mat4 _m4View_Debug;           
@@ -62,7 +62,7 @@ struct GpuMaterial {
   float _pad1;
   float _pad2;
 };
-layout(std140, binding = 2) uniform _ufGpuMaterial_Block {
+layout(std140, binding = <UBO_BINDING_ID>) uniform _ufGpuMaterial_Block {
   GpuMaterial _ufGpuMaterial;
 };
 //TODO: sampler2DArray, and use indexes, we can put them in the shader in cs if we wish
@@ -84,7 +84,7 @@ struct GpuPointLight {
   vec3 _color;
   float _power;
 };
-layout(std140, binding = 3) uniform _ufGpuPointLights_Block {
+layout(std140, binding = <UBO_BINDING_ID>) uniform _ufGpuPointLights_Block {
   GpuPointLight _ufGpuPointLights[DEF_MAX_POINT_LIGHTS];
 };
 struct GpuDirLight {
@@ -97,7 +97,7 @@ struct GpuDirLight {
   vec3 _dir;
   float _pad;
  };
-layout(std140, binding = 4) uniform _ufGpuDirLights_Block {
+layout(std140, binding = <UBO_BINDING_ID>) uniform _ufGpuDirLights_Block {
   GpuPointLight _ufGpuDirLights[DEF_MAX_DIR_LIGHTS];
 };
 
@@ -105,27 +105,30 @@ uniform samplerCube _ufShadowBoxSamples[DEF_MAX_CUBE_SHADOW_SAMPLES];
 uniform samplerCube _ufShadowFrustumSamples[DEF_MAX_FRUS_SHADOW_SAMPLES];
 
 struct GpuDebug {
-  vec4 _tangentColor;
+  vec4 _faceTangentColor;
   vec4 _faceNormalColor;
-  vec4 _binormalColor;
+  vec4 _faceBinormalColor;
+  vec4 _vertexTangentColor;
   vec4 _vertexNormalColor;
+  vec4 _vertexBinormalColor;
   //
   float _normalLength;
   float _lineWidth;
   float _pad0;
   float _pad1;
  };
-layout(std140, binding = 5) uniform _ufGpuDebug_Block {
+layout(std140, binding = <UBO_BINDING_ID>) uniform _ufGpuDebug_Block {
   GpuDebug _ufGpuDebug;
 };
 
-struct GpuInstanceData {
-  mat4 _model;
-  uvec2 _pickId;
-  float _pad0;
-  float _pad1;
-  mat4 _model_inverse;
+struct GpuFaceData {
+  vec3 _normal;
+  uint _index;//face index
+  vec3 _tangent;
+  float pad1;
 };
+
+//layout(std430, binding = 0) buffer ssInWeightOffsets { wd_in_st wd_in[]; };
 
 #if defined(DEF_SHADER_STAGE_VERTEX)
 int getInstanceID() {
@@ -148,7 +151,14 @@ int getInstanceID() {
 #if defined(DEF_SHADER_STAGE_VERTEX) || defined(DEF_SHADER_STAGE_GEOMETRY)
 #if defined(DEF_INSTANCED)
 
-layout(std140, binding = 6) uniform _ufGpuInstanceData_Block {
+struct GpuInstanceData {
+  mat4 _model;
+  uvec2 _pickId;
+  float _pad0;
+  float _pad1;
+  mat4 _model_inverse;
+};
+layout(std140, binding = <UBO_BINDING_ID>) uniform _ufGpuInstanceData_Block {
   GpuInstanceData _ufGpuInstanceData[DEF_MAX_INSTANCES];
 };
 

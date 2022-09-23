@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -9,6 +10,51 @@ namespace PirateCraft
   //Extension methods - google what this is if you don't know
   public static class Extensions
   {
+    public static int ElementSize<T>(this T[] data)
+    {
+      int size = 0;
+      int length = data.Length;
+      if (data.Length == 0)
+      {
+        size = 0;
+      }
+      else
+      {
+        size = Marshal.SizeOf(data[0]);
+      }
+      return size;
+    }
+    public static List<int> AllIndexesOf(this string str, string value)
+    {
+      if (String.IsNullOrEmpty(value))
+      {
+        throw new ArgumentException("the string to find may not be empty", "value");
+      }
+      List<int> indexes = new List<int>();
+      for (int index = 0; ; index += value.Length)
+      {
+        index = str.IndexOf(value, index);
+        if (index == -1)
+        {
+          return indexes;
+        }
+        indexes.Add(index);
+      }
+    }
+    public static uint[] AsUIntArray(this uint[] arr)
+    {
+      return arr;
+    }
+    public static uint[] AsUIntArray(this ushort[] arr)
+    {
+      uint[] ret = new uint[arr.Length];
+      for (var ix = 0; ix < arr.Length; ix++)
+      {
+        ret[ix] = (uint)arr[ix];
+      }
+      return ret;
+    }
+
     public static string GetEnumValues(this Type enumtype, string delim_in = ",")
     {
       Gu.Assert(enumtype.IsEnum);

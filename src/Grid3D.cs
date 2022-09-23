@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Runtime.InteropServices;
+using System.Runtime.Serialization;
 
 namespace PirateCraft
 {
@@ -11,7 +12,7 @@ namespace PirateCraft
     Throw,  //throw an exception (error)
     Default,//return default val
   }
-  public class Grid3D<T> where T : struct
+  public class Grid3D<T> : ICanSerializeMyself where T : ICanSerializeMyself
   {
     public int SizeX { get; private set; } = 0;
     public int SizeY { get; private set; } = 0;
@@ -34,6 +35,10 @@ namespace PirateCraft
         Grid[xx] = initialValue;
       }
     }
+    public int Offset(int x, int y, int z)
+    {
+      return z * SizeX * SizeY + y * SizeX + x;
+    }
     public void Set(ivec3 v, T val, IndexMode m = IndexMode.Clamp)
     {
       Set(v.x, v.y, v.z, val);
@@ -41,7 +46,7 @@ namespace PirateCraft
     public void Set(int x, int y, int z, T val, IndexMode m = IndexMode.Clamp)
     {
       ClampOrWrap(ref x, ref y, ref z, m);
-      Grid[z * SizeX * SizeY + y * SizeX + x] = val;
+      Grid[Offset(x, y, z)] = val;
     }
     public T Get(ivec3 v, IndexMode m = IndexMode.Clamp)
     {
@@ -50,7 +55,7 @@ namespace PirateCraft
     public T Get(int x, int y, int z, IndexMode m = IndexMode.Clamp)
     {
       ClampOrWrap(ref x, ref y, ref z, m);
-      return Grid[z * SizeX * SizeY + y * SizeX + x];
+      return Grid[Offset(x, y, z)];
     }
     public T Get(int x, int y, int z, T defaultval)
     {
@@ -58,12 +63,12 @@ namespace PirateCraft
       {
         return defaultval;
       }
-      return Grid[z * SizeX * SizeY + y * SizeX + x];
+      return Grid[Offset(x, y, z)];
     }
     public T Get_Direct_Unsafe_But_Fast(int x, int y, int z)
     {
       //Unsafe get - no bounds checking.
-      return Grid[z * SizeX * SizeY + y * SizeX + x];
+      return Grid[Offset(x, y, z)];
     }
     public void Serialize(BinaryWriter br)
     {
@@ -73,6 +78,8 @@ namespace PirateCraft
       }
       else
       {
+        Gu.BRThrowNotImplementedException();//We are now using T's Serialize/Deserialize this code is old
+
         var byteArr = new byte[Marshal.SizeOf(typeof(T)) * Grid.Length];
         var pinnedHandle = GCHandle.Alloc(Grid, GCHandleType.Pinned);
         Marshal.Copy(pinnedHandle.AddrOfPinnedObject(), byteArr, 0, byteArr.Length);
@@ -84,6 +91,7 @@ namespace PirateCraft
     }
     public void Deserialize(BinaryReader br)
     {
+      Gu.BRThrowNotImplementedException();//We are now using T's Serialize/Deserialize this code is old
       int compressed_count = br.ReadInt32();
       if (compressed_count == 0)
       {
@@ -96,7 +104,7 @@ namespace PirateCraft
         byte[] decompressed = Gu.Decompress(compressed);
         var numStructs = decompressed.Length / Marshal.SizeOf(typeof(ushort));
 
-      //  Gu.Assert(numStructs == Drome.DromeBlockCount);
+        //  Gu.Assert(numStructs == Drome.DromeBlockCount);
 
         Grid = new T[numStructs];
         var pinnedHandle = GCHandle.Alloc(Grid, GCHandleType.Pinned);
@@ -202,10 +210,25 @@ namespace PirateCraft
       return false;
 
     }//ClampOrwra
-
+    public void Iterate(Func<Grid3D<T>, int, int, int, LambdaBool> f)
+    {
+      for (int zi = 0; zi < SizeZ; zi++)
+      {
+        for (int yi = 0; yi < SizeY; yi++)
+        {
+          for (int xi = 0; xi < SizeX; xi++)
+          {
+            if (f(this, xi, yi, zi) == LambdaBool.Break)
+            {
+              break;
+            }
+          }
+        }
+      }
+    }
   }//Grid3D
 
-  public class Grid2D<T> 
+  public class Grid2D<T> : ICanSerializeMyself where T : ICanSerializeMyself
   {
     public int SizeX { get; private set; } = 0;
     public int SizeY { get; private set; } = 0;
@@ -213,12 +236,13 @@ namespace PirateCraft
 
     public T[] Grid { get; set; } = null;
 
-    public Grid2D(int size_x, int size_y, int size_z)
+    public Grid2D(int size_x, int size_y)
     {
       SizeX = size_x;
       SizeY = size_y;
+      Allocate(default(T));
     }
-    public void Allocate(T initialValue)
+    private void Allocate(T initialValue)
     {
       Grid = new T[SizeX * SizeY];
       for (int xx = 0; xx < Count; xx++)
@@ -226,14 +250,19 @@ namespace PirateCraft
         Grid[xx] = initialValue;
       }
     }
+    public int Offset(int x, int y)
+    {
+      return y * SizeX + x;
+    }
     public void Set(ivec2 v, T val, IndexMode m = IndexMode.Clamp)
     {
       Set(v.x, v.y, val);
     }
     public void Set(int x, int y, T val, IndexMode m = IndexMode.Clamp)
     {
+      Gu.Assert(Grid != null);
       ClampOrWrap(ref x, ref y, m);
-      Grid[y * SizeX + x] = val;
+      Grid[Offset(x, y)] = val;
     }
     public T Get(ivec2 v, IndexMode m = IndexMode.Clamp)
     {
@@ -241,8 +270,9 @@ namespace PirateCraft
     }
     public T Get(int x, int y, IndexMode m = IndexMode.Clamp)
     {
+      Gu.Assert(Grid != null);
       ClampOrWrap(ref x, ref y, m);
-      return Grid[y * SizeX + x];
+      return Grid[Offset(x, y)];
     }
     public T Get(int x, int y, T defaultval)
     {
@@ -250,12 +280,12 @@ namespace PirateCraft
       {
         return defaultval;
       }
-      return Grid[y * SizeX + x];
+      return Grid[Offset(x, y)];
     }
-    public T Get_Direct_Unsafe_But_Fast(int x, int y, int z)
+    public T Get_Direct_Unsafe_But_Fast(int x, int y)
     {
       //Unsafe get - no bounds checking.
-      return Grid[y * SizeX + x];
+      return Grid[Offset(x, y)];
     }
     public void Serialize(BinaryWriter br)
     {
@@ -265,6 +295,7 @@ namespace PirateCraft
       }
       else
       {
+
         var byteArr = new byte[Marshal.SizeOf(typeof(T)) * Grid.Length];
         var pinnedHandle = GCHandle.Alloc(Grid, GCHandleType.Pinned);
         Marshal.Copy(pinnedHandle.AddrOfPinnedObject(), byteArr, 0, byteArr.Length);
@@ -288,7 +319,7 @@ namespace PirateCraft
         byte[] decompressed = Gu.Decompress(compressed);
         var numStructs = decompressed.Length / Marshal.SizeOf(typeof(ushort));
 
-       // Gu.Assert(numStructs == Drome.DromeBlockCount);
+        // Gu.Assert(numStructs == Drome.DromeBlockCount);
 
         Grid = new T[numStructs];
         var pinnedHandle = GCHandle.Alloc(Grid, GCHandleType.Pinned);
@@ -372,7 +403,20 @@ namespace PirateCraft
       return false;
 
     }//ClampOrwra
+    public void Iterate(Func<Grid2D<T>, int, int, LambdaBool> f)
+    {
+      for (int yi = 0; yi < SizeY; yi++)
+      {
+        for (int xi = 0; xi < SizeX; xi++)
+        {
+          if (f(this, xi, yi) == LambdaBool.Break)
+          {
+            break;
+          }
+        }
+      }
+    }
 
-  }//Grid3D
+  }//Grid2D
 
 }

@@ -37,6 +37,7 @@ namespace PirateCraft
     [Description("_ufGpuPointLights_Block")] _ufGpuPointLights_Block,
     [Description("_ufGpuDirLights_Block")] _ufGpuDirLights_Block,
     [Description("_ufGpuInstanceData_Block")] _ufGpuInstanceData_Block,
+    [Description("_ufGpuFaceData_Block")] _ufGpuFaceData_Block,
     [Description("_m4Projection_Debug")] _m4Projection_Debug,
     [Description("_m4View_Debug")] _m4View_Debug,
     [Description("_m4Model_Debug")] _m4Model_Debug,
@@ -148,12 +149,16 @@ namespace PirateCraft
   [StructLayout(LayoutKind.Sequential)]
   public struct GpuDebug
   {
+    const float cb = 0;//0.3725f;
+    const float nb = 1;//0.895f;
     public GpuDebug() { }
     //
-    public vec4 _tangentColor = new vec4(1, 0, 0, 1);
-    public vec4 _normalColor = new vec4(0, 1, 0, 1);
-    public vec4 _binormalColor = new vec4(0, 0, 1, 1);
-    public vec4 _vertexNormalColor = new vec4(1, 0, 1, 1);
+    public vec4 _faceTangentColor = new vec4(nb, cb, cb, 1);//kinda make it differntt
+    public vec4 _faceNormalColor = new vec4(cb, nb, cb, 1);
+    public vec4 _faceBinormalColor = new vec4(cb, cb, nb, 1);
+    public vec4 _vertexTangentColor = new vec4(1, 0, 1, 1);
+    public vec4 _vertexNormalColor = new vec4(0, 1, 1, 1);
+    public vec4 _vertexBinormalColor = new vec4(1, 1, 0, 1);
     //
     public float _normalLength = 0.1f;
     public float _lineWidth = 1.0f;
@@ -176,7 +181,7 @@ namespace PirateCraft
     public int MaxDirLights { get; set; } = 2;
     public int MaxCubeShadowSamples { get; set; } = 4;
     public int MaxFrusShadowSamples { get; set; } = 4;
-    public int MaxInstances { get; set; } = 8;
+    public int MaxInstances { get; set; } = 32;
     public bool IsInstanced { get; set; } = true;  //this is, technically going to always be set now, but later we can add non-instanced for performance improvements.
     private PipelineStageEnum PipelineStageEnum = PipelineStageEnum.Unset;
 
@@ -406,7 +411,8 @@ namespace PirateCraft
   }
   public class VisibleObjectInstances : MutableState
   {
-    public List<WorldObject> Objects = null;
+    //A list of instanced objects that all share the same mesh & material
+    public List<IDrawable> Objects = null;
     public GpuInstanceData[] GpuInstanceData = null;
     public MeshData Mesh
     {
@@ -419,10 +425,11 @@ namespace PirateCraft
             return Objects[0].Mesh;
           }
         }
+        Gu.DebugBreak();
         return null;
       }
     }
-    public void Add(WorldObject ob)
+    public void Add(IDrawable ob)
     {
       Objects = Objects.ConstructIfNeeded();
       Objects.Add(ob);
@@ -448,6 +455,7 @@ namespace PirateCraft
   }
   public class VisibleObjects : MutableState
   {
+    //Visible objects sorted by <material < typeID, instances>> Not sure why we need Type ID
     public Dictionary<Material, Dictionary<Int64, VisibleObjectInstances>> Objects { get; set; } = null;
     public GpuMaterial GpuMaterial { get { return _gpuMaterial; } }
 
@@ -456,7 +464,7 @@ namespace PirateCraft
     public VisibleObjects()
     {
     }
-    public VisibleObjects(List<WorldObject> obs)
+    public VisibleObjects(List<IDrawable> obs)
     {
       foreach (var ob in obs)
       {
@@ -498,6 +506,9 @@ namespace PirateCraft
         cs.CheckAllUniformsSet();
 
         var mesh = ob_set.Value.Mesh;
+
+        cs.BindMeshUniforms(mesh);
+
         Gu.Assert(mesh != null);
         mesh.Draw(ob_set.Value.GpuInstanceData, mat.Shader.GSPrimType);
       }
@@ -530,12 +541,11 @@ namespace PirateCraft
         SetModified();
       }
     }
-    public void Add(WorldObject ob)
+    public void Add(IDrawable ob)
     {
       Gu.Assert(ob.Material != null);
+      Gu.Assert(ob.Mesh != null);
 
-      var typeId = ob.TypeID;
-      //**TEST
       Objects = Objects.ConstructIfNeeded();
       Dictionary<Int64, VisibleObjectInstances>? matList = null;
       if (!Objects.TryGetValue(ob.Material, out matList))
@@ -552,6 +562,8 @@ namespace PirateCraft
       objList.Add(ob);
       SetModified();
     }
+
+
   }
   public class DrawCall
   {
@@ -562,7 +574,8 @@ namespace PirateCraft
     private double? _delta = null;
     private VisibleObjects _visibleObjects = new VisibleObjects();
 
-    public static void Draw(WorldProps p, RenderView rv, WorldObject ob)
+
+    public static void Draw(WorldProps p, RenderView rv, IDrawable ob)
     {
       DrawCall dc = new DrawCall();
       dc.VisibleObjects.Add(ob);
@@ -574,8 +587,9 @@ namespace PirateCraft
     {
       _visibleObjects.Clear();
     }
-    public void AddVisibleObject(WorldObject ob)
+    public void AddVisibleObject(IDrawable ob)
     {
+      Gu.Assert(ob != null);
       _visibleObjects = VisibleObjects.ConstructIfNeeded();
       _visibleObjects.Add(ob);
     }
@@ -629,33 +643,69 @@ namespace PirateCraft
       Active = active;
     }
   }
-  public class ShaderUniformBlock : OpenGLResource
+  public abstract class ShaderMemoryBlock : OpenGLResource
   {
-    public int UboId { get; private set; } = -2;
     public int BlockIndex { get; private set; } = -1;
     public int BindingIndex { get; private set; } = -1;
     public bool HasBeenSet { get; set; } = false;
     public bool Active { get; private set; } = false;
     public int BufferSizeBytes { get; private set; } = 0;
+    public GPUBuffer Buffer { get; protected set; } = null;//Optional buffer to copy to, or we can set it from mesh data, or elsewhere
 
     public override void Dispose_OpenGL_RenderThread()
     {
-      GL.DeleteBuffer(UboId);
+      Buffer = null;
     }
-    public ShaderUniformBlock(string name, int iBlockIndex, int iBindingIndex, int iBufferByteSize, bool active) : base(name + "-ubk")
+
+    public ShaderMemoryBlock(string name, int iBlockIndex, int iBindingIndex, int iBufferByteSize, bool active) : base(name)
     {
       BufferSizeBytes = iBufferByteSize;
       BindingIndex = iBindingIndex;
       BlockIndex = iBlockIndex;
       Active = active;
-
-      UboId = GL.GenBuffer();
-      GL.BindBuffer(BufferTarget.UniformBuffer, UboId);
-      Gpu.CheckGpuErrorsDbg();
-      GL.BufferData(BufferTarget.UniformBuffer, BufferSizeBytes, IntPtr.Zero, BufferUsageHint.DynamicDraw);
-      Gpu.CheckGpuErrorsDbg();
-      GL.BindBuffer(BufferTarget.UniformBuffer, 0);
-      Gpu.CheckGpuErrorsDbg();
+    }
+    public abstract GPUBuffer GetOrCreateBuffer();
+  }
+  public class ShaderUniformBlock : ShaderMemoryBlock
+  {
+    public ShaderUniformBlock(string name, int iBlockIndex, int iBindingIndex, int iBufferByteSize, bool active) :
+    base(name + "-ubk", iBlockIndex, iBindingIndex, iBufferByteSize, active)
+    {
+    }
+    public override GPUBuffer GetOrCreateBuffer()
+    {
+      if (Buffer == null)
+      {
+        Buffer = Gpu.CreateUniformBuffer(this.Name, 1, BufferSizeBytes);
+      }
+      return Buffer;
+    }
+  }
+  public class ShaderStorageBlock : ShaderMemoryBlock
+  {
+    public ShaderStorageBlock(string name, int iBlockIndex, int iBindingIndex, int iBufferByteSize, bool active) :
+    base(name + "-ssbk", iBlockIndex, iBindingIndex, iBufferByteSize, active)
+    {
+    }
+    public override GPUBuffer GetOrCreateBuffer()
+    {
+      if (Buffer == null)
+      {
+        Buffer = Gpu.CreateShaderStorageBuffer(this.Name, 1, BufferSizeBytes);
+      }
+      return Buffer;
+    }
+  }
+  public class ShaderAttrib
+  {
+    public ActiveAttribType ActiveAttribType { get; private set; }
+    public int Size { get; private set; }
+    public int Index { get; private set; }
+    public ShaderAttrib(int index, int size, ActiveAttribType type)
+    {
+      Index = index;
+      Size = size;
+      ActiveAttribType = type;
     }
   }
   public class ContextShader : OpenGLResource
@@ -666,6 +716,9 @@ namespace PirateCraft
     // Context -> Pipeline Stage -> Shader
     private static string c_strGlobalDefineString = "<GLSL_CONTROL_DEFINES_HERE>";
     private static string c_strGlobalOutputString = "<GLSL_CONTROL_OUTPUTS_HERE>";
+    private static string c_strUBOBindingString = "<UBO_BINDING_ID>";
+    private static string c_strSSBOBindingString = "<SSBO_BINDING_ID>";
+
     private ShaderStage _vertexStage = null;
     private ShaderStage _fragmentStage = null;
     private ShaderStage _geomStage = null;
@@ -673,6 +726,8 @@ namespace PirateCraft
     public PipelineStageEnum PipelineStageEnum { get; private set; } = PipelineStageEnum.Unset;
     public ShaderLoadState State { get; private set; } = ShaderLoadState.None;
 
+    private List<ShaderAttrib> _attribs = new List<ShaderAttrib>();
+    private Dictionary<string, ShaderStorageBlock> _ssbos = new Dictionary<string, ShaderStorageBlock>();
     private Dictionary<string, ShaderUniform> _uniforms = new Dictionary<string, ShaderUniform>();
     private Dictionary<string, ShaderUniformBlock> _uniformBlocks = new Dictionary<string, ShaderUniformBlock>();
 
@@ -774,7 +829,9 @@ namespace PirateCraft
         if (State == ShaderLoadState.Validated)
         {
           Bind();
+          ParseAttribs();
           ParseUniforms();
+          ParseSSBOs();
           if (State == ShaderLoadState.Validated)
           {
             Unbind();
@@ -796,12 +853,23 @@ namespace PirateCraft
     {
       System.IO.File.WriteAllText(System.IO.Path.Combine(Gu.LocalTmpPath, filename), src + Environment.NewLine + (errors == null ? "" : errors));
     }
+    private void CreateBindingIndexes(ref string src_cpy, string index_identifier)
+    {
+      for (int binding = 0, idx = src_cpy.IndexOf(index_identifier); idx >= 0; idx = src_cpy.IndexOf(index_identifier), binding++)
+      {
+        //This is inefficnient these files can be very huge, TODO:optimize
+        src_cpy = src_cpy.Substring(0, idx) + binding.ToString() + src_cpy.Substring(idx + index_identifier.Length);
+      }
+    }
     private string ProcessShaderSource(WindowContext ct, string src_raw, ShaderType type, PipelineStageEnum stage)
     {
       string src_cpy = src_raw;
       if (StringUtil.IsNotEmpty(src_cpy))
       {
         string e = "" + Name + " (" + type.ToString() + "): Shader vars tag '";
+
+        CreateBindingIndexes(ref src_cpy, ContextShader.c_strUBOBindingString);
+        CreateBindingIndexes(ref src_cpy, ContextShader.c_strSSBOBindingString);
 
         if (!src_cpy.Contains(ContextShader.c_strGlobalDefineString))
         {
@@ -1008,13 +1076,60 @@ namespace PirateCraft
 
       return true;
     }
+    private void ParseAttribs()
+    {
+      int u_count = 0;
+      GL.GetProgram(_glId, GetProgramParameterName.ActiveAttributes, out u_count);
+      for (var i = 0; i < u_count; i++)
+      {
+        ActiveAttribType u_type;
+        int u_size = 0;
+
+        GL.GetActiveAttrib(_glId, i, out u_size, out u_type);
+
+        _attribs.Add(new ShaderAttrib(i, u_size, u_type));
+
+        //** TODO: this will allow us to match up the attribs with other components.
+        //GL.GetAttribLocation(_glId, GetProgramParameterName.attrib)
+      }
+    }
+    int _maxBufferBindingIndex = -1;
+    private void ParseSSBOs()
+    {
+      Gpu.CheckGpuErrorsRt();
+
+      //So how we get teh friggin SSBO layout?? I don't know.
+      //Apparently you can just set it to whatever (reasonably low value)
+      //Would do diligence to check the GPU's limitations on binding points
+
+      for (int i = 0; Gu.WhileTrueGuard(i, Gu.c_intMaxWhileTrueLoop); i++)
+      {
+        string ssbo_name = "DEADDEADDEADDEADDEADDEADDEADDEADDEADDEADDEADDEADDEADDEADDEADDEAD";//idk.
+        int u_name_len = 0;
+        GL.GetProgramResourceName(_glId, ProgramInterface.ShaderStorageBlock, i, ssbo_name.Length, out u_name_len, out ssbo_name);
+        if (GL.GetError() == ErrorCode.NoError)
+        {
+          var block_index = GL.GetProgramResourceIndex(_glId, ProgramInterface.ShaderStorageBlock, ssbo_name);
+          int my_binding = _maxBufferBindingIndex + 1;
+          _maxBufferBindingIndex++;
+          GL.ShaderStorageBlockBinding(_glId, block_index, my_binding);
+          ShaderStorageBlock sb = new ShaderStorageBlock(ssbo_name, block_index, my_binding, 0, true);
+          _ssbos.Add(ssbo_name, sb);
+        }
+        else
+        {
+          Gpu.CheckGpuErrorsRt(true, true, "", true);
+          break;
+        }
+      }
+      Gpu.CheckGpuErrorsRt();
+
+    }
     private void ParseUniforms()
     {
       int u_count = 0;
       GL.GetProgram(_glId, GetProgramParameterName.ActiveUniforms, out u_count);
       Gpu.CheckGpuErrorsRt();
-
-      //TODO: blocks
       for (var i = 0; i < u_count; i++)
       {
         ActiveUniformType u_type;
@@ -1107,6 +1222,8 @@ namespace PirateCraft
           {
             Gu.Log.Debug($"{Name}: ..Active uniform block: {u_name}");
           }
+
+          _maxBufferBindingIndex = Math.Max(_maxBufferBindingIndex, binding);
         }
 
         ShaderUniformBlock su = new ShaderUniformBlock(u_name, iBlock, binding, buffer_size_bytes, active);// u_size, u_type, u_name);
@@ -1173,6 +1290,14 @@ namespace PirateCraft
 
       BindUniform_Mat4(ShaderUniformName._m4Model_Debug.Description(), inst[0]._model);
     }
+    public void BindMeshUniforms(MeshData m)
+    {
+      Gu.Assert(m != null);
+      if (m.FaceData != null)
+      {
+        BindSSBOBlock(ShaderUniformName._ufGpuFaceData_Block.Description(), m.FaceData);
+      }
+    }
     public void BindUniform_Mat4(string name, mat4 m)
     {
       if (_uniforms.TryGetValue(name, out var u))
@@ -1222,7 +1347,7 @@ namespace PirateCraft
         return false;
       }
     }
-    private void BindUniformBlock<T>(ShaderUniformBlock u, T[] items)
+    private void BindUniformBlock<T>(ShaderUniformBlock ub, T[] items)
     {
       Gu.Assert(items != null);
 
@@ -1234,16 +1359,16 @@ namespace PirateCraft
       item_size = Marshal.SizeOf(typeof(T));//default(T) 
 
       int num_bytes_to_copy = item_size * items.Length;// dat.instanceData.Length;
-      if (num_bytes_to_copy > u.BufferSizeBytes)
+      if (num_bytes_to_copy > ub.BufferSizeBytes)
       {
-        num_bytes_to_copy = u.BufferSizeBytes;
-        Gu.Log.WarnCycle("Exceeded max index count of " + u.BufferSizeBytes / item_size + " matrices. Tried to copy " + items.Length + " block instances.");
+        num_bytes_to_copy = ub.BufferSizeBytes;
+        Gu.Log.WarnCycle($"Uniform Block '{ub.Name}' exceeded max count of " + ub.BufferSizeBytes / item_size + " items. Tried to copy " + items.Length + " items.");
       }
       var handle = GCHandle.Alloc(items, GCHandleType.Pinned);
-      CopyUniformBlockData(u, handle.AddrOfPinnedObject(), num_bytes_to_copy);
+      CopyUniformBlockData(ub, handle.AddrOfPinnedObject(), num_bytes_to_copy);
       handle.Free();
 
-      BindUniformBlockFast(u);
+      BindBlockFast(ub);
     }
     public void CopyUniformBlockData(ShaderUniformBlock u, IntPtr pData, int copySizeBytes)
     {
@@ -1252,7 +1377,9 @@ namespace PirateCraft
 
       Gpu.CheckGpuErrorsDbg();
 
-      GL.BindBuffer(BufferTarget.UniformBuffer, u.UboId);
+      var ubo = u.GetOrCreateBuffer();
+
+      GL.BindBuffer(BufferTarget.UniformBuffer, ubo.GetGlId());
       Gpu.CheckGpuErrorsDbg();
 
       GL.BufferSubData(BufferTarget.UniformBuffer, IntPtr.Zero, copySizeBytes, pData);
@@ -1267,16 +1394,43 @@ namespace PirateCraft
       }
       u.HasBeenSet = true;
     }
-    public void BindUniformBlockFast(ShaderUniformBlock u)
+    public void BindUniformBlock(string uname, GPUBuffer b)
+    {
+      if (_uniformBlocks.TryGetValue(uname, out var block))
+      {
+        BindBlockFast(block, b);
+      }
+      else
+      {
+        ReportUniformNotFound(uname, true);
+      }
+    }
+    public void BindSSBOBlock(string uname, GPUBuffer b)
+    {
+      if (_ssbos.TryGetValue(uname, out var block))
+      {
+        BindBlockFast(block, b);
+      }
+      else
+      {
+        ReportUniformNotFound(uname, true);
+      }
+    }
+    private void BindBlockFast(ShaderMemoryBlock u)
     {
       if (u.HasBeenSet == false)
       {
         Gu.Log.WarnCycle(this.Name + ": Shader Uniform Block '" + u.Name + "' value was not set before binding.");
         Gu.DebugBreak();
       }
-      GL.BindBufferBase(BufferRangeTarget.UniformBuffer, u.BindingIndex, u.UboId);
+      BindBlockFast(u, u.Buffer);
+    }
+    private void BindBlockFast(ShaderMemoryBlock u, GPUBuffer b)
+    {
+      Gu.Assert(b.RangeTarget != null);
+      GL.BindBufferBase(b.RangeTarget.Value, u.BindingIndex, b.GetGlId());
       Gpu.CheckGpuErrorsDbg();
-      GL.BindBuffer(BufferTarget.UniformBuffer, u.UboId);
+      GL.BindBuffer(b.BufferTarget, b.GetGlId());
       Gpu.CheckGpuErrorsDbg();
     }
     private void BindTexture(string uniform_name, Texture2D tex)
@@ -1309,6 +1463,8 @@ namespace PirateCraft
         ReportUniformNotFound(uniform_name, false);
       }
     }
+
+
     private void ReportUniformNotFound(string uniform_name, bool is_block, bool error = false)
     {
       if (error)

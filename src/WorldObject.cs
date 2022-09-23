@@ -526,9 +526,9 @@ namespace PirateCraft
       Playing, Flying
     }
     public FPSCamMode CamMode { get; set; } = FPSCamMode.Flying;
-    private const float Base_Speed = World.BlockSizeX * 0.10f;
+    private const float Base_Speed = 10.0f * 0.10f;
     private const float Run_Mul = 6;
-    private const float Base_Jump_Speed = World.BlockSizeY * 0.75f;
+    private const float Base_Jump_Speed = 10.0f * 0.75f;
     private const float MaxAirFriction = 10.0f;//friction percentage in velocity Units per second (1.0 means the velocity will reach 0 in one second) [0,1]. lower values result in less friction
                                                //    private FirstPersonMouseRotator _FPSRotator = new FirstPersonMouseRotator();
 
@@ -824,6 +824,33 @@ namespace PirateCraft
 
   #endregion
 
+
+  public interface IDrawable
+  {
+    public MeshData? Mesh { get; set; }
+    public Material? Material { get; set; }
+    public mat4 WorldMatrix { get; set; }
+    public uint PickId { get; set; }
+    public long TypeID { get; }
+  }
+  public class SoloMesh : IDrawable
+  {
+    //lightweight version of WorldObject, used 
+    //for lots of terrain geometry, or large geometry patches
+    public MeshData? Mesh { get; set; } = null;
+    public Material? Material { get; set; } = null;
+    public mat4 WorldMatrix { get; set; } = mat4.Identity;//We COULD remove this if we wanted.
+    public uint PickId { get; set; } = 0;
+    public long TypeID { get { return 0; } }
+    public SoloMesh(MeshData? mesh, Material? mat, mat4 mworld, uint pickId)
+    {
+      Mesh = mesh;
+      Material = mat;
+      WorldMatrix = mworld;
+      PickId = pickId;
+    }
+  }
+
   public class PRS
   {
     private quat _rotation = new quat(0, 0, 0, 1); //Axis-Angle xyz,ang
@@ -834,7 +861,7 @@ namespace PirateCraft
     public vec3 Scale { get { return _scale; } set { _scale = value; } }
   }
 
-  public class WorldObject : DataBlock
+  public class WorldObject : DataBlock, IDrawable
   {
     // main object that stores matrix for pos/rot/scale, and components for mesh, sound, script .. GameObject ..
     #region Public:Members
@@ -842,7 +869,7 @@ namespace PirateCraft
     public object LoaderTempData = null;
     public int LoaderTempDataNodeId = -1;
     public bool DebugBreakRender = false;
-    public uint PickId { get { return _pickId; } }
+    public uint PickId { get { return _pickId; } set { Gu.BRThrowException("PickId cannot be set on WorldObject."); } }
     public WorldObjectState State { get { return _state; } set { _state = value; } }
     public bool TransformChanged { get { return _transformChanged; } private set { _transformChanged = value; } }
     public bool Hidden { get { return _hidden; } private set { _hidden = value; } }
@@ -867,7 +894,7 @@ namespace PirateCraft
     public mat4 BindMatrix { get { return _bind; } } // Skinned Bind matrix
     public mat4 InverseBindMatrix { get { return _inverse_bind; } } // Skinned Inverse Bind
     public mat4 LocalMatrix { get { return _local; } }
-    public mat4 WorldMatrix { get { return _world; } }
+    public mat4 WorldMatrix { get { return _world; } set { Gu.BRThrowException("WorldMatrix cannot be set on WorldObject."); } }
     public List<Component> Components { get { return _components; } private set { _components = value; } }
     public List<Constraint> Constraints { get { return _constraints; } private set { _constraints = value; } }// *This is an ordered list they come in order
 

@@ -1224,7 +1224,7 @@ namespace PirateCraft
     protected int _idx = 0;//index of _data
 
     protected abstract bool DoParse(char c, string eated, ref bool requestBreak);//return true if the given character was handled.
-  
+
     protected virtual void BeforeParse() { }
     protected virtual void AfterParse() { }
 
@@ -1366,6 +1366,12 @@ namespace PirateCraft
       Error(file, line, col, s, true);
     }
     #endregion
+  }
+
+  public interface ICanSerializeMyself
+  {
+    public abstract void Serialize(BinaryWriter br);
+    public abstract void Deserialize(BinaryReader br);
   }
 
 }//ns
