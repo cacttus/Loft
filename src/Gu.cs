@@ -239,6 +239,10 @@ namespace PirateCraft
     {
       Debugger.Break();
     }
+    public static void Trap(){
+      int n=0;
+      n++;
+    }
     public static byte[] Compress(byte[] data)
     {
       MemoryStream output = new MemoryStream();

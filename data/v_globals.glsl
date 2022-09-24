@@ -172,7 +172,7 @@ vec3 lightFragmentBlinnPhong(in vec3 in_vertex, in vec4 in_albedo, in vec3 in_no
     finalColor += (in_albedo.rgb * lambert + specColor * spec) * vLightColor * fLightPower / dist;
   }
 
-  finalColor += _ufGpuWorld._vAmbientColor * _ufGpuWorld._fAmbientIntensity;
+  finalColor += in_albedo.rgb* _ufGpuWorld._vAmbientColor * _ufGpuWorld._fAmbientIntensity;
 
   return finalColor;
 }

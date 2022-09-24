@@ -256,6 +256,8 @@ namespace PirateCraft
     public void Serialize(BinaryWriter bw)
     {
       FileLoc.Serialize(bw);
+      var writetime = FileLoc.GetLastWriteTime(true);
+      bw.Write((DateTime)writetime);
       bw.Write((Int32)Texs.Count);
       bw.Write(LastWriteTime);
       foreach (var tx in Texs)
@@ -285,11 +287,20 @@ namespace PirateCraft
         {
           if (tmp_fileloc.GetLastWriteTime() < FileLoc.GetLastWriteTime())
           {
-            Gu.BRThrowException("File was newer");
-
+            Gu.BRThrowException($"File {tmp_fileloc.RawPath} was newer");
           }
         }
       }
+
+      var writetime = br.ReadDateTime();
+      if (tmp_fileloc.ExistsOnDisk())
+      {
+        if (tmp_fileloc.GetLastWriteTime(true) > writetime)
+        {
+          Gu.BRThrowException($"File {tmp_fileloc.RawPath} is newer.");
+        }
+      }
+
       FileLoc = tmp_fileloc;
 
       var texcount = br.ReadInt32();
@@ -300,9 +311,10 @@ namespace PirateCraft
         //Generated images must be set before checking megatex.
         if (this.Texs != null && this.Texs.Count != texcount)
         {
-          Gu.BRThrowException("Tex count mismatch");
+          Gu.BRThrowException($"{tmp_fileloc.RawPath}: Tex count mismatch");
         }
       }
+
 
       var tmp_texs = new List<MtTex>();
       for (int ti = 0; ti < texcount; ti++)
@@ -314,7 +326,7 @@ namespace PirateCraft
         {
           if (Texs[ti].ImageHash != t.ImageHash)
           {
-            Gu.BRThrowException("Generated file was not the same");
+            Gu.BRThrowException($"{tmp_fileloc.RawPath}: Generated file was not the same");
           }
         }
 
@@ -1338,6 +1350,7 @@ namespace PirateCraft
     {
       _eState = MegaTexCompileState.Compiling;
 
+      Gu.Log.Debug($"MegaTex: Compiling {this.Name}");
       //Cached image names
 
       //Adding cache because this MFER takes forever to do

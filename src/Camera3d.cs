@@ -148,7 +148,6 @@ namespace PirateCraft
     }
     public bool HasBox(in Box3f pCube)
     {
-      bool ret = false;  // Inside the frustum
       vec3 min, max;
       float d1, d2;
       if (!pCube.Validate())

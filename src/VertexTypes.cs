@@ -1010,7 +1010,7 @@ namespace PirateCraft
     public vec3 _v;
     public vec4 _c;
   }
-  //Base object vertex, with picking
+  //Base object vertex, with picking<
   [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct v_v3n3x2t3u1

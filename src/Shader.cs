@@ -111,7 +111,7 @@ namespace PirateCraft
     public int _pad1 = 0;
     //
     public vec3 _vAmbientColor = new vec3(1, 1, 1);
-    public float _fAmbientIntensity = 0.0f;
+    public float _fAmbientIntensity = 0.7f;
   }
   [StructLayout(LayoutKind.Sequential)]
   public struct GpuCamera
@@ -320,7 +320,7 @@ namespace PirateCraft
     private float _fogDivisor = 1200.0f; //Begin of fog distance
     private vec3 _fogColor = new vec3(0.8407f, 0.89349f, 0.981054f);
     private vec3 _ambient = new vec3(1, 1, 1);
-    private float _ambientIntensity = 0.0f;
+    private float _ambientIntensity = 0.13f;
     private DayNightCycle _dayNightCycle = null;
     private ModifiedList<Light> _lights = new ModifiedList<Light>();
     private GpuWorld _gpuWorld = new GpuWorld();
@@ -411,7 +411,7 @@ namespace PirateCraft
   }
   public class VisibleObjectInstances : MutableState
   {
-    //A list of instanced objects that all share the same mesh & material
+    //A list of instanced objects that all share the same mesh material
     public List<IDrawable> Objects = null;
     public GpuInstanceData[] GpuInstanceData = null;
     public MeshData Mesh
@@ -446,7 +446,7 @@ namespace PirateCraft
           Gu.Assert(Objects[iob] != null);
           //we could have the objects also contain a GpuInstanceData themselves.. this may be too much extra data though
           GpuInstanceData[iob]._model = Objects[iob].WorldMatrix;
-          GpuInstanceData[iob]._model_inverse = GpuInstanceData[iob]._model.inverseOf();
+          GpuInstanceData[iob]._model_inverse = GpuInstanceData[iob]._model.inverseOf();//We can cache this
           GpuInstanceData[iob]._pickId.x = Objects[iob].PickId;
         }
         Modified = false;
@@ -456,7 +456,7 @@ namespace PirateCraft
   public class VisibleObjects : MutableState
   {
     //Visible objects sorted by <material < typeID, instances>> Not sure why we need Type ID
-    public Dictionary<Material, Dictionary<Int64, VisibleObjectInstances>> Objects { get; set; } = null;
+    public Dictionary<Material, Dictionary<UInt64, VisibleObjectInstances>> Objects { get; set; } = null;
     public GpuMaterial GpuMaterial { get { return _gpuMaterial; } }
 
     private GpuMaterial _gpuMaterial = new GpuMaterial();
@@ -493,23 +493,22 @@ namespace PirateCraft
         }
       }
     }
-    private void DrawForMaterial(WorldProps wp, RenderView rv, Material mat, Dictionary<long, VisibleObjectInstances> instances)
+    private void DrawForMaterial(WorldProps wp, RenderView rv, Material mat, Dictionary<UInt64, VisibleObjectInstances> instances)
     {
       mat.GpuRenderState.SetState();
       var cs = mat.Shader.GetShaderForCurrentContext();
       cs.BeginRender(wp, rv, mat);
       foreach (var ob_set in instances)
       {
+        var mesh = ob_set.Value.Mesh;
         ob_set.Value.CompileGpuData();
         cs.BindInstanceUniforms(ob_set.Value.GpuInstanceData);
 
-        cs.CheckAllUniformsSet();
-
-        var mesh = ob_set.Value.Mesh;
-
+        Gu.Assert(mesh != null);
         cs.BindMeshUniforms(mesh);
 
-        Gu.Assert(mesh != null);
+        cs.CheckAllUniformsSet();
+
         mesh.Draw(ob_set.Value.GpuInstanceData, mat.Shader.GSPrimType);
       }
       cs.EndRender();
@@ -547,12 +546,14 @@ namespace PirateCraft
       Gu.Assert(ob.Mesh != null);
 
       Objects = Objects.ConstructIfNeeded();
-      Dictionary<Int64, VisibleObjectInstances>? matList = null;
+      Dictionary<UInt64, VisibleObjectInstances>? matList = null;
       if (!Objects.TryGetValue(ob.Material, out matList))
       {
         matList = matList.ConstructIfNeeded();
         Objects.Add(ob.Material, matList);
       }
+      //The instancing system needs to be reworked
+      //This is correct an instance shares A) material B) mesh, but also components, skeletons, etc, so it is not mesh id it is ob.id
       VisibleObjectInstances? objList = null;
       if (!matList.TryGetValue(ob.TypeID, out objList))
       {

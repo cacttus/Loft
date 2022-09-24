@@ -717,9 +717,6 @@ namespace PirateCraft
   }//FpsInputComponent
 
 
-
-
-
   #endregion
   #region Constraints
 
@@ -824,30 +821,36 @@ namespace PirateCraft
 
   #endregion
 
-
   public interface IDrawable
   {
     public MeshData? Mesh { get; set; }
     public Material? Material { get; set; }
     public mat4 WorldMatrix { get; set; }
     public uint PickId { get; set; }
-    public long TypeID { get; }
+    public UInt64 TypeID { get; }
   }
   public class SoloMesh : IDrawable
   {
     //lightweight version of WorldObject, used 
     //for lots of terrain geometry, or large geometry patches
+
+    mat4 _worldMatrix = mat4.Identity;
+
     public MeshData? Mesh { get; set; } = null;
     public Material? Material { get; set; } = null;
-    public mat4 WorldMatrix { get; set; } = mat4.Identity;//We COULD remove this if we wanted.
+    public mat4 WorldMatrix { get { return _worldMatrix; } set { 
+      _worldMatrix = value; } }
     public uint PickId { get; set; } = 0;
-    public long TypeID { get { return 0; } }
+    private UInt64 _typeId = 0;
+    public UInt64 TypeID { get { return _typeId; } }
+
     public SoloMesh(MeshData? mesh, Material? mat, mat4 mworld, uint pickId)
     {
       Mesh = mesh;
       Material = mat;
-      WorldMatrix = mworld;
+      _worldMatrix = mworld;
       PickId = pickId;
+      _typeId = DataBlock.GetNewType();//generate a "one time" type for quick meshes Note: a "reserved" type index aray might work better.
     }
   }
 

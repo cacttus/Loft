@@ -741,9 +741,12 @@ namespace PirateCraft
 #endif
       Title = "Slaver " + VersionId.ToString();
       Gu.WorldLoader = new WorldLoader(Gu.GetContextForWindow(this));
-     
+
       var w = Gu.WorldLoader.CreateNewWorld(new WorldInfo("MyWorld", DELETE_WORLD_START_FRESH, 2));
-     
+
+      Gu.Log.Debug("Debug:Creatingf flat area");
+      Gu.WorldLoader.CreateFlatArea();
+
       SetGameMode(Gu.World.GameMode);
 
       TestCreateDebugObjects();
@@ -933,14 +936,17 @@ namespace PirateCraft
       Texture2D tx_brady = Gu.Resources.LoadTexture(brady, true, TexFilter.Trilinear);
 
       //Objects
-      Gu.World.CreateAndAddObject("Grass-Plane.", MeshData.GenPlane(10, 10), new Material("grass-plane", Shader.DefaultObjectShader(), tx_grass, new Texture2D(ResourceManager.LoadImage(grass).CreateNormalMap(false, 0.2f), true, TexFilter.Linear)));
+      Gu.World.CreateAndAddObject("Grass-Plane.", MeshData.GenPlane(10, 10), new Material("grass-plane", Shader.DefaultObjectShader(), tx_grass, null ));
+
+//normal map test (slow)
+      //new Texture2D(ResourceManager.LoadImage(brady).CreateNormalMap(false), true, TexFilter.Linear)
 
       //Gu.Debug_IntegrityTestGPUMemory();
 
-      testobjs[0] = new Material("sphere_rot", Shader.DefaultObjectShader(), tx_gates);//, new Texture2D(ResourceManager.LoadImage(gates).CreateNormalMap(false), true, TexFilter.Linear));
+      testobjs[0] = new Material("sphere_rot", Shader.DefaultObjectShader(), tx_gates);
       testobjs[1] = new Material("sphere_rot2", Shader.DefaultObjectShader(), tx_zuck);
       testobjs[1].Flat = true;
-      testobjs[2] = new Material("sphere_rot3", Shader.DefaultObjectShader(), tx_brady, new Texture2D(ResourceManager.LoadImage(brady).CreateNormalMap(false), true, TexFilter.Linear));
+      testobjs[2] = new Material("sphere_rot3", Shader.DefaultObjectShader(), tx_brady, null);
 
       Sphere_Rotate_Quat_Test = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test", MeshData.GenSphere(1, 12, 12, true), testobjs[0]);
       Sphere_Rotate_Quat_Test2 = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test2", MeshData.GenEllipsoid(new vec3(1f, 1, 1f), 32, 32, true), testobjs[1]);

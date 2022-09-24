@@ -1500,3 +1500,243 @@ public class Drome : DromeNode
     public ivec3 gpos;
     public double DistanceToPlayer = 0;
   }
+
+
+    // public class ChunkStats
+  // {
+  //   public int LeafCount = 0;
+  // }
+  // public class ChunkRoot : ChunkNode
+  // {
+  //   public ChunkStats Stats { get; private set; } = new ChunkStats(); //root only
+
+  //   //The number of bars per glob will depend on the WorldInfo so we cant hard code this
+  //   public Int64 GeneratedFrameStamp { get; private set; } = 0;
+  //   public MeshData Transparent = null;
+  //   public MeshData Opaque = null;
+  //   public ivec3 Pos = new ivec3(0, 0, 0);
+  //   private World _world = null;
+
+  //   public ChunkRoot()
+  //   {
+  //   }
+  // }
+  // public class ChunkLeaf : ChunkNode
+  // {
+  //   public List<Beam> Beams;
+  // }
+  // public class ChunkNode
+  // {
+  //   public ChunkNode[] Children = null; //octree .. 
+  //   private bool[] ChildWasProcessed = new bool[8] { false, false, false, false, false, false, false, false }; //this could be just a byte but man it sucks doing bit shit in c number
+  //   protected Box3f _box;
+  //   public bool IsStaticHierarchy = false; //Static leaf box block
+  //   public bool IsDirty = true;
+  //   public long LastVisible_ms = 0; //Last time this glob was visible.
+  //   public bool IsLeaf { get { return this is ChunkLeaf; } }
+  //   public bool IsRoot { get { return this is ChunkRoot; } }
+
+  //   public static bool IsVisible(World w, Camera3D cam, Box3f box)
+  //   {
+  //     float dist_cam2 = box.DistanceToCam2(cam.Position_World);
+  //     bool vis = cam.Frustum.HasBox(box) && (dist_cam2 < (w.RenderDistance * w.RenderDistance));
+  //     return vis;
+  //   }
+  //   public Box3f Box
+  //   {
+  //     get
+  //     {
+  //       return _box;
+  //     }
+  //   }
+  //   public vec3 OriginR3 { get { return _box._min; } }
+  //   // public void Subdivide_Static_Hierarchy(bool isroot)
+  //   // {
+  //   //   IsStaticHierarchy = true;
+
+  //   //   //treat this as a static glob that we subdivide until we hit blocks. This is used for raycasting.
+  //   //   if (isroot)
+  //   //   {
+  //   //     _box = new Box3f(new vec3(0, 0, 0), new vec3(World.GlobWidthX, World.GlobWidthY, World.GlobWidthZ));
+  //   //   }
+
+  //   //   if ((Box.Width() < World.BlockSizeX + 0.01f) &&
+  //   //     (Box.Height() < World.BlockSizeY + 0.01f) &&
+  //   //     (Box.Depth() < World.BlockSizeZ + 0.01f))
+  //   //   {
+  //   //     IsLeaf = true;
+  //   //   }
+  //   //   else
+  //   //   {
+  //   //     Children = new ChunkNode[8];
+  //   //     Box3f[] cbox = Box.Divide();
+  //   //     for (int ci = 0; ci < 8; ci++)
+  //   //     {
+  //   //       Children[ci] = new ChunkNode();
+  //   //       Children[ci]._box = cbox[ci];
+  //   //       Children[ci].Subdivide_Static_Hierarchy(false);
+  //   //     }
+  //   //   }
+  //   // }
+  //   private static bool CheckLeaf(WorldInfo info, ChunkRoot root, Box3f box)
+  //   {
+  //     //check if leaf
+  //     //also check region state if we are. 
+  //     if (
+  //         (box.Width() < info.GlobWidthX + 0.01f) &&
+  //         (box.Height() < info.GlobWidthY + 0.01f) &&
+  //         (box.Depth() < info.GlobWidthZ + 0.01f))
+  //     {
+  //       return true;
+  //       //So, we either did, or didn't divide the child.
+
+  //       // var state = root.GetRegionStateForDromeNodeLeaf(this);
+  //       // if (state.IsEmpty /*|| rs.IsSolid*/)//.. ?Makes no sesne for solid as cubers generate their own topology.
+  //       // {
+  //       //   root.dbg_nCount_Empty_Leaves++;
+
+  //       //   return 8; //Parent culls any nodes that return 8.
+  //       // }
+  //     }
+  //     return false;
+  //   }
+
+  //   public int DoLiterallyEverything(World w, ChunkRoot root, Camera3D cam, BlockWorldVisibleStuff stuff = null, ModifiedBlock mb = null)
+  //   {
+  //     //What this does:
+  //     // subdivide drome into node hierarchy
+  //     // create globs (world meshes)
+  //     // edit globs
+  //     // delete globs
+  //     // delete node hierarchy
+  //     // collect visible objects visible globs for render
+
+  //     Gu.Assert((w != null) && (root != null) && (cam != null));
+
+  //     int nculled = 0;
+
+  //     //return the number of children that are empty or, have no topology
+  //     Gu.Assert(root != null);
+
+  //     LastVisible_ms = Gu.Milliseconds();
+
+  //     if (IsLeaf)
+  //     {
+  //       //Note - We already checked for region state when CREATING this leaf - so if we get here
+  //       //it means we have a non-empty region state and this leaf does have visible data. (however we dont' check for world objects here)
+  //       // if ((mb != null) || (Glob == null))
+  //       // {
+  //       //   vec3 box_center = _box.center();
+  //       //   ivec3 gpos = World.R3toI3Glob(box_center);
+  //       //   Glob = w.QueueGlob(Glob, root, gpos);
+  //       // }
+  //       // else if ((Glob != null) && (Glob.State == GenState.Ready) && (stuff != null))
+  //       // {
+  //       //   //We have a glob and we are collecting stuff to render
+  //       //   stuff.Collect(cam, Glob, this);
+  //       // }
+
+  //       return 0;
+  //     }
+  //     else
+  //     {
+  //       //Create or recreate missing children
+  //       for (int ci = 0; ci < 8; ci++)
+  //       {
+  //         var box = ((Children != null) && (Children[ci] != null)) ? Children[ci].Box : Box.GetDivisionChild(ci);
+
+  //         //Check if we must go on
+  //         bool must_process_child = false;
+  //         if (mb == null)
+  //         {
+  //           //visible
+  //           if (ChunkNode.IsVisible(w, cam, box))
+  //           {
+  //             must_process_child = true;
+  //           }
+  //         }
+  //         else if (mb != null)
+  //         {
+  //           //dividing by a modified block / point. Node may not be visible but we still divide.
+  //           if (Children != null && Children[ci] != null)
+  //           {
+  //             must_process_child = box.containsPointBottomLeftInclusive(mb.Pos);
+  //           }
+  //           else
+  //           {
+  //             must_process_child = box.containsPointBottomLeftInclusive(mb.Pos);
+  //           }
+  //         }
+
+  //         if (must_process_child)
+  //         {
+  //           ChildWasProcessed[ci] = true;
+
+  //           if (Children == null)
+  //           {
+  //             Children = new ChunkNode[8] { null, null, null, null, null, null, null, null };
+  //           }
+
+  //           int num_culled_child = 0;
+
+  //           if (Children[ci] == null)
+  //           {
+  //             //num_culled_child = 
+  //             if (CheckLeaf(w.Info, root, box))
+  //             {
+  //               Children[ci] = new ChunkLeaf();
+  //             }
+  //             else
+  //             {
+  //               Children[ci] = new ChunkNode();
+  //             }
+
+  //             Children[ci]._box = Box.GetDivisionChild(ci);
+  //             //** Check the region state, exit if it is empty
+  //             if (num_culled_child == 8)
+  //             {
+  //               Children[ci] = null;
+  //             }
+  //           }
+
+  //           if (Children[ci] != null)
+  //           {
+  //             num_culled_child = Children[ci].DoLiterallyEverything(w, root, cam, stuff, mb);
+  //           }
+
+  //           //cull empty child
+  //           if (num_culled_child == 8)
+  //           {
+  //             Children[ci] = null;
+  //             root.dbg_nCountCulled++;
+  //           }
+  //         }
+
+  //         if (Children == null || Children[ci] == null)
+  //         {
+  //           nculled++;
+  //         }
+  //       }
+
+  //       //We culled all the kids - set children to  null. and get ourselves culled.
+  //       if (nculled == 8)
+  //       {
+  //         Children = null;
+  //       }
+  //     }
+
+  //     //Delete check.. Make sure the Gen  < delete distance or we gen/delete over and over..
+  //     if (w.Drome_or_Node_Can_Delete_Distance(_box) && ((Gu.Milliseconds() - LastVisible_ms) > World.Abandon_DeleteTime_DromeNode_ms))
+  //     {
+  //       //Delete if we are invisible
+  //       nculled = 8;
+  //     }
+  //     if (this == root)
+  //     {
+  //       //Do not cull dromes here. We cull them outside here
+  //       nculled = 0;
+  //     }
+
+  //     return nculled;
+  //   }
+  // }

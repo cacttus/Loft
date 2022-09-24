@@ -3779,19 +3779,30 @@ namespace PirateCraft
       _min = min;
       _max = max;
     }
-    public void iterate(Func<int, int, int, int, bool> func)
+    public void iterate(Func<int, int, int, int, LambdaBool> func, bool inclusive = true)
     {
       //loop over integer axes of box
       //func must return false to exit the loop
+      //Inclusive - include upper bound
       int dbg_totalCount = (_max.x - _min.x + 1) * (_max.y - _min.y + 1) * (_max.z - _min.z + 1);
 
-      for (int z = _min.z; z < _max.z; z++)
+      int bx = _max.x;
+      int by = _max.y;
+      int bz = _max.z;
+      if (inclusive)
       {
-        for (int y = _min.y; y < _max.y; y++)
+        bx += 1;
+        by += 1;
+        bz += 1;
+      }
+
+      for (int z = _min.z; z < bz; z++)
+      {
+        for (int y = _min.y; y < by; y++)
         {
-          for (int x = _min.x; x < _max.x; x++)
+          for (int x = _min.x; x < bx; x++)
           {
-            if (func(x, y, z, dbg_totalCount) == false)
+            if (func(x, y, z, dbg_totalCount) == LambdaBool.Break)
             {
               return;
             }

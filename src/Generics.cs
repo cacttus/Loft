@@ -199,6 +199,10 @@ namespace PirateCraft
         return path;
       }
     }
+    public bool ExistsOnDisk()
+    {
+      return File.Exists(WorkspacePath);
+    }
     public bool Exists
     {
       get
@@ -739,24 +743,25 @@ namespace PirateCraft
   {
     #region Members
 
-    private static int s_dataBlockIdGen = 1;
-    private static int s_dataBlockTypeIdGen = 1;
+    private static UInt64 s_dataBlockIdGen = 1;//This is a problem, what if we load a model again?
+    private static UInt64 s_dataBlockTypeIdGen = 1;
     private string _name = "<Unnamed>";
-    private Int64 _typeId = 1; // When Clone() is called this gets duplicated
-    private Int64 _uniqueId = 0; //Never duplicated, unique for all objs
+    private UInt64 _typeId = 1; // When Clone() is called this gets duplicated
+    private UInt64 _uniqueId = 0; //Never duplicated, unique for all objs
 
     public string Name { get { return _name; } set { _name = value; SetModified(); } }
-    public Int64 UniqueID { get { return _uniqueId; } private set { _uniqueId = value; SetModified(); } }
-    public Int64 TypeID { get { return _typeId; } private set { _typeId = value; SetModified(); } }
+    public UInt64 UniqueID { get { return _uniqueId; } private set { _uniqueId = value; SetModified(); } }
+    //Type ID is used to instance mesh objects.
+    public UInt64 TypeID { get { return _typeId; } private set { _typeId = value; SetModified(); } }
 
     #endregion
     #region Public Static: Methods
 
-    public static int GetNewId()
+    public static UInt64 GetNewId()
     {
       return s_dataBlockIdGen++;
     }
-    public static int GetNewType()
+    public static UInt64 GetNewType()
     {
       return s_dataBlockTypeIdGen++;
     }
@@ -798,7 +803,7 @@ namespace PirateCraft
     public void Deserialize(BinaryReader br)
     {
       _name = br.ReadString();
-      _typeId = br.ReadInt64();
+      _typeId = br.ReadUInt64();
     }
 
     #endregion
