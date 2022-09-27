@@ -21,9 +21,83 @@ namespace PirateCraft
       a = da;
     }
   }
-  //Note: this class initializes the data buffer when you create it. It requires a w/h
+  public class ImageKernel<T>
+  {
+    public int RadiusPixelsX { get; private set; } = 0;//Does not include the center pixel.
+    public int RadiusPixelsY { get; private set; } = 0;//Does not include the center pixel.
+    public int RankX { get; private set; } = 0;
+    public int RankY { get; private set; } = 0;
+    public T[,] Kernel = null;
+    public T this[int i, int j]
+    {
+      //operator[]
+      get
+      {
+        return Kernel[i, j];
+      }
+      set
+      {
+        Kernel[i, j] = value;
+      }
+    }
+    public void Iterate(Func<int, int, LambdaBool> f)
+    {
+      for (int y = 0; y < RankY; y++)
+      {
+        for (int x = 0; x < RankX; x++)
+        {
+          if (f(x, y) == LambdaBool.Break)
+          {
+            break;
+          }
+        }
+      }
+    }
+    public ImageKernel(int radius_pixels_x, int radius_pixels_y)
+    {
+      RadiusPixelsX = radius_pixels_x;
+      RadiusPixelsY = radius_pixels_y;
+      RankX = RadiusPixelsX * 2 + 1; //prevent odd kernels
+      RankY = RadiusPixelsY * 2 + 1; //prevent odd kernels
+      Kernel = new T[RankY, RankX];
+    }
+    public static ImageKernel<double> Gaussian(int radius_pixels, float weight)
+    {
+      //https://stackoverflow.com/questions/23228226/how-to-calculate-the-gaussian-filter-kernel
+      // define an array of two dimensions based on the length value that pass it by the user from the text box.
+      var Kernel = new ImageKernel<double>(radius_pixels, radius_pixels);
+      double sumTotal = 0;
+      double distance = 0;
+      double calculatedEuler = 1.0f / (2.0f * (double)Math.PI * (double)Math.Pow(weight, 2)); // Gaussian Function first part
+
+      int kernelRadiusX = Kernel.RadiusPixelsX;
+      int kernelRadiusY = Kernel.RadiusPixelsY;
+      for (int filterY = -kernelRadiusY; filterY <= kernelRadiusY; filterY++)
+      {
+        for (int filterX = -kernelRadiusX; filterX <= kernelRadiusX; filterX++)
+        {
+          distance = ((filterX * filterX) + (filterY * filterY)) / (2 * (weight * weight)); // Gaussian Function Second part
+          double t = calculatedEuler * (double)Math.Exp(-distance);
+          Kernel[filterY + kernelRadiusY, filterX + kernelRadiusX] = t;
+          sumTotal += Kernel[filterY + kernelRadiusY, filterX + kernelRadiusX];
+        }
+      }
+
+      Kernel.Iterate((x, y) =>
+      {
+        Kernel[y, x] = Kernel[y, x] * (1.0f / sumTotal);
+        return LambdaBool.Continue;
+      });
+
+      return Kernel;
+    }
+
+
+  }
+
   public class Img32
   {
+    //Note: this class initializes the data buffer when you create it. It requires a w/h
     public enum ImagePixelFormat
     {
       Undefined,
@@ -31,6 +105,7 @@ namespace PirateCraft
       BGR24ub,
       RGBA32ub,
       BGRA32ub,
+      R32f
     }
     public string Name { get; private set; } = "img32-unnamed";
     public int Width { get; private set; } = 0;
@@ -42,7 +117,7 @@ namespace PirateCraft
     {
       get
       {
-        if (Format == ImagePixelFormat.RGBA32ub || Format == ImagePixelFormat.BGRA32ub)
+        if (Format == ImagePixelFormat.RGBA32ub || Format == ImagePixelFormat.BGRA32ub || Format == ImagePixelFormat.R32f)
         {
           //In this system we should always return 4.
           return 4;
@@ -221,18 +296,171 @@ namespace PirateCraft
       {
         for (int i = 0; i < ret.Width; ++i)
         {
-          ret.SetPixel32(i, j, normalizePixel32(i, j, isbumpmap, depth_amount));
+          ret.SetPixel_RGBA32ub(i, j, normalizePixel32(i, j, isbumpmap, depth_amount));
         }
       }
 
       return ret;
     }
+    public static Img32 RandomImage_R32f(int size_x, int size_y, Minimax<float> height)
+    {
+      //Get random image
+      Img32 rando = new Img32("rand", size_x, size_y, ImagePixelFormat.R32f);
+
+      for (int j = 0; j < rando.Height; ++j)
+      {
+        for (int i = 0; i < rando.Width; ++i)
+        {
+          rando.SetPixel_R32f(i, j, Random.Next(height));
+        }
+      }
+      return rando;
+    }
+    public Img32 CreateHeightMap(int ksize = 1, float kweight = 0.1f, int smooth_iterations = 1)
+    {
+      //creates a NOT NORMALIZED height map call Normalize to normalize
+      //ksize= kernel radius - has little effect on the map, k=1 will produce a little "deeper" map vs k=2,3..
+      //kweight= filter weight - 0 means no filtering, 1 = full filter. 0 is an invalid value.
+      //iterations= number of filter iterations - will create a much smoother image. 3 = very smooth.
+      Gu.Assert(this.Format == ImagePixelFormat.R32f);
+      var kern = ImageKernel<double>.Gaussian(ksize, kweight);
+      var ret = ApplyKernel_R32f(kern, smooth_iterations);
+      return ret;
+    }
+    private Img32 ApplyKernel_R32f(ImageKernel<double> kern, int iterations)
+    {
+      Gu.Assert(this.Format == ImagePixelFormat.R32f);
+      Gu.Assert(iterations > 0);
+      Img32 ret_last = this;
+      Img32 ret = this;
+      for (int iter = 0; iter < iterations; iter++)
+      {
+        ret = ret.Clone();
+        ret_last.Iterate((x, y) =>
+        {
+          var test_p = GetPixel_R32f(x, y);
+          float fval = ret_last.ComputeKernelForPixel_R32f(x, y, kern);
+          ret.SetPixel_R32f(x, y, fval);
+
+          return LambdaBool.Continue;
+        });
+        ret_last = ret;
+      }
+      return ret;
+    }
+    public void Iterate(Func<int, int, LambdaBool> f)
+    {
+      for (int y = 0; y < Height; y++)
+      {
+        for (int x = 0; x < Width; x++)
+        {
+          if (f(x, y) == LambdaBool.Break)
+          {
+            break;
+          }
+        }
+      }
+    }
+    private float ComputeKernelForPixel_R32f(int ix, int iy, ImageKernel<double> k)
+    {
+      float sum = 0;
+      float count = 0;
+      k.Iterate((kx, ky) =>
+      {
+        var v = k[ky, kx];
+        var p = GetPixel_R32f(hwrap(ix + kx - k.RadiusPixelsX), vwrap(iy + ky - k.RadiusPixelsY));
+        sum += (float)v * (float)p;
+        count += 1;
+        return LambdaBool.Continue;
+      });
+
+      return sum;
+    }
+    public Img32 Normalized_R32f()
+    {
+      Gu.Assert(this.Format == ImagePixelFormat.R32f);
+      //Normalize floating point image from [-inf, inf] to [0,1]
+      Img32 ret = this.Clone();
+      float min = float.MaxValue;
+      float max = float.MinValue;
+      ret.Iterate((x, y) =>
+      {
+        var p = ret.GetPixel_R32f(x, y);
+        min = Math.Min(p, min);
+        max = Math.Max(p, max);
+        return LambdaBool.Continue;
+      });
+      ret.Iterate((x, y) =>
+      {
+        var p = ret.GetPixel_R32f(x, y);
+        p = (max - p) / (max - min);
+        ret.SetPixel_R32f(x, y, p);
+
+        return LambdaBool.Continue;
+      });
+      return ret;
+    }
+    public Img32 Convert(ImagePixelFormat toFmt, bool set_rgba_alpha_to_one = true)
+    {
+      Img32 cpy = new Img32(this.Name + "-converted", this.Width, this.Height, toFmt);
+      if (this.Format == ImagePixelFormat.R32f)
+      {
+        Img32 normalized = this.Normalized_R32f();
+        if (toFmt == ImagePixelFormat.RGBA32ub)
+        {
+          normalized.Iterate((x, y) =>
+          {
+            var fp = normalized.GetPixel_R32f(x, y);
+            Pixel4ub p = new Pixel4ub();
+            p.r = (byte)Math.Round((float)Byte.MaxValue * fp);
+            p.g = (byte)Math.Round((float)Byte.MaxValue * fp);
+            p.b = (byte)Math.Round((float)Byte.MaxValue * fp);
+            p.a = set_rgba_alpha_to_one ? Byte.MaxValue : (byte)Math.Round((float)Byte.MaxValue * fp);
+            cpy.SetPixel_RGBA32ub(x, y, p);
+
+            return LambdaBool.Continue;
+          });
+        }
+
+      }
+      else
+      {
+        Gu.BRThrowNotImplementedException();
+      }
+      return cpy;
+    }
+
     private byte toGray(Pixel4ub pix)
     {
       return (byte)((11 * pix.r + 16 * pix.g + 5 * pix.b) / 32);
     }
-    public Pixel4ub GetPixel32(int x, int y)
+    public void SetPixel_R32f(int x, int y, float pix)
     {
+      int off = vofftos(x, y, Width) * BytesPerPixel;  //StaticBufffer is a char array so we must scale the size
+      unsafe
+      {
+        fixed (byte* b = Data)
+        {
+          *((float*)(b + off)) = pix;
+        }
+      }
+    }
+    public float GetPixel_R32f(int x, int y)
+    {
+      Gu.Assert(this.Format == ImagePixelFormat.R32f);
+      Gu.Assert(x<= this.Width && y <= this.Height && x>=0 && y>=0);
+      int off = vofftos(x, y, Width) * BytesPerPixel;  //StaticBufffer is a char array so we must scale the size
+      unsafe
+      {
+        fixed (byte* b = Data)
+        {
+          return *((float*)(b + off));
+        }
+      }
+    }
+    public Pixel4ub GetPixel_RGBA32ub(int x, int y)
+    {
+      Gu.Assert(this.Format == ImagePixelFormat.RGBA32ub);
       Pixel4ub pix;
 
       int off = vofftos(x, y, Width) * BytesPerPixel;  //StaticBufffer is a char array so we must scale the size
@@ -243,37 +471,9 @@ namespace PirateCraft
 
       return pix;
     }
-    public void Flip(bool fliph, bool flipv)
+    public void SetPixel_RGBA32ub(int x, int y, Pixel4ub pix)
     {
-      byte[] st = new byte[this.Data.Length];
-
-      int rowsize = this.BytesPerPixel * this.Width;
-      int h = this.Height;
-
-      for (int yi = 0; yi < this.Height; ++yi)
-      {
-        for (int xi = 0; xi < this.Width; xi++)
-        {
-          int yoff = yi;
-          if (flipv)
-          {
-            // Swap the scanlines
-            yoff = (Height - yi - 1);
-          }
-          int xoff = xi;
-          if (fliph)
-          {
-            xoff = (Width - xi - 1);
-          }
-
-          Buffer.BlockCopy(Data, (yi * Width + xi) * BytesPerPixel, st, (yoff * Width + xoff) * BytesPerPixel, BytesPerPixel);
-        }
-      }
-
-      this.Data = st;
-    }
-    public void SetPixel32(int x, int y, Pixel4ub pix)
-    {
+      Gu.Assert(this.Format == ImagePixelFormat.RGBA32ub);
       int off = vofftos(x, y, Width) * BytesPerPixel;  //StaticBufffer is a char array so we must scale the size
       Data[off + 0] = pix.r;
       Data[off + 1] = pix.g;
@@ -297,6 +497,7 @@ namespace PirateCraft
     }
     Pixel4ub normalizePixel32(int x, int y, bool is_bump_map_pixel, float depth_amount)
     {
+      //TODO: use the new Kernel methods here.
       //is_bump_map_pixel - if we are a bump map, use the pixel's grayscale value for the normal depth.
       Gu.Assert(Data != null);
 
@@ -304,9 +505,9 @@ namespace PirateCraft
       int Gh = 0, Gv = 0, i;
       float len;
       int[] mat = new int[]{
-            toGray(GetPixel32(hwrap(x - 1), vwrap(y - 1))), toGray(GetPixel32(hwrap(x - 0), vwrap(y - 1))), toGray(GetPixel32(hwrap(x + 1), vwrap(y - 1))),
-            toGray(GetPixel32(hwrap(x - 1), vwrap(y + 0))), toGray(GetPixel32(hwrap(x - 0), vwrap(y + 0))), toGray(GetPixel32(hwrap(x + 1), vwrap(y + 0))),
-            toGray(GetPixel32(hwrap(x - 1), vwrap(y + 1))), toGray(GetPixel32(hwrap(x - 0), vwrap(y + 1))), toGray(GetPixel32(hwrap(x + 1), vwrap(y + 1)))};
+            toGray(GetPixel_RGBA32ub(hwrap(x - 1), vwrap(y - 1))), toGray(GetPixel_RGBA32ub(hwrap(x - 0), vwrap(y - 1))), toGray(GetPixel_RGBA32ub(hwrap(x + 1), vwrap(y - 1))),
+            toGray(GetPixel_RGBA32ub(hwrap(x - 1), vwrap(y + 0))), toGray(GetPixel_RGBA32ub(hwrap(x - 0), vwrap(y + 0))), toGray(GetPixel_RGBA32ub(hwrap(x + 1), vwrap(y + 0))),
+            toGray(GetPixel_RGBA32ub(hwrap(x - 1), vwrap(y + 1))), toGray(GetPixel_RGBA32ub(hwrap(x - 0), vwrap(y + 1))), toGray(GetPixel_RGBA32ub(hwrap(x + 1), vwrap(y + 1)))};
 
       int[] sobel_v = {
             -1, -2, -1,
@@ -332,9 +533,9 @@ namespace PirateCraft
       if (is_bump_map_pixel)
       {
         //Use as bump map  depth
-        var pr = GetPixel32(hwrap(x), vwrap(y)).r;
-        var pg = GetPixel32(hwrap(x), vwrap(y)).g;
-        var pb = GetPixel32(hwrap(x), vwrap(y)).b;
+        var pr = GetPixel_RGBA32ub(hwrap(x), vwrap(y)).r;
+        var pg = GetPixel_RGBA32ub(hwrap(x), vwrap(y)).g;
+        var pb = GetPixel_RGBA32ub(hwrap(x), vwrap(y)).b;
         depth = (float)(pr - 127) / 127.0f;//[-1,1]
         if (depth < -0.1)
         {
@@ -382,7 +583,35 @@ namespace PirateCraft
 
       return pix;
     }
+    public void Flip(bool fliph, bool flipv)
+    {
+      byte[] st = new byte[this.Data.Length];
 
+      int rowsize = this.BytesPerPixel * this.Width;
+      int h = this.Height;
+
+      for (int yi = 0; yi < this.Height; ++yi)
+      {
+        for (int xi = 0; xi < this.Width; xi++)
+        {
+          int yoff = yi;
+          if (flipv)
+          {
+            // Swap the scanlines
+            yoff = (Height - yi - 1);
+          }
+          int xoff = xi;
+          if (fliph)
+          {
+            xoff = (Width - xi - 1);
+          }
+
+          Buffer.BlockCopy(Data, (yi * Width + xi) * BytesPerPixel, st, (yoff * Width + xoff) * BytesPerPixel, BytesPerPixel);
+        }
+      }
+
+      this.Data = st;
+    }
 
 
 

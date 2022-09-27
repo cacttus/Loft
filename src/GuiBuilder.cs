@@ -20,7 +20,7 @@ namespace PirateCraft
       ,FontFace.RobotoMono
       ,FontFace.PressStart2P
       ,FontFace.EmilysCandy
-      ,FontFace.Entypo// -- stb doesn't do this
+      //,FontFace.Entypo// -- stb doesn't do this
       ,FontFace.Calibri
       , new FileLoc("gates.jpg",FileStorage.Embedded) //testing many files / fast loading of megatex
       , new FileLoc("zuck.jpg",FileStorage.Embedded)
@@ -104,6 +104,7 @@ namespace PirateCraft
         new UiStyle(StyleName.DebugLabel, new List<string>() { StyleName.Label })
         {
           Color = new vec4(0.63f, 0.7f, 0.7f, 0.3f)
+          ,MaxWidth = 400
         },
         new UiStyle(StyleName.Toolbar, new List<string>() { StyleName.Base })
         {

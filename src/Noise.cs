@@ -275,7 +275,7 @@ namespace PirateCraft
 
             byte brnd = (byte)((frnd + 1) / 2 * 255);
             Pixel4ub c = new Pixel4ub(255, brnd, brnd, brnd);
-            b.SetPixel32(x, y, c);
+            b.SetPixel_RGBA32ub(x, y, c);
             nCount++;
           }
         }

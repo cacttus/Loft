@@ -4,6 +4,8 @@ using System.Text;
 namespace PirateCraft
 {
 
+  #region Enums
+
   public enum GenState
   {
     Created, Queued, GenStart, GenEnd, Ready, Deleted,
@@ -21,30 +23,52 @@ namespace PirateCraft
     Blank, Dandilion, Cracks1, Cracks2, Cracks3, Cracks4, Feldspar_Coal, Marble_White, Marble_Green, Water, Seaweed, Clay, RedClay, RosePink, RoseRed,
     Oak_Top, Oak, Oak_Leaves,
   }
-  public enum BeamFaceIndex
+  public class BeamSideIndex
   {
-    Left = 0, Right = 1, Bottom = 2, Top = 3, Back = 4, Front = 5
+    public const int Left = 0;
+    public const int Right = 1;
+    public const int Back = 2;
+    public const int Front = 3;
   }
-  public enum BeamEdgeIndex
+  public class BeamFaceIndex
   {
-    BL = 0, BR = 1, TL = 2, TR = 3
+    public const int Left = 0;
+    public const int Right = 1;
+    public const int Bottom = 2;
+    public const int Top = 3;
+    public const int Back = 4;
+    public const int Front = 5;
   }
-  public class PickedTri
+  public class BeamEdgeIndex
   {
-    //A picked block from a raycast or other
-
-    public bool IsHit { get { return _t1 >= 0.0f && _t1 <= 1.0f; } }
-    // public Drome Drome = null;
-    public ushort Block;
-    public ivec3 BlockPosLocalZ3;
-    public vec3 HitNormal;
-    public vec3 HitPosR3;
-    public vec3 BlockCenterR3;
-    public float _t1 = float.MaxValue;//tmin
-    public float _t2 = float.MaxValue;//tmax
-    public List<Box3f> PickedBlockBoxes_Debug = null;
-    public bool AddPickedBlockBoxes_Debug = false;
-    public RaycastResult RaycastResult = RaycastResult.Unset;
+    public const int BL = 0;
+    public const int BR = 1;
+    public const int TL = 2;
+    public const int TR = 3;
+  }
+  public enum QuadNeighborIndex
+  {
+    BL, BR, TL, TR
+  }
+  public enum BeamNeighbor
+  {
+    Left, Right, Bot, Top, Back, Front,
+  }
+  public enum BeamCap
+  {
+    Bottom, Top
+  }
+  public enum BlockMeshType
+  {
+    Block,
+    Billboard,
+    Liquid
+  }
+  public enum TileVis
+  {
+    Opaque,
+    Transparent,
+    Decal
   }
   public class BlockTileUVSide
   {
@@ -64,7 +88,7 @@ namespace PirateCraft
     public const float Carbide = 21.2101f;
     public const float Water = 1;
   }
-  public class BlockItemCode
+  public class TileCode
   {
     //Blocks
     public const ushort Missing = 0; //block is missing, maybe drome not loaded, not air /land/water
@@ -99,87 +123,62 @@ namespace PirateCraft
                                                //Items
                                                //...
   }
-  public enum BarVertFlags
-  {
-    //Flags for bars.
-    /*
-      //Vertex Monad for Neighbor beam vert
 
-         V2-----V3 Quad Side /Top / bot order
-    z    |      |      
-    ^ |  |      |
-      V1 V0-----V1      
-     -V3 V2--      
-      >x  |           
-    */
-    AttachedV0 = 0x01,//whether bar is attached
-    AttachedV1 = 0x02,
-    AttachedV2 = 0x04,
-    AttachedV3 = 0x08,
-    CapFlat_or_Overhang = 0x16, //if set, we are overhang
-    AttachedALL = AttachedV0 | AttachedV1 | AttachedV2 | AttachedV3
+  #endregion
+
+  public class PickedTri
+  {
+    //A picked block from a raycast or other
+
+    public bool IsHit { get { return _t1 >= 0.0f && _t1 <= 1.0f; } }
+    // public Drome Drome = null;
+    public ushort Block;
+    public ivec3 BlockPosLocalZ3;
+    public vec3 HitNormal;
+    public vec3 HitPosR3;
+    public vec3 BlockCenterR3;
+    public float _t1 = float.MaxValue;//tmin
+    public float _t2 = float.MaxValue;//tmax
+    public List<Box3f> PickedBlockBoxes_Debug = null;
+    public bool AddPickedBlockBoxes_Debug = false;
+    public RaycastResult RaycastResult = RaycastResult.Unset;
   }
 
-  public struct BeamEdge
-  {
-    public float Bot = 0;//Bottom y
-    public float Top = 0;// Top Y
-    public byte Flags = 0; //BarVertFlag
-
-    public BeamEdge() { }
-    public BeamEdge(float b, float t, byte flags = 0)
-    {
-      Bot = b;
-      Top = t;
-      Flags = flags;
-    }
-  }
-  public struct Beam
-  {
-    //we could store BeamEdge verts in a grid and have "on/off" for the voxel, however, that is inefficient given what we're trying to achieve.
-    public const int c_iEdgeCount = 4;
-    public const int c_iSideCount = 6;
-
-    public BeamEdge[] Edges = new BeamEdge[c_iEdgeCount];//Index with EdgeIndex
-    public ushort[] Tiles = new ushort[c_iSideCount] { //Index with BeamSide
-      //BeamFaceIndex = LRBTAF
-      BlockItemCode.Dirt,
-      BlockItemCode.Dirt,
-      BlockItemCode.Dirt,
-      BlockItemCode.Grass,
-      BlockItemCode.Dirt,
-      BlockItemCode.Dirt
-    };
-    public int Flags = 0;
-
-    public BeamEdge EdgeBL { get { return Edges[(int)BeamEdgeIndex.BL]; } }
-    public BeamEdge EdgeBR { get { return Edges[(int)BeamEdgeIndex.BR]; } }
-    public BeamEdge EdgeTL { get { return Edges[(int)BeamEdgeIndex.TL]; } }
-    public BeamEdge EdgeTR { get { return Edges[(int)BeamEdgeIndex.TR]; } }
-    public float TopY { get { return Math.Max(EdgeBL.Top, Math.Max(EdgeBR.Top, Math.Max(EdgeTL.Top, EdgeTR.Top))); } }
-    public float BotY { get { return Math.Min(EdgeBL.Bot, Math.Min(EdgeBR.Bot, Math.Min(EdgeTL.Bot, EdgeTR.Bot))); } }
-
-    public Beam() { }
-    public Beam(float bot, float top, byte? flags = null)
-    {
-      for (int i = 0; i < c_iEdgeCount; i++)
-      {
-        Edges[i] = new BeamEdge(bot, top, (flags != null ? flags.Value : (byte)0));
-      }
-    }
-
-  }
   public class WorldStaticData
   {
-    public static ivec3[] n_off = new ivec3[]
-    {
-      new ivec3(-1, 0, 0),
-      new ivec3( 1, 0, 0),
-      new ivec3( 0,-1, 0),
-      new ivec3( 0, 1, 0),
-      new ivec3( 0, 0,-1),
-      new ivec3( 0, 0, 1),
+    //side - 1 of 4 sides of the column
+    //face - 1 of 6 faces
+    public static int[,] side_to_edge = new int[4, 2]{
+     {2,0},
+     {1,3},
+     {0,1},
+     {3,2}
     };
+    public static int[] side_to_opposite_side = new int[4]{
+      1, 0, 3, 2
+    };
+    public static int[] sideidx_to_faceidx = new int[4] {
+      0, 1, 4, 5//lr,,af
+    };
+    public static int[] faceidx_to_sideidx = new int[6] {
+      0, 1, -1, -1, 2, 3//lr,,af
+    };
+    public static vec3[] face_idx_to_normal = new vec3[] {
+      new vec3(-1, 0, 0),
+      new vec3( 1, 0, 0),
+      new vec3( 0,-1, 0),
+      new vec3( 0, 1, 0),
+      new vec3( 0, 0,-1),
+      new vec3( 0, 0, 1),
+    };
+    public static vec3[] side_direction = new vec3[] {
+      new vec3( 0, 0,-1),
+      new vec3( 0, 0, 1),
+      new vec3( 0,-1, 0),
+      new vec3( 0, 1, 0),
+      new vec3( 0, 0,-1),
+      new vec3( 0, 0, 1),
+     };
     //Unit box for creating mesh cubes, Tiles, Material
 
     // public static vec3[] BlockNeighborOffsets = new vec3[6]
@@ -230,21 +229,59 @@ namespace PirateCraft
             { TileImage.Oak_Leaves, new FileLoc("tx64_oak_leaves.png", FileStorage.Embedded) },
          };
 
-    private static vec3[] bx_box = new vec3[8];
-    public static vec3[] bx_norms = new vec3[6];//lrbtaf
-    private static vec2[] bx_texs = new vec2[4];
-    public static v_v3n3x2t3u1[,] bx_verts_face { get; private set; } = new v_v3n3x2t3u1[6, 4];//lrbtaf
-    public static uint[] bx_face_inds { get; private set; }
+    // private static vec3[] bx_box = new vec3[8];
+    // public static vec3[] bx_norms = new vec3[6];//lrbtaf
+    // private static vec2[] bx_texs = new vec2[4];
+    // public static v_v3n3x2t3u1[,] bx_verts_face { get; private set; } = new v_v3n3x2t3u1[6, 4];//lrbtaf
+    // public static uint[] bx_face_inds { get; private set; }
 
-    private static vec3[] bb_planes_Zup = new vec3[8];
-    private static vec3[] bb_norms_Zup = new vec3[2];
-    public static v_v3n3x2t3u1[,] bb_verts_face_zup { get; private set; } = new v_v3n3x2t3u1[2, 4];//normals point +x, +z
-    public static uint[] bb_face_inds_zup { get; private set; }
-
+    // private static vec3[] bb_planes_Zup = new vec3[8];
+    // private static vec3[] bb_norms_Zup = new vec3[2];
+    // public static v_v3n3x2t3u1[,] bb_verts_face_zup { get; private set; } = new v_v3n3x2t3u1[2, 4];//normals point +x, +z
+    // public static uint[] bb_face_inds_zup { get; private set; }
   }
-
-  public class BeamList : List<Beam>, ICanSerializeMyself
+  public enum VertFlags
   {
+    //Flags for bars.
+    /*
+      //Vertex Monad for Neighbor beam vert
+
+         V2-----V3 Quad Side /Top / bot order
+    z    |      |      
+    ^ |  |      |
+      V1 V0-----V1      
+     -V3 V2--      
+      >x  |           
+    */
+    AttachedV0 = 0x01,//whether bar is attached
+    AttachedV1 = 0x02,
+    AttachedV2 = 0x04,
+    AttachedV3 = 0x08,
+    CapFlat_or_Overhang = 0x16, //if set, we are overhang
+    AttachedALL = AttachedV0 | AttachedV1 | AttachedV2 | AttachedV3
+  }
+  public enum EdgeFlags
+  {
+    HasBeam = 0x01 //true if this edge has a beam attached.
+  }
+  public enum BeamFlags
+  {
+    TopConfigIsLeftConfig = 0x01, // the 2 triangles that form the top point to the right |/| vs, left |\|
+    BotConfigIsLeftConfig = 0x02
+  }
+  public struct BeamVert : ISerializeBinary
+  {
+    public const ushort MaxVal = ushort.MaxValue;
+
+    public ushort Y = 0;
+    public ByteFlags Flags = new ByteFlags(); //BarVertFlag
+    public byte pad = 0;
+    // 4 bytes
+    public BeamVert(ushort y, byte flags = 0)
+    {
+      Y = y;
+      Flags.Set((int)flags);
+    }
     public void Serialize(BinaryWriter bw)
     {
       Gu.BRThrowNotImplementedException();
@@ -254,56 +291,282 @@ namespace PirateCraft
       Gu.BRThrowNotImplementedException();
     }
   }
-  public class BarGrid : Grid2D<BeamList>, ICanSerializeMyself
+  public struct BeamEdge : ISerializeBinary, IRangeItem
   {
-    private WeakReference<WorldInfo> _info = null;
+    //The reason using short instead of float, is that it makes it very fast to index the vertex grabbing the monad, 
+    //space, yes also space, but that's not a huge concern with beams
+    public BeamVert[] _verts = new BeamVert[2] { new BeamVert(0, 0), new BeamVert(0, 0) };
+    public ByteFlags Flags = new ByteFlags();
+    public byte pad = 0;
+    //4 bytes + 2 bytes = 6 bytes;
 
-    //Editable bar grid for generation
-    public BarGrid(WorldInfo inf) : base(inf.GlobBlocksX, inf.GlobBlocksZ)
+    public ushort _min = 0, _max = 0;
+
+    public ushort Min { get { return Bot.Y; } }
+    public ushort Max { get { return Top.Y; } }
+    public BeamVert Top { get { return _verts[0]; } set { _verts[0] = value; } }
+    public BeamVert Bot { get { return _verts[1]; } set { _verts[1] = value; } }
+    public bool ContainsOrEqual(ushort h)
     {
-      _info = new WeakReference<WorldInfo>(inf);
+      return h >= Min && h <= Max;
     }
-    public void Edit_GenFlat(float y_base_rel, float y_height_rel)
+    public ushort Height
     {
-      if (_info.TryGetTarget(out var inf))
+      get
       {
-        Iterate((g, x, z) =>
-        {
-          byte flags = (byte)BarVertFlags.AttachedALL;
-          BeamList bl = new BeamList();
-          bl.Add(new Beam(y_base_rel, y_height_rel + Random.Next(0, 3), flags));
-
-          Set(new ivec2(x, z), bl);
-          return LambdaBool.Continue;
-        });
+        Gu.Assert(Top.Y >= Bot.Y);
+        return (ushort)(Top.Y - Bot.Y);
       }
     }
-    public new void Serialize(BinaryWriter bw)
+    public BeamEdge() { }
+    public BeamEdge(ushort t, ushort b, byte eflags = 0, byte v0flags = 0, byte v1flags = 0)
     {
-      base.Serialize(bw);
+      Gu.Assert(Top.Y >= Bot.Y);
+      Bot = new BeamVert(b, v0flags);
+      Top = new BeamVert(t, v1flags);
+      Flags.Set((int)eflags);
+    }
+    public bool HasHeight(ushort h)
+    {
+      return h >= Bot.Y && h <= Top.Y;
+    }
+    public void Serialize(BinaryWriter bw)
+    {
       Gu.BRThrowNotImplementedException();
     }
-    public new void Deserialize(BinaryReader br)
+    public void Deserialize(BinaryReader br)
     {
-      base.Deserialize(br);
       Gu.BRThrowNotImplementedException();
     }
   }
+  public class Beam : ISerializeBinary
+  {
+    //we could store BeamEdge verts in a grid and have "on/off" for the voxel, however, that is inefficient given what we're trying to achieve.
+    public const int c_iEdgeCount = 4;
+    public const int c_iSideCount = 6;
 
+    public BeamEdge[] Edges = new BeamEdge[4]; //6 bytes * 4 = 24 bytes;
+
+    public static bool ContainsHeightInclusive_WithCaps(ushort val, ushort min, ushort max)
+    {
+      return ((val >= min) && (val <= max));
+    }
+    public static int FaceIdxToSideIdx(int face)
+    {
+      return face == 3 ? 2 : face == 4 ? 3 : face;
+    }
+    public BeamEdge?[] GetEdge(int side)
+    {
+      BeamEdge?[] ret = new BeamEdge?[2];
+      ret[0] = Edges[WorldStaticData.side_to_edge[side, 0]]; ret[1] = Edges[WorldStaticData.side_to_edge[side, 1]];
+      return ret;
+    }
+    public ushort MinHeight(int face)
+    {
+      if (face == 2)
+      {
+        return MinHeight();
+      }
+      if (face == 3)
+      {
+        return CaplessMax;
+      }
+      BeamEdge?[] e = GetEdge(FaceIdxToSideIdx(face));
+      ushort miny = (ushort)Math.Min(e[0].Value.Min, e[1].Value.Min);
+      return miny;
+    }
+    public ushort MaxHeight(int face)
+    {
+      if (face == 2)
+      {
+        return CaplessMin;
+      }
+      if (face == 3)
+      {
+        return MaxHeight();
+      }
+      BeamEdge?[] e = GetEdge(FaceIdxToSideIdx(face));
+      ushort miny = (ushort)Math.Max(e[0].Value.Max, e[1].Value.Max);
+      return miny;
+    }
+
+    public ushort[] Tiles = new ushort[c_iSideCount] {  // 6 * 2 = 12 bytes
+      //BeamFaceIndex = LRBTAF
+      TileCode.Dirt,
+      TileCode.Dirt,
+      TileCode.Dirt,
+      TileCode.Grass,
+      TileCode.Dirt,
+      TileCode.Dirt
+    };
+    ShortFlags Flags = new ShortFlags(); // 2 bytes
+
+    //38 bytes / column, not counting extra crap (vptr..)
+    public ushort MaxHeight()
+    {
+      ushort y = 0;
+      foreach (var e in Edges)
+      {
+        y = Math.Max(e.Top.Y, y);
+      }
+      return y;
+    }
+    public ushort MinHeight()
+    {
+      ushort y = BeamVert.MaxVal;
+      foreach (var e in Edges)
+      {
+        y = Math.Min(e.Bot.Y, y);
+      }
+      return y;
+    }
+    public ushort CaplessMax
+    {
+      //returns the height without the cap (e.g. non-homogeneous, pyrimidal, geometry) .
+      get
+      {
+        ushort y = 0;
+        foreach (var e in Edges)
+        {
+          y = Math.Min(e.Top.Y, y);
+        }
+        return y;
+      }
+    }
+    public ushort CaplessMin
+    {
+      //returns the height without the cap (e.g. non-homogeneous, pyrimidal, geometry) .
+      get
+      {
+        ushort y = BeamVert.MaxVal;
+        foreach (var e in Edges)
+        {
+          y = Math.Max(e.Bot.Y, y);
+        }
+        return y;
+      }
+    }
+    public Beam() { }
+    public Beam(ushort t, ushort b) : this(new ushort[] { t, b, t, b, t, b, t, b })
+    {
+    }
+    public Beam(ushort[] heights, byte[]? vflags = null, byte[]? eflags = null)
+    {
+      //BeamEdgeIndex
+      Gu.Assert(heights.Length == 8);
+      for (int i = 0; i < 8; i += 2)
+      {
+        Edges[i / 2] = new BeamEdge(
+          heights[i + 0],
+          heights[i + 1],
+          (byte)(eflags != null ? eflags[i / 2] : 0),
+          (byte)(vflags != null ? vflags[i] : 0)
+        );
+
+      }
+    }
+
+    public bool TopConfigIsLeftConfig()
+    {
+      return Flags.Test((int)BeamFlags.TopConfigIsLeftConfig);
+    }
+    public bool BotConfigIsLeftConfig()
+    {
+      return Flags.Test((int)BeamFlags.BotConfigIsLeftConfig);
+    }
+    public void Serialize(BinaryWriter bw)
+    {
+      Gu.BRThrowNotImplementedException();
+    }
+    public void Deserialize(BinaryReader br)
+    {
+      Gu.BRThrowNotImplementedException();
+    }
+  }
+  // public class VertexMonad
+  // {
+  //   BeamVert[] Verts = null;
+  //   public int EdgeIndex = BeamEdgeIndex.BL;
+  //   public VertexMonad()
+  //   {
+  //   }
+  // }
+  public class BeamList : ISerializeBinary
+  {
+    public List<Beam> _beams = new List<Beam>();
+    public List<Beam> Beams { get { return _beams; } }
+    public void AddBeam(Beam b)
+    {
+      _beams.Add(b);
+      _beams.Sort((x, y) => x.MinHeight() - y.MinHeight());
+    }
+    //i am done trying to overcomplicate this with efficiency just loop a friggin list
+    public List<Beam> GetBeamsForHeight(ushort h)
+    {
+      //Return an ordered list of beams by range - bottom to top
+      List<Beam> beams = new List<Beam>();
+      foreach (var beam in _beams)
+      {
+        if (beam.MinHeight() >= h && beam.MaxHeight() <= h)
+        {
+          beams.Add(beam);
+        }
+      }
+      return beams;
+    }
+    public List<Beam> GetBeamsForRange(ushort min, ushort max)
+    {
+      //Return an ordered list of beams - bottom to top
+      List<Beam> beams = new List<Beam>();
+      foreach (var beam in _beams)
+      {
+        var bmin = beam.MinHeight();
+        var bmax = beam.MaxHeight();
+
+        if (Beam.ContainsHeightInclusive_WithCaps(min, bmin, bmax) || Beam.ContainsHeightInclusive_WithCaps(max, bmin, bmax))
+        {
+          beams.Add(beam);
+        }
+      }
+      return beams;
+    }
+    public void Serialize(BinaryWriter bw)
+    {
+      Gu.BRThrowNotImplementedException();
+    }
+    public void Deserialize(BinaryReader br)
+    {
+      Gu.BRThrowNotImplementedException();
+    }
+  }
   public class Glob
   {
     public enum GlobState
     {
-      None, Created, Loaded, Queued, Edited, Done
+      None,
+      CreatedOrLoaded, // user added a new one or we just loaded from disk
+      Queued,  //we are going to topo the glob
+      Topologized, //can render
+      Edited, //user edited , needs to be queued
+      //deleted
     }
     public Int64 GeneratedFrameStamp { get; private set; } = 0;
     public SoloMesh Transparent = null;
-    //MeshData Walls
     public SoloMesh Opaque = null;
     public ivec3 Pos = new ivec3(0, 0, 0);
     private World _world = null;
-    public BarGrid BarGrid = null; // Empty globs can have no bars.
-    public GlobState State = GlobState.Created;
+    public Grid2D<BeamList> BeamGrid = null;
+    public GlobState State = GlobState.CreatedOrLoaded;
+    private bool _locked = false;
+
+    public void Lock() { _locked = true; }
+    public void Unlock() { _locked = false; }
+
+
+    public bool HasMeshData()
+    {
+      return Opaque != null || Transparent != null;
+    }
 
     public vec3 OriginR3
     {
@@ -315,6 +578,7 @@ namespace PirateCraft
     }
     public Glob(World w, ivec3 pos, Int64 genframeStamp)
     {
+      BeamGrid = new Grid2D<BeamList>(w.Info.GlobBlocksX, w.Info.GlobBlocksZ);
       _world = w;
       Pos = pos;
       GeneratedFrameStamp = genframeStamp;
@@ -323,24 +587,138 @@ namespace PirateCraft
     {
       _world = null;
     }
-    public void DoLiterallyEverything()
+    // public Beam GetBeamForPoint_BottomLeftInclusive_WithCaps(vec3 pt)
+    public void Iterate(Func<Grid2D<BeamList>, int, int, LambdaBool> f, bool inclusive = false)
+    {
+      BeamGrid.Iterate(f, inclusive);
+    }
+    public void Edit_GenFlat(float y_base_rel, float y_height_rel)
     {
 
+      BeamGrid.Iterate((g, x, z) =>
+      {
+        var bl = new BeamList();
+        bl.AddBeam(new Beam(_world.Info.ConvertHeight(y_base_rel), _world.Info.ConvertHeight(y_height_rel)));
+        BeamGrid.Set(new ivec2(x, z), bl);
+        return LambdaBool.Continue;
+      });
+    }
+    private float SanitizeHeight(float f, float max)
+    {
+      Gu.Assert(f >= 0 && f <= 1);
+      return f * max;
+    }
+    public void Edit_GenHills(float y_base_rel, float min_height, float max_height)
+    {
+      //TODO: generate linked topology
 
+      var rimg = Img32.RandomImage_R32f(BeamGrid.SizeX + 1, BeamGrid.SizeY + 1, new Minimax<float>(min_height, max_height)).CreateHeightMap(2, 1f, 2).Normalized_R32f();//+1 due to vertex, not beam
+
+      //ResourceManager.SaveImage(System.IO.Path.Combine(Gu.LocalTmpPath, "test-hm1a.png"), rimg.Convert(Img32.ImagePixelFormat.RGBA32ub, true), true);  
+
+      //we move from +x, +z, and do this in the grid too
+      BeamGrid.Iterate((g, x, z) =>
+      {
+        float max = _world.Info.GlobWidthY * 0.4f;
+        //height
+        ushort tl = _world.Info.ConvertHeight(SanitizeHeight(rimg.GetPixel_R32f(x, z + 1), max));
+        ushort tr = _world.Info.ConvertHeight(SanitizeHeight(rimg.GetPixel_R32f(x + 1, z + 1), max));
+        ushort bl = _world.Info.ConvertHeight(SanitizeHeight(rimg.GetPixel_R32f(x, z), max));
+        ushort br = _world.Info.ConvertHeight(SanitizeHeight(rimg.GetPixel_R32f(x + 1, z), max));
+        //base
+        ushort bs = 0;
+
+        if (tl == bs) { tl = (ushort)(bs + 1); }
+        if (tr == bs) { tr = (ushort)(bs + 1); }
+        if (bl == bs) { bl = (ushort)(bs + 1); }
+        if (br == bs) { br = (ushort)(bs + 1); }
+
+        if ((x == 8 && z == 8) || (x == 9 && z == 8))
+        {
+          //TESTING DEBUG
+          //TESTING DEBUG
+          //TESTING DEBUG
+          tl = tr = bl = br = BeamVert.MaxVal;
+        }
+
+        BeamList b = new BeamList();
+        b.AddBeam(new Beam(new ushort[] { bl, bs, br, bs, tl, bs, tr, bs }));
+        BeamGrid.Set(new ivec2(x, z), b);
+
+        return LambdaBool.Continue;
+      }, false);
     }
 
   }
-  public enum BlockMeshType
+
+  public class GlobArray
   {
-    Block,
-    Billboard,
-    Liquid
-  }
-  public enum TileVis
-  {
-    Opaque,
-    Transparent,
-    Decal
+    //GlobManifold, QueuedGlob
+    public const int c_iCount = 27;
+    public const int c_iCenterGlob = 13;
+    public const int c_iLeftGlob = 12;
+    public const int c_iRightGlob = 14;
+    public const int c_iBotGlob = 10;
+    public const int c_iTopGlob = 16;
+    public const int c_iBackGlob = 4;
+    public const int c_iFrontGlob = 22;
+
+    public Glob[] GlobsC27 = new Glob[c_iCount];//C27
+    public static int Index13Rel(int x, int y, int z)
+    {
+      Gu.Assert(x >= -1 && x <= 1 && y >= -1 && y <= 1 && z >= -1 && z <= 1);
+      return (z + 1) * 3 * 3 + (y + 1) * 3 + (x + 1);
+    }
+    public Glob NeighborRel(int x, int y, int z)
+    {
+      return GlobsC27[Index13Rel(x, y, z)];
+    }
+    public Glob NeighborRel_Beam(int x, int y, int z, ref int bx, ref int bz, ref int bmin, ref int bmax, int maxval, int gblocksx, int gblocksz)
+    {
+      //Get the neighbor glob, and his beam xy beam based on an input neighbor glob/beamxy
+      int gx = 0, gy = 0, gz = 0;
+      if (bx == 0 && x == -1) { gx = -1; bx = maxval; }
+      else if (bx == gblocksx - 1 && x == 1) { gx = +1; bx = 0; }
+      else { bx += x; }
+
+      if (bz == 0 && z == -1) { gz = -1; bz = maxval; }
+      else if (bz == gblocksz - 1 && z == 1) { gz = +1; bz = 0; }
+      else { bz += z; }
+
+      if (bmin == 0 && y == -1) { gy = -1; bmin = BeamVert.MaxVal; bmax = bmin; } //Ok so this max may be wrong ..-1.. TODO: check
+      else if (bmax == maxval && y == 1) { gy = +1; bmax = 0; bmax = bmin; }
+
+      return GlobsC27[Index13Rel(gx, gy, gz)];
+    }
+    public void GetNeigborGlob_AndBeamOffset_ForGlobBeam(WorldInfo wi, int bx, int bz, BeamNeighbor gni, out Glob g, out int nx, out int nz)
+    {
+      g = GlobsC27[c_iCenterGlob];
+      nx = bx;
+      nz = bz;
+      if (gni == BeamNeighbor.Left && bx == 0)
+      {
+        g = GlobsC27[c_iLeftGlob];
+        bx = wi.GlobBlocksX + bx;
+      }
+      if (gni == BeamNeighbor.Back && bz == 0)
+      {
+        g = GlobsC27[c_iBackGlob];
+        bz = wi.GlobBlocksZ + bz;
+      }
+      if (gni == BeamNeighbor.Right && bx == wi.GlobBlocksX)
+      {
+        g = GlobsC27[c_iRightGlob];
+        bz = wi.GlobBlocksZ - bz;
+      }
+      if (gni == BeamNeighbor.Front && bz == wi.GlobBlocksZ)
+      {
+        g = GlobsC27[c_iFrontGlob];
+        bx = wi.GlobBlocksX - bx;
+      }
+    }
+    public GlobArray()
+    {
+    }
   }
 
   public class WorldTile
@@ -398,6 +776,8 @@ namespace PirateCraft
 
   public class WorldInfo
   {
+    #region Public:Members
+
     //Contains base metrics for creating a world, size, voxels .. 
     //Constants before, now drive the individual world areas.
     public string Name { get; private set; } = Gu.UnsetName;
@@ -406,21 +786,22 @@ namespace PirateCraft
     public const float DropDestroyTime_Seconds = (60) * 3; // x minutes
     public const int MaxGlobsToGeneratePerFrame_Sync = 32;//number of glob copy operations per render side frame. This can slow down / speed up rendering.
 
-    public float BlockSize { get; private set; } = 25.0f;
-    public float HeightScale { get; private set; } = 0.25f; // Height of a block relative to BlockSize
+    public float BlockSize { get; private set; } = 0;
+    public float HeightScale { get; private set; } = 0; // Height of a block relative to BlockSize
     public float WallXFactor { get; private set; } = 0.1f; // Width of a wall / [0,1] = % of BlockSize
     public float WallYFactor { get; private set; } = 0.1f; // 
     public float WallZFactor { get; private set; } = 0.1f; // 
 
     //This will allow us to have variable width blocks, to make the topo less regular.
     public Func<WorldInfo, float, float> GlobWidthXFunction = (i, x) => { return i.BlockSizeX; };
+    public Func<WorldInfo, float, float> GlobWidthYFunction = (i, z) => { return i.BlockSizeY; };
     public Func<WorldInfo, float, float> GlobWidthZFunction = (i, z) => { return i.BlockSizeZ; };
 
     public float BlockSizeX { get; private set; } = 0;
     public float BlockSizeY { get; private set; } = 0; // BlockSizeX * HeightScale;
     public float BlockSizeZ { get; private set; } = 0; // BlockSizeX;
     public int GlobBlocksX { get; private set; } = 0;
-    public int GlobBlocksYSnap { get; private set; } = 0; //No y, but we can have a Y Snap
+    public int GlobBlocksY { get; private set; } = 0; //No y, but we can have a Y Snap
     public int GlobBlocksZ { get; private set; } = 0;
     public float GlobWidthX { get; private set; } = 0;
     public float GlobWidthY { get; private set; } = 0;
@@ -442,36 +823,17 @@ namespace PirateCraft
     public float GenerateDistance { get { return (GenRadiusShell * (float)_currentShell); } } //distance under which things are generated
     public float RenderDistance { get { return (GenRadiusShell) * _maxShells; /* (GlobWidthX * 16) * (GlobWidthX * 16); */ } }
 
-    // public ushort QuantitizeHeight(float h, bool glob_relative = true)
-    // {
-    //   //return a short representing the input height, relative of the glob
-    //   // [0,65535)
-    //   ushort s = 0;
-    //   if (!glob_relative)
-    //   {
-    //     h = HeightGlobalToHeightGlob(h);
-    //   }
+    #endregion
 
-    //   Gu.Assert(h >= 0 && h < GlobWidthY);
-
-    //   s = (ushort)((float)ushort.MaxValue * (h / GlobWidthY));
-    //   return s;
-    // }
-    // public float UnquantitizeHeight(ushort h, bool glob_relative = true)
-    // {
-
-    // }
-    public WorldInfo(string worldName, bool delete_world_start_fresh, int limit_y_axis = 0, float blockSize = 4.0f, float playerHeight = 2.0f, int globBlocksX = 16)
+    public WorldInfo(string worldName, bool delete_world_start_fresh, int limit_y_axis = 0, float blockSize = 4.0f, float heightScale = 0.25f, float playerHeight = 2.0f, int globBlocksX = 16)
     {
       Name = worldName;
       LimitYAxisGeneration = limit_y_axis;
       DeleteStartFresh = delete_world_start_fresh;
-
       BlockSizeX = blockSize;
-
       PlayerHeight = playerHeight;
-
       GlobBlocksX = globBlocksX;
+      HeightScale = heightScale;
 
       Compute();
     }
@@ -485,14 +847,13 @@ namespace PirateCraft
       BlockSizeZ = BlockSizeX;
       //Relative to player who is 2 meters tlal
 
-      GlobBlocksYSnap = (int)(BlockSizeX / BlockSizeY * GlobBlocksX);
-      GlobBlocksZ = GlobBlocksX;
+      GlobBlocksZ = GlobBlocksY = GlobBlocksX;
 
-      GlobWidthX = GlobBlocksX * BlockSizeX;
-      GlobWidthY = GlobWidthX;
-      GlobWidthZ = GlobBlocksZ * BlockSizeZ;
+      GlobWidthX = (float)GlobBlocksX * BlockSizeX;
+      GlobWidthY = (float)GlobBlocksY * BlockSizeY;
+      GlobWidthZ = (float)GlobBlocksZ * BlockSizeZ;
 
-      if (!MathUtils.IsPowerOfTwo(GlobBlocksX) || !MathUtils.IsPowerOfTwo(GlobBlocksYSnap) || !MathUtils.IsPowerOfTwo(GlobBlocksZ))
+      if (!MathUtils.IsPowerOfTwo(GlobBlocksX) || !MathUtils.IsPowerOfTwo(GlobBlocksY) || !MathUtils.IsPowerOfTwo(GlobBlocksZ))
       {
         Gu.BRThrowException("Glob blocks x,y,z must be a power of 2.");
       }
@@ -526,7 +887,7 @@ namespace PirateCraft
     {
       ivec3 bpos = R3ToI3BlockLocal_Any(R3, GlobWidthX, GlobWidthY, GlobWidthZ);
 
-      if (bpos.x < 0 || bpos.y < 0 || bpos.z < 0 || bpos.x >= GlobBlocksX || bpos.y >= GlobBlocksYSnap || bpos.z >= GlobBlocksZ)
+      if (bpos.x < 0 || bpos.y < 0 || bpos.z < 0 || bpos.x >= GlobBlocksX || bpos.y >= GlobBlocksY || bpos.z >= GlobBlocksZ)
       {
         Gu.DebugBreak();
       }
@@ -534,6 +895,7 @@ namespace PirateCraft
     }
     public float HeightGlobalToHeightGlob(float h)
     {
+      //Global height -> glob relative height
       var ret = h % GlobWidthY;
       if (h < 0)
       {
@@ -566,6 +928,185 @@ namespace PirateCraft
       box._max.y = (float)(pt.y + 1) * GlobWidthY;
       box._max.z = (float)(pt.z + 1) * GlobWidthZ;
       return box;
+    }
+    public ushort ConvertHeight(float height, bool glob_relative = true)
+    {
+      if (!glob_relative)
+      {
+        height = HeightGlobalToHeightGlob(height);
+      }
+      return Gu.QuantitizeUShortFloat(height, 0, this.GlobWidthY, BeamVert.MaxVal);
+    }
+    public float ConvertHeight(ushort height)
+    {
+      return Gu.UnQuantitizeUShortFloat(height, 0, this.GlobWidthY, BeamVert.MaxVal);
+    }
+    public Box3f GetBeamBox_Relative_NOCaps(Beam beam)
+    {
+      Box3f b = new Box3f(new vec3(0, ConvertHeight(beam.CaplessMin), 0), new vec3(this.BlockSizeX, ConvertHeight(beam.CaplessMax), this.BlockSizeZ));
+      return b;
+    }
+    public Box3f GetBeamBox_Relative_WITHCaps(Beam beam)
+    {
+      Box3f b = new Box3f(new vec3(0, ConvertHeight(beam.MinHeight()), 0), new vec3(this.BlockSizeX, ConvertHeight(beam.MaxHeight()), this.BlockSizeZ));
+      return b;
+    }
+    public TriPlane? MakeTriFrom4Heights(float v0, float v1, float v2, float v3, int tid, vec3 beam_origin)
+    {
+      TriPlane? tp = null;
+      float w = this.BlockSizeX;
+      float d = this.BlockSizeZ;
+      vec3[] quad = new vec3[4] { new vec3(0, v0, 0), new vec3(w, v1, 0), new vec3(0, v2, d), new vec3(w, v3, d) };
+      if (tid == 0)
+      {
+        tp = new TriPlane(quad[0], quad[2], quad[3]);
+      }
+      if (tid == 1)
+      {
+        tp = new TriPlane(quad[0], quad[3], quad[1]);
+      }
+      if (tid == 2)
+      {
+        tp = new TriPlane(quad[0], quad[3], quad[1]);
+      }
+      if (tid == 3)
+      {
+        tp = new TriPlane(quad[1], quad[0], quad[2]);
+      }
+      Gu.Assert(tp != null);
+      tp._p1 += beam_origin;
+      tp._p2 += beam_origin;
+      tp._p3 += beam_origin;
+      return tp;
+    }
+    public TriPlane[] GetConfigTriangles(Beam beam, BeamCap cap, vec3 beam_origin)
+    {
+      /*
+          right 
+          v2   v3
+           0 / 1  < tid
+          v0   v1 < vbase
+          1 2       1
+          0       0 2  
+          left 
+          v2   v3
+           2 \ 3  < tid
+          v0   v1 < vbase
+          2    1 2
+          1 0    0        
+      */
+      //default = top / right
+      int tid0 = 0, tid1 = 0;
+      float h0 = 0, h1 = 0, h2 = 0, h3 = 0;
+      if (cap == BeamCap.Bottom)
+      {
+        h0 = ConvertHeight(beam.Edges[0].Top.Y);
+        h1 = ConvertHeight(beam.Edges[1].Top.Y);
+        h2 = ConvertHeight(beam.Edges[2].Top.Y);
+        h3 = ConvertHeight(beam.Edges[3].Top.Y);
+
+        if (!beam.BotConfigIsLeftConfig())
+        {
+          tid0 = 0;
+          tid1 = 1;
+        }
+        else
+        {
+          tid0 = 2;
+          tid1 = 3;
+        }
+      }
+      else
+      {
+        h0 = ConvertHeight(beam.Edges[0].Bot.Y);
+        h1 = ConvertHeight(beam.Edges[1].Bot.Y);
+        h2 = ConvertHeight(beam.Edges[2].Bot.Y);
+        h3 = ConvertHeight(beam.Edges[3].Bot.Y);
+        if (!beam.TopConfigIsLeftConfig())
+        {
+          tid0 = 0;
+          tid1 = 1;
+        }
+        else
+        {
+          tid0 = 2;
+          tid1 = 3;
+        }
+      }
+
+      TriPlane[] ret = new TriPlane[2];
+
+      ret[0] = MakeTriFrom4Heights(h0, h1, h2, h3, tid0, beam_origin);
+      ret[1] = MakeTriFrom4Heights(h0, h1, h2, h3, tid1, beam_origin);
+
+      return ret;
+    }
+    public vec3 GetBeamOriginR3(int x, int z, vec3 glob_originR3)
+    {
+      return glob_originR3 + new vec3(x * this.BlockSizeX, 0, z * BlockSizeZ);
+    }
+    public bool Beam_Contains_Point_Bottom_Left_Inclusive_BEAM_BOX_ONLY_WITH_CAPS(int x, int z, vec3 pt, Beam beam, vec3 glob_originR3)
+    {
+      //check whole box boundary
+      var b = GetBeamBox_Relative_WITHCaps(beam);
+      b.Validate(true, true);
+      return b.containsPointBottomLeftInclusive(pt);
+    }
+    public bool Beam_Contains_Point_Global_Bottom_Left_Inclusive_WITHCaps(int x, int z, vec3 pt, Beam beam, vec3 glob_originR3)
+    {
+      ushort topi = beam.MaxHeight();
+      ushort boti = beam.MinHeight();
+
+      Gu.Assert(topi != boti);//Busines rule no zero hieght,s top != bottom - this would blow up the whole system
+
+      ushort h = ConvertHeight(pt.y);
+
+      //check underneath beam triangles.
+      vec3 beam_origin = GetBeamOriginR3(x, z, glob_originR3);
+      TriPlane[] t = null;
+      if (h < boti)
+      {
+        t = GetConfigTriangles(beam, BeamCap.Bottom, beam_origin);
+      }
+      else if (h > topi)
+      {
+        t = GetConfigTriangles(beam, BeamCap.Top, beam_origin);
+      }
+      else
+      {
+        Gu.Log.Error("Beam height is acting squirrelly.");
+        Gu.DebugBreak();
+      }
+      if (t[0].Distance(pt) < 0 && t[1].Distance(pt) < 0)
+      {
+        return true;
+      }
+      return false;
+    }
+    public vec3 E2OffFace(int iface)
+    {
+      vec3 e2off = new vec3(0, 0, 0);
+      if (iface == BeamFaceIndex.Left) { e2off.z -= this.BlockSizeZ; }
+      else if (iface == BeamFaceIndex.Right) { e2off.z += this.BlockSizeZ; }
+      else if (iface == BeamFaceIndex.Top) { }
+      else if (iface == BeamFaceIndex.Bottom) { }
+      else if (iface == BeamFaceIndex.Back) { e2off.x += this.BlockSizeX; }
+      else if (iface == BeamFaceIndex.Front) { e2off.x -= this.BlockSizeX; }
+      else { Gu.BRThrowNotImplementedException(); }
+      return e2off;
+    }
+    public vec3 FaceOrigin(int iface)
+    {
+      //origin = BL, 
+      vec3 side_origin = new vec3(0, 0, 0);
+      if (iface == BeamFaceIndex.Left) { side_origin.z += BlockSizeZ; } //TL
+      else if (iface == BeamFaceIndex.Right) { side_origin.x += BlockSizeX; } //BR
+      else if (iface == BeamFaceIndex.Top) { }
+      else if (iface == BeamFaceIndex.Bottom) { }
+      else if (iface == BeamFaceIndex.Back) { }//BL
+      else if (iface == BeamFaceIndex.Front) { side_origin.x += BlockSizeX; side_origin.z += BlockSizeZ; }//TR
+      else { Gu.BRThrowNotImplementedException(); }
+      return side_origin;
     }
 
   }
@@ -623,12 +1164,18 @@ namespace PirateCraft
     private DrawCall _visibleObsFirst_DF = new DrawCall();
     private DrawCall _visibleObsMid_DF = new DrawCall();
     private DrawCall _visibleObsLast_DF = new DrawCall();
-    private Dictionary<ivec3, Glob> _globs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //All globs
-    private Dictionary<ivec3, Glob> _renderGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
-    private Dictionary<ivec3, Glob> _visibleRenderGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //Just globs that get drawn. This has a dual function so we know also hwo much topology we're drawing.
+    //globs - any loaded globs, even neighbor loads for topo
+    //visible globs - globs that are visible,but may or may not have topo
+    //render globs - globs that are processed through the topologizer
+    //visible render globs - render globs that are visible
+
+    private Dictionary<ivec3, Glob> _globs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //All globs, which may be null if the glob region has been visible, but does not exist
+    private Dictionary<ivec3, Glob> _existingGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //globs that are loaded, and exist
+    private MultiMap<float, GlobArray> _queuedGlobs = new MultiMap<float, GlobArray>();// queued for topology
+    private Dictionary<ivec3, Glob> _renderGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //globs that can be drawn this frame. 
+    private Dictionary<ivec3, Glob> _visibleRenderGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //globs that must be drawn this frame
     private Dictionary<string, WorldObject> _objects = new Dictionary<string, WorldObject>();//Flat list of all objects
     private Dictionary<ushort, WorldTile> _blockTiles = null;
-    private MultiMap<float, Glob> _wipGlobs = new MultiMap<float, Glob>();
     private WorldProps _worldProps = null; //Environment props.
     private string _worldSavePath = "";
     private Material _worldMaterial_Op = null;
@@ -694,30 +1241,12 @@ namespace PirateCraft
       }
 
       UpdateObjects(dt);
-
       //UpdateLiterallyEverything_Blockish(cam);
       //LaunchGlobAndDromeQueues();
       AutoSaveWorld(dt);
-
       PickGLobs();
-      //topo
-      foreach (var g in _globs)
-      {
-        if (g.Value != null)
-        {
-          if (
-            g.Value.State == Glob.GlobState.Edited
-          || g.Value.State == Glob.GlobState.Created
-          || g.Value.State == Glob.GlobState.Loaded
-          || g.Value.State == Glob.GlobState.Queued)
-          {
-            if (g.Value.BarGrid != null)
-            {
-              TopologizeGlob(g.Value);
-            }
-          }
-        }
-      }
+
+      TopologizeGlobs();
 
       _worldProps.DayNightCycle.Update(dt);
     }
@@ -773,40 +1302,155 @@ namespace PirateCraft
         CollectVisibleObjects(rv, cm);
       }
     }
-    private void TopologizeGlob(Glob g)
+    private void TopologizeGlobs()
+    {
+      foreach (var qg in _queuedGlobs)
+      {
+        TopologizeGlob(qg.Value);
+      }
+      _queuedGlobs.Clear();
+    }
+    private void QueueGlob(Glob g, vec3 campos)
+    {
+      Gu.Assert(g != null);
+
+      GlobArray qg = new GlobArray();
+
+      for (int z = -1; z <= 1; z++)
+      {
+        for (int y = -1; y <= 1; y++)
+        {
+          for (int x = -1; x <= 1; x++)
+          {
+            int idx = GlobArray.Index13Rel(x, y, z);
+            var npos = g.Pos + new ivec3(x, y, z);
+            if (_existingGlobs.TryGetValue(npos, out var neighbor))
+            {
+              Gu.Assert(neighbor != null);//Existing globs cannot be null
+              Gu.Assert(neighbor.BeamGrid != null);//Existing globs cannot be null
+
+              neighbor.Lock();
+
+              qg.GlobsC27[idx] = neighbor;
+              if (idx == GlobArray.c_iCenterGlob)
+              {
+                neighbor.State = Glob.GlobState.Queued;
+              }
+            }
+            else
+            {
+              qg.GlobsC27[idx] = null;
+            }
+          }
+        }
+      }
+      float dist = Info.GetGlobBoxGlobalI3(g.Pos).DistanceToCam2(campos);
+      _queuedGlobs.Add(dist, qg);
+    }
+    private void TopologizeGlob(GlobArray ga)
     {
       //We should figure out how ot make this more regular,
       //or, split the guy up, to avoid remakign this with each edit
 
-      Gu.Assert(g.BarGrid != null);
+      Gu.Assert(ga != null);
+      Gu.Assert(ga.GlobsC27 != null);
+      var g = ga.GlobsC27[GlobArray.c_iCenterGlob];
+      Gu.Assert(g != null);
+      Gu.Assert(g.BeamGrid != null);
 
-      v_v3n3x2t3u1[]? verts = null;
+      List<v_v3n3x2t3u1> verts = new List<v_v3n3x2t3u1>();
+      List<ushort> inds = new List<ushort>();
 
-      g.BarGrid.Iterate((grid, x, z) =>
+      g.BeamGrid.Iterate((grid, x, z) =>
       {
-        var bl = grid.Get(x, z);
-        if (bl != null)
+        var beamlist = grid.Get(x, z);
+        if (beamlist != null)
         {
-          foreach (var b in bl)
+          foreach (var beam in beamlist.Beams)
           {
-            vec2[] top = null, side = null, bot = null;
+            vec2[] sideuv = null;
             WorldTile? wt = null;
-            if (_blockTiles.TryGetValue(b.Tiles[(int)BeamFaceIndex.Top], out wt))
-            {
-              top = wt.UV;
-            }
-            if (_blockTiles.TryGetValue(b.Tiles[(int)BeamFaceIndex.Right], out wt))
-            {
-              side = wt.UV;
-            }
-            if (_blockTiles.TryGetValue(b.Tiles[(int)BeamFaceIndex.Right], out wt))
-            {
-              bot = wt.UV;
-            }
+            var beam_origin = g.OriginR3 + new vec3((float)x * Info.BlockSizeX, 0, (float)z * Info.BlockSizeZ);
 
-            var h = b.TopY - b.BotY;
-            var p = new vec3(x * Info.BlockSizeX, b.BotY, z * Info.BlockSizeZ);
-            MeshData.GenBoxVerts(ref verts, Info.BlockSizeX, h, Info.BlockSizeZ, top, side, bot, p, true);
+            //Do sides
+            for (int iside = 0; iside < 4; iside++)
+            {
+              int iface = WorldStaticData.sideidx_to_faceidx[iside];
+
+              if (_blockTiles.TryGetValue(beam.Tiles[iface], out wt))
+              {
+                sideuv = wt.UV;
+              }
+
+              var nbeams = GetBeamsForFace(ga, x, z, beam, iface);
+              Gu.Assert(nbeams != null);
+              ushort ce0_min, ce0_max;
+              ushort ce1_min, ce1_max;
+              var ei0 = WorldStaticData.side_to_edge[iside, 0];
+              var ei1 = WorldStaticData.side_to_edge[iside, 1];
+              ce0_min = ce0_max = beam.Edges[ei0].Min;
+              ce1_min = ce1_max = beam.Edges[ei1].Min;
+
+              var iside_opp = WorldStaticData.side_to_opposite_side[iside];
+              var ei_opp0 = WorldStaticData.side_to_edge[iside_opp, 1];//reverse 1/0 for opposing side
+              var ei_opp1 = WorldStaticData.side_to_edge[iside_opp, 0];
+
+              if (nbeams.Count > 0)
+              {
+                Gu.Trap();
+              }
+              if (nbeams.Count > 1)
+              {
+                Gu.Trap();
+              }
+              //build faces from the bottom up -y->+y
+              for (int bni = 0; bni < nbeams.Count; bni++)
+              {
+                var ne0 = nbeams[bni].Edges[ei_opp0];
+                if (ne0.ContainsOrEqual(ce0_min))
+                {
+                  ce0_min = ne0.Max;
+                  if (bni < nbeams.Count - 1)
+                  {
+                    ce0_max = nbeams[bni + 1].Edges[ei_opp0].Min;
+                  }
+                }
+                var ne1 = nbeams[bni].Edges[ei_opp1];
+                if (ne1.ContainsOrEqual(ce1_min))
+                {
+                  ce1_min = ne1.Max;
+                  if (bni < nbeams.Count - 1)
+                  {
+                    ce1_max = nbeams[bni + 1].Edges[ei_opp1].Min;
+                  }
+                }
+                DoSideOrCap(iface, ce0_min, ce0_max, ce1_min, ce1_max, verts, inds, beam_origin, sideuv);
+
+                ce0_min = ne0.Max;//done with this one, go past it
+                ce1_min = ne1.Max;
+              }
+
+              //Do left over face
+              ce0_max = beam.Edges[ei0].Max;
+              ce1_max = beam.Edges[ei1].Max;
+              DoSideOrCap(iface, ce0_min, ce0_max, ce1_min, ce1_max, verts, inds, beam_origin, sideuv);
+            }//do sides
+
+            vec2[] top_botuv = new vec2[] { new vec2(0, 0), new vec2(1, 1) };
+            if (_blockTiles.TryGetValue(beam.Tiles[BeamFaceIndex.Top], out wt))
+            {
+              top_botuv = wt.UV;
+            }
+            //2 3 = edges
+            //0 1
+            DoSideOrCap(BeamFaceIndex.Top, beam.Edges[0].Max, beam.Edges[2].Max, beam.Edges[1].Max, beam.Edges[3].Max, verts, inds, beam_origin, top_botuv);
+
+            if (_blockTiles.TryGetValue(beam.Tiles[BeamFaceIndex.Bottom], out wt))
+            {
+              top_botuv = wt.UV;
+            }
+            DoSideOrCap(BeamFaceIndex.Bottom, beam.Edges[2].Min, beam.Edges[0].Min, beam.Edges[3].Min, beam.Edges[1].Min, verts, inds, beam_origin, top_botuv);
+
 
           }
         }
@@ -814,27 +1458,29 @@ namespace PirateCraft
         return LambdaBool.Continue;
       });
 
-      if (verts != null && verts.Length > 0)
+      if (verts != null && verts.Count > 0)
       {
-        ushort[] inds = MeshData.GenerateQuadIndices(verts.Length / 4, false);
+        //ushort[] inds = MeshData.GenerateQuadIndices(verts.Length / 4, false);
 
         string name = "glob:" + g.Pos.ToString();
         if (g.Opaque == null)
         {
           var pickid = Gu.Context.Renderer.Picker.GenPickId();
           var mat = _worldMaterial_Op;
-          mat4 mworld = mat4.getTranslation(Info.GlobI3PosToGlobR3Pos(g.Pos));
+          mat4 mworld = mat4.Identity;// mat4.getTranslation(Info.GlobI3PosToGlobR3Pos(g.Pos));
           g.Opaque = new SoloMesh(null, mat, mworld, pickid);
         }
+        var vertsarr = verts.ToArray();
+        var indsarr = inds.ToArray();
 
-        var faces = MeshData.ComputeNormalsAndTangents(verts, inds.AsUIntArray(), true, true);
+        var faces = MeshData.ComputeNormalsAndTangents(vertsarr, indsarr.AsUIntArray(), true, true);
 
         g.Opaque.Mesh = new MeshData(name, PrimitiveType.Triangles,
-          Gpu.CreateVertexBuffer(name, verts),
-          Gpu.CreateIndexBuffer(name, inds.ToArray()),
-          Gpu.CreateShaderStorageBuffer(name, faces.ToArray()),
-          true
-        );
+                Gpu.CreateVertexBuffer(name, vertsarr),
+                Gpu.CreateIndexBuffer(name, indsarr),
+                Gpu.CreateShaderStorageBuffer(name, faces.ToArray()),
+                true
+              );
 
         _renderGlobs.Add(g.Pos, g);
       }
@@ -843,11 +1489,174 @@ namespace PirateCraft
         _renderGlobs.Remove(g.Pos);
       }
 
-      g.State = Glob.GlobState.Done;
+      foreach (var ng in ga.GlobsC27)
+      {
+        ng?.Unlock();
+      }
+
+      g.State = Glob.GlobState.Topologized;
+    }
+
+    private void DoSideOrCap(int iface, ushort ce0_min, ushort ce0_max, ushort ce1_min, ushort ce1_max, List<v_v3n3x2t3u1> verts, List<ushort> inds, vec3 beam_origin, vec2[] uvs)
+    {
+      //value input edge id = 0,2,1,3 for top
+      /*
+          right 
+          v2   v3
+          0 / 1  < tid
+          v0   v1 < vbase
+          2 3       3
+          0       0 1  
+          left 
+          v2   v3
+          2 \ 3  < tid
+          v0   v1 < vbase
+          2    2 3
+          0 1    1        
+      */
+      //e0 is on the left, normal pointing towards you, origin bot left
+
+      Gu.Assert(iface >= 0 && iface <= 6);
+
+      bool doe0 = ce0_min < ce0_max;
+      bool doe1 = ce1_min < ce1_max;
+      bool isCap = ((iface == BeamFaceIndex.Top) || (iface == BeamFaceIndex.Bottom));
+
+      if (isCap || doe0 || doe1)
+      {
+        //make some data for whatever face we need
+        float he0_min = Info.ConvertHeight(ce0_min);
+        float he0_max = Info.ConvertHeight(ce0_max);
+        float he1_min = Info.ConvertHeight(ce1_min);
+        float he1_max = Info.ConvertHeight(ce1_max);
+        int voff = verts.Count;
+        vec3 n = WorldStaticData.face_idx_to_normal[iface]; //this is the default, compute_normalsandtangents can compute the correct face normals.
+        vec3 e0_orig = beam_origin + Info.FaceOrigin(iface);
+        vec3 e1_orig = beam_origin + Info.FaceOrigin(iface) + Info.E2OffFace(iface);
+        var qverts = new v_v3n3x2t3u1[4] {
+          new v_v3n3x2t3u1(){_v = e0_orig + new vec3(0, he0_min, 0) , _n = n, _x = uvs[0] },//uvs are wrong, some kind of tiling will need
+          new v_v3n3x2t3u1(){_v = e1_orig + new vec3(0, he1_min, 0) , _n = n, _x = uvs[1] },
+          new v_v3n3x2t3u1(){_v = e0_orig + new vec3(0, he0_max, 0) , _n = n, _x = uvs[2] },
+          new v_v3n3x2t3u1(){_v = e1_orig + new vec3(0, he1_max, 0) , _n = n, _x = uvs[3] },
+        };
+
+        //*** TODO SPLIT TRIANGLES FOR HALF SIDES
+
+        //do face
+        if (iface == BeamFaceIndex.Top || iface == BeamFaceIndex.Bottom)
+        {
+          qverts[1]._v += new vec3(Info.BlockSizeX, 0, 0);
+          qverts[2]._v += new vec3(0, 0, Info.BlockSizeZ);
+          qverts[3]._v += new vec3(Info.BlockSizeX, 0, Info.BlockSizeZ);
+
+          //*** TODO: CULL TOP / BOT FACES 
+          verts.AddRange(qverts);
+          if (iface == BeamFaceIndex.Top)
+          {
+            inds.AddRange(new ushort[6] {
+            (ushort)(voff + 0), (ushort)(voff + 3), (ushort)(voff + 2),
+            (ushort)(voff + 0), (ushort)(voff + 1), (ushort)(voff + 3) });
+          }
+          else
+          {
+            //hacky here, just guessing .. this is all temporary until culling gets made.
+            inds.AddRange(new ushort[6] {
+            (ushort)(voff + 0), (ushort)(voff + 2), (ushort)(voff + 3),
+            (ushort)(voff + 0), (ushort)(voff + 3), (ushort)(voff + 1) });
+          }
+        }
+        else if (doe0 && doe1)
+        {
+          //quad
+          verts.AddRange(qverts);
+          inds.AddRange(new ushort[6] {
+            (ushort)(voff + 0), (ushort)(voff + 3), (ushort)(voff + 2),
+            (ushort)(voff + 0), (ushort)(voff + 1), (ushort)(voff + 3) });
+        }
+        else if (doe0)
+        {
+          //tri
+          verts.AddRange(new v_v3n3x2t3u1[3] { qverts[0], qverts[1], qverts[2] });
+          inds.AddRange(new ushort[3] { (ushort)(voff + 0), (ushort)(voff + 1), (ushort)(voff + 2) });
+        }
+        else if (doe1)
+        {
+          //tri
+          verts.AddRange(new v_v3n3x2t3u1[3] { qverts[0], qverts[1], qverts[3] });
+          inds.AddRange(new ushort[3] { (ushort)(voff + 0), (ushort)(voff + 1), (ushort)(voff + 2) });
+        }
+      }
+
+
+    }
+    public List<Beam> GetBeamsForFace(GlobArray ga, int bx, int bz, Beam beam, int face)
+    {
+      List<Beam> ret = new List<Beam>();
+      int dx = 0, dy = 0, dz = 0;
+      if (face == BeamFaceIndex.Left) { dx = -1; }
+      else if (face == BeamFaceIndex.Right) { dx = +1; }
+      else if (face == BeamFaceIndex.Bottom) { dy = -1; }
+      else if (face == BeamFaceIndex.Top) { dy = +1; }
+      else if (face == BeamFaceIndex.Back) { dz = -1; }
+      else if (face == BeamFaceIndex.Front) { dz = +1; }
+
+      var bmin = (int)beam.MinHeight();
+      var bmax = (int)beam.MaxHeight();
+
+      Glob gn = ga.NeighborRel_Beam(dx, dy, dz,
+                                    ref bx, ref bz,
+                                    ref bmin, ref bmax,
+                                    BeamVert.MaxVal,
+                                    Info.GlobBlocksX, Info.GlobBlocksZ);
+      if (gn != null)
+      {
+        var bl = gn.BeamGrid.Get(bx, bz);
+        if (bl != null)
+        {
+          ret = bl.GetBeamsForRange((ushort)bmin, (ushort)bmax);
+        }
+      }
+      return ret;
     }
 
     #region Objects
+    public Glob GetGlobForPoint(vec3 pt, GlobArray? ga = null)
+    {
+      if (ga != null)
+      {
+        foreach (var ng in ga.GlobsC27)
+        {
+          if (ng != null)
+          {
+            if (Info.GetGlobBoxGlobalI3(ng.Pos).containsPointBottomLeftInclusive(pt))
+            {
+              return ng;
+            }
+          }
+        }
+      }
+      else
+      {
+        var i3 = Info.R3GlobaltoI3Glob(pt);
+        if (_globs.TryGetValue(i3, out var outg))
+        {
+          return outg;
+        }
+      }
+      return null;
+    }
 
+    public Beam? GetBeamForPoint(vec3 pt, GlobArray? ga = null)
+    {
+      //not needed righ tnow
+      // var eg = GetGlobForPoint(pt, ga);
+      // if (eg != null)
+      // {
+      //   Gu.Assert(eg.BeamGrid != null);//Busines rule - bar grid must be not null if glob exists
+      //   return eg.GetBeamForPoint_BottomLeftInclusive_WithCaps(pt);
+      // }
+      return null;
+    }
     public WorldObject FindObject(string name)
     {
       WorldObject obj = null;
@@ -1225,18 +2034,28 @@ namespace PirateCraft
           _visibleObsAll.AddVisibleObject(g.Transparent);
         }
       }
-
     }
     private void CollectVisibleGlobs(Camera3D cam)
     {
+      Gu.Assert(cam != null);
       _visibleRenderGlobs.Clear();
-      foreach (var g in _renderGlobs)
+      foreach (var g in _existingGlobs)
       {
         //i think ir emoved glob box due to too much data. probably isn't necessary to do that with new system.
         var b = Info.GetGlobBoxGlobalI3(g.Key);
         if (cam.Frustum.HasBox(b))
         {
-          _visibleRenderGlobs.Add(g.Key, g.Value);
+          if (g.Value.State == Glob.GlobState.Topologized)
+          {
+            if (g.Value.HasMeshData())
+            {
+              _visibleRenderGlobs.Add(g.Key, g.Value);
+            }
+          }
+          else if (g.Value.State == Glob.GlobState.CreatedOrLoaded)
+          {
+            QueueGlob(g.Value, cam.Position_World);
+          }
         }
       }
     }
@@ -1419,9 +2238,9 @@ namespace PirateCraft
     private void CreateMaterials()
     {
       var maps = CreateAtlas();
-      var s = Gu.Resources.LoadShader("v_Glob", false, FileStorage.Embedded);
-      _worldMaterial_Op = new Material("worldMaterial_Op", s, maps.AlbedoTexture, maps.NormalTexture);
-      _worldMaterial_Tp = new Material("worldMaterial_Tp", s, maps.AlbedoTexture, maps.NormalTexture);
+      var shader = Shader.DefaultObjectShader();// Gu.Resources.LoadShader("v_Glob", false, FileStorage.Embedded);
+      _worldMaterial_Op = new Material("worldMaterial_Op", shader, maps.AlbedoTexture, maps.NormalTexture);
+      _worldMaterial_Tp = new Material("worldMaterial_Tp", shader, maps.AlbedoTexture, maps.NormalTexture);
       _worldMaterial_Tp.GpuRenderState.Blend = true;
       _worldMaterial_Tp.GpuRenderState.DepthTest = true;
       _worldMaterial_Tp.GpuRenderState.CullFace = false;
@@ -1436,8 +2255,8 @@ namespace PirateCraft
       //This is used to index into the megatex to find the generated UV coordinates.
 
       //solid blocks
-      AddWorldTile(BlockItemCode.Grass, TileImage.Grass, TileVis.Opaque, HardnessValue.Dirt, BlockMeshType.Block, WorldTile.BlockOpacity_Solid);
-      AddWorldTile(BlockItemCode.Dirt, TileImage.Dirt, TileVis.Opaque, HardnessValue.Dirt, BlockMeshType.Block, WorldTile.BlockOpacity_Solid);
+      AddWorldTile(TileCode.Grass, TileImage.Grass, TileVis.Opaque, HardnessValue.Dirt, BlockMeshType.Block, WorldTile.BlockOpacity_Solid);
+      AddWorldTile(TileCode.Dirt, TileImage.Dirt, TileVis.Opaque, HardnessValue.Dirt, BlockMeshType.Block, WorldTile.BlockOpacity_Solid);
     }
     private PBRTextureArray CreateAtlas()
     {
@@ -1493,16 +2312,19 @@ namespace PirateCraft
 
     public void SetGlob(ivec3 gpos, Glob? g)
     {
-      //This will not be a problem, this i just for debugging
+      //Note: G can be null, in which case, there is no glob yet
       bool bhas = _globs.TryGetValue(gpos, out var gexist);
       if (g != null && gexist != null)
       {
+        //This will not be a problem, this i just for debugging
         Gu.Log.Warn("Tried to overwrite an existing glob with another glob");
         Gu.DebugBreak();
       }
-
-      //Note: G can be null, in which case, there is no glob yet, we don't generate them anymore
-      _globs[gpos] = g;
+      if (g != null)
+      {
+        _existingGlobs.Add(gpos, g);
+      }
+      _globs.Add(gpos, g);
     }
 
     public void CreateEntity(vec3 pos, vec3 vel, WorldTile tile)
@@ -1606,7 +2428,7 @@ namespace PirateCraft
       Glob? g = TryLoadGlob(gpos);
       if (g != null)
       {
-        g.State = Glob.GlobState.Loaded;
+        g.State = Glob.GlobState.CreatedOrLoaded;
       }
       SetGlob(gpos, g);
 
@@ -1867,8 +2689,8 @@ namespace PirateCraft
       b.iterate((x, y, z, dbgcount) =>
       {
         var g = new Glob(Gu.World, new ivec3(x, y, z), Gu.Context.FrameStamp);
-        g.BarGrid = new BarGrid(Gu.World.Info);
-        g.BarGrid.Edit_GenFlat(0, Gu.World.Info.BlockSizeY);
+        //g.BarGrid.Edit_GenFlat(0, Gu.World.Info.BlockSizeY);
+        g.Edit_GenHills(0, Gu.World.Info.BlockSizeY, Gu.World.Info.BlockSizeY * 5);
         Gu.World.SetGlob(g.Pos, g);
         return LambdaBool.Continue;
       }, false);

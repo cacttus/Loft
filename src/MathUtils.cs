@@ -208,8 +208,13 @@ namespace PirateCraft
   {
     Unset,
     NoHit,
-    HitBefore, //we collided with the solid along the ray
-    Inside //we are inside the solid already
+    Hit, //we collided with the solid / plane along the ray
+    Inside //we are inside the solid /plane already
+  }
+  public class PlaneHit
+  {
+    public float _t = float.MaxValue;
+    public RaycastResult RaycastResult = RaycastResult.Unset;
   }
   public class BoxAAHit
   {
@@ -285,7 +290,7 @@ namespace PirateCraft
       d = -n.dot(dpt);
       n = dn;
     }
-    public Plane3f(vec3 tri_p1, vec3 tri_p2, vec3 tri_p3, vec3 tri_p4)
+    public Plane3f(vec3 tri_p1, vec3 tri_p2, vec3 tri_p3)
     {
       //The TBN is not needed for this - copied from VulkanGame::PlaneEx3
       float u = 1.0f;
@@ -305,15 +310,102 @@ namespace PirateCraft
     }
     public float IntersectLine(vec3 p1, vec3 p2)
     {
-      float t = -(n.dot(p1) + d) / ((p2 - p1).dot(n));
+      return IntersectRay(p1, p2 - p1);
+    }
+    public float IntersectRay(vec3 origin, vec3 dir)
+    {
+      float t = -(n.dot(origin) + d) / ((dir).dot(n));
       return t;
     }
-    public float dist(vec3 p)
+    public float Distance(vec3 p)
     {
       return (float)(n.dot(p) + d);
     }
 
   }
+  public class TriPlane : Plane3f
+  {
+    public vec3 _p1;
+    public vec3 _p2;
+    public vec3 _p3;
+    public TriPlane(vec3 p1, vec3 p2, vec3 p3) : base(p1,p2,p3)
+    {
+      _p1 = p1;
+      _p2 = p2;
+      _p3 = p3;
+    }
+    PlaneHit HitTest(PickRay3D pr)
+    {
+      PlaneHit ret = new PlaneHit();
+      if (Distance(pr.Origin) == 0)
+      {
+        ret.RaycastResult = RaycastResult.Inside;
+        ret._t = 0;
+        return ret;
+      }
+
+      ret.RaycastResult = RaycastResult.NoHit;
+
+      // - Basic Plane Intersection
+      ret._t = IntersectRay(pr.Origin, pr.Dir);
+
+      // - Test to see if point is within triangle boundaries.
+      if (ret._t >= 0.0 && ret._t <= 1.0)
+      {
+        vec3 v = pr.Origin + (pr.Dir * ret._t);
+        if (ContainsPoint(v))
+        {
+          ret.RaycastResult = RaycastResult.Hit;
+        }
+      }
+
+      return ret;
+    }
+    public bool ContainsPoint(vec3 point)
+    {
+      vec3 dp1 = _p2 - _p1;
+      vec3 dp2 = _p3 - _p1;
+      vec3 v = point - _p1;
+
+      float a = dp1.dot(dp1);
+      float b = dp1.dot(dp2);
+      float c = dp2.dot(dp2);
+      float d = v.dot(dp1);
+      float e = v.dot(dp2);
+
+      float bx = (d * c) - (e * b);
+      float by = (e * a) - (d * b);
+      float bz = bx + by - (a * c) + (b * b);
+
+      int cx = BitConverter.ToInt32(BitConverter.GetBytes(bx), 0);
+      int cy = BitConverter.ToInt32(BitConverter.GetBytes(by), 0);
+      int cz = BitConverter.ToInt32(BitConverter.GetBytes(bz), 0);
+      unchecked
+      {
+        //May, or may not work.
+        //if ((((uint&)(bz) & ~((uint&)(bx) | (uint&)(by))) &0x80000000))
+        if ((uint)(((cz) & ~((cx) | (cy))) & 0x80000000) > 0)
+        {
+          return true;
+        }
+      }
+      return false;
+    }
+    public bool HitTestBox(Box3f b)
+    {
+      //AabbTest
+      // @fn Copied from bullet.
+      // @brief QUICK Test a triangle against an AABB.  Returns true if it intersects the box, false if not
+      if (Math.Min(Math.Min(_p1.x, _p2.x), _p3.x) > b._max.x) { return false; }
+      if (Math.Max(Math.Max(_p1.x, _p2.x), _p3.x) < b._min.x) { return false; }
+      if (Math.Min(Math.Min(_p1.z, _p2.z), _p3.z) > b._max.z) { return false; }
+      if (Math.Max(Math.Max(_p1.z, _p2.z), _p3.z) < b._min.z) { return false; }
+      if (Math.Min(Math.Min(_p1.y, _p2.y), _p3.y) > b._max.y) { return false; }
+      if (Math.Max(Math.Max(_p1.y, _p2.y), _p3.y) < b._min.y) { return false; }
+      return true;
+    }
+
+  }//triplane
   [StructLayout(LayoutKind.Sequential)]
   public struct Line2f
   {
@@ -3843,8 +3935,9 @@ namespace PirateCraft
     {
       return _max.z - _min.z;
     }
-    public bool Validate(bool throwIfInvalid = false)
+    public bool Validate(bool throwIfInvalid = false, bool checkHasVolumeToo = false)
     {
+
       if (_max.x < _min.x)
       {
         if (throwIfInvalid)
@@ -3869,6 +3962,18 @@ namespace PirateCraft
         }
         return false;
       }
+      if (checkHasVolumeToo)
+      {
+        if (!getHasVolume())
+        {
+          if (throwIfInvalid)
+          {
+            throw new Exception("Bound box Z was invalid.");
+          }
+          return false;
+        }
+      }
+
       return true;
     }
     public bool Intersect_Ellipsoid_Fast(vec3 c, vec3 r)
@@ -3991,7 +4096,7 @@ namespace PirateCraft
           result = result || res2;
           if (res2)
           {
-            bh.RaycastResult = RaycastResult.HitBefore;
+            bh.RaycastResult = RaycastResult.Hit;
           }
         }
       }
@@ -4203,7 +4308,7 @@ namespace PirateCraft
         if (t1 >= 0 && t1 <= 1)
         {
           bh._t1 = t1;
-          bh.RaycastResult = RaycastResult.HitBefore;
+          bh.RaycastResult = RaycastResult.Hit;
           return true;
         }
         else
@@ -4303,7 +4408,7 @@ namespace PirateCraft
         if (t1 >= 0 && t1 <= 1)
         {
           bh._t1 = t1;
-          bh.RaycastResult = RaycastResult.HitBefore;
+          bh.RaycastResult = RaycastResult.Hit;
           return true;
         }
         else
@@ -4417,7 +4522,7 @@ namespace PirateCraft
         if (t1 >= 0 && t1 <= 1)
         {
           bh._t1 = t1;
-          bh.RaycastResult = RaycastResult.HitBefore;
+          bh.RaycastResult = RaycastResult.Hit;
           return true;
         }
         else
@@ -4742,7 +4847,7 @@ namespace PirateCraft
       genExpandByPoint(pc._min);
       genExpandByPoint(pc._max);
     }
-    public bool getHasVolume(float epsilon)
+    public bool getHasVolume()
     {
       if (getVolumePositiveOnly() == 0.0)
       {
@@ -4752,6 +4857,7 @@ namespace PirateCraft
     }
     private float getVolumePositiveOnly()
     {
+      //Volume which returns positive volume only, not accounting for invalid boundary (e.g. min > max)
       float ax = (_max.x - _min.x);
       float ay = (_max.y - _min.y);
       float az = (_max.z - _min.z);

@@ -150,7 +150,7 @@ namespace PirateCraft
     {
       vec3 min, max;
       float d1, d2;
-      if (!pCube.Validate())
+      if (!pCube.Validate(false, false))
       {
         Gu.Log.ErrorCycle("Box was invalid");
         Gu.DebugBreak();
@@ -181,8 +181,8 @@ namespace PirateCraft
           max.z = pCube._min.z;
         }
 
-        d1 = _planes[i].dist(max);
-        d2 = _planes[i].dist(min);
+        d1 = _planes[i].Distance(max);
+        d2 = _planes[i].Distance(min);
 
         if (d1 < 0.0f && d2 < 0.0f)
         {
@@ -198,7 +198,7 @@ namespace PirateCraft
       for (int pi = 0; pi < 6; pi++)
       {
         //this can be faster if we just take the sign bit of the float..
-        if (_planes[pi].dist(p) < 0)
+        if (_planes[pi].Distance(p) < 0)
         {
           return false;
         }
@@ -243,14 +243,14 @@ namespace PirateCraft
       //  3   4
       //
       // - Construct so that the normals are facing into the frustum  - Checked all is good
-      _planes[fp_near] = new Plane3f(_points[fpt_ntl], _points[fpt_ntr], _points[fpt_nbl], _points[fpt_nbr]);
-      _planes[fp_far] = new Plane3f(_points[fpt_ftr], _points[fpt_ftl], _points[fpt_fbr], _points[fpt_fbl]);
+      _planes[fp_near] = new Plane3f(_points[fpt_ntl], _points[fpt_ntr], _points[fpt_nbl]);
+      _planes[fp_far] = new Plane3f(_points[fpt_ftr], _points[fpt_ftl], _points[fpt_fbr]);
 
-      _planes[fp_left] = new Plane3f(_points[fpt_ftl], _points[fpt_ntl], _points[fpt_fbl], _points[fpt_nbl]);
-      _planes[fp_right] = new Plane3f(_points[fpt_ntr], _points[fpt_ftr], _points[fpt_nbr], _points[fpt_fbr]);
+      _planes[fp_left] = new Plane3f(_points[fpt_ftl], _points[fpt_ntl], _points[fpt_fbl]);
+      _planes[fp_right] = new Plane3f(_points[fpt_ntr], _points[fpt_ftr], _points[fpt_nbr]);
 
-      _planes[fp_top] = new Plane3f(_points[fpt_ntr], _points[fpt_ntl], _points[fpt_ftr], _points[fpt_ftl]);
-      _planes[fp_bottom] = new Plane3f(_points[fpt_fbr], _points[fpt_fbl], _points[fpt_nbr], _points[fpt_nbl]);
+      _planes[fp_top] = new Plane3f(_points[fpt_ntr], _points[fpt_ntl], _points[fpt_ftr]);
+      _planes[fp_bottom] = new Plane3f(_points[fpt_fbr], _points[fpt_fbl], _points[fpt_nbr]);
     }
     #endregion
   }

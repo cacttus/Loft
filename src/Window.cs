@@ -762,13 +762,23 @@ namespace PirateCraft
     private void CreateLight()
     {
       var l = new Light("pt");
-      l.Radius = 1000;
-      l.Power = 50;
+      l.Radius = 5000;
+      l.Power = 200;
       l.Position_Local = new vec3(0, 10, 0);
       Gu.World.AddObject(l);
 
-    }
+      l = new Light("pt");
+      l.Radius = 5000;
+      l.Power = 200;
+      l.Position_Local = new vec3(-10, 10, -10);
+      Gu.World.AddObject(l);
 
+       l = new Light("pt");
+      l.Radius = 5000;
+      l.Power = 200;
+      l.Position_Local = new vec3(10, 10, 10);
+      Gu.World.AddObject(l);
+    }
     private void CreateCrosshair(Camera3D c)
     {
       vec4 ch_c = new vec4(0.31f, 0, 0, .1f);

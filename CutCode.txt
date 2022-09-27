@@ -1740,3 +1740,46 @@ public class Drome : DromeNode
   //     return nculled;
   //   }
   // }
+
+
+
+
+    // public Beam GetBeamForPoint_BottomLeftInclusive_WithCaps(vec3 pt)
+    // {
+    //   //Check that a point intersects a beam base mesh volume exactly (including triangles)
+    //   Beam ret = null;
+    //   vec3 pt_rel = pt - this.OriginR3;
+    //   int x = (int)(pt_rel.x / _world.Info.GlobBlocksX);
+    //   int z = (int)(pt_rel.z / _world.Info.GlobBlocksZ);
+    //   BeamList bl = BeamGrid.Get(x, z, IndexMode.Throw);
+    //   if (bl != null)
+    //   {
+    //     ushort h = _world.Info.ConvertHeight(pt.y);
+    //     List<Beam> beams = bl.GetBeamsForHeight(h);
+    //     if (beams != null)
+    //     {
+    //       Gu.Assert(beams.Length > 0);
+
+    //       if (beams[0] != null && beams[1] != null)
+    //       {
+    //         if (_world.Info.Beam_Contains_Point_Global_Bottom_Left_Inclusive_WITHCaps(x, z, pt, beams[0], this.OriginR3))
+    //         {
+    //           ret = beams[0];
+    //         }
+    //         else
+    //         {
+    //           ret = beams[1];
+    //         }
+    //       }
+    //       else if (beams[0] != null)
+    //       {
+    //         ret = beams[0];
+    //       }
+    //       else
+    //       {
+    //         Gu.Trap();
+    //       }
+    //     }
+    //   }
+    //   return ret;
+    // }

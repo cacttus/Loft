@@ -181,6 +181,9 @@ namespace PirateCraft
       {
         Directory.CreateDirectory(dir);
       }
+      if(image.Format != Img32.ImagePixelFormat.RGBA32ub){
+        Gu.Log.Warn($"Image '{path}' format was not rgba32");
+      }
 
       string ext = System.IO.Path.GetExtension(path).ToLower();
       try
@@ -351,7 +354,7 @@ namespace PirateCraft
           {
             for (int ix = 0; ix < img.Width; ix++)
             {
-              var p = img.GetPixel32(ix, iy);
+              var p = img.GetPixel_RGBA32ub(ix, iy);
               //r32ui is in agbr -> rgba
               var tmp = p.a;
               p.a = p.r;
@@ -359,7 +362,7 @@ namespace PirateCraft
               tmp = p.b;
               p.b = p.g;
               p.g = tmp;
-              img.SetPixel32(ix, iy, p);
+              img.SetPixel_RGBA32ub(ix, iy, p);
             }
           }
         }
@@ -371,12 +374,12 @@ namespace PirateCraft
         {
           for (int ix = 0; ix < img.Width; ix++)
           {
-            var p = img.GetPixel32(ix, iy);
+            var p = img.GetPixel_RGBA32ub(ix, iy);
             float f = BitConverter.ToSingle(new byte[] { p.r, p.g, p.b, p.a }, 0);
             //r32ui is in agbr -> rgba
             p.r = p.g = p.b = (byte)((f / 1.0f) * 255.0f);
             p.a = 255;
-            img.SetPixel32(ix, iy, p);
+            img.SetPixel_RGBA32ub(ix, iy, p);
           }
         }
       }
@@ -398,9 +401,9 @@ namespace PirateCraft
         {
           for (int ix = 0; ix < img.Width; ix++)
           {
-            var p = img.GetPixel32(ix, iy);
+            var p = img.GetPixel_RGBA32ub(ix, iy);
             p.a = byte.MaxValue;
-            img.SetPixel32(ix, iy, p);
+            img.SetPixel_RGBA32ub(ix, iy, p);
           }
         }
       }

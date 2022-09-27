@@ -1371,9 +1371,10 @@ namespace PirateCraft
 
       //So for now, I'm saying every object has a mesh of some kind. This makes things simpler.
       //If you don't want to draw it set Visible=false.
-      if (!_boundBox.Validate())
+      //Bound boxes can be no voluem.. if a plane..
+      if (!_boundBox.Validate(false, false))
       {
-        Gu.Log.ErrorCycle(this.Name + " BoundBox was invalid.");
+        Gu.Log.ErrorCycle( $"'{this.Name}' BoundBox was invalid.");
         Gu.DebugBreak();
       }
 

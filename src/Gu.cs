@@ -16,6 +16,7 @@ namespace PirateCraft
     // Global Utils. static Class
     #region Public: Constants
 
+    public const int c_intMaxWhileTrueLoopBinarySearch = 64;//dummy infinite loop blocker
     public const int c_intMaxWhileTrueLoopSmall = 1000;//dummy infinite loop blocker
     public const int c_intMaxWhileTrueLoop = 100000;//dummy infinite loop blocker
     public const int c_intMaxWhileTrueLoopLONG = 100000000;//dummy infinite loop blocker
@@ -239,8 +240,9 @@ namespace PirateCraft
     {
       Debugger.Break();
     }
-    public static void Trap(){
-      int n=0;
+    public static void Trap()
+    {
+      int n = 0;
       n++;
     }
     public static byte[] Compress(byte[] data)
@@ -417,6 +419,35 @@ namespace PirateCraft
       }
     }
 
+    public static ushort QuantitizeUShortFloat(float in_value, float min_float_value, float max_float_value, ushort max_ushort_value)
+    {
+      //return a short representing the input
+      Gu.Assert(in_value >= min_float_value);
+      Gu.Assert(in_value <= max_float_value);
+
+      double iv = (double)min_float_value;
+      double av = (double)max_float_value;
+      double v = (double)in_value;
+
+      ushort s = 0;
+      s = (ushort)((double)max_ushort_value * ((v - iv) / (av - iv)));
+      return s;
+    }
+    public static float UnQuantitizeUShortFloat(ushort in_value, float min_float_value, float max_float_value, ushort max_ushort_value)
+    {
+      //return a short representing the input
+
+      double iv = (double)min_float_value;
+      double av = (double)max_float_value;
+      double v = (double)in_value;
+
+      double ev = iv + (v / (double)max_ushort_value) * (max_float_value - min_float_value);
+
+      Gu.Assert((float)ev >= min_float_value);
+      Gu.Assert((float)ev <= max_float_value);
+
+      return (float)ev;
+    }
     #endregion
 
 

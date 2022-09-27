@@ -678,7 +678,7 @@ namespace PirateCraft
           verts[vi0]._v, verts[vi1]._v, verts[vi2]._v,
           verts[vi0]._x, verts[vi1]._x, verts[vi2]._x,
           out out_n, out out_t);
-uint faceId = (uint)(vi/3);
+        uint faceId = (uint)(vi/3);
 
         faceData[faceId]._index = faceId;
         faceData[faceId]._normal = out_n;

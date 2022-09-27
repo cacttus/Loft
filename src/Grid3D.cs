@@ -12,7 +12,7 @@ namespace PirateCraft
     Throw,  //throw an exception (error)
     Default,//return default val
   }
-  public class Grid3D<T> : ICanSerializeMyself where T : ICanSerializeMyself
+  public class Grid3D<T> : ISerializeBinary where T : ISerializeBinary
   {
     public int SizeX { get; private set; } = 0;
     public int SizeY { get; private set; } = 0;
@@ -228,7 +228,7 @@ namespace PirateCraft
     }
   }//Grid3D
 
-  public class Grid2D<T> : ICanSerializeMyself where T : ICanSerializeMyself
+  public class Grid2D<T> : ISerializeBinary where T : ISerializeBinary
   {
     public int SizeX { get; private set; } = 0;
     public int SizeY { get; private set; } = 0;
@@ -403,11 +403,17 @@ namespace PirateCraft
       return false;
 
     }//ClampOrwra
-    public void Iterate(Func<Grid2D<T>, int, int, LambdaBool> f)
+    public void Iterate(Func<Grid2D<T>, int, int, LambdaBool> f, bool inclusive = false)
     {
-      for (int yi = 0; yi < SizeY; yi++)
+      int ymax = SizeY;
+      int xmax = SizeX;
+      if(inclusive){
+        ymax+=1;
+        xmax+=1;
+      }
+      for (int yi = 0; yi < ymax; yi++)
       {
-        for (int xi = 0; xi < SizeX; xi++)
+        for (int xi = 0; xi < xmax; xi++)
         {
           if (f(this, xi, yi) == LambdaBool.Break)
           {

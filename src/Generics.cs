@@ -1373,10 +1373,496 @@ namespace PirateCraft
     #endregion
   }
 
-  public interface ICanSerializeMyself
+
+  public interface ISerializeBinary
   {
     public abstract void Serialize(BinaryWriter br);
     public abstract void Deserialize(BinaryReader br);
   }
+  //We will probably delete the range stuff, just keeping it here for now.
+  public interface IRangeItem
+  {
+    public ushort Min { get; }
+    public ushort Max { get; }
+  }
+  // public class RangeList
+  // {
+  //   //Range list for [max,min] IRangeItem.  
+  //   // Constraint: Max!=Min, 
+  //   // elements max/min can *coincide*
+  //   // a--a b-------bc--c   d------d <example
+  //   // a----ab-----b < ok
+  //   // aa < bad
+  //   // ab < ok
+
+  //   public const int c_iNotFound = -1;
+  //   private List<IRangeItem>? _items = new List<IRangeItem>();
+  //   public RangeList()
+  //   {
+  //   }
+  //   public List<IRangeItem> GetCoincidentRanges(IRangeItem ri)
+  //   {
+  //     //return all coinciding ranges
+  //     List<IRangeItem> ret = null;
+
+  //     if (_items.Count == 0)
+  //     {
+  //       return new List<IRangeItem>();
+  //     }
+
+  //     Gu.Assert(ri.Min != ri.Max);
+  //     FindClosest_LeftGuaranteed(ri.Min, out int min_left, out int min_right);
+  //     FindClosest_LeftGuaranteed(ri.Max, out int max_left, out int max_right);
+
+  //     Gu.Assert(max_left >= min_left);
+  //     if (_items[min_left].Max >= ri.Min && _items[max_left].Min <= ri.Max)
+  //     {
+  //       ret = _items.GetRange(min_left, max_left - min_left);
+  //     }
+
+  //     return ret;
+  //   }
+  //   public void Add(IRangeItem e)
+  //   {
+  //     Gu.Assert(e != null);
+  //     int tindl = 0, bindl = 0, tindr = 0, bindr = 0;
+
+  //     //Max=min would mess this whole thing up  could return infinite elements
+  //     if (e.Max == e.Min)
+  //     {
+  //       Gu.BRThrowException("Beam max must not equal min.");
+  //     }
+  //     Gu.Assert(_items != null);
+
+  //     if (_items.Count == 0)
+  //     {
+  //       _items.Add(e);
+  //     }
+  //     else if (!FindClosest_LeftGuaranteed(e.Max, out tindl, out tindr) && !FindClosest_LeftGuaranteed(e.Min, out bindl, out bindr))
+  //     {
+  //       //bind is guaranteed in the array > 0
+  //       // we sort by bot value.
+  //       _items.Insert(bindl, e);
+  //     }
+  //     else
+  //     {
+  //       Gu.Log.Error("edge was coincident");
+  //       Gu.DebugBreak();
+  //     }
+  //   }
+  //   public bool Find(ushort value, out IRangeItem left, out IRangeItem right)
+  //   {
+  //     return Find(value, out left, out right, out int l, out int r);
+  //   }
+  //   public bool Find(ushort value, out IRangeItem left, out IRangeItem right, out int closest_left, out int closest_right)
+  //   {
+  //     //Returns 1 or 2 matching range items.
+  //     left = right = null;
+  //     var ret = false;
+
+  //     //Note this finds the CLOSEST value
+  //     if (FindClosest_LeftGuaranteed(value, out closest_left, out closest_right))
+  //     {
+  //       if (closest_left != c_iNotFound)
+  //       {
+  //         if (left == null)
+  //         {
+  //           if (_items[closest_left].Min <= value && _items[closest_left].Max >= value)
+  //           {
+  //             left = _items[closest_left];
+  //             ret = true;
+  //           }
+  //         }
+  //         else
+  //         {
+  //           Gu.Assert(left == _items[closest_left]);//Extra check - the left/right order would always be the same, and the left/right beam would always be the same.
+  //         }
+  //       }
+  //       if (closest_right != c_iNotFound)
+  //       {
+  //         if (right == null)
+  //         {
+  //           if (_items[closest_right].Min <= value && _items[closest_right].Max >= value)
+  //           {
+  //             right = _items[closest_right];
+  //             ret = true;
+  //           }
+  //         }
+  //         else
+  //         {
+  //           Gu.Assert(right == _items[closest_right]);//Extra check - the left/right order would always be the same, and the left/right beam would always be the same.
+  //         }
+  //       }
+  //     }
+
+  //     return ret;
+  //   }
+  //   public bool FindClosest_LeftGuaranteed(ushort h, out int left, out int right)
+  //   {
+  //     //Get closest left and right indexes to a given value, one may be null if they do not coincide
+  //     // The closest value is for valid index for array insertion
+  //     // Return TRUE if h coincides with a range (left || right != c_iNotFound).
+  //     // *** left is guaranteed to be in the bounds of the array if the array size >0.
+  //     //this may return 2 values since the range values may be equal
+  //     left = right = c_iNotFound;
+  //     if (_items == null || _items.Count == 0)
+  //     {
+  //       return false;
+  //     }
+
+  //     bool ret = false;
+  //     int pos = _items.Count / 2;
+  //     int range = _items.Count / 2;
+
+  //     IRangeItem el = null, er = null;
+
+  //     for (int xi = 0; Gu.WhileTrueGuard(xi, Gu.c_intMaxWhileTrueLoopBinarySearch); xi++)
+  //     {
+  //       left = pos;
+  //       right = left + 1;
+
+  //       Gu.Assert(left < _items.Count);
+
+  //       el = _items[left];
+  //       if (right < _items.Count)
+  //       {
+  //         er = _items[right];
+  //       }
+  //       else
+  //       {
+  //         right = c_iNotFound;
+  //       }
+
+  //       if (el.Min <= h && el.Max >= h)
+  //       {
+  //         //in exclusive range
+  //         ret = true;
+  //         break;
+  //       }
+
+  //       if (er != null && er.Min <= h && er.Max > h)//note > 
+  //       {
+  //         el = er;
+  //         er = null;
+  //         left = right;
+  //         right = c_iNotFound;
+  //         ret = true;
+  //         break;
+  //       }
+
+  //       if (range <= 1)
+  //       {
+  //         //no hit
+  //         break;
+  //       }
+
+  //       //continue divide
+  //       range /= 2;
+  //       if (h < el.Min)
+  //       {
+  //         pos = pos - range;
+  //       }
+  //       else if (h > el.Max)
+  //       {
+  //         pos = pos + range;
+  //       }
+
+  //       if (pos < _items.Count || pos > _items.Count)
+  //       {
+  //         //no hit
+  //         break;
+  //       }
+  //     }
+
+  //     //l must be a count
+  //     Gu.Assert(left <= _items.Count);
+  //     if (right != c_iNotFound)
+  //     {
+  //       Gu.Assert(right <= _items.Count);
+  //     }
+
+  //     return ret;
+  //   }
+  // }//cl
+  // public class RangeList
+  // {
+  //     public List<IRangeItem> Children = null;// new List<RangeNode>();//sort by min<=min
+
+  //   private class RangeNode
+  //   {
+  //     public ushort Min = 0;
+  //     public ushort Max = 0;
+  //     public IRangeItem Item = null;
+  //     public RangeNode(ushort min, ushort max)
+  //     {
+  //       Min = min;
+  //       Max = max;
+  //     }
+  //   }
+  //   public int Count {get; private set;}= 0;
+  //   //Something like a range K-D tree 
+  //   //New list for beams, with entire beam being min/max
+  //   //Range list for [max,min] IRangeItem, Overlapping
+  //   // Constraint: a is not contained within B
+  //   // a---b-a----c--b--c   d------d <example
+
+  //   public const int c_iNotFound = -1;
+  //   //private List<IRangeItem>? _items = new List<IRangeItem>();
+  //   //private RangeNode _root = null;
+  //   //private Dictionary<ushort,ushort[]> _index = new Dictionary<ushort, ushort[]>();// O --> oo
+  //   private RangeNode _root=null;
+  //   private ushort _maxRange = 0;
+  //   public RangeList(ushort range)
+  //   {
+  //     _maxRange = range;
+  //     _root = new RangeNode(range);
+  //   }
+  //   public void Add(IRangeItem ri, RangeNode? root=null)
+  //   {
+  //     Count++;
+  //     if(root==null){
+  //       root = _root;
+  //     }
+  //     if(ri.Max)
+
+  //     Gu.Assert(_items.Count < ushort.MaxValue-2);
+  //     _items.Add(ri);
+  //     ushort idx = (ushort)_items.Count;
+  //     if(_root ==0){
+
+  //     }
+  //   }
+  //   private void Add(IRangeItem ri){
+
+  //   }
+  //   public List<IRangeItem> GetRanges(ushort s)
+  //   {
+
+  //   }
+  //   public List<IRangeItem> GetRanges(IRangeItem ri)
+  //   {
+
+  //   }
+
+  //   public List<IRangeItem> GetCoincidentRanges(IRangeItem ri)
+  //   {
+  //     //return all coinciding ranges
+  //     List<IRangeItem> ret = null;
+
+  //     if (_items.Count == 0)
+  //     {
+  //       return new List<IRangeItem>();
+  //     }
+
+  //     Gu.Assert(ri.Min != ri.Max);
+  //     FindClosest_LeftGuaranteed(ri.Min, out int min_left, out int min_right);
+  //     FindClosest_LeftGuaranteed(ri.Max, out int max_left, out int max_right);
+
+  //     Gu.Assert(max_left >= min_left);
+  //     if (_items[min_left].Max >= ri.Min && _items[max_left].Min <= ri.Max)
+  //     {
+  //       ret = _items.GetRange(min_left, max_left - min_left);
+  //     }
+
+  //     return ret;
+  //   }
+  //   public void Add(IRangeItem e)
+  //   {
+  //     Gu.Assert(e != null);
+  //     int tindl = 0, bindl = 0, tindr = 0, bindr = 0;
+
+  //     //Max=min would mess this whole thing up  could return infinite elements
+  //     if (e.Max == e.Min)
+  //     {
+  //       Gu.BRThrowException("Beam max must not equal min.");
+  //     }
+  //     Gu.Assert(_items != null);
+
+  //     if (_items.Count == 0)
+  //     {
+  //       _items.Add(e);
+  //     }
+  //     else if (!FindClosest_LeftGuaranteed(e.Max, out tindl, out tindr) && !FindClosest_LeftGuaranteed(e.Min, out bindl, out bindr))
+  //     {
+  //       //bind is guaranteed in the array > 0
+  //       // we sort by bot value.
+  //       _items.Insert(bindl, e);
+  //     }
+  //     else
+  //     {
+  //       Gu.Log.Error("edge was coincident");
+  //       Gu.DebugBreak();
+  //     }
+  //   }
+  //   public bool Find(ushort value, out IRangeItem left, out IRangeItem right)
+  //   {
+  //     return Find(value, out left, out right, out int l, out int r);
+  //   }
+  //   public bool Find(ushort value, out IRangeItem left, out IRangeItem right, out int closest_left, out int closest_right)
+  //   {
+  //     //Returns 1 or 2 matching range items.
+  //     left = right = null;
+  //     var ret = false;
+
+  //     //Note this finds the CLOSEST value
+  //     if (FindClosest_LeftGuaranteed(value, out closest_left, out closest_right))
+  //     {
+  //       if (closest_left != c_iNotFound)
+  //       {
+  //         if (left == null)
+  //         {
+  //           if (_items[closest_left].Min <= value && _items[closest_left].Max >= value)
+  //           {
+  //             left = _items[closest_left];
+  //             ret = true;
+  //           }
+  //         }
+  //         else
+  //         {
+  //           Gu.Assert(left == _items[closest_left]);//Extra check - the left/right order would always be the same, and the left/right beam would always be the same.
+  //         }
+  //       }
+  //       if (closest_right != c_iNotFound)
+  //       {
+  //         if (right == null)
+  //         {
+  //           if (_items[closest_right].Min <= value && _items[closest_right].Max >= value)
+  //           {
+  //             right = _items[closest_right];
+  //             ret = true;
+  //           }
+  //         }
+  //         else
+  //         {
+  //           Gu.Assert(right == _items[closest_right]);//Extra check - the left/right order would always be the same, and the left/right beam would always be the same.
+  //         }
+  //       }
+  //     }
+
+  //     return ret;
+  //   }
+  //   public bool FindRangeIndexes(ushort h, out int min_index, out int max_index)
+  //   {
+  //     //BSearch and Return indexs into _items for the ranges that contain h.
+  //     min_index = max_index = c_iNotFound;
+  //     if (_items == null || _items.Count == 0)
+  //     {
+  //       return false;
+  //     }
+
+  //     bool ret = false;
+  //     int pos = _items.Count / 2;
+  //     int range = _items.Count / 2;
+
+  //     for (int xi = 0; Gu.WhileTrueGuard(xi, Gu.c_intMaxWhileTrueLoopBinarySearch); xi++)
+  //     {
+  //       min_index = pos;
+
+  //       Gu.Assert(min_index < _items.Count);
+
+  //       var el = _items[min_index];
+
+  //       if (el.Min <= h && el.Max >= h)
+  //       {
+  //         //in exclusive range
+  //         ret = true;
+  //         break;
+  //       }
+
+  //       if (range <= 1)
+  //       {
+  //         //no hit
+  //         break;
+  //       }
+
+  //       //continue divide
+  //       range /= 2;
+  //       if (h < el.Min)
+  //       {
+  //         pos = pos - range;
+  //       }
+  //       else if (h > el.Max)
+  //       {
+  //         pos = pos + range;
+  //       }
+
+  //       if (pos < _items.Count || pos > _items.Count)
+  //       {
+  //         //no hit
+  //         break;
+  //       }
+  //     }
+
+  //     //l must be a count
+  //     Gu.Assert(left <= _items.Count);
+  //     if (right != c_iNotFound)
+  //     {
+  //       Gu.Assert(right <= _items.Count);
+  //     }
+
+  //     return ret;
+  //   }
+  // }//cl
+  public interface ISimpleFlags
+  {
+    public bool Test(int x);
+    public int Set(int x);
+    public int Clear(int x);
+    protected static int GetMask(int bits, int shift, int mask)
+    {
+      int lower = (int)(((bits << shift) >> shift) & mask);
+      Gu.Assert((bits & (~((int)(lower)))) == 0); //Make sure the int has correct flags.
+      return lower;
+    }
+  }
+  public struct ByteFlags : ISimpleFlags
+  {
+    //C# bitwise stuff is integer only so yeah
+    byte _flags = 0;
+    public ByteFlags() { }
+    public bool Test(int bits)
+    {
+      int lower = ISimpleFlags.GetMask(bits, 24, 0xFF);
+      bool ret = ((int)lower & (int)_flags) > 0;
+      return ret;
+    }
+    public int Set(int bits)
+    {
+      int lower = ISimpleFlags.GetMask(bits, 24, 0xFF);
+      byte ret = (byte)((int)lower | (int)_flags);
+      return ret;
+    }
+    public int Clear(int bits)
+    {
+      int lower = ISimpleFlags.GetMask(bits, 24, 0xFF);
+      byte ret = (byte)(~((int)lower) & (int)_flags);
+      return ret;
+    }
+  }//cl
+  public struct ShortFlags : ISimpleFlags
+  {
+    //C# bitwise stuff is integer only so yeah
+    short _flags = 0;
+    public ShortFlags() { }
+    public bool Test(int bits)
+    {
+      int lower = ISimpleFlags.GetMask(bits, 16, 0xFFFF);
+      bool ret = ((int)lower & (int)_flags) > 0;
+      return ret;
+    }
+    public int Set(int bits)
+    {
+      int lower = ISimpleFlags.GetMask(bits, 16, 0xFFFF);
+      byte ret = (byte)((int)lower | (int)_flags);
+      return ret;
+    }
+    public int Clear(int bits)
+    {
+      int lower = ISimpleFlags.GetMask(bits, 16, 0xFFFF);
+      byte ret = (byte)(~((int)lower) & (int)_flags);
+      return ret;
+    }
+  }//cl
+
 
 }//ns
