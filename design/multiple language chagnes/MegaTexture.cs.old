@@ -113,7 +113,7 @@ namespace PirateCraft
   public class MtTex
   {
     //Note: this class is serialized make sure to serialize all data.
-    public string Name { get; private set; } = Gu.UnsetName;
+    public string Name { get; private set; } = Lib.UnsetName;
     public WeakReference<MtNode> Node { get; set; } = null;  //mega texture node
     public int ShrinkPixels { get; private set; } = 0;
     public vec2 uv0 { get; set; } = vec2.Zero;
@@ -188,7 +188,7 @@ namespace PirateCraft
       bw.Write((Int32)_fSizeRatio);
       bw.Write((Int32)_iPatchImg);
     }
-    public void Deserialize(BinaryReader br)
+    public void Deserialize(BinaryReader br,  SerializedFileVersion version)
     {
       Name = br.ReadString();
       ShrinkPixels = br.ReadInt32();
@@ -267,7 +267,7 @@ namespace PirateCraft
       bw.Write((string)Loader.GetType().FullName);
       Loader.Serialize(bw);
     }
-    public void Deserialize(BinaryReader br)
+    public void Deserialize(BinaryReader br,  SerializedFileVersion version)
     {
       //Deserialize the existing Mtcache data into the input resources.
       //Throw an exception if there was a noticable change in the resources:
@@ -275,7 +275,7 @@ namespace PirateCraft
       // **Disk/Embedded files have later modification stamps.
 
       var tmp_fileloc = new FileLoc();
-      tmp_fileloc.Deserialize(br);
+      tmp_fileloc.Deserialize(br,  version);
 
       if (FileLoc != null)
       {
@@ -310,7 +310,7 @@ namespace PirateCraft
       for (int ti = 0; ti < texcount; ti++)
       {
         MtTex t = new MtTex();
-        t.Deserialize(br);
+        t.Deserialize(br,  version);
 
         if (tmp_fileloc.FileStorage == FileStorage.Generated)
         {
@@ -333,7 +333,7 @@ namespace PirateCraft
 
       Gu.Assert(Loader != null);
 
-      Loader.Deserialize(br);
+      Loader.Deserialize(br,  version);
     }
     public MtFile Clone()
     {
@@ -422,7 +422,7 @@ namespace PirateCraft
     public virtual void Serialize(BinaryWriter bw)
     {
     }
-    public virtual void Deserialize(BinaryReader br)
+    public virtual void Deserialize(BinaryReader br,  SerializedFileVersion version)
     {
     }
   }//MtLoader
@@ -500,9 +500,9 @@ namespace PirateCraft
     {
       base.Serialize(bw);
     }
-    public override void Deserialize(BinaryReader br)
+    public override void Deserialize(BinaryReader br,  SerializedFileVersion version)
     {
-      base.Deserialize(br);
+      base.Deserialize(br,  version);
     }
   }//MtImageLoader
 
@@ -535,9 +535,9 @@ namespace PirateCraft
     {
       base.Serialize(bw);
     }
-    public override void Deserialize(BinaryReader br)
+    public override void Deserialize(BinaryReader br,  SerializedFileVersion version)
     {
-      base.Deserialize(br);
+      base.Deserialize(br,  version);
     }
   }//MtImageLoader
 
@@ -583,7 +583,7 @@ namespace PirateCraft
       bw.Write((Single)left);
       bw.Write((Single)right);
     }
-    public void Deserialize(BinaryReader br)
+    public void Deserialize(BinaryReader br,  SerializedFileVersion version)
     {
       patchTexture_Width = br.ReadInt32();
       patchTexture_Height = br.ReadInt32();
@@ -685,7 +685,7 @@ namespace PirateCraft
         kvp.Value.Serialize(bw);
       }
     }
-    public void Deserialize(BinaryReader br)
+    public void Deserialize(BinaryReader br,  SerializedFileVersion version)
     {
       BakedCharSize = br.ReadInt32();
       TextureWidth = br.ReadInt32();
@@ -702,7 +702,7 @@ namespace PirateCraft
       {
         Int32 k = br.ReadInt32();
         MtCachedCharData c = new MtCachedCharData();
-        c.Deserialize(br);
+        c.Deserialize(br,  version);
         CachedChars.Add(k, c);
       }
     }
@@ -984,9 +984,9 @@ namespace PirateCraft
         _fontPatchInfos[pi].Serialize(bw);
       }
     }
-    public override void Deserialize(BinaryReader br)
+    public override void Deserialize(BinaryReader br,  SerializedFileVersion version)
     {
-      base.Deserialize(br);
+      base.Deserialize(br,  version);
       _oversampleX = br.ReadUInt32();
       _oversampleY = br.ReadUInt32();
       _firstChar = br.ReadInt32();
@@ -1001,7 +1001,7 @@ namespace PirateCraft
       for (int pi = 0; pi < infCount; pi++)
       {
         var inf = new MtFontPatchInfo();
-        inf.Deserialize(br);
+        inf.Deserialize(br,  version);
         _fontPatchInfos.Add(inf);
       }
 
@@ -1813,7 +1813,7 @@ namespace PirateCraft
       bw.Write((string)_albedoLocStr);
       bw.Write((string)_normLocStr);
     }
-    public void Deserialize(BinaryReader br)
+    public void Deserialize(BinaryReader br,  SerializedFileVersion version)
     {
       Name = br.ReadString();
       _clearColor = (MtClearColor)br.ReadInt32();
@@ -1838,7 +1838,7 @@ namespace PirateCraft
       {
         //Deserialize the CACHED file, INTO a constructed (empty) file object
         MtFile fnew = f.Clone();
-        fnew.Deserialize(br);
+        fnew.Deserialize(br,  version);
         deserializedfiles.Add(fnew);
       }
       _albedoLocStr = br.ReadString();

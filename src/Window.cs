@@ -14,7 +14,7 @@ namespace PirateCraft
     #region Public:Members
 
     public bool IsMain { get; private set; } = false;
-    public string Name { get; private set; } = "unset";
+    public string Name { get; private set; } = Library.UnsetName;
     public bool IsLoaded { get; private set; } = false;
     public List<RenderView> RenderViews { get; set; } = new List<RenderView>();
     public int Width { get; private set; } = 1;//Do not use Size.X, Y There is currently an OpenTK bug where it does not update on Resize
@@ -24,24 +24,8 @@ namespace PirateCraft
     protected List<PipelineStageEnum> _pipelineStages = null; //set this to render only to specific stages.
     protected InfoWindow InfoWindow { get; set; } = null;
 
-    public RenderView ActiveView { get; private set; } = null;
-    public void SetActiveView()
-    {
-      ActiveView = null;
-      //pick the active view based on cursor location
-      foreach (var rv in this.RenderViews)
-      {
-        if (rv.Viewport.Contains_Point_Window_Relative_BR_Exclusive(Gu.Mouse.Pos))
-        {
-          if (ActiveView != null)
-          {
-            Gu.Log.Error("Multiple viewports picked!!" + ActiveView.Name + ", and " + rv.Name);
-            Gu.DebugBreak();
-          }
-          ActiveView = rv;
-        }
-      }
-    }
+    public RenderView SelectedView { get; private set; } = null;
+
     public new OpenTK.Mathematics.Vector2i Size
     {
       get
@@ -51,7 +35,7 @@ namespace PirateCraft
         return base.Size;
       }
     }
-    public Camera3D ActiveViewCamera
+    public Camera3D? ActiveViewCamera
     {
       //returns the camera for the given active view, or null if there is
       // 1. no active view
@@ -59,7 +43,7 @@ namespace PirateCraft
       // *Active View* = The current view on which rendering is taking place.
       get
       {
-        var v = ActiveView;
+        var v = SelectedView;
         if (v != null)
         {
           if (v.Camera != null & v.Camera.TryGetTarget(out var cm))
@@ -73,7 +57,6 @@ namespace PirateCraft
     #endregion
     #region Private:Members
 
-    private int _polygonMode = 0;
 
     #endregion
     #region Public:Methods
@@ -116,11 +99,11 @@ namespace PirateCraft
       //Init with vsync off.
       VSync = VSyncMode.Off;
     }
-    private void CreateCameraView(vec2 xy, vec2 wh)
+    private void CreateCameraView(vec2 xy_pct, vec2 wh_pct)
     {
       string viewname = "renderview-" + RenderViews.Count;
       //Create View
-      var v = new RenderView(viewname, xy, wh, this.Width, this.Height);
+      var v = new RenderView(viewname, xy_pct, wh_pct, this.Width, this.Height);
       RenderViews.Add(v);
 
       //Create Camera
@@ -128,7 +111,7 @@ namespace PirateCraft
       c.Far = 4000.0f;
       c.Position_Local = new vec3(0, .5f, 0);
 
-      if (Gu.Resources.LoadObject(new FileLoc("camera.glb", FileStorage.Embedded), out var cmod))
+      if (Gu.Lib.TryLoadModel("cam", new FileLoc("camera.glb", FileStorage.Embedded), out var cmod))
       {
         //sword.Rotation_Local *= quat.fromAxisAngle(new vec3(1, 0, 1).normalized(), MathUtils.M_PI_2 * 0.125f);
         cmod.ExcludeFromRenderView = new WeakReference<RenderView>(v);
@@ -142,7 +125,13 @@ namespace PirateCraft
       p.HasGravity = false;
       p.Position_Local = new vec3(0, 10, 0);
       p.AddChild(c);
-      p.Components.Add(new FPSInputComponent(v));
+      p.AddComponent(new FPSInputComponent(v));
+
+      var l = new Light("player-light");
+      l.Radius = 1000;
+      l.Power = 100;
+      l.Position_Local = new vec3(0, 0, 0);
+      p.AddChild(l);
 
       //Set the view Camera
       v.Camera = new WeakReference<Camera3D>(c);
@@ -211,7 +200,7 @@ namespace PirateCraft
         {
           if (c.RootParent != null)
           {
-            Gu.World.DestroyObject(c.RootParent);
+            Gu.World.RemoveObject(c.RootParent);
           }
         }
       }
@@ -221,22 +210,22 @@ namespace PirateCraft
       //Create new view
       if (Gu.World.GameMode == GameMode.Edit)
       {
-        if (Gu.World.EditState.EditView == 1)
+        if (Gu.World.Editor.EditView == 1)
         {
           CreateCameraView(new vec2(0.0f, 0.0f), new vec2(1.0f, 1.0f));
         }
-        else if (Gu.World.EditState.EditView == 2)
+        else if (Gu.World.Editor.EditView == 2)
         {
           CreateCameraView(new vec2(0.0f, 0.0f), new vec2(0.5f, 1.0f));
           CreateCameraView(new vec2(0.5f, 0.0f), new vec2(1.0f, 1.0f));
         }
-        else if (Gu.World.EditState.EditView == 3)
+        else if (Gu.World.Editor.EditView == 3)
         {
           CreateCameraView(new vec2(0.0f, 0.0f), new vec2(0.5f, 0.5f));
           CreateCameraView(new vec2(0.5f, 0.0f), new vec2(1.0f, 0.5f));
           CreateCameraView(new vec2(0.0f, 0.5f), new vec2(1.0f, 1.0f));
         }
-        else if (Gu.World.EditState.EditView == 4)
+        else if (Gu.World.Editor.EditView == 4)
         {
           //4-up
           CreateCameraView(new vec2(0.0f, 0.0f), new vec2(0.5f, 0.5f));
@@ -255,13 +244,19 @@ namespace PirateCraft
       {
         if (g == GameMode.Play)
         {
-          rv.ActiveGui = rv.GameGui;
+          Gu.Log.Warn("**Disabling Game mode GUI for now .");
+          rv.ActiveGui = rv.EditGui; // rv.GameGui;
           rv.ViewInputMode = ViewInputMode.Play;
+          Gu.EngineConfig.Renderer_UseAlias = true;
+          ForceResize();
         }
         else if (g == GameMode.Edit)
         {
+
           rv.ActiveGui = rv.EditGui;
           rv.ViewInputMode = ViewInputMode.Edit;
+          Gu.EngineConfig.Renderer_UseAlias = false;
+          ForceResize();
         }
         else
         {
@@ -270,6 +265,10 @@ namespace PirateCraft
 
         rv.ActiveGui?.SetLayoutChanged();
       }
+    }
+    protected void ForceResize()
+    {
+      OnResize(new ResizeEventArgs(new OpenTK.Mathematics.Vector2i(this.Width, this.Height)));
     }
     protected void ToggleGameMode()
     {
@@ -330,6 +329,47 @@ namespace PirateCraft
         Gu.SetContext(ct.GameWindow);
       }
     }
+    protected override void OnMouseMove(MouseMoveEventArgs e)
+    {
+      base.OnMouseMove(e);
+      UpdateSelectedView();
+    }
+    protected override void OnFocusedChanged(FocusedChangedEventArgs e)
+    {
+      base.OnFocusedChanged(e);
+      UpdateSelectedView();
+      if (this.IsFocused)
+      {
+        Gu.FocusedWindow = this;//user selected different window
+      }
+      else if (Gu.FocusedWindow == this)
+      {
+        Gu.FocusedWindow = null;//user defocuesed the whole application
+      }
+    }
+    private void UpdateSelectedView()
+    {
+      SelectedView = null;
+      //pick the active view based on cursor location
+      if (this.IsFocused)
+      {
+        foreach (var rv in this.RenderViews)
+        {
+          if (rv.Viewport.Contains_Point_Window_Relative_BR_Exclusive(Gu.Mouse.Pos))
+          {
+            if (SelectedView != null)
+            {
+              Gu.Log.Error("Multiple viewports picked!!" + SelectedView.Name + ", and " + rv.Name);
+              Gu.DebugBreak();
+            }
+            SelectedView = rv;
+          }
+        }
+      }
+    }
+
+    private RenderView? _selectedRenderView = null;
+    public RenderView? SelectedRenderView { get { return _selectedRenderView; } }
     protected virtual void OnCreateEditGUI(RenderView rv)
     {
     }
@@ -349,38 +389,20 @@ namespace PirateCraft
         return;
       }
 
-      //exit if we are not editing.
-      if (Gu.Keyboard.Press(Keys.Escape))
-      {
-        foreach (var rv in this.RenderViews)
-        {
-          if (rv.ObjectSelector != null)
-          {
-            if (rv.ObjectSelector.InputState != InputState.Select)
-            {
-              //we are moving sth..
-              return;
-            }
-          }
-        }
-        Gu.CloseWindow(InfoWindow);
-        Gu.CloseWindow(this);
-      }
       DebugKeyboard();
     }
     private void IterateActiveViews(Action<RenderView> act)
     {
       //Iterates over the given active view, or all views if "global" is currently selected
-      if (ActiveView != null)
+      if (SelectedView != null)
       {
-        act(ActiveView);
+        act(SelectedView);
       }
       else
       {
         foreach (var rv in RenderViews)
         {
           act(rv);
-
         }
       }
     }
@@ -400,22 +422,22 @@ namespace PirateCraft
       {
         if (Gu.Keyboard.Press(Keys.D1))
         {
-          Gu.World.EditState.EditView = 1;
+          Gu.World.Editor.EditView = 1;
           SetGameMode(Gu.World.GameMode);
         }
         else if (Gu.Keyboard.Press(Keys.D2))
         {
-          Gu.World.EditState.EditView = 2;
+          Gu.World.Editor.EditView = 2;
           SetGameMode(Gu.World.GameMode);
         }
         else if (Gu.Keyboard.Press(Keys.D3))
         {
-          Gu.World.EditState.EditView = 3;
+          Gu.World.Editor.EditView = 3;
           SetGameMode(Gu.World.GameMode);
         }
         else if (Gu.Keyboard.Press(Keys.D4))
         {
-          Gu.World.EditState.EditView = 4;
+          Gu.World.Editor.EditView = 4;
           SetGameMode(Gu.World.GameMode);
         }
       }
@@ -431,16 +453,7 @@ namespace PirateCraft
       {
         IterateActiveViews((rv) =>
         {
-          if (_polygonMode == 0)
-          {
-            rv.PolygonMode = PolygonMode.Line;
-            _polygonMode = 1;
-          }
-          else if (_polygonMode == 1)
-          {
-            rv.PolygonMode = PolygonMode.Fill;
-            _polygonMode = 0;
-          }
+          rv.Overlay.ToggleWireFrame();
         });
       }
       if (Gu.Keyboard.Press(Keys.F4))
@@ -621,14 +634,6 @@ namespace PirateCraft
     #endregion
     #region Protected:Methods
 
-    protected override void OnMouseMove(MouseMoveEventArgs e)
-    {
-      base.OnMouseMove(e);
-    }
-    protected override void OnFocusedChanged(FocusedChangedEventArgs e)
-    {
-      base.OnFocusedChanged(e);
-    }
     protected override void OnUpdateFrame()
     {
 
@@ -666,7 +671,7 @@ namespace PirateCraft
       info.AppendLine($"UI window events:{rv.ActiveGui?.WindowEventsMs}ms");
       info.AppendLine($"UI tot:{rv.ActiveGui?.MeshMs + rv.ActiveGui?.UpdateMs + rv.ActiveGui?.PickMs}ms");
       info.AppendLine($"Picked Ob:{Gu.Context.Renderer.Picker.PickedObjectName}");
-      info.AppendLine($"Selected Ob:{rv.ObjectSelector.SelectedObjects.Count}");
+      info.AppendLine($"Selected Ob:{Gu.World.Editor.SelectedObjects.Count}");
       info.AppendLine($"GPU Memory");
       info.AppendLine(Gu.Context.Gpu.GetMemoryInfo().ToString());
 
@@ -745,7 +750,7 @@ namespace PirateCraft
       var w = Gu.WorldLoader.CreateNewWorld(new WorldInfo("MyWorld", DELETE_WORLD_START_FRESH, 2));
 
       Gu.Log.Debug("Debug:Creatingf flat area");
-      Gu.WorldLoader.CreateFlatArea();
+      Gu.WorldLoader.CreateHillsArea();
 
       SetGameMode(Gu.World.GameMode);
 
@@ -767,13 +772,13 @@ namespace PirateCraft
       l.Position_Local = new vec3(0, 10, 0);
       Gu.World.AddObject(l);
 
-      l = new Light("pt");
+      l = new Light("pt2");
       l.Radius = 5000;
       l.Power = 200;
       l.Position_Local = new vec3(-10, 10, -10);
       Gu.World.AddObject(l);
 
-       l = new Light("pt");
+      l = new Light("pt3");
       l.Radius = 5000;
       l.Power = 200;
       l.Position_Local = new vec3(10, 10, 10);
@@ -803,18 +808,19 @@ namespace PirateCraft
     {
       var that = this;
 
-      Texture2D tx_sky = Gu.Resources.LoadTexture(new FileLoc("hdri_sky2.jpg", FileStorage.Embedded), true, TexFilter.Trilinear);
-      Texture2D tx_sky_stars = Gu.Resources.LoadTexture(new FileLoc("hdri_stars.jpg", FileStorage.Embedded), true, TexFilter.Trilinear);
-      Texture2D tx_sun = Gu.Resources.LoadTexture(new FileLoc("tx64_sun.png", FileStorage.Embedded), true, TexFilter.Trilinear);
-      Texture2D tx_moon = Gu.Resources.LoadTexture(new FileLoc("tx64_moon.png", FileStorage.Embedded), true, TexFilter.Trilinear);
-      Texture2D tx_bloom = Gu.Resources.LoadTexture(new FileLoc("bloom.png", FileStorage.Embedded), true, TexFilter.Trilinear);
+      Texture? tx_sky = Gu.Lib.LoadTexture("tx_sky", new FileLoc("hdri_sky2.jpg", FileStorage.Embedded), true, TexFilter.Trilinear);
+      Texture? tx_sky_stars = Gu.Lib.LoadTexture("tx_sky_stars", new FileLoc("hdri_stars.jpg", FileStorage.Embedded), true, TexFilter.Trilinear);
+      Texture? tx_sun = Gu.Lib.LoadTexture("tx_sun", new FileLoc("tx64_sun.png", FileStorage.Embedded), true, TexFilter.Trilinear);
+      Texture? tx_moon = Gu.Lib.LoadTexture("tx_moon", new FileLoc("tx64_moon.png", FileStorage.Embedded), true, TexFilter.Trilinear);
+      Texture? tx_bloom = Gu.Lib.LoadTexture("tx_bloom", new FileLoc("bloom.png", FileStorage.Embedded), true, TexFilter.Trilinear);
 
       //Sky
       Material sky_mat = new Material("sky", Shader.DefaultObjectShader(), tx_sky);
       sky_mat.Flat = true;
       sky_mat.GpuRenderState.DepthTest = false;//Disable depth test.
-      var sky = Gu.World.CreateAndAddObject("sky", MeshData.GenSphere(DayNightCycle.SkyRadius, 128, 128, true, true), sky_mat);
+      var sky = Gu.World.CreateAndAddObject("sky", MeshGen.GenSphereResource("sky", DayNightCycle.SkyRadius, 128, 128, true, true), sky_mat);
       sky.Selectable = false;
+      sky.Pickable = false;
       sky.Mesh.DrawOrder = DrawOrder.First;
       sky.Mesh.DrawMode = DrawMode.Deferred;
       //sky.Constraints.Add(new FollowConstraint(Player, FollowConstraint.FollowMode.Snap)); ;
@@ -851,6 +857,7 @@ namespace PirateCraft
           obj.Position_Local = pe;
         }
       };
+      sun_moon_empty.Persistence = DataPersistence.Temporary;
       Gu.World.AddObject(sun_moon_empty);
       /*
       view update action
@@ -858,7 +865,7 @@ namespace PirateCraft
       ob.OnUpdateForView(rv)
       ob.OnBeforeRender()
       */
-      Material sun_moon_mat = new Material("sunmoon", Gu.Resources.LoadShader("v_sun_moon", false, FileStorage.Embedded));
+      Material sun_moon_mat = new Material("sunmoon", new Shader("SunMoonShader", "v_sun_moon", false, FileStorage.Embedded));
       sun_moon_mat.GpuRenderState.DepthTest = false;//Disable depth test.
       sun_moon_mat.GpuRenderState.CullFace = false;//Disable depth test.
       sun_moon_mat.GpuRenderState.Blend = false;
@@ -867,9 +874,9 @@ namespace PirateCraft
       float moon_size = 23;
 
       //Sun
-      var sun_mat = sun_moon_mat.Clone();
+      var sun_mat = sun_moon_mat.Clone() as Material;
       sun_mat.AlbedoSlot.Texture = tx_sun;
-      var sun = Gu.World.CreateObject("sun", MeshData.GenPlane(sun_size, sun_size), sun_mat);
+      var sun = Gu.World.CreateObject("sun", MeshGen.GenPlaneResource("sun", sun_size, sun_size), sun_mat);
       sun.Mesh.DrawOrder = DrawOrder.First;
       sun.OnUpdate = (obj) =>
       {
@@ -880,9 +887,9 @@ namespace PirateCraft
       sun_moon_empty.AddChild(sun);
 
 
-      var bloom_mat = sun_moon_mat.Clone();
+      var bloom_mat = sun_moon_mat.Clone() as Material;
       bloom_mat.AlbedoSlot.Texture = tx_bloom;
-      var sun_bloom = Gu.World.CreateObject("sun_bloom", MeshData.GenPlane(sun_size, sun_size), bloom_mat);
+      var sun_bloom = Gu.World.CreateObject("sun_bloom", MeshGen.GenPlaneResource("sun_bloom", sun_size, sun_size), bloom_mat);
       sun_bloom.Mesh.DrawOrder = DrawOrder.First;
       sun_bloom.OnUpdate = (obj) =>
       {
@@ -902,9 +909,9 @@ namespace PirateCraft
 
 
       //Moon
-      var moon_mat = sun_moon_mat.Clone();
+      var moon_mat = sun_moon_mat.Clone() as Material;
       moon_mat.AlbedoSlot.Texture = tx_moon;
-      var moon = Gu.World.CreateObject("moon", MeshData.GenPlane(moon_size, moon_size), moon_mat);
+      var moon = Gu.World.CreateObject("moon", MeshGen.GenPlaneResource("moon", moon_size, moon_size), moon_mat);
       moon.Mesh.DrawOrder = DrawOrder.First;
       moon.OnUpdate = (obj) =>
       {
@@ -915,7 +922,7 @@ namespace PirateCraft
       sun_moon_empty.AddChild(moon);
 
 
-      var moon_bloom = Gu.World.CreateObject("moon_bloom", MeshData.GenPlane(moon_size, moon_size), bloom_mat);
+      var moon_bloom = Gu.World.CreateObject("moon_bloom", MeshGen.GenPlaneResource("moon_bloom", moon_size, moon_size), bloom_mat);
       moon_bloom.Mesh.DrawOrder = DrawOrder.First;
       moon_bloom.OnUpdate = (obj) =>
       {
@@ -939,16 +946,18 @@ namespace PirateCraft
       var grass = new FileLoc("grass_base.png", FileStorage.Embedded);
       var gates = new FileLoc("gates.jpg", FileStorage.Embedded);
       var brady = new FileLoc("brady.jpg", FileStorage.Embedded);
-      Texture2D tx_peron = Gu.Resources.LoadTexture(new FileLoc("main char.png", FileStorage.Embedded), true, TexFilter.Bilinear);
-      Texture2D tx_grass = Gu.Resources.LoadTexture(grass, true, TexFilter.Bilinear);
-      Texture2D tx_gates = Gu.Resources.LoadTexture(gates, true, TexFilter.Nearest);
-      Texture2D tx_zuck = Gu.Resources.LoadTexture(new FileLoc("zuck.jpg", FileStorage.Embedded), true, TexFilter.Bilinear);
-      Texture2D tx_brady = Gu.Resources.LoadTexture(brady, true, TexFilter.Trilinear);
+      var zuck = new FileLoc("zuck.jpg", FileStorage.Embedded);
+      var mainch = new FileLoc("main char.png", FileStorage.Embedded);
+      Texture tx_peron = new Texture("tx_peron", Gu.Lib.LoadImage("tx_peron", mainch), true, TexFilter.Bilinear);
+      Texture tx_grass = new Texture("tx_grass", Gu.Lib.LoadImage("tx_grass", grass), true, TexFilter.Bilinear);
+      Texture tx_gates = new Texture("tx_gates", Gu.Lib.LoadImage("tx_gates", gates), true, TexFilter.Nearest);
+      Texture tx_zuck = new Texture("tx_zuck", Gu.Lib.LoadImage("tx_zuck", zuck), true, TexFilter.Bilinear);
+      Texture tx_brady = new Texture("tx_brady", Gu.Lib.LoadImage("tx_brady", brady), true, TexFilter.Trilinear);
 
       //Objects
-      Gu.World.CreateAndAddObject("Grass-Plane.", MeshData.GenPlane(10, 10), new Material("grass-plane", Shader.DefaultObjectShader(), tx_grass, null ));
+      Gu.World.CreateAndAddObject("Grass-Plane.", MeshGen.GenPlaneResource("Grass-Plane", 10, 10), new Material("grass-plane", Shader.DefaultObjectShader(), tx_grass, null));
 
-//normal map test (slow)
+      //normal map test (slow)
       //new Texture2D(ResourceManager.LoadImage(brady).CreateNormalMap(false), true, TexFilter.Linear)
 
       //Gu.Debug_IntegrityTestGPUMemory();
@@ -958,34 +967,35 @@ namespace PirateCraft
       testobjs[1].Flat = true;
       testobjs[2] = new Material("sphere_rot3", Shader.DefaultObjectShader(), tx_brady, null);
 
-      Sphere_Rotate_Quat_Test = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test", MeshData.GenSphere(1, 12, 12, true), testobjs[0]);
-      Sphere_Rotate_Quat_Test2 = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test2", MeshData.GenEllipsoid(new vec3(1f, 1, 1f), 32, 32, true), testobjs[1]);
-      Sphere_Rotate_Quat_Test3 = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test3", MeshData.GenEllipsoid(new vec3(1, 1, 1), 32, 32, true), testobjs[2]);
+      Sphere_Rotate_Quat_Test = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test", MeshGen.GenSphereResource("Sphere_Rotate_Quat_Test", 1, 12, 12, true), testobjs[0]);
+      Sphere_Rotate_Quat_Test2 = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test2", MeshGen.GenEllipsoid("Sphere_Rotate_Quat_Test2", new vec3(1f, 1, 1f), 32, 32, true), testobjs[1]);
+      Sphere_Rotate_Quat_Test3 = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test3", MeshGen.GenEllipsoid("Sphere_Rotate_Quat_Test3", new vec3(1, 1, 1), 32, 32, true), testobjs[2]);
       Sphere_Rotate_Quat_Test.Position_Local = new vec3(0, 3, 0);
       Sphere_Rotate_Quat_Test2.Position_Local = new vec3(-3, 3, 0);
       Sphere_Rotate_Quat_Test3.Position_Local = new vec3(3, 3, 0);
 
       //Test STB laoding EXR images.
-      Texture2D tx_exr = Gu.Resources.LoadTexture(new FileLoc("hilly_terrain_01_2k.hdr", FileStorage.Embedded), true, TexFilter.Bilinear);
-      var exr_test = MeshData.GenPlane(10, 10);
+      Texture tx_exr = new Texture("tx_exr", Gu.Lib.LoadImage("tx_exr", new FileLoc("hilly_terrain_01_2k.hdr", FileStorage.Embedded)), true, TexFilter.Bilinear);
+      var exr_test = MeshGen.GenPlaneResource("tx_exr", 10, 10);
       var exr_test_mat = new Material("plane", Shader.DefaultObjectShader(), tx_exr);
       var exr_test_ob = Gu.World.CreateAndAddObject("EXR test", exr_test, exr_test_mat);
       exr_test_ob.Position_Local = new vec3(10, 10, 5);
 
       //Animation test
-      var cmp = new AnimationComponent();
-      cmp.Repeat = true;
       vec3 raxis = new vec3(0, 1, 0);
-      cmp.AddFrame(0, new vec3(0, 0, 0), mat3.getRotation(raxis, 0).toQuat(), new vec3(1, 1, 1));
-      cmp.AddFrame(1, new vec3(0, 1, 0), mat3.getRotation(raxis, (float)(MathUtils.M_PI_2 * 0.5 - 0.001)).toQuat(), new vec3(.5f, .5f, 3));
-      cmp.AddFrame(2, new vec3(1, 1, 0), mat3.getRotation(raxis, (float)(MathUtils.M_PI_2 - 0.002)).toQuat(), new vec3(2, 2, 2));
-      cmp.AddFrame(3, new vec3(1, 0, 0), mat3.getRotation(raxis, (float)(MathUtils.M_PI_2 + MathUtils.M_PI_2 * 0.5 - 0.004)).toQuat(), new vec3(2, 3, 1));
-      cmp.AddFrame(4, new vec3(0, 0, 0), mat3.getRotation(raxis, (float)(MathUtils.M_PI * 2 - 0.006)).toQuat(), new vec3(1, 1, 1));
+      var adata = new AnimationData("test");
+      adata.AddFrame(0, new vec3(0, 0, 0), mat3.getRotation(raxis, 0).toQuat(), new vec3(1, 1, 1));
+      adata.AddFrame(1, new vec3(0, 1, 0), mat3.getRotation(raxis, (float)(MathUtils.M_PI_2 * 0.5 - 0.001)).toQuat(), new vec3(.5f, .5f, 3));
+      adata.AddFrame(2, new vec3(1, 1, 0), mat3.getRotation(raxis, (float)(MathUtils.M_PI_2 - 0.002)).toQuat(), new vec3(2, 2, 2));
+      adata.AddFrame(3, new vec3(1, 0, 0), mat3.getRotation(raxis, (float)(MathUtils.M_PI_2 + MathUtils.M_PI_2 * 0.5 - 0.004)).toQuat(), new vec3(2, 3, 1));
+      adata.AddFrame(4, new vec3(0, 0, 0), mat3.getRotation(raxis, (float)(MathUtils.M_PI * 2 - 0.006)).toQuat(), new vec3(1, 1, 1));
+      var cmp = new AnimationComponent(adata);
+      cmp.Repeat = true;
       cmp.Play();
-      Sphere_Rotate_Quat_Test.Components.Add(cmp);
+      Sphere_Rotate_Quat_Test.AddComponent(cmp);
 
-      WorldObject gearob = null;
-      Gu.Resources.LoadObject(new FileLoc("gear.glb", FileStorage.Embedded), out gearob);
+      //Check to see if this uses the resource and not the real thing
+      var gearob = Gu.Lib.LoadModel(RName.WorldObject_Gear);
       Gu.World.AddObject(gearob);
       if (gearob.Component<AnimationComponent>(out var x))
       {

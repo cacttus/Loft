@@ -111,14 +111,14 @@ namespace PirateCraft
   public class MtTex
   {
     //Note: this class is serialized make sure to serialize all data.
-    public string Name { get; private set; } = Gu.UnsetName;
+    public string Name { get; private set; } = Library.UnsetName;
     public WeakReference<MtNode> Node { get; set; } = null;  //mega texture node
     public int ShrinkPixels { get; private set; } = 0;
     public vec2 uv0 { get; set; } = vec2.Zero;
     public vec2 uv1 { get; set; } = vec2.Zero;
     public UInt64 ImageHash { get; private set; } = 0;
 
-    private Img32 _pImg = null;
+    private Image _pImg = null;
     private int _iWidth = 0;
     private int _iHeight = 0;
     private float _fSizeRatio = 0;
@@ -134,8 +134,8 @@ namespace PirateCraft
     public int GetWidth() { return _iWidth; }
     public int GetHeight() { return _iHeight; }
     public float GetSizeRatio() { return _fSizeRatio; }
-    public Img32 Img() { return _pImg; }
-    public void SetImg(Img32 img)
+    public Image Img() { return _pImg; }
+    public void SetImg(Image img)
     {
       Gu.Assert(img != null);
       _pImg = img;
@@ -186,7 +186,7 @@ namespace PirateCraft
       bw.Write((Int32)_fSizeRatio);
       bw.Write((Int32)_iPatchImg);
     }
-    public void Deserialize(BinaryReader br)
+    public void Deserialize(BinaryReader br, SerializedFileVersion version)
     {
       Name = br.ReadString();
       ShrinkPixels = br.ReadInt32();
@@ -267,7 +267,7 @@ namespace PirateCraft
       bw.Write((string)Loader.GetType().FullName);
       Loader.Serialize(bw);
     }
-    public void Deserialize(BinaryReader br)
+    public void Deserialize(BinaryReader br, SerializedFileVersion version)
     {
       //Deserialize the existing Mtcache data into the input resources.
       //Throw an exception if there was a noticable change in the resources:
@@ -275,7 +275,7 @@ namespace PirateCraft
       // **Disk/Embedded files have later modification stamps.
 
       var tmp_fileloc = new FileLoc();
-      tmp_fileloc.Deserialize(br);
+      tmp_fileloc.Deserialize(br, version);
 
       if (FileLoc != null)
       {
@@ -320,7 +320,7 @@ namespace PirateCraft
       for (int ti = 0; ti < texcount; ti++)
       {
         MtTex t = new MtTex();
-        t.Deserialize(br);
+        t.Deserialize(br, version);
 
         if (tmp_fileloc.FileStorage == FileStorage.Generated)
         {
@@ -343,7 +343,7 @@ namespace PirateCraft
 
       Gu.Assert(Loader != null);
 
-      Loader.Deserialize(br);
+      Loader.Deserialize(br, version);
     }
     public MtFile Clone()
     {
@@ -432,7 +432,7 @@ namespace PirateCraft
     public virtual void Serialize(BinaryWriter bw)
     {
     }
-    public virtual void Deserialize(BinaryReader br)
+    public virtual void Deserialize(BinaryReader br, SerializedFileVersion version)
     {
     }
   }//MtLoader
@@ -452,7 +452,9 @@ namespace PirateCraft
       }
       else
       {
-        Img32 img = ResourceManager.LoadImage(MtFile.FileLoc);
+
+        Image? img = Gu.Lib.LoadImage(MtFile.FileLoc.QualifiedPath, MtFile.FileLoc);
+        Gu.Assert(img != null);
         var tx = new MtTex(img.Name, 0, MtFile.ShrinkPixelBorder);
         MtFile.Texs.Add(tx);
         tx.SetImg(img);
@@ -510,9 +512,9 @@ namespace PirateCraft
     {
       base.Serialize(bw);
     }
-    public override void Deserialize(BinaryReader br)
+    public override void Deserialize(BinaryReader br, SerializedFileVersion version)
     {
-      base.Deserialize(br);
+      base.Deserialize(br, version);
     }
   }//MtImageLoader
 
@@ -545,9 +547,9 @@ namespace PirateCraft
     {
       base.Serialize(bw);
     }
-    public override void Deserialize(BinaryReader br)
+    public override void Deserialize(BinaryReader br, SerializedFileVersion version)
     {
-      base.Deserialize(br);
+      base.Deserialize(br, version);
     }
   }//MtImageLoader
 
@@ -593,7 +595,7 @@ namespace PirateCraft
       bw.Write((Single)left);
       bw.Write((Single)right);
     }
-    public void Deserialize(BinaryReader br)
+    public void Deserialize(BinaryReader br, SerializedFileVersion version)
     {
       patchTexture_Width = br.ReadInt32();
       patchTexture_Height = br.ReadInt32();
@@ -677,7 +679,7 @@ namespace PirateCraft
         kvp.Value.Serialize(bw);
       }
     }
-    public void Deserialize(BinaryReader br)
+    public void Deserialize(BinaryReader br, SerializedFileVersion version)
     {
       BakedCharSize = br.ReadInt32();
       TextureWidth = br.ReadInt32();
@@ -694,7 +696,7 @@ namespace PirateCraft
       {
         Int32 k = br.ReadInt32();
         MtCachedCharData c = new MtCachedCharData();
-        c.Deserialize(br);
+        c.Deserialize(br, version);
         CachedChars.Add(k, c);
       }
     }
@@ -873,9 +875,9 @@ namespace PirateCraft
         _fontPatchInfos[pi].Serialize(bw);
       }
     }
-    public override void Deserialize(BinaryReader br)
+    public override void Deserialize(BinaryReader br, SerializedFileVersion version)
     {
-      base.Deserialize(br);
+      base.Deserialize(br, version);
       _oversampleX = br.ReadUInt32();
       _oversampleY = br.ReadUInt32();
       _firstChar = br.ReadInt32();
@@ -890,7 +892,7 @@ namespace PirateCraft
       for (int pi = 0; pi < infCount; pi++)
       {
         var inf = new MtFontPatchInfo();
-        inf.Deserialize(br);
+        inf.Deserialize(br, version);
         _fontPatchInfos.Add(inf);
       }
 
@@ -996,12 +998,12 @@ namespace PirateCraft
         if (atlasData != null)
         {
           //Set the megatex image.
-          Img32 img = CreateFontImage(atlasData, imageWidth, usedHeight, charInfo);
+          Image img = CreateFontImage(atlasData, imageWidth, usedHeight, charInfo);
           if (Gu.EngineConfig.SaveSTBFontImage)
           {
             Gu.Log.Debug("Saving font...");
             string nmapname_dbg = System.IO.Path.Combine(Gu.LocalTmpPath, Gu.Context.Name + " mt_" + MtFile.FileLoc.FileName + "_font_" + iTex + ".png");
-            ResourceManager.SaveImage(nmapname_dbg, img, false);
+            Library.SaveImage(nmapname_dbg, img, false);
           }
           MtTex mt = new MtTex();
           mt.SetImg(img);
@@ -1060,7 +1062,7 @@ namespace PirateCraft
       System.Buffer.BlockCopy(atlasData, 0, newatlas, 0, newatlas.Length);
       return newatlas;
     }
-    private Img32 CreateFontImage(byte[] pData, int image_width, int image_height, StbTrueTypeSharp.StbTrueType.stbtt_packedchar[] charInfo)
+    private Image CreateFontImage(byte[] pData, int image_width, int image_height, StbTrueTypeSharp.StbTrueType.stbtt_packedchar[] charInfo)
     {
       //Copied from fontspec
       byte[] imgData = new byte[image_width * image_height * 4];
@@ -1078,7 +1080,7 @@ namespace PirateCraft
         imgData[iPix + 3] = dat;  //a
       }
 
-      Img32 img = new Img32("FontImage", image_width, image_height, imgData, Img32.ImagePixelFormat.RGBA32ub);
+      Image img = new Image("FontImage", image_width, image_height, imgData, Image.ImagePixelFormat.RGBA32ub);
 
       return img;
     }
@@ -1254,8 +1256,12 @@ namespace PirateCraft
     public string Name { get; private set; } = "";
     public static string GenExtension = ".mtgen";
     public List<MtFile> Files { get; private set; } = new List<MtFile>();//We need an ordered list for the disk cache. Keep a separate LUT to FileLoc, this is bc we call GetFont() a BOO BOO number of times which requires a fast LUT
+    
     #endregion
     #region Private Members
+
+    private SerializedFileVersion Version = new SerializedFileVersion(100000);
+
     private const string c_strDefaultPixelName = "MegaTexDefaultPixel";
     private int _iStartWH = 256;//Image start size (minimum size) pixels
     private int _iGrowWH = 128;//Amount to grow the image as we keep plopping (pixels)
@@ -1292,11 +1298,11 @@ namespace PirateCraft
       {
         //Note: Default region will get skewed if texture filtering is enabled.
         var pixelBytes = Enumerable.Repeat((byte)255, defaultPixelSize * defaultPixelSize * 4).ToArray();
-        var dpImage = new Img32(c_strDefaultPixelName, defaultPixelSize, defaultPixelSize, pixelBytes, Img32.ImagePixelFormat.RGBA32ub);
+        var dpImage = new Image(Gu.Lib.GetUniqueName(ResourceType.Image,c_strDefaultPixelName), defaultPixelSize, defaultPixelSize, pixelBytes, Image.ImagePixelFormat.RGBA32ub);
         var tp = AddResource(dpImage, 1);
       }
     }
-    public MtFile AddResource(Img32 tx, int shrinkPixelBorder = 0)
+    public MtFile AddResource(Image tx, int shrinkPixelBorder = 0)
     {
       //Add a generated, or custom resource (not from a file)
       string genName = $"|{tx.Name}-gen-{_genId++}{MegaTex.GenExtension}";
@@ -1364,13 +1370,13 @@ namespace PirateCraft
       {
         output = RedoCompile();
         //[CONTEXT]_mt_[MEGATEX]_[albedo|normal].png
-        ResourceManager.SaveImage(_albedoLocStr, output.AlbedoImage, false);
+        Library.SaveImage(_albedoLocStr, output.AlbedoImage, false);
         //Save to /tmp to see it upright
-        ResourceManager.SaveImage(MakeSaveTextureName(Gu.LocalTmpPath, "albedo"), output.AlbedoImage, false);
+        Library.SaveImage(MakeSaveTextureName(Gu.LocalTmpPath, "albedo"), output.AlbedoImage, false);
         if (this._hasNormalMap)
         {
-          ResourceManager.SaveImage(_normLocStr, output.NormalImage, false);
-          ResourceManager.SaveImage(MakeSaveTextureName(Gu.LocalTmpPath, "normal"), output.NormalImage, false);
+          Library.SaveImage(_normLocStr, output.NormalImage, false);
+          Library.SaveImage(MakeSaveTextureName(Gu.LocalTmpPath, "normal"), output.NormalImage, false);
         }
         SaveCacheFile();
       }
@@ -1385,8 +1391,8 @@ namespace PirateCraft
         Gu.Assert(alb.Exists);
         Gu.Assert(!_hasNormalMap || (_hasNormalMap && norm.Exists));
 
-        var albedo = ResourceManager.LoadImage(alb);
-        output.CreateTexture(PBRTextureType.Albedo, albedo, this._generateMipmaps, this._texFilter, true);
+        var albedo = Gu.Lib.LoadImage(alb.QualifiedPath, alb);
+        output.CreateTexture(PBRTextureInput.Albedo, albedo, this._generateMipmaps, this._texFilter, true);
         if (this._hasNormalMap)
         {
           if (!norm.Exists)
@@ -1395,8 +1401,8 @@ namespace PirateCraft
           }
           else
           {
-            var normal = ResourceManager.LoadImage(norm);
-            output.CreateTexture(PBRTextureType.Normal, normal, this._generateMipmaps, this._texFilter, true);
+            var normal = Gu.Lib.LoadImage(norm.QualifiedPath, norm);
+            output.CreateTexture(PBRTextureInput.Normal, normal, this._generateMipmaps, this._texFilter, true);
           }
         }
       }
@@ -1463,7 +1469,7 @@ namespace PirateCraft
 
       int iImageSize = _iStartWH;
       int nFailures = 0;
-      Img32 master_albedo = null;
+      Image master_albedo = null;
 
       //Expand rect and grow by 128 if we fail,  this is a pretty quick procedure, so we
       //don't have to worry about sizes.
@@ -1559,7 +1565,7 @@ namespace PirateCraft
           }
         }
 
-        master_albedo = new Img32(this.Name + "-master", iImageSize, iImageSize, pData, Img32.ImagePixelFormat.RGBA32ub);
+        master_albedo = new Image(this.Name + "-master", iImageSize, iImageSize, pData, Image.ImagePixelFormat.RGBA32ub);
 
         //delete[] pData;
 
@@ -1597,7 +1603,7 @@ namespace PirateCraft
       {
         Gu.Log.Debug("..Creating Albedo Map.");
 
-        output.CreateTexture(PBRTextureType.Albedo, master_albedo, this._generateMipmaps, this._texFilter, true);
+        output.CreateTexture(PBRTextureInput.Albedo, master_albedo, this._generateMipmaps, this._texFilter, true);
         if (_hasNormalMap)
         {
           output.CreateNormalMap(this._generateMipmaps, this._texFilter, false);
@@ -1664,7 +1670,7 @@ namespace PirateCraft
           using (var stream = fn.OpenRead())
           using (var br = new BinaryReader(stream))
           {
-            Deserialize(br);
+            Deserialize(br, Version);
           }
         }
       }
@@ -1694,7 +1700,7 @@ namespace PirateCraft
       bw.Write((string)_albedoLocStr);
       bw.Write((string)_normLocStr);
     }
-    public void Deserialize(BinaryReader br)
+    public void Deserialize(BinaryReader br, SerializedFileVersion version)
     {
       Name = br.ReadString();
       _clearColor = (MtClearColor)br.ReadInt32();
@@ -1719,7 +1725,7 @@ namespace PirateCraft
       {
         //Deserialize the CACHED file, INTO a constructed (empty) file object
         MtFile fnew = f.Clone();
-        fnew.Deserialize(br);
+        fnew.Deserialize(br, version);
         deserializedfiles.Add(fnew);
       }
       _albedoLocStr = br.ReadString();

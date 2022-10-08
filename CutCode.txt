@@ -1783,3 +1783,1130 @@ public class Drome : DromeNode
     //   }
     //   return ret;
     // }
+
+
+    // public void AddManualResources()
+    // {
+    //   AddGLTFResource(ResourceID.Model_Camera, "camera.glb", FileStorage.Embedded);
+    //   AddGLTFResource(ResourceID.Model_Gear, "gear.glb", FileStorage.Embedded);
+    // }
+    // public void AddGLTFResource(ResourceID id, string file, FileStorage storage)
+    // {
+    //   AddResource(new ResourceNode(ResourceType.GLTFFile, id, new List<FileLoc> { new FileLoc(file, storage) }));
+    // }
+    // private bool TryGetDefinedResource(ResourceDescriptor rscid, DataSource input_source, out ResourceNode? outrsc)
+    // {
+    //   var ret = false;
+    //   var rscByID = GetResourceById(rscid.UniqueID);
+    //   // var rscByName = GetResourceByName(rt, rscid.Description());
+
+    //   outrsc = rscByID;
+
+    //   //Check for data coherency
+    //   // if ((rscByID == null && rscByName != null) || (rscByID != null && rscByName == null))
+    //   // {
+    //   //   if (rscByName != null)
+    //   //   {
+    //   //     outrsc = rscByName;
+    //   //   }
+    //   //   Gu.DebugBreak();//uh..problem
+    //   // }
+
+    //   if (outrsc == null)
+    //   {
+    //     //either the resource wasn't defined, or it was defined but the parameters were different
+    //     ret = true;
+    //   }
+    //   else
+    //   {
+    //     //load ahd check resource for parameter changes
+    //     var rsc = LoadResource(outrsc);
+    //     var existing_source = rsc as DataSource;
+    //     if (!existing_source.CheckParams(input_source))
+    //     {
+    //       DeleteResource(outrsc);
+    //     }
+    //     TryUnloadResource(outrsc);
+
+    //     Gu.Log.Info($"Already defined resource id={rscid.ToString()}.");
+    //     ret = false;
+    //   }
+    //   return ret;
+    // }
+    // private T? DefineResource<T>(DataSource dataSource) where T : DataBlock
+    // {
+    //   //define but don't load the object.
+    //   T? outobj = null;
+    //   DefineResource<T>(out outobj, dataSource);
+    //   return outobj;
+    // }
+    // private bool DefineResource<T>(out T? outobj, DataSource dataSource) where T : DataBlock
+    // {
+    //   //Define new resource (possibly, embedded), returnign the loaded / parsed resource to be processed
+    //   //Return true if we are returning a newly loaded / defined model.
+    //   //this happens if either 
+    //   // A) loader parameters change 
+    //   // B) the model has not been defined yet
+    //   // C) Something else changed, like ID, or Name (which is an error)
+    //   Gu.Assert(dataSource != null);
+    //   Gu.Assert(dataSource.Descriptor != null);
+    //   outobj = null;
+    //   var ret = false;
+    //   if (!TryGetDefinedResource(dataSource.Descriptor, dataSource, out var rsc))
+    //   {
+    //     outobj = (T?)dataSource.Create();
+    //     Gu.Assert(outobj != null);
+
+    //     if (rsc != null)
+    //     {
+    //       outobj.ChangeResource(rsc);
+    //     }
+    //     ret = true;
+    //   }
+    //   return ret;
+    // }
+
+    //OBJ return Defines
+    // public bool DefineModel(GLTFFile m, out WorldObject? outobj)
+    // {
+    //   return DefineResource<WorldObject>(out outobj, m);
+    // }
+    // public bool DefineShader(ShaderLoader m, out Shader? outobj)
+    // {
+    //   return DefineResource<Shader>(out outobj, m);
+    // }
+    // public bool DefineImage(Img32Generator m, out Img32? outobj)
+    // {
+    //   return DefineResource<Img32>(out outobj, m);
+    // }
+    // public bool DefineImage(global::Img32Generator m, out Img32? outobj)
+    // {
+    //   return DefineResource<Img32>(out outobj, m);
+    // }
+    // public bool DefineMaterial(global::Img32Generator m, out Img32? outobj)
+    // {
+    //   return DefineResource<Img32>(out outobj, m);
+    // }
+    // //Objless defines
+    // public WorldObject? DefineModel(GLTFFile m)
+    // {
+    //   return DefineResource<WorldObject>(m);
+    // }
+    // public Shader? DefineShader(ShaderLoader m)
+    // {
+    //   return DefineResource<Shader>(m);
+    // }
+    // public Img32? DefineImage(Img32Generator m)
+    // {
+    //   return DefineResource<Img32>(m);
+    // }
+    // public Img32? DefineImage(global::Img32Generator m)
+    // {
+    //   return DefineResource<Img32>(m);
+    // }
+
+    //just one function "make" then call Load() to load it. otherwise we just define it
+    //Gu.Lib.MakeShader().Load()
+    //Make will define something, then call Load() to load it.
+    //Pass ResourceID to create the resource with the given ID
+    // public Shader? MakeShader(string resource_name, string shader_generic_name, bool hasGS, FileStorage storage, OpenTK.Graphics.OpenGL4.PrimitiveType? gsPrimType = null)
+    // {
+    //   return MakeShader(new ResourceDescriptor(ResourceType.Shader, resource_name, Lib.NullID, ResourceDescriptor.ResourceCreateFlags.CreateNew, ResourceDescriptor.ResourceLoadFlags.DoNotLoad),
+    //     shader_generic_name, hasGS, storage, gsPrimType);
+    // }
+    // public Shader? MakeShader(ResourceDescriptor name, string shader_generic_name, bool hasGS, FileStorage storage, OpenTK.Graphics.OpenGL4.PrimitiveType? gsPrimType = null)
+    // {
+    //   //Create a new shader, do not load it yet
+    //   ShaderLoader sl = new ShaderLoader(name, shader_generic_name, hasGS, storage, gsPrimType);
+    //   DefineResource<Shader>(out var outobj, sl);
+    //   Shader? s = sl.Create<Shader>();
+    //   return s;
+    // }
+    // public Texture2D? MakeTexture2D(ResourceDescriptor resource_name, FileLoc loc, bool mipmaps, TexFilter filter, TextureWrapMode wrap = TextureWrapMode.Repeat)
+    // {
+    //   Img32Loader il = new Img32Loader(resource_name, loc);
+    //   var img = il.Create<Img32>();
+    //   var tex = new Texture2D(resource_name, img, mipmaps, filter, wrap);
+    //   return tex;
+    // }
+    // public Material MakeShader(string resource_name, Shader s, PBRTextureArray textures)
+    // {
+    //   var mat = new Material(resource_name, s, textures);
+    //   return mat;
+    // }
+  public class DataPathSuffix : Attribute
+  {
+    public string Suffix = Lib.UnsetName;
+    public DataPathSuffix(string suf)
+    {
+      Suffix = suf;
+    }
+  }
+
+    public enum ResourceContext
+  {
+    Global = 100,
+    Local = 200,
+  }
+
+  // public enum ResourceProperty
+  // {
+  //   [TypeAttribute(typeof(FileLoc))] FileLoc,
+  //   [TypeAttribute(typeof(String))] GenericName,
+  //   [TypeAttribute(typeof(System.Boolean))] FlipTris,
+  //   [TypeAttribute(typeof(System.Boolean))] ShaderHasGS,
+  //   [TypeAttribute(typeof(FileStorage))] FileStorage,
+  //   [TypeAttribute(typeof(PrimitiveType))] ShaderPrimitiveType,
+  // }
+  // public class ResourcePropertyTable : ISerializeBinary
+  // {
+  //   public Dictionary<ResourceProperty, string> _dict = new Dictionary<ResourceProperty, string>();
+  //   //Generally speaking, this table is the list of parameters to the resource create function. And anything else needed to create it.
+  //   public void Set(ResourceProperty key, System.String val)
+  //   {
+  //     Set(key, val.ToString(), val.GetType());
+  //   }
+  //   public void Set(ResourceProperty key, System.Boolean val)
+  //   {
+  //     Set(key, val.ToString(), val.GetType());
+  //   }
+  //   public System.Boolean GetBool(ResourceProperty key)
+  //   {
+  //     return System.Boolean.Parse(Get(key, typeof(System.Boolean)));
+  //   }
+  //   public void Set(ResourceProperty key, FileLoc f)
+  //   {
+  //     Set(key, f.ToString(), f.GetType());
+  //   }
+  //   public String GetString(ResourceProperty key)
+  //   {
+  //     return Get(key, typeof(System.String));
+  //   }
+  //   public FileLoc GetFileLoc(ResourceProperty key)
+  //   {
+  //     return FileLoc.Parse(Get(key, typeof(FileLoc)));
+  //   }
+
+  //   public T GetEnum<T>(ResourceProperty key)
+  //   {
+  //     return Gu.ParseEnum<T>(Get(key, typeof(T)));
+  //   }
+  //   public void SetEnum<T>(ResourceProperty key, T value)
+  //   {
+  //     Set(key, value.ToString(), value.GetType());
+  //   }
+
+  //   private String Get(ResourceProperty key, Type valtype)
+  //   {
+  //     //this should throw if it fails
+  //     Gu.Assert(key.GetAttribute<TypeAttribute>().Type == valtype);
+  //     _dict.TryGetValue(key, out var vv);
+  //     Gu.Assert(vv != null);//string can be empty, not null
+  //     return vv;
+  //   }
+  //   private void Set(ResourceProperty key, string val, Type valtype)
+  //   {
+  //     Gu.Assert(key.GetAttribute<TypeAttribute>().Type == valtype);
+  //     _dict.Add(key, val);
+  //   }
+  //   public void Serialize(BinaryWriter bw)
+  //   {
+  //     bw.Write(_dict.Count);
+  //     foreach (var item in _dict)
+  //     {
+  //       bw.Write(item.Key.ToString());
+  //       bw.Write(item.Value.ToString());
+  //     }
+  //   }
+  //   public void Deserialize(BinaryReader br, SerializedFileVersion v)
+  //   {
+  //     Gu.BRThrowNotImplementedException();
+  //   }
+  // }
+
+
+
+  // // [DataContract] [Serializable]
+  // // public class ResourceNode : ISerializeBinary
+  // // {
+  // //   //Anything that needs to be unique must be in the resource node.
+
+
+  // //   //LastModify can be a Prop it is perticular to files
+
+
+  // //   public ResourceNode() { }
+  // //   public ResourceNode(string name, ResourceType tt, UInt64 id)
+  // //   {
+  // //     Name = name;
+  // //     ResType = tt;
+  // //     UniqueID = id;
+  // //     _lastSaveOrLoadTime = _lastSaveOrLoadTime = DateTime.Now;
+  // //   }
+
+  // //   public bool GetRef<T>(out T? outt) where T : DataBlock
+  // //   {
+  // //     outt = null;
+  // //     if (Ref != null && Ref.TryGetTarget(out var db))
+  // //     {
+  // //       Gu.Assert(db != null);
+  // //       Gu.Assert(db.GetType() is T);
+  // //       outt = (T)db;
+  // //       return true;
+  // //     }
+  // //     return false;
+  // //   }
+  // //   public void Serialize(BinaryWriter bw)
+  // //   {
+  // //     bw.Write(LastModifyTime);
+  // //     bw.Write(ResType.ToString());
+  // //     bw.Write(UniqueID);
+  // //     SerializeTools.SerializeListOfStruct<UInt64>(bw, Dependencies);
+  // //   }
+  // //   public void Deserialize(BinaryReader br, SerializedFileVersion v)
+  // //   {
+  // //     Gu.BRThrowNotImplementedException();
+  // //   }
+  // //   public string ToString()
+  // //   {
+  // //     return SerializeTools.SerializeJSON(this);
+  // //   }
+  // // }
+
+
+  // using System.ComponentModel;
+
+// namespace PirateCraft
+// {
+//   [DataContract] [Serializable]
+//   public class ResourceDescriptor
+//   {
+//     //purpose of this class is to distinguish between resources that exist, and ones that do not,
+//     //when constructing resources (tex/img/model) and load or unload them when they are created.
+
+//     //if id is zero then make a new resource
+
+//     public enum ResourceLoadFlags
+//     {
+//       Load,
+//       DoNotLoad
+//     }
+//     public static ResourceDescriptor NONE_Undefined = new ResourceDescriptor(ResourceType.Undefined, "NONE_None", 0);
+
+//     public static ResourceDescriptor Img32_Default1x1InvalidImage_RGBA32ub = new ResourceDescriptor(ResourceType.Image, "Img32_Default1x1InvalidImage_RGBA32ub", 1);
+//     public static ResourceDescriptor Img32_Default1x1ColorPixel_RGBA32ub = new ResourceDescriptor(ResourceType.Image, "Img32_Default1x1ColorPixel_RGBA32ub", 2);
+//     public static ResourceDescriptor Image_Default1x1NormalPixel_RGBA32ub = new ResourceDescriptor(ResourceType.Image, "Image_Default1x1NormalPixel_RGBA32ub", 3);
+
+//     public static ResourceDescriptor Tex2D_Default1x1ColorPixel_RGBA32ub = new ResourceDescriptor(ResourceType.Texture, "Tex2D_Default1x1ColorPixel_RGBA32ub", 1);
+//     public static ResourceDescriptor Tex2D_Default1x1NormalPixel_RGBA32ub = new ResourceDescriptor(ResourceType.Texture, "Tex2D_Default1x1NormalPixel_RGBA32ub", 2);
+
+//     public static ResourceDescriptor Material_DefaultFlatColor = new ResourceDescriptor(ResourceType.Material, "Material_DefaultFlatColor", 1);
+//     public static ResourceDescriptor Material_DefaultObjectMaterial = new ResourceDescriptor(ResourceType.Material, "Material_DefaultObjectMaterial", 2);
+//     public static ResourceDescriptor Material_DebugDraw_VertexNormals_FlatColor = new ResourceDescriptor(ResourceType.Material, "Material_DebugDraw_VertexNormals_FlatColor", 3);
+
+//     public static ResourceDescriptor Shader_GuiShader = new ResourceDescriptor(ResourceType.Shader, "Shader_GuiShader", 1);
+
+//     public static ResourceDescriptor WorldObject_Camera = new ResourceDescriptor(ResourceType.WorldObject, "WorldObject_Camera", 1);
+//     public static ResourceDescriptor WorldObject_Gear = new ResourceDescriptor(ResourceType.WorldObject, "WorldObject_Gear", 2);
+
+//     ///
+//     private static List<ResourceDescriptor> _checkDebugDupes = new List<ResourceDescriptor>();
+
+//     private string _name = Lib.UnsetName;
+//     private UInt64 _uniqueID = Lib.UnsetID;
+//     private ResourceLoadFlags _loadFlags = ResourceLoadFlags.DoNotLoad;
+
+//     public string Name { get { return _name; } set { _name = value; } }
+//     public UInt64 UniqueID { get { return _uniqueID; } set { _uniqueID = value; } }
+//     public ResourceLoadFlags LoadFlags { get { return _loadFlags; } set { _loadFlags = value; } }
+
+//     public ResourceDescriptor(ResourceType type, string name, UInt64 id, ResourceLoadFlags loadFlags = ResourceLoadFlags.DoNotLoad)
+//     {
+//       Gu.Assert(!(type != ResourceType.Undefined && id == 0));
+//       foreach (var rid in _checkDebugDupes)
+//       {
+//         Gu.Assert(rid.Name != name, $"Duplicate default resource ID name '{name}'");
+//         Gu.Assert(rid.UniqueID != id, $"Duplicate default resource ID id '{id}'");
+//       }
+
+//       _name = name;
+//       _uniqueID = (ulong)(type.IDMultiplier * (ulong)id);
+//       _loadFlags = loadFlags;
+
+//       _checkDebugDupes.Add(this);
+//     }
+//     public override string ToString()
+//     {
+//       var js = SerializeTools.SerializeJSON(this);
+//       return js;
+//     }
+//   }
+//   public static class EmbeddedResources
+//   {
+//     //Build some manual resources.
+//     public static void BuildResources()
+//     {
+//      // bool global_flip_tris = true;
+
+//       //_defaultFlatColorMaterial = new Material(System.Reflection.MethodBase.GetCurrentMethod().Name, Shader.DefaultFlatColorShader());
+//       //         _defaultObjectMaterial.AlbedoSlot.Texture = Texture2D.Default1x1ColorPixel_RGBA32ub(new vec4ub(255, 255, 255, 255));
+
+// /*
+
+// ok so
+
+// if model name exists
+//   craet new 
+//   DefinEmodel
+//     TryDefineModel - 
+
+// */
+
+//       //Camera model
+//       // Gu.Lib.DefineModel(new ModelLoader(ResourceDescriptor.WorldObject_Camera, new FileLoc("camera.glb", FileStorage.Embedded), global_flip_tris));
+//       // Gu.Lib.DefineShader(new ShaderLoader(ResourceDescriptor.Shader_GuiShader, "v_gui", true, FileStorage.Embedded, OpenTK.Graphics.OpenGL4.PrimitiveType.Points));
+//       // Gu.Lib.DefineImage(Img32Generator.Default1x1_RGBA32ub(ResourceDescriptor.Img32_Default1x1InvalidImage_RGBA32ub, Byte.MaxValue, 0, Byte.MaxValue, Byte.MaxValue));
+//       // Gu.Lib.DefineImage(Img32Generator.Default1x1_RGBA32ub(ResourceDescriptor.Img32_Default1x1ColorPixel_RGBA32ub, Byte.MaxValue, Byte.MaxValue, Byte.MaxValue, Byte.MaxValue), out var imgcolor);
+
+//       // //Normal maps..
+//       // byte nmap_zero = Byte.MaxValue / 2;//zero in normal map is .5
+//       // byte nmap_one = Byte.MaxValue;
+//       // if (Texture2D.NormalMapFormat == NormalMapFormat.Yup)
+//       // {
+//       //   if (Gu.Lib.DefineImage(Img32Generator.Default1x1_RGBA32ub(ResourceDescriptor.Image_Default1x1NormalPixel_RGBA32ub, nmap_zero, nmap_one, nmap_zero, Byte.MaxValue), out var imgyup))
+//       //   {
+//       //     var tex = new Texture2D(ResourceDescriptor.Tex2D_Default1x1NormalPixel_RGBA32ub.Description(), imgyup, false, TexFilter.Nearest);
+//       //     tex.Save();
+//       //   }
+//       // }
+//       // else if (Texture2D.NormalMapFormat == NormalMapFormat.Zup)
+//       // {
+//       //   //t = new Texture2D("default1x1-normal", Img32Generator.Default1x1_RGBA32ub("normalzup", nmap_zero, nmap_zero, nmap_one, Byte.MaxValue), false, TexFilter.Nearest);
+//       //   if (Gu.Lib.DefineImage(Img32Generator.Default1x1_RGBA32ub(ResourceDescriptor.Image_Default1x1NormalPixel_RGBA32ub, nmap_zero, nmap_zero, nmap_one, Byte.MaxValue), out var imgzup))
+//       //   {
+//       //     var tex = new Texture2D(ResourceDescriptor.Tex2D_Default1x1NormalPixel_RGBA32ub.Description(), imgzup, false, TexFilter.Nearest);
+//       //     tex.Save();
+//       //   }
+//       // }
+//       // else
+//       // {
+//       //   Gu.BRThrowNotImplementedException();
+//       // }
+
+//       //DefaultFlatColor
+
+
+//       // public static Texture2D Default1x1ColorPixel_RGBA32ub(vec4ub color)
+//       // {
+//       //   var t = _default1x1ColorPixel_RGBA32ub.Get();
+//       //   if (t == null)
+//       //   {
+//       //     t = new Texture2D("default1x1-color", , false, TexFilter.Nearest);
+//       //     _default1x1ColorPixel_RGBA32ub.Set(t);
+//       //   }
+//       //   return t;
+//       // }
+//       // public static Texture2D Default1x1NormalPixel_RGBA32ub()
+//       // {
+//       //   var t = _default1x1NormalPixel_RGBA32ub.Get();
+//       //   if (t == null)
+//       //   {
+//       //     byte nmap_zero = Byte.MaxValue / 2;//zero in normal map is .5
+//       //     byte nmap_one = Byte.MaxValue;
+//       //     if (NormalMapFormat == NormalMapFormat.Yup)
+//       //     {
+//       //       t = new Texture2D("default1x1-normal", Img32Generator.Default1x1_RGBA32ub("normalyup", nmap_zero, nmap_one, nmap_zero, Byte.MaxValue), false, TexFilter.Nearest);
+//       //     }
+//       //     else if (NormalMapFormat == NormalMapFormat.Zup)
+//       //     {
+//       //       t = new Texture2D("default1x1-normal", Img32Generator.Default1x1_RGBA32ub("normalzup", nmap_zero, nmap_zero, nmap_one, Byte.MaxValue), false, TexFilter.Nearest);
+//       //     }
+//       //     else
+//       //     {
+//       //       Gu.BRThrowNotImplementedException();
+//       //     }
+//       //     _default1x1NormalPixel_RGBA32ub.Set(t);
+//       //   }
+//       //   return t;
+//       // }
+
+
+
+
+//       //  Gu.Lib.DefineMaterial(ResourceID.Obj_Camera, , true);
+
+//       //   public static Material DefaultFlatColor
+//       //   {
+//       //     get
+//       //     {
+//       //       if (_defaultFlatColorMaterial == null)
+//       //       {
+//       //         _defaultFlatColorMaterial = new Material(System.Reflection.MethodBase.GetCurrentMethod().Name, Shader.DefaultFlatColorShader());
+//       //         _defaultObjectMaterial.AlbedoSlot.Texture = Texture2D.Default1x1ColorPixel_RGBA32ub(new vec4ub(255, 255, 255, 255));
+//       //       }
+//       //       return _defaultFlatColorMaterial;
+//       //     }
+//       //   }
+//       //   public static Material DefaultObjectMaterial
+//       //   {
+//       //     get
+//       //     {
+//       //       if (_defaultObjectMaterial == null)
+//       //       {
+//       //         _defaultObjectMaterial = new Material(System.Reflection.MethodBase.GetCurrentMethod().Name, Shader.DefaultObjectShader());
+//       //         _defaultObjectMaterial.AlbedoSlot.Texture = Texture2D.Default1x1ColorPixel_RGBA32ub(new vec4ub(255, 0, 255, 255));
+//       //       }
+//       //       return _defaultObjectMaterial;
+//       //     }
+//       //   }
+//       //   public static Material DebugDraw_VertexNormals_FlatColor
+//       //   {
+//       //     get
+//       //     {
+//       //       if (_debugdraw_normals_material == null)
+//       //       {
+//       //         _debugdraw_normals_material = new Material(System.Reflection.MethodBase.GetCurrentMethod().Name,
+//       //         Gu.Lib.LoadShader("v_normals", true, FileStorage.Embedded, OpenTK.Graphics.OpenGL4.PrimitiveType.Triangles));
+//       //         _debugdraw_normals_material.GpuRenderState.Blend = false;
+//       //         _debugdraw_normals_material.BaseColor = new vec4(0.827f, 0.933f, 0.113f, 1);
+//       //       }
+//       //       return _debugdraw_normals_material;
+//       //     }
+//       //   }
+
+//     }
+
+//   }
+
+
+// }
+
+ // [DataContract] [Serializable]
+  // public class ResourceDescriptor
+  // {
+  //   //purpose of this class is to distinguish between resources that exist, and ones that do not,
+  //   //when constructing resources (tex/img/model) and load or unload them when they are created.
+
+  //   //if id is zero then make a new resource
+
+  //   public enum ResourceLoadFlags
+  //   {
+  //     Load,
+  //     DoNotLoad
+  //   }
+  //   public static ResourceDescriptor NONE_Undefined = new ResourceDescriptor(ResourceType.Undefined, "NONE_None", 0);
+
+  //   public static ResourceDescriptor Img32_Default1x1InvalidImage_RGBA32ub = new ResourceDescriptor(ResourceType.Image, "Img32_Default1x1InvalidImage_RGBA32ub", 1);
+  //   public static ResourceDescriptor Img32_Default1x1ColorPixel_RGBA32ub = new ResourceDescriptor(ResourceType.Image, "Img32_Default1x1ColorPixel_RGBA32ub", 2);
+  //   public static ResourceDescriptor Image_Default1x1NormalPixel_RGBA32ub = new ResourceDescriptor(ResourceType.Image, "Image_Default1x1NormalPixel_RGBA32ub", 3);
+
+  //   public static ResourceDescriptor Tex2D_Default1x1ColorPixel_RGBA32ub = new ResourceDescriptor(ResourceType.Texture, "Tex2D_Default1x1ColorPixel_RGBA32ub", 1);
+  //   public static ResourceDescriptor Tex2D_Default1x1NormalPixel_RGBA32ub = new ResourceDescriptor(ResourceType.Texture, "Tex2D_Default1x1NormalPixel_RGBA32ub", 2);
+
+  //   public static ResourceDescriptor Material_DefaultFlatColor = new ResourceDescriptor(ResourceType.Material, "Material_DefaultFlatColor", 1);
+  //   public static ResourceDescriptor Material_DefaultObjectMaterial = new ResourceDescriptor(ResourceType.Material, "Material_DefaultObjectMaterial", 2);
+  //   public static ResourceDescriptor Material_DebugDraw_VertexNormals_FlatColor = new ResourceDescriptor(ResourceType.Material, "Material_DebugDraw_VertexNormals_FlatColor", 3);
+
+  //   public static ResourceDescriptor Shader_GuiShader = new ResourceDescriptor(ResourceType.Shader, "Shader_GuiShader", 1);
+
+  //   public static ResourceDescriptor WorldObject_Camera = new ResourceDescriptor(ResourceType.WorldObject, "WorldObject_Camera", 1);
+  //   public static ResourceDescriptor WorldObject_Gear = new ResourceDescriptor(ResourceType.WorldObject, "WorldObject_Gear", 2);
+
+  //   ///
+  //   private static List<ResourceDescriptor> _checkDebugDupes = new List<ResourceDescriptor>();
+
+  //   private string _name = Lib.UnsetName;
+  //   private UInt64 _uniqueID = Lib.UnsetID;
+  //   private ResourceLoadFlags _loadFlags = ResourceLoadFlags.DoNotLoad;
+
+  //   public string Name { get { return _name; } set { _name = value; } }
+  //   public UInt64 UniqueID { get { return _uniqueID; } set { _uniqueID = value; } }
+  //   public ResourceLoadFlags LoadFlags { get { return _loadFlags; } set { _loadFlags = value; } }
+
+  //   public ResourceDescriptor(ResourceType type, string name, UInt64 id, ResourceLoadFlags loadFlags = ResourceLoadFlags.DoNotLoad)
+  //   {
+  //     Gu.Assert(!(type != ResourceType.Undefined && id == 0));
+  //     foreach (var rid in _checkDebugDupes)
+  //     {
+  //       Gu.Assert(rid.Name != name, $"Duplicate default resource ID name '{name}'");
+  //       Gu.Assert(rid.UniqueID != id, $"Duplicate default resource ID id '{id}'");
+  //     }
+
+  //     _name = name;
+  //     _uniqueID = (ulong)(type.IDMultiplier * (ulong)id);
+  //     _loadFlags = loadFlags;
+
+  //     _checkDebugDupes.Add(this);
+  //   }
+  //   public override string ToString()
+  //   {
+  //     var js = SerializeTools.SerializeJSON(this);
+  //     return js;
+  //   }
+  // }
+
+
+     // bool global_flip_tris = true;
+
+      //_defaultFlatColorMaterial = new Material(System.Reflection.MethodBase.GetCurrentMethod().Name, Shader.DefaultFlatColorShader());
+      //         _defaultObjectMaterial.AlbedoSlot.Texture = Texture2D.Default1x1ColorPixel_RGBA32ub(new vec4ub(255, 255, 255, 255));
+
+/*
+
+ok so
+
+if model name exists
+  craet new 
+  DefinEmodel
+    TryDefineModel - 
+
+*/
+
+      //Camera model
+      // Gu.Lib.DefineModel(new ModelLoader(ResourceDescriptor.WorldObject_Camera, new FileLoc("camera.glb", FileStorage.Embedded), global_flip_tris));
+      // Gu.Lib.DefineShader(new ShaderLoader(ResourceDescriptor.Shader_GuiShader, "v_gui", true, FileStorage.Embedded, OpenTK.Graphics.OpenGL4.PrimitiveType.Points));
+      // Gu.Lib.DefineImage(Img32Generator.Default1x1_RGBA32ub(ResourceDescriptor.Img32_Default1x1InvalidImage_RGBA32ub, Byte.MaxValue, 0, Byte.MaxValue, Byte.MaxValue));
+      // Gu.Lib.DefineImage(Img32Generator.Default1x1_RGBA32ub(ResourceDescriptor.Img32_Default1x1ColorPixel_RGBA32ub, Byte.MaxValue, Byte.MaxValue, Byte.MaxValue, Byte.MaxValue), out var imgcolor);
+
+      // //Normal maps..
+      // byte nmap_zero = Byte.MaxValue / 2;//zero in normal map is .5
+      // byte nmap_one = Byte.MaxValue;
+      // if (Texture2D.NormalMapFormat == NormalMapFormat.Yup)
+      // {
+      //   if (Gu.Lib.DefineImage(Img32Generator.Default1x1_RGBA32ub(ResourceDescriptor.Image_Default1x1NormalPixel_RGBA32ub, nmap_zero, nmap_one, nmap_zero, Byte.MaxValue), out var imgyup))
+      //   {
+      //     var tex = new Texture2D(ResourceDescriptor.Tex2D_Default1x1NormalPixel_RGBA32ub.Description(), imgyup, false, TexFilter.Nearest);
+      //     tex.Save();
+      //   }
+      // }
+      // else if (Texture2D.NormalMapFormat == NormalMapFormat.Zup)
+      // {
+      //   //t = new Texture2D("default1x1-normal", Img32Generator.Default1x1_RGBA32ub("normalzup", nmap_zero, nmap_zero, nmap_one, Byte.MaxValue), false, TexFilter.Nearest);
+      //   if (Gu.Lib.DefineImage(Img32Generator.Default1x1_RGBA32ub(ResourceDescriptor.Image_Default1x1NormalPixel_RGBA32ub, nmap_zero, nmap_zero, nmap_one, Byte.MaxValue), out var imgzup))
+      //   {
+      //     var tex = new Texture2D(ResourceDescriptor.Tex2D_Default1x1NormalPixel_RGBA32ub.Description(), imgzup, false, TexFilter.Nearest);
+      //     tex.Save();
+      //   }
+      // }
+      // else
+      // {
+      //   Gu.BRThrowNotImplementedException();
+      // }
+
+      //DefaultFlatColor
+
+
+      // public static Texture2D Default1x1ColorPixel_RGBA32ub(vec4ub color)
+      // {
+      //   var t = _default1x1ColorPixel_RGBA32ub.Get();
+      //   if (t == null)
+      //   {
+      //     t = new Texture2D("default1x1-color", , false, TexFilter.Nearest);
+      //     _default1x1ColorPixel_RGBA32ub.Set(t);
+      //   }
+      //   return t;
+      // }
+      // public static Texture2D Default1x1NormalPixel_RGBA32ub()
+      // {
+      //   var t = _default1x1NormalPixel_RGBA32ub.Get();
+      //   if (t == null)
+      //   {
+      //     byte nmap_zero = Byte.MaxValue / 2;//zero in normal map is .5
+      //     byte nmap_one = Byte.MaxValue;
+      //     if (NormalMapFormat == NormalMapFormat.Yup)
+      //     {
+      //       t = new Texture2D("default1x1-normal", Img32Generator.Default1x1_RGBA32ub("normalyup", nmap_zero, nmap_one, nmap_zero, Byte.MaxValue), false, TexFilter.Nearest);
+      //     }
+      //     else if (NormalMapFormat == NormalMapFormat.Zup)
+      //     {
+      //       t = new Texture2D("default1x1-normal", Img32Generator.Default1x1_RGBA32ub("normalzup", nmap_zero, nmap_zero, nmap_one, Byte.MaxValue), false, TexFilter.Nearest);
+      //     }
+      //     else
+      //     {
+      //       Gu.BRThrowNotImplementedException();
+      //     }
+      //     _default1x1NormalPixel_RGBA32ub.Set(t);
+      //   }
+      //   return t;
+      // }
+
+
+
+
+      //  Gu.Lib.DefineMaterial(ResourceID.Obj_Camera, , true);
+
+      //   public static Material DefaultFlatColor
+      //   {
+      //     get
+      //     {
+      //       if (_defaultFlatColorMaterial == null)
+      //       {
+      //         _defaultFlatColorMaterial = new Material(System.Reflection.MethodBase.GetCurrentMethod().Name, Shader.DefaultFlatColorShader());
+      //         _defaultObjectMaterial.AlbedoSlot.Texture = Texture2D.Default1x1ColorPixel_RGBA32ub(new vec4ub(255, 255, 255, 255));
+      //       }
+      //       return _defaultFlatColorMaterial;
+      //     }
+      //   }
+      //   public static Material DefaultObjectMaterial
+      //   {
+      //     get
+      //     {
+      //       if (_defaultObjectMaterial == null)
+      //       {
+      //         _defaultObjectMaterial = new Material(System.Reflection.MethodBase.GetCurrentMethod().Name, Shader.DefaultObjectShader());
+      //         _defaultObjectMaterial.AlbedoSlot.Texture = Texture2D.Default1x1ColorPixel_RGBA32ub(new vec4ub(255, 0, 255, 255));
+      //       }
+      //       return _defaultObjectMaterial;
+      //     }
+      //   }
+      //   public static Material DebugDraw_VertexNormals_FlatColor
+      //   {
+      //     get
+      //     {
+      //       if (_debugdraw_normals_material == null)
+      //       {
+      //         _debugdraw_normals_material = new Material(System.Reflection.MethodBase.GetCurrentMethod().Name,
+      //         Gu.Lib.LoadShader("v_normals", true, FileStorage.Embedded, OpenTK.Graphics.OpenGL4.PrimitiveType.Triangles));
+      //         _debugdraw_normals_material.GpuRenderState.Blend = false;
+      //         _debugdraw_normals_material.BaseColor = new vec4(0.827f, 0.933f, 0.113f, 1);
+      //       }
+      //       return _debugdraw_normals_material;
+      //     }
+      //   }
+
+
+
+    #region Public Static: Methods
+
+    public static DataBlock? ConstructResource(ResourceType rt)
+    {
+      //we mighjt use this.. or just delete it
+      // if (rt == ResourceType.WorldObject)
+      // {
+      //   return new WorldObject();
+      // }
+      // else if (rt == ResourceType.MeshData)
+      // {
+      //   return new MeshData();
+      // }
+      // else if (rt == ResourceType.Material)
+      // {
+      //   return new Material();
+      // }
+      // else if (rt == ResourceType.Img32)
+      // {
+      //   return new Img32();
+      // }      
+      // else if (rt == ResourceType.Texture2D)
+      // {
+      //   Gu.BRThrowNotImplementedException();//hmm... this is hard
+      //   //return new Texture2D();
+      // }            
+      // else if (rt == ResourceType.AnimationComponent)
+      // {
+      //   return new AnimationComponent();
+      // }
+      // else if (rt == ResourceType.EventComponent)
+      // {
+      //   return new EventComponent();
+      // }
+      // else if (rt == ResourceType.FPSInputComponent)
+      // {
+      //   return new FPSInputComponent();
+      // }
+
+      Gu.BRThrowNotImplementedException();
+      return null;
+    }
+
+    #endregion
+
+
+        public void ChangeResource(ResourceNode? rsc)
+    {
+      _resource = rsc;
+    }
+
+
+    // private void LoadResourceFile(FileMode savemode = FileMode.Text)
+    // {
+    //   //Try loading resources from embed, if it doesn't exist, use the /data resources
+    //   //in both cases, we modify only /data of coruse.
+    //   FileLoc fl = GetResourceFileLoc(savemode);
+
+    //   if (!fl.Exists)
+    //   {
+    //     Gu.Log.Info($"File does not exist, Creating new resource file '{fl.QualifiedPath}'");
+    //     SaveResourceFile();
+    //   }
+    //   else if (savemode == FileMode.Text)
+    //   {
+    //     var json = fl.ReadAllText();
+    //     var deserialized_resources_byid = (Dictionary<ulong, ResourceNode>)JsonConvert.DeserializeObject(json, typeof(Dictionary<ulong, ResourceNode>));
+    //     if (deserialized_resources_byid == null || deserialized_resources_byid.Count == 0)
+    //     {
+    //       Gu.Log.Error("Resources was null");
+    //       //   Gu.DebugBreak();
+    //     }
+    //     else
+    //     {
+    //       //Build tables
+    //       foreach (var r in deserialized_resources_byid)
+    //       {
+    //         AddResource(r.Value);
+    //       }
+    //     }
+    //   }
+    //   else
+    //   {
+    //     Gu.MustTest();
+    //     var enc = Encoding.GetEncoding("iso-8859-1");
+    //     using (var fs = fl.OpenRead())
+    //     using (var bwFile = new System.IO.BinaryReader(fs, enc))
+    //     {
+    //       _resourcesById = SerializeTools.DeserializeDictionary<UInt64, ResourceNode>(bwFile, c_fileVersion);
+    //     }
+    //   }
+    // }
+    // private ResourceNode? GetNode(ResourceDescriptor rd)
+    // {
+    //   return GetNode((UInt64)rd.UniqueID);
+    // }
+    // private ResourceNode? GetNode(UInt64 id)
+    // {
+    //   if (_resourcesById.TryGetValue(id, out var rr))
+    //   {
+    //     return rr;
+    //   }
+
+    //   //for now we throw since they are hard coded, 
+    //   //later if we auto-generate the file, we can add new resources and save the file, but we
+    //   //will need to figure out how to package it.
+    //   Gu.BRThrowException($"Resource id '{id}' not found");
+
+    //   return null;
+    // }
+
+    // public T? LoadResource<T>(ResourceDescriptor resID) where T : DataBlock
+    // {
+    //   T? ret = null;
+    //   var rsc = LoadResource(resID.UniqueID);
+    //   if (rsc == null)
+    //   {
+    //     Gu.Log.Error($"Could not find resource '{resID.Name}' id={resID}.");
+    //   }
+    //   else
+    //   {
+    //     ret = (T?)rsc;
+    //   }
+    //   return ret;
+    // }
+    // private DataBlock? LoadResource(ResourceNode resNode)
+    // {
+    //   Gu.Assert(resNode != null);
+    //   return LoadResource(resNode.UniqueID);
+    // }
+    // private DataBlock? LoadResource(UInt64 resID)
+    // {
+    //   DataBlock? db = null;
+    //   var rsc = GetResourceById(resID);
+    //   if (rsc != null)
+    //   {
+    //     if (!rsc.HasRef)
+    //     {
+    //       Gu.BRThrowNotImplementedException();
+    //       //load
+    //       //rsc._resourceLoadREsult.. = ..
+    //       //
+    //       //if (rsc is DataSource)
+    //       //{
+    //       //  //This is also for texture / model data.
+    //       //  CacheResource(rsc as DataSource);//only cache the resource when we actually load it, not define it.
+    //       //}
+    //     }
+    //     else
+    //     {
+    //       rsc.Ref.TryGetTarget(out db);
+    //     }
+    //   }
+    //   return db;
+    // }
+    // private bool TryUnloadResource(ResourceNode n)
+    // {
+    //   Gu.Assert(n != null);
+    //   //If there are active handles to this resource then it won't be unloaded
+    //   n.Ref = null;
+    //   return true;
+    // }
+
+    public DataBlock? GetOrLoadExistingResource(UInt64 id)
+    {
+      // //resources get serialized in binary as parameter references to files.
+      // //but we save the resource id->name mapping as a JSON in case a resource name changes (by accident).
+
+      // //This will only work once ALL of the resources for the World have been loaded.
+      // //YOu must load all resources first so they are in this table.
+
+      // //The scenegraph should root to a Loader of some kind. The loader is also serialized, and can then create the object.
+
+      DataBlock? ret = null;
+      // var rr = GetNode(id);
+      // var msghead = $"Resource type '{rr.ResType.ToString()}'  id '{id}':";
+      // var notsupportedmsg = $"{msghead} loader not supported.";
+      // var nofilesmsg = $"{msghead} had no files.";
+
+      // if (rr == null)
+      // {
+      //   Gu.Log.Error($"Existing resource '{id}' was not found. Make sure the entire scene is deserialized before dereferencing sub-objects.");
+      //   Gu.DebugBreak();
+      // }
+      // else
+      // {
+      //   //If rr is not null, but it has no ref,
+      //   //then we may have loaded the resource file, but we may have not loaded the entire binary scene
+
+      //   if (rr.Ref != null)
+      //   {
+      //     if (rr.Ref.TryGetTarget(out var db))
+      //     {
+      //       //return main handle to the resource
+      //       return db;
+      //     }
+      //     //The datablock went away, (likely manually uload()), set to null.
+      //     rr.Ref = null;
+      //   }
+
+      //   if (rr.ResType == ResourceType.GLTFFile)
+      //   {
+      //     //         FileLoc loc = rr.Properties.GetFileLoc(ResourceProperty.FileLoc);
+      //     // bool flip_tris = rr.Properties.GetBool(ResourceProperty.FlipTris);
+      //     //   LoadObjects(loc,flip_tris);
+      //   }
+      //   else if (rr.ResType == ResourceType.Shader)
+      //   {
+      //   }
+      //   else if (rr.ResType == ResourceType.PNGFile)
+      //   {
+      //     //   Gu.Assert(rr.Properties != null);
+
+      //     // var loc = rr.Properties.GetFileLoc(ResourceProperty.FileLoc);
+
+      //     // rr.Ref = new WeakReference<DataBlock>(img);
+      //     //   LoadImage(rr);
+      //   }
+
+      //   if (rr.Dependencies.Count > 0)
+      //   {
+      //     foreach (var dep in rr.Dependencies)
+      //     {
+      //       GetOrLoadExistingResource(dep);
+      //     }
+      //   }
+
+      //   //Resource must be loaded, the node graph must already exist if we get here.
+      //   if (rr.Ref == null)
+      //   {
+      //     Gu.BRThrowException("Resource could not be loaded.");
+      //   }
+      //   if (rr.Ref.TryGetTarget(out ret))
+      //   {
+      //     Gu.BRThrowException("Resource could not be loaded.");
+      //   }
+      // }
+
+      // Gu.BRThrowNotImplementedException();
+      return ret;
+    }
+
+    // public DataBlock? CreateNewResource(DataBlock baseClass, string name)
+    // {
+    //   var rsc = GetResourceByName(baseClass.ResourceType, name);
+    //   if (rsc != null)
+    //   {
+    //     Gu.BRThrowException(
+    //       $"Tried to create resource with duplicate name '{name}':\n {rsc.ToString()} \n"
+    //     + $" *Use GetUniqueName() to ensure unique name.\n");
+    //   }
+    //   var id = GetNewUniqueId();
+    //   ResourceNode rn = new ResourceNode(name, baseClass.ResourceType, id);
+    //   //we have to add new resources being that, we need to know what id's/names are unique and not
+    //   AddResource(rn);
+    //   //type/file is only valid for type resources
+    //   return rn;
+    // }
+
+        // public void DestroyObject(WorldObject ob)
+    // {
+    //   ob.State = WorldObjectState.Destroyed;
+    // }    
+    // private void DestroyObjectInternal(WorldObject wo)
+    // {
+    //   //prevent modifying list in for loop
+    //   wo.UpdateResource(ResourceUpdateMode.Remove);
+    //   wo.UnlinkHierarchy();
+    //   wo.OnDestroyed?.Invoke(wo);
+    //   wo.IterateComponentsSafe((cmp) =>
+    //   {
+    //     cmp.OnDestroy(wo);
+    //     return LambdaBool.Continue;
+    //   });
+    //   _worldEdited = true;
+    // }
+
+
+  // public class DeferredFramebuffer : FramebufferGeneric
+  // {
+  //   public const string c_strColorMRT_DF = "ColorMRT-deferred";
+  //   public const string c_strNormalMRT_DF = "NormalMRT-deferred";
+  //   public const string c_strPlaneMRT_DF = "PlaneMRT-deferred";
+  //   public const string c_strPositionMRT_DF = "PositionMRT-deferred";
+
+  //   public DeferredFramebuffer(bool bMultisample, int nSamples, vec4 vClear) : base("Deferred_FBO", bMultisample, nSamples, vClear)
+  //   {
+  //     //  _pBloomVaoPass = NULL;
+  //   }
+  //   //virtual ~DeferredFramebuffer() override;
+
+  //   public override void Init(int w, int h, FramebufferAttachment sharedDepth, FramebufferAttachment sharedPick)
+  //   {
+  //     DeleteTargets();
+
+  //     bool _bUseRenderBuffer = false;
+
+  //     //TODO: later we'll create this async.
+  //     //Gd::verifyRenderThread();
+  //     _glId = GL.GenFramebuffer();
+  //     Gpu.CheckGpuErrorsRt();
+
+  //     Bind(FramebufferTarget.Framebuffer);
+
+  //     GL.FramebufferParameter(FramebufferTarget.Framebuffer, FramebufferDefaultParameter.FramebufferDefaultWidth, w);
+  //     Gpu.CheckGpuErrorsRt();
+  //     GL.FramebufferParameter(FramebufferTarget.Framebuffer, FramebufferDefaultParameter.FramebufferDefaultHeight, h);
+  //     Gpu.CheckGpuErrorsRt();
+  //     GL.ActiveTexture(TextureUnit.Texture0);
+  //     Gpu.CheckGpuErrorsRt();
+
+  //     string msaa = this._bMsaaEnabled ? "-msaa" : "";
+  //     // - Textures
+  //     //Don't change the names here, we reference them elsewhere *yikes*
+  //     //These must match the order in the shader
+  //     AddAttachment(c_strColorMRT_DF + msaa, PixelInternalFormat.Rgba32f, PixelFormat.Rgba, PixelType.Float, w, h, RenderTargetType.Color);//0
+  //     AddAttachment(sharedPick);//1
+  //     AddAttachment(c_strNormalMRT_DF + msaa, PixelInternalFormat.Rgba32f, PixelFormat.Rgba, PixelType.Float, w, h, RenderTargetType.Normal);//2
+  //     AddAttachment(c_strPositionMRT_DF + msaa, PixelInternalFormat.Rgba32f, PixelFormat.Rgba, PixelType.Float, w, h, RenderTargetType.Position);//3 GL_RGBA32F GL_RGBA GL_FLOAT
+  //     AddAttachment(c_strPlaneMRT_DF + msaa, PixelInternalFormat.Rgba32f, PixelFormat.Rgba, PixelType.Float, w, h, RenderTargetType.Mat0);//4
+  //     sharedDepth.Attach();
+
+  //     CheckFramebufferComplete();
+
+  //     SetObjectLabel();
+
+  //     Unbind(FramebufferTarget.DrawFramebuffer);
+  //     UnbindRenderbuffer();
+
+  //     _eState = FramebufferState.Initialized;
+  //   }
+
+  //   public override void BeginRender()
+  //   {
+  //     if (_eState != FramebufferState.Initialized)
+  //     {
+  //       Gu.BRThrowException("Framebuffer was not initialized.");
+  //     }
+
+  //     Bind(FramebufferTarget.DrawFramebuffer);
+  //     UnbindRenderbuffer();
+  //     SetDrawAllTargets();
+
+  //     //NOTE:
+  //     //CRITICAL that clear color is zero here.
+  //     // Otherwise the color somehow shows up in random places getting
+  //     // blended with other colors..
+  //     GL.ClearColor(ClearColor.r, ClearColor.g, ClearColor.b, ClearColor.a);
+  //     GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+  //     Gpu.CheckGpuErrorsDbg();
+  //   }
+  //   public override void EndRender()
+  //   {
+  //     Unbind(FramebufferTarget.DrawFramebuffer);
+  //   }
+
+  // }
+  // public class ForwardFramebuffer : FramebufferGeneric
+  // {
+  //   public const string c_strColorMRT_FW = "ColorMRT-forward";
+
+  //   public ForwardFramebuffer(bool bMsaa, int nMsaa, vec4 vClear) : base("Forward_Framebuffer", bMsaa, nMsaa, vClear)
+  //   {
+  //   }
+  //   public override void Init(int iWidth, int iHeight, FramebufferAttachment sharedDepth, FramebufferAttachment sharedPick)
+  //   {
+  //     DeleteTargets();
+
+  //     GL.UseProgram(0);
+  //     Unbind(FramebufferTarget.Framebuffer);
+  //     UnbindRenderbuffer();
+
+  //     _glId = GL.GenFramebuffer();
+  //     GL.BindFramebuffer(FramebufferTarget.Framebuffer, _glId);
+  //     GL.FramebufferParameter(FramebufferTarget.Framebuffer, FramebufferDefaultParameter.FramebufferDefaultWidth, iWidth);
+  //     GL.FramebufferParameter(FramebufferTarget.Framebuffer, FramebufferDefaultParameter.FramebufferDefaultHeight, iHeight);
+  //     Gpu.CheckGpuErrorsRt();
+  //     string msaa = this._bMsaaEnabled ? "-msaa" : "";
+
+  //     AddAttachment(c_strColorMRT_FW + msaa, PixelInternalFormat.Rgba32f, PixelFormat.Rgba, PixelType.Float, iWidth, iHeight, RenderTargetType.Color);
+  //     AddAttachment(sharedPick);
+  //     sharedDepth.Attach();
+
+  //     CheckFramebufferComplete();
+
+  //     SetObjectLabel();
+
+  //     //Return to default.
+  //     GL.UseProgram(0);
+
+  //     Unbind(FramebufferTarget.Framebuffer);
+  //     UnbindRenderbuffer();
+
+  //     _eState = FramebufferState.Initialized;
+  //   }
+
+
+  //   public override void BeginRender()
+  //   {
+  //     if (_eState != FramebufferState.Initialized)
+  //     {
+  //       Gu.BRThrowException("Framebuffer was not initialized.");
+  //     }
+
+  //     //Clear all buffers
+  //     Bind(FramebufferTarget.DrawFramebuffer);
+  //     UnbindRenderbuffer();//_depthRenderBufferId);
+
+  //     //Do not clear! - previous deferred operation is in here. (clear happens in clearFb)
+  //     //**Do not clear***
+  //     //**Do not clear***
+  //     //**Do not clear***
+  //     //**Do not clear***
+  //     //**Do not clear***
+  //     //**Do not clear***
+
+  //   }
+  //   public override void EndRender()
+  //   {
+  //     //noting
+  //   }
+  //   public void ClearSharedFb()
+  //   {
+  //     //Call this before we begin the defrred
+  //     Bind(FramebufferTarget.DrawFramebuffer);
+  //     UnbindRenderbuffer();
+  //     SetDrawAllTargets();
+
+  //     GL.ClearColor(ClearColor.r, ClearColor.g, ClearColor.b, ClearColor.a);
+  //     GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+  //     Unbind(FramebufferTarget.DrawFramebuffer);
+  //   }
+
+  // };

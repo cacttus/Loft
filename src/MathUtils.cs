@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Drawing;
 using System.Runtime.InteropServices;
+using System.Runtime.Serialization;
 
 //using Microsoft.xna.Framework;
 
@@ -279,12 +280,14 @@ namespace PirateCraft
       RadiusLen2 = radius.dot(radius);
     }
   }
+  [DataContract]
+  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public class Plane3f
   {
     public Plane3f() { }
-    public float d;
-    public vec3 n;
+    [DataMember] public float d;
+    [DataMember] public vec3 n;
     public Plane3f(vec3 dn, vec3 dpt)
     {
       d = -n.dot(dpt);
@@ -292,7 +295,7 @@ namespace PirateCraft
     }
     public Plane3f(vec3 tri_p1, vec3 tri_p2, vec3 tri_p3)
     {
-      //The TBN is not needed for this - copied from VulkanGame::PlaneEx3
+      //verts CCW for RHS -> normal points towards
       float u = 1.0f;
       vec3 origin = tri_p1;
 
@@ -301,7 +304,7 @@ namespace PirateCraft
 
       t /= u;
       t.normalize();
-      n = b.cross(t);  //20161129 - NOTE: CHANGED THIS FOR THE RHS COORDINATES
+      n = b.cross(t);
 
       n.normalize();
       b = n.cross(t);
@@ -325,10 +328,10 @@ namespace PirateCraft
   }
   public class TriPlane : Plane3f
   {
-    public vec3 _p1;
-    public vec3 _p2;
-    public vec3 _p3;
-    public TriPlane(vec3 p1, vec3 p2, vec3 p3) : base(p1,p2,p3)
+    [DataMember] public vec3 _p1;
+    [DataMember] public vec3 _p2;
+    [DataMember] public vec3 _p3;
+    public TriPlane(vec3 p1, vec3 p2, vec3 p3) : base(p1, p2, p3)
     {
       _p1 = p1;
       _p2 = p2;
@@ -406,17 +409,21 @@ namespace PirateCraft
     }
 
   }//triplane
+  [DataContract]
+  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct Line2f
   {
-    public vec2 p0;
-    public vec2 p1;
+    [DataMember] public vec2 p0;
+    [DataMember] public vec2 p1;
   }
+  [DataContract]
+  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct Line3f
   {
-    public vec3 p0;
-    public vec3 p1;
+    [DataMember] public vec3 p0;
+    [DataMember] public vec3 p1;
     public Line3f(vec3 dp0, vec3 dp1)
     {
       p0 = dp0; p1 = dp1;
@@ -442,6 +449,8 @@ namespace PirateCraft
     }
 
   }
+  [DataContract]
+  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct vec2
   {
@@ -450,7 +459,12 @@ namespace PirateCraft
       x = (float)p.X;
       y = (float)p.Y;
     }
-    public float x, y;
+    [DataMember] public float x;
+    [DataMember] public float y;
+    public bool IsSane()
+    {
+      return Gu.SaneFloat(x) && Gu.SaneFloat(y);
+    }
     public static vec2 Zero { get { return new vec2(0, 0); } }
     //public static vec2 One { get { return new vec2(1, 1); } }
     public static vec2 One = new vec2(1, 1);
@@ -538,6 +552,14 @@ namespace PirateCraft
     {
       return new vec2(a.x - f, a.y - f);
     }
+    public static bool operator !=(vec2 a, vec2 b)
+    {
+      return (a.x != b.x || a.y != b.y);
+    }
+    public static bool operator ==(vec2 a, vec2 b)
+    {
+      return (a.x == b.x && a.y == b.y);
+    }
     public static vec2 Minv(vec2 a, vec2 b)
     {
       vec2 ret = new vec2();
@@ -556,12 +578,14 @@ namespace PirateCraft
     public override string ToString() { return "(" + x + "," + y + ")"; }
     public string ToString(int prec) { return "(" + StringUtil.FormatPrec(x, prec) + "," + StringUtil.FormatPrec(y, prec) + ")"; }
   }
+  [DataContract]
+  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct dvec3
   {
-    public double x;
-    public double y;
-    public double z;
+    [DataMember] public double x;
+    [DataMember] public double y;
+    [DataMember] public double z;
 
     public vec3 ToVec3()
     {
@@ -1118,16 +1142,22 @@ namespace PirateCraft
     //    dvec3 _x, _y, _z;
     //};
   }
+  [DataContract]
+  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct vec3
   {
-    public float x;
-    public float y;
-    public float z;
+    [DataMember] public float x;
+    [DataMember] public float y;
+    [DataMember] public float z;
 
     public dvec3 ToDVec3()
     {
       return new dvec3(x, y, z);
+    }
+    public bool IsSane()
+    {
+      return Gu.SaneFloat(x) && Gu.SaneFloat(y) && Gu.SaneFloat(z);
     }
     public static vec3 CosineInterpolate(vec3 a, vec3 b, float time)
     {
@@ -1252,6 +1282,10 @@ namespace PirateCraft
       y = rhs;
       z = rhs;
     }
+    public vec3 clone()
+    {
+      return new vec3(x, y, z);
+    }
     public vec3 clamp(float a, float b)
     {
       x = Math.Clamp(x, a, b);
@@ -1330,13 +1364,13 @@ namespace PirateCraft
 
       return Math.Sqrt(dx * dx + dy * dy + dz * dz);
     }
-    public float length2()
+    public float len2()
     {
       return (x * x + y * y + z * z);
     }
     public float squaredLength()
     {
-      return length2();
+      return len2();
     }
     public vec3 normalize()
     {
@@ -1393,7 +1427,7 @@ namespace PirateCraft
     }
     public float distance2(in vec3 v1)
     {
-      return ((this) - v1).length2();
+      return ((this) - v1).len2();
     }
     public vec3 cross(in vec3 v1)
     {
@@ -1510,6 +1544,14 @@ namespace PirateCraft
     public static bool operator <=(in vec3 v1, in vec3 v2)
     {
       return (v1.x <= v2.x && v1.y <= v2.y && v1.z <= v2.z);
+    }
+    public static bool operator !=(vec3 a, vec3 b)
+    {
+      return (a.x != b.x || a.y != b.y || a.z != b.z);
+    }
+    public static bool operator ==(vec3 a, vec3 b)
+    {
+      return (a.x == b.x && a.y == b.y && a.z == b.z);
     }
     bool compareTo(in vec3 rhs)
     {
@@ -1665,10 +1707,15 @@ namespace PirateCraft
     //    vec3 _x, _y, _z;
     //};
   }
+  [DataContract]
+  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct vec4
   {
-    public float x, y, z, w;
+    [DataMember] public float x;
+    [DataMember] public float y;
+    [DataMember] public float z;
+    [DataMember] public float w;
 
     public float r { get { return x; } }
     public float g { get { return y; } }
@@ -1748,6 +1795,14 @@ namespace PirateCraft
         }
       }
       return ret;
+    }
+    public vec3 toVec3()
+    {
+      return new vec3(x, y, z);
+    }
+    public bool IsSane()
+    {
+      return Gu.SaneFloat(x) && Gu.SaneFloat(y) && Gu.SaneFloat(z) && Gu.SaneFloat(w);
     }
     public vec4(float[] vals)
     {
@@ -1917,10 +1972,15 @@ namespace PirateCraft
     public override string ToString() { return "(" + x.ToString() + "," + y + "," + z + "," + w + ")"; }
     public string ToString(int prec) { return "(" + StringUtil.FormatPrec(x, prec) + "," + StringUtil.FormatPrec(y, prec) + "," + StringUtil.FormatPrec(z, prec) + "," + StringUtil.FormatPrec(w, prec) + ")"; }
   }
+  [DataContract]
+  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct vec4ub
   {
-    public byte x, y, z, w;
+    [DataMember] public byte x;
+    [DataMember] public byte y;
+    [DataMember] public byte z;
+    [DataMember] public byte w;
     public vec4ub(byte dx) : this(dx, dx, dx, dx)
     {
     }
@@ -1938,16 +1998,20 @@ namespace PirateCraft
     public static vec4ub White { get { return new vec4ub(byte.MaxValue); } }
     public static vec4ub Black { get { return new vec4ub(0); } }
   }
+  [DataContract]
+  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct ivec2
   {
+    [DataMember] public Int32 x;
+    [DataMember] public Int32 y;
     public ivec2(int dx, int dy) { x = dx; y = dy; }
-    public Int32 x { get; set; }
-    public Int32 y { get; set; }
     static public implicit operator ivec2(int f)
     {
       return new ivec2(f, f);
     }
+    public Int32 width { get { return x; } }
+    public Int32 height { get { return y; } }
     public static ivec2 operator -(ivec2 d)
     {
       return new ivec2(-d.x, -d.y);
@@ -2009,12 +2073,14 @@ namespace PirateCraft
     public int Stack { get { return x; } }
     public int Layer { get { return y; } }
   }
+  [DataContract]
+  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct uvec2
   {
     public uvec2(uint dx, uint dy) { x = dx; y = dy; }
-    public uint x { get; set; }
-    public uint y { get; set; }
+    [DataMember] public uint x;
+    [DataMember] public uint y;
     static public implicit operator uvec2(uint f)
     {
       return new uvec2(f, f);
@@ -2045,12 +2111,14 @@ namespace PirateCraft
     }
     public override string ToString() { return "(" + x + "," + y + ")"; }
   }
+  [DataContract]
+  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct ivec3
   {
-    public Int32 x;
-    public Int32 y;
-    public Int32 z;
+    [DataMember] public Int32 x;
+    [DataMember] public Int32 y;
+    [DataMember] public Int32 z;
     public ivec3(Int32 dx, Int32 dy, Int32 dz)
     {
       x = dx; y = dy; z = dz;
@@ -2173,13 +2241,15 @@ namespace PirateCraft
     public override string ToString() { return "(" + x + "," + y + "," + z + ")"; }
     public string ToString(int prec) { return "(" + StringUtil.FormatPrec(x, prec) + "," + StringUtil.FormatPrec(y, prec) + "," + StringUtil.FormatPrec(z, prec) + ")"; }
   }
+  [DataContract]
+  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct ivec4
   {
-    public Int32 x;
-    public Int32 y;
-    public Int32 z;
-    public Int32 w;
+    [DataMember] public Int32 x;
+    [DataMember] public Int32 y;
+    [DataMember] public Int32 z;
+    [DataMember] public Int32 w;
     public ivec4(Int32 dx, Int32 dy, Int32 dz, Int32 dw)
     {
       x = dx; y = dy; z = dz; w = dw;
@@ -2236,6 +2306,8 @@ namespace PirateCraft
     }
     public override string ToString() { return "(" + x + "," + y + "," + z + "," + w + ")"; }
   }
+  [DataContract]
+  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct mat2
   {
@@ -2268,12 +2340,14 @@ namespace PirateCraft
           "" + _m21 + ", " + _m22 + "," + "\n";
     }
   }
+  [DataContract]
+  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct mat3
   {
-    public float _m11, _m12, _m13;
-    public float _m21, _m22, _m23;
-    public float _m31, _m32, _m33;
+    [DataMember] public float _m11, _m12, _m13;
+    [DataMember] public float _m21, _m22, _m23;
+    [DataMember] public float _m31, _m32, _m33;
     public static int CompSize() { return 9; }
     public mat3(
        float m11, float m12, float m13,
@@ -2633,13 +2707,22 @@ namespace PirateCraft
       return vret;
     }
   }
+  [DataContract]
+  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct mat4
   {
-    public float _m11, _m12, _m13, _m14;   // indexes: 0,1,2,3
-    public float _m21, _m22, _m23, _m24;  // 4,5,6,7...
-    public float _m31, _m32, _m33, _m34;  //
-    public float _m41, _m42, _m43, _m44;  //
+    [DataMember] public float _m11, _m12, _m13, _m14;   // indexes: 0,1,2,3
+    [DataMember] public float _m21, _m22, _m23, _m24;  // 4,5,6,7...
+    [DataMember] public float _m31, _m32, _m33, _m34;  //
+    [DataMember] public float _m41, _m42, _m43, _m44;  //
+    public bool IsSane()
+    {
+      return Gu.SaneFloat(_m11) && Gu.SaneFloat(_m12) && Gu.SaneFloat(_m13) && Gu.SaneFloat(_m14) &&
+              Gu.SaneFloat(_m21) && Gu.SaneFloat(_m22) && Gu.SaneFloat(_m23) && Gu.SaneFloat(_m24) &&
+              Gu.SaneFloat(_m31) && Gu.SaneFloat(_m32) && Gu.SaneFloat(_m33) && Gu.SaneFloat(_m34) &&
+              Gu.SaneFloat(_m41) && Gu.SaneFloat(_m42) && Gu.SaneFloat(_m43) && Gu.SaneFloat(_m44);
+    }
     public int CompSize() { return 16; }
     public mat4(in mat4 rhs)
     {
@@ -3062,8 +3145,12 @@ namespace PirateCraft
       try
       {
         m.Transpose();
-        m.Invert(); //may throw
-        this = new mat4(m);
+        var x = m.Determinant;
+        if (x != 0)
+        {
+          m.Invert(); //may throw
+          this = new mat4(m);
+        }
       }
       catch (Exception ex)
       {
@@ -3418,10 +3505,12 @@ namespace PirateCraft
 
 
   }
+  [DataContract]
+  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct quat
   {
-    public float x, y, z, w;
+    [DataMember] public float x, y, z, w;
 
     public quat(float dx, float dy, float dz, float dw)
     {
@@ -3631,14 +3720,20 @@ namespace PirateCraft
       return new quat(0, 0, 0, 1);
     }
     public static quat Identity = new quat(0, 0, 0, 1);
+    public bool IsSane()
+    {
+      return Gu.SaneFloat(x) && Gu.SaneFloat(y) && Gu.SaneFloat(z) && Gu.SaneFloat(w);
+    }
 
     public override string ToString() { return "(" + x.ToString() + ", " + y.ToString() + "," + z.ToString() + ", " + w.ToString() + ")"; }
   }
+  [DataContract]
+  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct Box2f
   {
-    public vec2 _min;
-    public vec2 _max;
+    [DataMember] public vec2 _min;
+    [DataMember] public vec2 _max;
 
     public float Width() { return _max.x - _min.x; }
     public float Height() { return _max.y - _min.y; }
@@ -3829,16 +3924,26 @@ namespace PirateCraft
     }
     public override string ToString() { return "" + _min.ToString() + ", " + _max.ToString() + ")"; }
   }
+  [DataContract]
+  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct Box2i
   {
-    public ivec2 _min;
-    public ivec2 _max;
+    [DataMember] public ivec2 _min = new ivec2(0,0);
+    [DataMember] public ivec2 _max = new ivec2(0,0);
     public Box2i(in ivec2 min, in ivec2 max)
     {
       _min = min;
       _max = max;
     }
+    public Box2i(int dx, int dy, int dw, int dh)
+    {
+      x = dx; y = dy; w = dw; h = dh;
+    }
+    public int x { get { return _min.x; } set { _min.x = value; } }
+    public int y { get { return _min.y; } set { _min.y = value; } }
+    public int w { get { return (_max.x - _min.x); } set { _max.x = value + _min.x; } }
+    public int h { get { return (_max.y - _min.y); } set { _max.y = value + _min.y; } }
     public int left() { return _min.x; }
     public int top() { return _min.y; }
     public int right() { return _max.x; }
@@ -3861,11 +3966,13 @@ namespace PirateCraft
     }
     public override string ToString() { return "" + _min.ToString() + ", " + _max.ToString() + ")"; }
   }
+  [DataContract]
+  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct Box3i
   {
-    public ivec3 _min;
-    public ivec3 _max;
+    [DataMember] public ivec3 _min;
+    [DataMember] public ivec3 _max;
     public Box3i(in ivec3 min, in ivec3 max)
     {
       _min = min;
@@ -3905,12 +4012,14 @@ namespace PirateCraft
     public override string ToString() { return "" + _min.ToString() + ", " + _max.ToString() + ")"; }
 
   }
+  [DataContract]
+  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct Box3f
   {
     //Axis aligned bound box
-    public vec3 _min;
-    public vec3 _max;
+    [DataMember] public vec3 _min;
+    [DataMember] public vec3 _max;
     public static Box3f Default { get { return new(new vec3(0, 0, 0), new vec3(1, 1, 1)); } }//Default 1,1,1
     public static Box3f Zero { get { return new(new vec3(0, 0, 0), new vec3(0, 0, 0)); } }//Default 1,1,1
     public Box3f(in vec3 min, in vec3 max)
@@ -4214,13 +4323,13 @@ namespace PirateCraft
       float len = 0;
       if (RayIntersect_t(p, v, ref t))
       {
-        len = (v * t).length2();
+        len = (v * t).len2();
       }
       else
       {
         //The box likely, had no volume, or, was invalid min/max. Use Center
         //This is still an error, if the box has no volume then the object is invalid.
-        len = v.length2();
+        len = v.len2();
         Gu.DebugBreak();
       }
 
@@ -4975,15 +5084,34 @@ namespace PirateCraft
     public override string ToString() { return "" + _min.ToString() + ", " + _max.ToString() + ")"; }
 
   }
+  [DataContract]
+  [Serializable]
+  public class Trianglef
+  {
+    [DataMember] public vec3[] _v;
+    public Trianglef(vec3 p0, vec3 p1, vec3 p2)
+    {
+      _v = new vec3[] { p0, p1, p2 };
+    }
+    public Plane3f GetPlane()
+    {
+      return new Plane3f(_v[0], _v[1], _v[2]);
+    }
+  }
+  [DataContract]
+  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct OOBox3f
   {
     //Object oriented bound box
+    //no order is specified here, but in this engine we use
+    //   LeftBotNear,RBN,LTN,RTN,LBF,RBF,LTF,RTF,
     public const int VertexCount = 8;
-    public vec3[] Verts = new vec3[VertexCount];
+    [DataMember] public vec3[] Verts = new vec3[VertexCount];
     public OOBox3f() { }
     public OOBox3f(vec3 i/*min*/, vec3 a/*max*/)
     {
+      //Creates an AABB
       Verts[0] = new vec3(i.x, i.y, i.z);
       Verts[1] = new vec3(a.x, i.y, i.z);
       Verts[2] = new vec3(i.x, a.y, i.z);
@@ -4993,8 +5121,58 @@ namespace PirateCraft
       Verts[6] = new vec3(i.x, a.y, a.z);
       Verts[7] = new vec3(a.x, a.y, a.z);
     }
+    public vec3 Center
+    {
+      get
+      {
+        return Verts[0] + (Verts[7] - Verts[0]) * 0.5f;
+      }
+    }
+    public void GetTrianglesAndPlanes(out Trianglef[] tris, out Plane3f[] planes, bool triangles_face_outside = true)
+    {
+      //CCW winding in RHS normals point inside
+      tris = new Trianglef[] {
+        new Trianglef( Verts[4], Verts[2], Verts[0]),//l0
+        new Trianglef( Verts[4], Verts[6], Verts[2]),//l1
 
+        new Trianglef( Verts[1], Verts[3], Verts[5]),//r0
+        new Trianglef( Verts[5], Verts[3], Verts[7]),//r1
+
+        new Trianglef( Verts[0], Verts[1], Verts[4]),//b0
+        new Trianglef( Verts[1], Verts[5], Verts[4]),//b1
+
+        new Trianglef( Verts[6], Verts[7], Verts[3]),//t0
+        new Trianglef( Verts[6], Verts[3], Verts[2]),//t1
+
+        new Trianglef( Verts[0], Verts[2], Verts[1]),//n0
+        new Trianglef( Verts[1], Verts[2], Verts[3]),//n1
+
+        new Trianglef( Verts[4], Verts[6], Verts[7]),//f0
+        new Trianglef( Verts[4], Verts[7], Verts[5]),//f1
+      };
+
+      planes = new Plane3f[] {
+        new Plane3f( Verts[4], Verts[2], Verts[0]),//l
+        new Plane3f( Verts[1], Verts[3], Verts[5]),//r
+        new Plane3f( Verts[0], Verts[1], Verts[4]),//b
+        new Plane3f( Verts[3], Verts[2], Verts[6]),//t
+        new Plane3f( Verts[0], Verts[2], Verts[1]),//n
+        new Plane3f( Verts[5], Verts[7], Verts[6]),//f
+      };
+      if (triangles_face_outside)
+      {
+        foreach (var tr in tris)
+        {
+          var x = tr._v[0];
+          tr._v[0] = tr._v[1];
+          tr._v[1] = x;
+        }
+      }
+
+    }
   }
+  [DataContract]
+  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct vec3basis
   {
@@ -5003,231 +5181,66 @@ namespace PirateCraft
     public vec3 y = vec3.Zero;
     public vec3 z = vec3.Zero;
   }
-  public static class BinaryWriterExtensions
+  [DataContract]
+  [Serializable]
+  public class ConvexHull
   {
-    public static void Write(this System.IO.BinaryWriter writer, vec2 v)
+    [DataMember] public Plane3f[] Planes;
+    public ConvexHull(Plane3f[] planes)
     {
-      writer.Write((float)v.x);
-      writer.Write((float)v.y);
+      Planes = planes;
     }
-    public static void Write(this System.IO.BinaryWriter writer, vec3 v)
+    public bool HasBox(Box3f box)
     {
-      writer.Write((float)v.x);
-      writer.Write((float)v.y);
-      writer.Write((float)v.z);
+      return ConvexHull.HasBox(box, this.Planes);
     }
-    public static void Write(this System.IO.BinaryWriter writer, vec4 v)
+    public static bool HasBox(Box3f box, Plane3f[] planes)
     {
-      writer.Write((float)v.x);
-      writer.Write((float)v.y);
-      writer.Write((float)v.z);
-      writer.Write((float)v.w);
-    }
-    public static void Write(this System.IO.BinaryWriter writer, ivec2 v)
-    {
-      writer.Write((Int32)v.x);
-      writer.Write((Int32)v.y);
-    }
-    public static void Write(this System.IO.BinaryWriter writer, ivec3 v)
-    {
-      writer.Write((Int32)v.x);
-      writer.Write((Int32)v.y);
-      writer.Write((Int32)v.z);
-    }
-    public static void Write(this System.IO.BinaryWriter writer, ivec4 v)
-    {
-      writer.Write((Int32)v.x);
-      writer.Write((Int32)v.y);
-      writer.Write((Int32)v.z);
-      writer.Write((Int32)v.w);
-    }
-    public static void Write(this System.IO.BinaryWriter writer, mat3 v)
-    {
-      writer.Write((float)v._m11);
-      writer.Write((float)v._m12);
-      writer.Write((float)v._m13);
+      Gu.Assert(planes != null && planes.Length > 3);
+      vec3 min, max;
+      float d1, d2;
+      if (!box.Validate(false, false))
+      {
+        Gu.Log.ErrorCycle("Box was invalid");
+        Gu.DebugBreak();
+        return false;
+      }
 
-      writer.Write((float)v._m21);
-      writer.Write((float)v._m22);
-      writer.Write((float)v._m23);
+      foreach (var p in planes)
+      {
+        min = box._min;
+        max = box._max;
 
-      writer.Write((float)v._m31);
-      writer.Write((float)v._m32);
-      writer.Write((float)v._m33);
-    }
-    public static void Write(this System.IO.BinaryWriter writer, mat4 v)
-    {
-      writer.Write((float)v._m11);
-      writer.Write((float)v._m12);
-      writer.Write((float)v._m13);
-      writer.Write((float)v._m14);
+        //  - Calculate the negative and positive vertex
+        if (p.n.x < 0)
+        {
+          min.x = box._max.x;
+          max.x = box._min.x;
+        }
 
-      writer.Write((float)v._m21);
-      writer.Write((float)v._m22);
-      writer.Write((float)v._m23);
-      writer.Write((float)v._m24);
+        if (p.n.y < 0)
+        {
+          min.y = box._max.y;
+          max.y = box._min.y;
+        }
 
-      writer.Write((float)v._m31);
-      writer.Write((float)v._m32);
-      writer.Write((float)v._m33);
-      writer.Write((float)v._m34);
+        if (p.n.z < 0)
+        {
+          min.z = box._max.z;
+          max.z = box._min.z;
+        }
 
-      writer.Write((float)v._m41);
-      writer.Write((float)v._m42);
-      writer.Write((float)v._m43);
-      writer.Write((float)v._m44);
-    }
-    public static void Write(this System.IO.BinaryWriter writer, quat v)
-    {
-      writer.Write((float)v.x);
-      writer.Write((float)v.y);
-      writer.Write((float)v.z);
-      writer.Write((float)v.w);
-    }
-    public static void Write(this System.IO.BinaryWriter writer, Box3f box)
-    {
-      writer.Write((vec3)box._min);
-      writer.Write((vec3)box._max);
-    }
-    public static void Write(this System.IO.BinaryWriter writer, DateTime dt)
-    {
-      //https://stackoverflow.com/questions/15919598/serialize-datetime-as-binary
-      writer.Write((long)dt.Ticks);
-    }
-    public static void Write<T>(this System.IO.BinaryWriter writer, T[] items) where T : struct
-    {
-      var d = ResourceManager.Serialize(items);
-      writer.Write((Int32)d.Length);
-      writer.Write(d);
-    }
+        d1 = p.Distance(max);
+        d2 = p.Distance(min);
 
-
-    public static vec2 ReadVec2(this System.IO.BinaryReader reader)
-    {
-      vec2 ret = new vec2();
-      ret.x = reader.ReadSingle();
-      ret.y = reader.ReadSingle();
-      return ret;
+        if (d1 < 0.0f && d2 < 0.0f)
+        {
+          return false;
+        }
+      }
+      return true;
     }
-    public static vec3 ReadVec3(this System.IO.BinaryReader reader)
-    {
-      vec3 ret = new vec3();
-      ret.x = reader.ReadSingle();
-      ret.y = reader.ReadSingle();
-      ret.z = reader.ReadSingle();
-      return ret;
-    }
-    public static vec4 ReadVec4(this System.IO.BinaryReader reader)
-    {
-      vec4 v = new vec4();
-      v.x = reader.ReadSingle();
-      v.y = reader.ReadSingle();
-      v.z = reader.ReadSingle();
-      v.w = reader.ReadSingle();
-      return v;
-    }
-    public static ivec2 ReadIVec2(this System.IO.BinaryReader reader)
-    {
-      ivec2 v = new ivec2();
-      v.x = reader.ReadInt32();
-      v.y = reader.ReadInt32();
-      return v;
-    }
-    public static ivec3 ReadIVec3(this System.IO.BinaryReader reader)
-    {
-      ivec3 v = new ivec3();
-      v.x = reader.ReadInt32();
-      v.y = reader.ReadInt32();
-      v.z = reader.ReadInt32();
-      return v;
-    }
-    public static ivec4 ReadIVec4(this System.IO.BinaryReader reader)
-    {
-      ivec4 v = new ivec4();
-      v.x = reader.ReadInt32();
-      v.y = reader.ReadInt32();
-      v.z = reader.ReadInt32();
-      v.w = reader.ReadInt32();
-      return v;
-    }
-    public static mat3 ReadMat3(this System.IO.BinaryReader reader)
-    {
-      mat3 ret = new mat3();
-      ret._m11 = reader.ReadSingle();
-      ret._m12 = reader.ReadSingle();
-      ret._m13 = reader.ReadSingle();
-      ret._m21 = reader.ReadSingle();
-      ret._m22 = reader.ReadSingle();
-      ret._m23 = reader.ReadSingle();
-      ret._m31 = reader.ReadSingle();
-      ret._m32 = reader.ReadSingle();
-      ret._m33 = reader.ReadSingle();
-      return ret;
-    }
-    public static mat4 ReadMat4(this System.IO.BinaryReader reader)
-    {
-      mat4 ret = new mat4();
-      ret._m11 = reader.ReadSingle();
-      ret._m12 = reader.ReadSingle();
-      ret._m13 = reader.ReadSingle();
-      ret._m14 = reader.ReadSingle();
-      ret._m21 = reader.ReadSingle();
-      ret._m22 = reader.ReadSingle();
-      ret._m23 = reader.ReadSingle();
-      ret._m24 = reader.ReadSingle();
-      ret._m31 = reader.ReadSingle();
-      ret._m32 = reader.ReadSingle();
-      ret._m33 = reader.ReadSingle();
-      ret._m34 = reader.ReadSingle();
-      ret._m41 = reader.ReadSingle();
-      ret._m42 = reader.ReadSingle();
-      ret._m43 = reader.ReadSingle();
-      ret._m44 = reader.ReadSingle();
-      return ret;
-    }
-    public static quat ReadQuat(this System.IO.BinaryReader reader)
-    {
-      quat v = new quat();
-      v.x = reader.ReadSingle();
-      v.y = reader.ReadSingle();
-      v.z = reader.ReadSingle();
-      v.w = reader.ReadSingle();
-      return v;
-    }
-    public static Box2f ReadBox2f(this System.IO.BinaryReader reader)
-    {
-      Box2f box = new Box2f();
-      box._min = reader.ReadVec2();
-      box._max = reader.ReadVec2();
-      return box;
-    }
-    public static Box3f ReadBox3f(this System.IO.BinaryReader reader)
-    {
-      Box3f box = new Box3f();
-      box._min = reader.ReadVec3();
-      box._max = reader.ReadVec3();
-      return box;
-    }
-    public static DateTime ReadDateTime(this System.IO.BinaryReader reader)
-    {
-      //https://stackoverflow.com/questions/15919598/serialize-datetime-as-binary
-      DateTime dt = new DateTime();
-      var dat = reader.ReadInt64();
-
-      long ticks = (long)(dat & 0x3FFFFFFFFFFFFFFF);
-      DateTimeKind kind = (DateTimeKind)(dat >> 62);
-      DateTime date = new DateTime(ticks, kind);
-
-      return date;
-    }
-    public static T[] Read<T>(this System.IO.BinaryReader reader) where T : struct
-    {
-      Int32 count = reader.ReadInt32();
-      byte[] buf = new byte[count];
-      reader.Read(buf, 0, (Int32)count);
-
-      return ResourceManager.Deserialize<T>(buf);
-    }
-
   }
+
+
 }

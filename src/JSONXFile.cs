@@ -11,7 +11,7 @@ namespace PirateCraft
   public class JSONXSerializeAs : Attribute
   {
     //Serialize a class field into a different name
-    public string Name { get; private set; } = Gu.UnsetName;
+    public string Name { get; private set; } = Library.UnsetName;
     public JSONXSerializeAs(string JSONname) { Name = JSONname; }
   }
 

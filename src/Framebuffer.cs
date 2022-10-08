@@ -1,17 +1,37 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using OpenTK.Graphics.OpenGL4;
+using System.Runtime.Serialization;
 
 namespace PirateCraft
 {
   public enum RenderTargetType
   {
-    Color,
-    Depth,
-    Pick,
+    Color,//vec4
+    Depth,//float
+    Pick, //uint
+  }
+  public enum ShaderOutput
+  {
+    [Description("Color")] Color,
+    [Description("Depth")] Depth,
+    [Description("Pick")] Pick,
+    [Description("Normal")] Normal,
+    [Description("Position")] Position,
+    [Description("Plane")] Plane,
+    [Description("Effect")] Effect,
+  }
+  public enum ShaderInput
+  {
+    [Description("_ufMRT_Color")] Color,
+    [Description("_ufMRT_Normal")] Normal,
+    [Description("_ufMRT_Position")] Position,//these are tostring()'d so dont change
+    [Description("_ufMRT_Pick")] Pick,
+    [Description("_ufMRT_Depth")] Depth,
   }
   public enum FramebufferState
   {
@@ -20,8 +40,9 @@ namespace PirateCraft
   }
   public class FramebufferAttachment : HasGpuResources
   {
-    public Texture2D Texture { get; set; } = null;
+    public Texture Texture { get; set; } = null;
     public RenderTargetType TargetType { get; set; } = RenderTargetType.Color;
+    public string Name { get; private set; } = Library.UnsetName;
 
     public bool IsMsaaEnabled
     {
@@ -44,17 +65,16 @@ namespace PirateCraft
     }
 
     private FramebufferAttachment() { }
-    public string OutputName { get; private set; } = Gu.UnsetName;
-    public FramebufferAttachment(string outputName, RenderTargetType eTargetType, int w, int h, int nMsaaSamples)
+    public FramebufferAttachment(string name, RenderTargetType eTargetType, int w, int h, int nMsaaSamples)
     {
-      OutputName = outputName;
+      Name = name;
       if (eTargetType == RenderTargetType.Depth)
       {
         // inf._iLayoutIndex = -1; //layout index doens't matter for depth
         // inf._eAttachment = OpenTK.Graphics.OpenGL4.FramebufferAttachment.DepthAttachment;
 
         //_eBlitBit = ClearBufferMask.DepthBufferBit;
-        Texture = new Texture2D(outputName, w, h, nMsaaSamples);
+        Texture = new Texture(name, w, h, nMsaaSamples);
       }
       else
       {
@@ -63,41 +83,38 @@ namespace PirateCraft
         PixelType dataType;
         if (eTargetType == RenderTargetType.Pick)
         {
-
           internalFormat = PixelInternalFormat.R32ui;
           texFormat = PixelFormat.RedInteger;
           dataType = PixelType.UnsignedInt;
-
         }
         else
         {
-
           internalFormat = PixelInternalFormat.Rgba32f;
           texFormat = PixelFormat.Rgba;
           dataType = PixelType.Float;
         }
 
         // _eBlitBit = ClearBufferMask.ColorBufferBit;
-        Texture = new Texture2D(outputName, internalFormat, texFormat, dataType, w, h, nMsaaSamples);
+        Texture = new Texture(name, internalFormat, texFormat, dataType, w, h, nMsaaSamples);
       }
       TargetType = eTargetType;
     }
     public override void Dispose_OpenGL_RenderThread()
     {
-      Texture.Dispose();
+      Texture.GpuTexture.Dispose();
       Texture = null;
     }
   }
   public class FramebufferBinding
   {
-    public FramebufferAttachment Attachment = null;
+    public PipelineAttachment Attachment = null;
     public int LayoutIndex;// The (layout = 0).. in the shader
     public GLenum BindingIndex;//GL_COLORATTACHMENT_0 + n
     public BlendingFactorSrc SrcRGB = BlendingFactorSrc.One;
     public BlendingFactorDest DstRGB = BlendingFactorDest.Zero;
     public BlendingFactorSrc SrcAlpha = BlendingFactorSrc.One; //one/zero = disable blend
     public BlendingFactorDest DstAlpha = BlendingFactorDest.Zero;
-    public FramebufferBinding(FramebufferAttachment at, int index)
+    public FramebufferBinding(PipelineAttachment at, int index)
     {
       Attachment = at;
       LayoutIndex = index;
@@ -139,11 +156,11 @@ namespace PirateCraft
       {
         if (Attachment.IsMsaaEnabled)
         {
-          GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, OpenTK.Graphics.OpenGL4.FramebufferAttachment.DepthAttachment, TextureTarget.Texture2DMultisample, Attachment.Texture.GetGlId(), 0);
+          GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, OpenTK.Graphics.OpenGL4.FramebufferAttachment.DepthAttachment, TextureTarget.Texture2DMultisample, Attachment.Texture.GlId, 0);
         }
         else
         {
-          GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, OpenTK.Graphics.OpenGL4.FramebufferAttachment.DepthAttachment, TextureTarget.Texture2D, Attachment.Texture.GetGlId(), 0);
+          GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, OpenTK.Graphics.OpenGL4.FramebufferAttachment.DepthAttachment, TextureTarget.Texture2D, Attachment.Texture.GlId, 0);
         }
       }
       else
@@ -151,27 +168,27 @@ namespace PirateCraft
 
         if (Attachment.IsMsaaEnabled)
         {
-          GL.FramebufferTexture2D(FramebufferTarget.DrawFramebuffer, (OpenTK.Graphics.OpenGL4.FramebufferAttachment)BindingIndex, TextureTarget.Texture2DMultisample, Attachment.Texture.GetGlId(), 0);
+          GL.FramebufferTexture2D(FramebufferTarget.DrawFramebuffer, (OpenTK.Graphics.OpenGL4.FramebufferAttachment)BindingIndex, TextureTarget.Texture2DMultisample, Attachment.Texture.GlId, 0);
         }
         else
         {
-          GL.FramebufferTexture2D(FramebufferTarget.DrawFramebuffer, (OpenTK.Graphics.OpenGL4.FramebufferAttachment)BindingIndex, TextureTarget.Texture2D, Attachment.Texture.GetGlId(), 0);
+          GL.FramebufferTexture2D(FramebufferTarget.DrawFramebuffer, (OpenTK.Graphics.OpenGL4.FramebufferAttachment)BindingIndex, TextureTarget.Texture2D, Attachment.Texture.GlId, 0);
         }
       }
       Gpu.CheckGpuErrorsDbg();
     }
   }
+  [DataContract]
   public class FramebufferGeneric : OpenGLResource
   {
-    public const string c_strPickMRT_DF = "PickMRT-shared";
-    public const string c_strBlittedDepthMRT_DF = "DepthMRT-shared";
-    public const string c_strBlittedDepthMRT_DF_MSAA = "DepthMRT-shared-MSAA";
     public const int c_iMaxAttachments = 64;
 
-    public List<FramebufferBinding> Bindings { get; private set; } = new List<FramebufferBinding>();
+    [DataMember] public List<FramebufferBinding> Bindings { get; private set; } = new List<FramebufferBinding>();
     public FramebufferState State { get; private set; } = FramebufferState.Not_Initialized;
 
-    public FramebufferGeneric(string label, List<FramebufferAttachment> attachments) : base(label)
+    public ivec2 Size { get { return this.Bindings[0].Attachment.Texture.Size; } }
+
+    public FramebufferGeneric(string label, List<PipelineAttachment> attachments) : base(label)
     {
       //If no output we're default, in that case, no FBO,use PipelineStage's default.
       Gu.Assert(attachments.Count > 0);
@@ -191,6 +208,19 @@ namespace PirateCraft
       Gpu.CheckGpuErrorsRt();
       GL.ActiveTexture(TextureUnit.Texture0);
       Gpu.CheckGpuErrorsRt();
+
+      foreach (var att in attachments)
+      {
+        if (att.Texture.Width != w || att.Texture.Height != h)
+        {
+          /*
+          we are setting blit size in the blit stage of the renderer.
+          different FBO size may never be needed anyway.
+          */
+          Gu.Log.Error("Framebuffer textures were not of equal size. This is not yet supported.");
+          Gu.DebugBreak();
+        }
+      }
 
       // string msaa = 
 
@@ -382,162 +412,5 @@ namespace PirateCraft
     }
 
   }//Framebufferbase
-
-  // public class DeferredFramebuffer : FramebufferGeneric
-  // {
-  //   public const string c_strColorMRT_DF = "ColorMRT-deferred";
-  //   public const string c_strNormalMRT_DF = "NormalMRT-deferred";
-  //   public const string c_strPlaneMRT_DF = "PlaneMRT-deferred";
-  //   public const string c_strPositionMRT_DF = "PositionMRT-deferred";
-
-  //   public DeferredFramebuffer(bool bMultisample, int nSamples, vec4 vClear) : base("Deferred_FBO", bMultisample, nSamples, vClear)
-  //   {
-  //     //  _pBloomVaoPass = NULL;
-  //   }
-  //   //virtual ~DeferredFramebuffer() override;
-
-  //   public override void Init(int w, int h, FramebufferAttachment sharedDepth, FramebufferAttachment sharedPick)
-  //   {
-  //     DeleteTargets();
-
-  //     bool _bUseRenderBuffer = false;
-
-  //     //TODO: later we'll create this async.
-  //     //Gd::verifyRenderThread();
-  //     _glId = GL.GenFramebuffer();
-  //     Gpu.CheckGpuErrorsRt();
-
-  //     Bind(FramebufferTarget.Framebuffer);
-
-  //     GL.FramebufferParameter(FramebufferTarget.Framebuffer, FramebufferDefaultParameter.FramebufferDefaultWidth, w);
-  //     Gpu.CheckGpuErrorsRt();
-  //     GL.FramebufferParameter(FramebufferTarget.Framebuffer, FramebufferDefaultParameter.FramebufferDefaultHeight, h);
-  //     Gpu.CheckGpuErrorsRt();
-  //     GL.ActiveTexture(TextureUnit.Texture0);
-  //     Gpu.CheckGpuErrorsRt();
-
-  //     string msaa = this._bMsaaEnabled ? "-msaa" : "";
-  //     // - Textures
-  //     //Don't change the names here, we reference them elsewhere *yikes*
-  //     //These must match the order in the shader
-  //     AddAttachment(c_strColorMRT_DF + msaa, PixelInternalFormat.Rgba32f, PixelFormat.Rgba, PixelType.Float, w, h, RenderTargetType.Color);//0
-  //     AddAttachment(sharedPick);//1
-  //     AddAttachment(c_strNormalMRT_DF + msaa, PixelInternalFormat.Rgba32f, PixelFormat.Rgba, PixelType.Float, w, h, RenderTargetType.Normal);//2
-  //     AddAttachment(c_strPositionMRT_DF + msaa, PixelInternalFormat.Rgba32f, PixelFormat.Rgba, PixelType.Float, w, h, RenderTargetType.Position);//3 GL_RGBA32F GL_RGBA GL_FLOAT
-  //     AddAttachment(c_strPlaneMRT_DF + msaa, PixelInternalFormat.Rgba32f, PixelFormat.Rgba, PixelType.Float, w, h, RenderTargetType.Mat0);//4
-  //     sharedDepth.Attach();
-
-  //     CheckFramebufferComplete();
-
-  //     SetObjectLabel();
-
-  //     Unbind(FramebufferTarget.DrawFramebuffer);
-  //     UnbindRenderbuffer();
-
-  //     _eState = FramebufferState.Initialized;
-  //   }
-
-  //   public override void BeginRender()
-  //   {
-  //     if (_eState != FramebufferState.Initialized)
-  //     {
-  //       Gu.BRThrowException("Framebuffer was not initialized.");
-  //     }
-
-  //     Bind(FramebufferTarget.DrawFramebuffer);
-  //     UnbindRenderbuffer();
-  //     SetDrawAllTargets();
-
-  //     //NOTE:
-  //     //CRITICAL that clear color is zero here.
-  //     // Otherwise the color somehow shows up in random places getting
-  //     // blended with other colors..
-  //     GL.ClearColor(ClearColor.r, ClearColor.g, ClearColor.b, ClearColor.a);
-  //     GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-  //     Gpu.CheckGpuErrorsDbg();
-  //   }
-  //   public override void EndRender()
-  //   {
-  //     Unbind(FramebufferTarget.DrawFramebuffer);
-  //   }
-
-  // }
-  // public class ForwardFramebuffer : FramebufferGeneric
-  // {
-  //   public const string c_strColorMRT_FW = "ColorMRT-forward";
-
-  //   public ForwardFramebuffer(bool bMsaa, int nMsaa, vec4 vClear) : base("Forward_Framebuffer", bMsaa, nMsaa, vClear)
-  //   {
-  //   }
-  //   public override void Init(int iWidth, int iHeight, FramebufferAttachment sharedDepth, FramebufferAttachment sharedPick)
-  //   {
-  //     DeleteTargets();
-
-  //     GL.UseProgram(0);
-  //     Unbind(FramebufferTarget.Framebuffer);
-  //     UnbindRenderbuffer();
-
-  //     _glId = GL.GenFramebuffer();
-  //     GL.BindFramebuffer(FramebufferTarget.Framebuffer, _glId);
-  //     GL.FramebufferParameter(FramebufferTarget.Framebuffer, FramebufferDefaultParameter.FramebufferDefaultWidth, iWidth);
-  //     GL.FramebufferParameter(FramebufferTarget.Framebuffer, FramebufferDefaultParameter.FramebufferDefaultHeight, iHeight);
-  //     Gpu.CheckGpuErrorsRt();
-  //     string msaa = this._bMsaaEnabled ? "-msaa" : "";
-
-  //     AddAttachment(c_strColorMRT_FW + msaa, PixelInternalFormat.Rgba32f, PixelFormat.Rgba, PixelType.Float, iWidth, iHeight, RenderTargetType.Color);
-  //     AddAttachment(sharedPick);
-  //     sharedDepth.Attach();
-
-  //     CheckFramebufferComplete();
-
-  //     SetObjectLabel();
-
-  //     //Return to default.
-  //     GL.UseProgram(0);
-
-  //     Unbind(FramebufferTarget.Framebuffer);
-  //     UnbindRenderbuffer();
-
-  //     _eState = FramebufferState.Initialized;
-  //   }
-
-
-  //   public override void BeginRender()
-  //   {
-  //     if (_eState != FramebufferState.Initialized)
-  //     {
-  //       Gu.BRThrowException("Framebuffer was not initialized.");
-  //     }
-
-  //     //Clear all buffers
-  //     Bind(FramebufferTarget.DrawFramebuffer);
-  //     UnbindRenderbuffer();//_depthRenderBufferId);
-
-  //     //Do not clear! - previous deferred operation is in here. (clear happens in clearFb)
-  //     //**Do not clear***
-  //     //**Do not clear***
-  //     //**Do not clear***
-  //     //**Do not clear***
-  //     //**Do not clear***
-  //     //**Do not clear***
-
-  //   }
-  //   public override void EndRender()
-  //   {
-  //     //noting
-  //   }
-  //   public void ClearSharedFb()
-  //   {
-  //     //Call this before we begin the defrred
-  //     Bind(FramebufferTarget.DrawFramebuffer);
-  //     UnbindRenderbuffer();
-  //     SetDrawAllTargets();
-
-  //     GL.ClearColor(ClearColor.r, ClearColor.g, ClearColor.b, ClearColor.a);
-  //     GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-  //     Unbind(FramebufferTarget.DrawFramebuffer);
-  //   }
-
-  // };
 
 }//NS piratecarft

@@ -1,16 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Threading;
 using OpenTK.Graphics.OpenGL4;
+using System.Runtime.Serialization;
 namespace PirateCraft
 {
   public abstract class HasGpuResources : IDisposable
   {
     //We may need weak reference here
-    protected WindowContext Context {get; private set;}= null;
+    protected WindowContext Context { get; private set; } = null;
     bool _disposed = false;
     public abstract void Dispose_OpenGL_RenderThread();
     public HasGpuResources()
@@ -43,21 +40,12 @@ namespace PirateCraft
       }
     }
   }
-  // public abstract class OpenGLContextData : HasGpuResources
-  // {
-  //   Dictionary<WeakReference<WindowContext>, int> Resources;
-  //   public OpenGLContextResource()
-  //   {
-
-  //   }
-
-  // }
-
   public abstract class OpenGLResource : HasGpuResources
   {
     protected int _glId;
-    public int GetGlId() { return _glId; }
+    public int GlId { get { return _glId; } }
 
+    //this is the object lable name
     protected string _name = "";
     public string Name { get { return _name; } }
 
@@ -65,12 +53,12 @@ namespace PirateCraft
     {
       //The context that existed when this was created.
       Gu.Assert(Gu.Context != null);
-      _name = name;
+      _name = Library.MakeDatapathName(name, GetType());
     }
     public void SetObjectLabel()
     {
       ObjectLabelIdentifier? ident = null;
-      if (this is Texture2D)
+      if (this is GpuTexture)
       {
         ident = ObjectLabelIdentifier.Texture;
       }
@@ -86,7 +74,7 @@ namespace PirateCraft
       {
         ident = ObjectLabelIdentifier.Shader;
       }
-      else if (this is ContextShader)
+      else if (this is GpuShader)
       {
         ident = ObjectLabelIdentifier.Program;
       }
@@ -100,18 +88,21 @@ namespace PirateCraft
       }
       if (ident != null)
       {
+        //var name = Lib.MakeDatapathName(this.Name, GetType());
         GL.ObjectLabel(ident.Value, _glId, _name.Length, _name);
       }
     }
-
   }
-
-  public abstract class OpenGLContextDataManager<T> where T : class
+  [DataContract]
+  [Serializable]
+  public abstract class OpenGLContextDataManager<T> : DataBlock where T : class
   {
-    protected Dictionary<WindowContext, T> _contextData = new Dictionary<WindowContext, T>();
+    [NonSerialized] protected Dictionary<WindowContext, T> _contextData = new Dictionary<WindowContext, T>();
     protected abstract T CreateNew();
 
-    public OpenGLContextDataManager()
+    protected OpenGLContextDataManager() { }//clone/serialize
+
+    public OpenGLContextDataManager(string name) : base(name)
     {
     }
     protected T GetDataForContext(WindowContext ct)

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Runtime.Serialization;
 using OpenTK.Graphics.OpenGL4;
 
 namespace PirateCraft
@@ -129,52 +130,52 @@ namespace PirateCraft
   };
 
   #endregion
-
+  [DataContract]
+  [Serializable]
   public class VertexComponent
   {
-    public int SizeBytes { get; set; }
-    public int ComponentCount { get; set; }
-    public VertexAttribPointerType DataType { get; set; }
+    public int SizeBytes { get { return _cizeBytes; } set { _cizeBytes = value; } }
+    public int ComponentCount { get { return _componentCount; } set { _componentCount = value; } }
+    public VertexAttribPointerType DataType { get { return _dataType; } set { _dataType = value; } }
+    public VertexComponentType UserType { get { return _userType; } set { _userType = value; } }
+    public int ByteOffset { get { return _byteOffset; } set { _byteOffset = value; } }
+    public int AttribLocation { get { return _attribLocation; } set { _attribLocation = value; } }
+    public string Name { get { return _name; } set { _name = value; } }// _v2 _c4 ...
     public int AttributeType { get { return VertexFormat.ComputeAttributeType((int)DataType, ComponentCount); } }
-    public VertexComponentType UserType { get; set; }
-    public int ByteOffset { get; set; }
-    public int AttribLocation { get; set; } //Attrib Location
-    public string Name { get; set; }// _v2 _c4 ...
 
-    //int32_t getSizeBytes() { return _iSizeBytes; }
-    //  int32_t getComponentCount() { return _iComponentCount; }
-    //  GLenum getDataType() { return _eDataType; }
-    //  GLenum getAttributeType();
-    //  VertexUserType getUserType() { return _eUserType; }
-    //  int32_t getByteOffset() { return _iByteOffset; }
-    //  int32_t getLocation() { return _iLocation; }
-    //  string_t getUserTypeName();
-
-    //  private:
-    //friend class VertexFormat;
-    //int32_t _iSizeBytes;
-    //int32_t _iComponentCount;
-    //GLenum _eDataType;
-    //VertexUserType _eUserType = VertexUserType::NoVertexType;
-    //int32_t _iLocation;
-    //int32_t _iByteOffset;
-  };
-  public class VertexFormat
+    [DataMember] public int _cizeBytes = 0;
+    [DataMember] public int _componentCount = 0;
+    [DataMember] public VertexAttribPointerType _dataType = VertexAttribPointerType.Float;
+    [DataMember] public VertexComponentType _userType = VertexComponentType.v3_01;
+    [DataMember] public int _byteOffset = 0;
+    [DataMember] public int _attribLocation = 0;
+    [DataMember] public string _name = Library.UnsetName;
+  }
+  [DataContract]
+  [Serializable]
+  public class VertexFormat : DataBlock
   {
     //Format for interleaved vertexes
     #region Private:Members
 
-    private static Dictionary<string, VertexFormat> _formats = new Dictionary<string, VertexFormat>();
+    [NonSerialized] private static Dictionary<string, VertexFormat> _formats = new Dictionary<string, VertexFormat>();
 
     #endregion
     #region Public:Members
 
-    public Dictionary<VertexComponentType, VertexComponent> Components { get; private set; } = new Dictionary<VertexComponentType, VertexComponent>();
-    public int VertexSizeBytes_WithoutPadding { get; private set; } = 0; //Size of all added components - neglecting padding. (pretty much useless)
-    public int VertexSizeBytes { get; private set; } = 0; // Size of the vert, including padding
-    public string Name { get; private set; } = "Undefind vtx format";
+    public Dictionary<VertexComponentType, VertexComponent> Components { get { return _components; } private set { _components = value; } }
+    public int VertexSizeBytes_WithoutPadding { get { return _vertexSizeBytes_WithoutPadding; } private set { _vertexSizeBytes_WithoutPadding = value; } }  //Size of all added components - neglecting padding. (pretty much useless)
+    public int VertexSizeBytes { get { return _vertexSizeBytes; } private set { _vertexSizeBytes = value; } } // Size of the vert, including padding
     public int MaxLocation { get { return Components.Count; } }
-    public Type Type { get; private set; } = null;
+    public Type Type { get { return _type; } private set { _type = value; } }
+
+    [NonSerialized] private Dictionary<VertexComponentType, VertexComponent> _components = new Dictionary<VertexComponentType, VertexComponent>();
+    [NonSerialized] private int _vertexSizeBytes_WithoutPadding = 0; //Size of all added components - neglecting padding. (pretty much useless)
+    [NonSerialized] private int _vertexSizeBytes = 0; // Size of the vert, including padding
+    [NonSerialized] private Type _type = null;
+    //not sure about this.
+    [DataMember] private string _typeString = Library.UnsetName;
+    //not sure about this.
 
     #endregion
     #region Public:Static Methods
@@ -355,10 +356,11 @@ namespace PirateCraft
     #endregion
     #region Public:Methods
 
-    public VertexFormat(string name, Type t)
+    public VertexFormat(string name, Type t) : base(name)
     {
       Name = name;
       Type = t;
+      _typeString = t.ToString();
     }
     public int GetComponentOffset(VertexComponentType t)
     {
@@ -764,10 +766,10 @@ namespace PirateCraft
     {
       string strFormat = vertexType.Name;
 
-//*** THIS SUCKS
-//*** THIS SUCKS
-// TODO: Reflection and get teh field infos, and deduce them by their field names.
-//Don't use the class name itself.....
+      //*** THIS SUCKS
+      //*** THIS SUCKS
+      // TODO: Reflection and get teh field infos, and deduce them by their field names.
+      //Don't use the class name itself.....
 
       //an even easier way to declare shader input vertexes. 
       // Format will get parsed v_xxyyzzww.. name is arbitrary
@@ -1007,47 +1009,49 @@ namespace PirateCraft
   [StructLayout(LayoutKind.Sequential)]
   public struct v_v3c4
   {
-    public vec3 _v;
-    public vec4 _c;
+    [DataMember] public vec3 _v;
+    [DataMember] public vec4 _c;
   }
   //Base object vertex, with picking<
+  [DataContract]
   [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct v_v3n3x2t3u1
   {
-    public vec3 _v;
-    public vec3 _n;
-    public vec2 _x;
-    public vec3 _t;
+    [DataMember] public vec3 _v;
+    [DataMember] public vec3 _n;
+    [DataMember] public vec2 _x;
+    [DataMember] public vec3 _t;
     public uint _u;//Face ID, note this is convenient just because we had a pad value.
   }
   //GlobVert
+  [DataContract]
   [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct v_v3n3x2u1
   {
-    public vec3 _v; //3   = 3
-    public vec3 _n; //3   = 9
-    public vec2 _x; //2   = 11
-    public uint _u; // 1  = 12  => 12%4=0
+    [DataMember] public vec3 _v; //3   = 3
+    [DataMember] public vec3 _n; //3   = 9
+    [DataMember] public vec2 _x; //2   = 11
+    [DataMember] public uint _u; // 1  = 12  => 12%4=0
   }
   //v_GuiVert
   [StructLayout(LayoutKind.Sequential)]
   public struct v_v4v4v4v2u2v4v4
   {
-    public vec4 _rect;
-    public vec4 _clip;
-    public vec4 _tex;
-    public vec2 _texsiz;
-    public uvec2 _pick_color;
-    public vec4 _rtl_rtr; //css corners = tl, tr, br, bl = xyzw
-    public vec4 _rbr_rbl;
+    [DataMember] public vec4 _rect;
+    [DataMember] public vec4 _clip;
+    [DataMember] public vec4 _tex;
+    [DataMember] public vec2 _texsiz;
+    [DataMember] public uvec2 _pick_color;
+    [DataMember] public vec4 _rtl_rtr; //css corners = tl, tr, br, bl = xyzw
+    [DataMember] public vec4 _rbr_rbl;
   };
   [StructLayout(LayoutKind.Sequential)]
   public struct v_v3x2
   {
-    public vec3 _v;
-    public vec2 _x;
+    [DataMember] public vec3 _v;
+    [DataMember] public vec2 _x;
   };
   //Billboard Quad Vert
   // [StructLayout(LayoutKind.Sequential)]

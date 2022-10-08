@@ -1,4 +1,5 @@
-﻿using OpenTK.Windowing.Desktop;
+﻿using OpenTK.Graphics.OpenGL4;
+using OpenTK.Windowing.Desktop;
 using System;
 
 namespace PirateCraft
@@ -82,7 +83,6 @@ namespace PirateCraft
     public FrameDataTimer ContextFrameTimer = new FrameDataTimer();
     public Renderer Renderer { get; private set; } = null;
     public DebugDraw DebugDraw { get; private set; } = new DebugDraw();
-    //public SynchronizationContext UpdateSyncContext{ get; private set; }
 
     public WindowContext(string name, UiWindowBase g)
     {
@@ -101,7 +101,6 @@ namespace PirateCraft
       ContextFrameTimer.Update();
       PCKeyboard.Update();
       PCMouse.Update();
-      DebugDraw.BeginFrame();
     }
   }
 }

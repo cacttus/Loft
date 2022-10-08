@@ -1,5 +1,5 @@
 ﻿using OpenTK.Graphics.OpenGL4;
-using OpenTK.Windowing.GraphicsLibraryFramework;
+using System.Runtime.Serialization;
 
 namespace PirateCraft
 {
@@ -57,6 +57,21 @@ namespace PirateCraft
     {
       _camera = new WeakReference<Camera3D>(cam);
     }
+    public vec2 WidthHeightForDepth(float depthz)
+    {
+      vec2 r = vec2.Zero;
+      if (_camera != null && _camera.TryGetTarget(out Camera3D cam))
+      {
+        if (cam.View != null && cam.View.TryGetTarget(out var view))
+        {
+          float tanfov2 = MathUtils.tanf(cam.FOV / 2.0f);
+          float ar = (float)view.Viewport.Width / (float)view.Viewport.Height;
+          r.x = tanfov2 * depthz * 2.0f;
+          r.y = r.x / ar;
+        }
+      }
+      return r;
+    }
     public void Update()
     {
       if (_camera != null && _camera.TryGetTarget(out Camera3D cam))
@@ -66,30 +81,84 @@ namespace PirateCraft
           //Frustum
           float tanfov2 = MathUtils.tanf(cam.FOV / 2.0f);
           float ar = (float)view.Viewport.Width / (float)view.Viewport.Height;
-
-          //tan(fov2) = w2/near
-          //tan(fov2) * near = w2
-          //w/h = w2/h2
-          //(w/h)*h2 = w2
-          //w2/(w/h) = h2
-          _widthNear = tanfov2 * cam.Near * 2;
+          _widthNear = tanfov2 * cam.Near * 2.0f;
           _heightNear = _widthNear / ar;
-          _widthFar = tanfov2 * cam.Far * 2;
+          _widthFar = tanfov2 * cam.Far * 2.0f;
           _heightFar = _widthFar / ar;
 
           NearCenter = cam.Position_World + cam.BasisZ * cam.Near;
           FarCenter = cam.Position_World + cam.BasisZ * cam.Far;
-          //X is right in RHS
           NearTopLeft = NearCenter - cam.BasisX * _widthNear * 0.5f + cam.BasisY * _heightNear * 0.5f;
           FarTopLeft = FarCenter - cam.BasisX * _widthFar * 0.5f + cam.BasisY * _heightFar * 0.5f;
 
-          ConstructPointsAndPlanes(FarCenter, NearCenter, cam.BasisY, cam.BasisX, _widthNear, _widthFar, _heightNear, _heightFar);
+          ConstructPointsAndPlanes(FarCenter, NearCenter, cam.BasisY, cam.BasisX, _widthNear * 0.5f, _widthFar * 0.5f, _heightNear * 0.5f, _heightFar * 0.5f);
         }
       }
     }
-    public Line3f? ScreenToWorld(vec2 point_on_screen_topleftorigin, TransformSpace space = TransformSpace.World, float additionalZDepthNear = 0, float maxDistance = -1)
+    public OOBox3f? BeamcastWorld(vec2 p0, vec2 p1, float begin = 1.01f, float end = -1)
     {
-      //Returns null if the camera or view are not set.
+      //beam cast to the end of the view frustum, does not go beyond frustum.
+      //p0,p1 -> mouse coords top left window
+      //begin/end - begin and end of frustum depth, 
+      //point order: LeftBotNear,RBN,LTN,RTN,LBF,RBF,LTF,RTF,
+      OOBox3f? ret = null;
+      if (_camera != null && _camera.TryGetTarget(out var cam))
+      {
+        if (cam.View != null && cam.View.TryGetTarget(out var view))
+        {
+          float p0x = (float)p0.x / (float)view.Viewport.Width;
+          float p1x = (float)p1.x / (float)view.Viewport.Width;
+          float p0y = (float)(view.Viewport.Height - p0.y) / (float)view.Viewport.Height;
+          float p1y = (float)(view.Viewport.Height - p1.y) / (float)view.Viewport.Height;
+
+          end = end < 0 ? cam.Far : end;
+          vec2 farwh = WidthHeightForDepth(end);
+          vec2 nearwh = WidthHeightForDepth(cam.Near);
+
+          var nbl = cam.Position_World + cam.BasisZ * begin - cam.BasisX * nearwh.x * 0.5f - cam.BasisY * nearwh.y * 0.5f;
+          var fbl = cam.Position_World + cam.BasisZ * end - cam.BasisX * farwh.x * 0.5f - cam.BasisY * farwh.y * 0.5f;
+          var nx = cam.BasisX * _widthNear;
+          var ny = cam.BasisY * _heightNear;
+          var fx = cam.BasisX * farwh.x;
+          var fy = cam.BasisY * farwh.y;
+
+          //everyting origin to bot left
+          if (p0x > p1x)
+          {
+            var tmp = p1x;
+            p1x = p0x;
+            p0x = tmp;
+          }
+          if (p0y > p1y)
+          {
+            var tmp = p1y;
+            p1y = p0y;
+            p0y = tmp;
+          }
+
+          var b = new OOBox3f();
+          b.Verts = new vec3[]
+          {
+            nbl + nx * p0x + ny * p0y, // nbl
+            nbl + nx * p1x + ny * p0y, // nbr
+            nbl + nx * p0x + ny * p1y, // ntl
+            nbl + nx * p1x + ny * p1y, // ntr
+            
+            fbl + fx * p0x + fy * p0y, // fbl
+            fbl + fx * p1x + fy * p0y, // fbr
+            fbl + fx * p0x + fy * p1y, // ftl
+            fbl + fx * p1x + fy * p1y, // ftr
+          };
+          ret = b;
+
+        }
+      }
+      return ret;
+    }
+    public Line3f? RaycastWorld(vec2 point_on_screen_topleftorigin, TransformSpace space = TransformSpace.World, float additionalZDepthNear = 0, float maxDistance = -1)
+    {
+      //Raycastscreentoworld screen to world
+      //returns a line from the camera lens to the end of the view frustum
       Line3f? pt_ret = null;
 
       if (_camera != null && _camera.TryGetTarget(out var cam))
@@ -100,30 +169,13 @@ namespace PirateCraft
           float left_pct = (float)point_on_screen_topleftorigin.x / (float)view.Viewport.Width;
           float top_pct = (float)point_on_screen_topleftorigin.y / (float)view.Viewport.Height;
 
-          if (space == TransformSpace.Local)
-          {
-            //Transform in local coordinates.
-            vec3 localX = new vec3(1, 0, 0);
-            vec3 localY = new vec3(0, 1, 0);
-            vec3 localZ = new vec3(0, 0, 1);
-            vec3 near_center_local = localZ * cam.Near;
-            vec3 far_center_local = localZ * cam.Far;
-            vec3 ntl = near_center_local - localX * _widthNear + localY * _heightNear;
-            vec3 ftl = far_center_local - localX * _widthFar + localY * _heightFar;
-            pt.p0 = ntl + localX * _widthNear * left_pct + localY * _heightNear * top_pct;
-            pt.p1 = ftl + localX * _widthFar * left_pct + localY * _heightFar * top_pct;
-            pt.p0 += localZ * additionalZDepthNear;
-          }
-          else
-          {
-            pt.p0 = NearTopLeft + cam.BasisX * _widthNear * left_pct - cam.BasisY * _heightNear * top_pct;
-            pt.p1 = FarTopLeft + cam.BasisX * _widthFar * left_pct - cam.BasisY * _heightFar * top_pct;
-            pt.p0 += cam.BasisZ * additionalZDepthNear;
+          pt.p0 = NearTopLeft + cam.BasisX * _widthNear * left_pct - cam.BasisY * _heightNear * top_pct;//***2 -- the times ttwo is a huge error FIX
+          pt.p1 = FarTopLeft + cam.BasisX * _widthFar * left_pct - cam.BasisY * _heightFar * top_pct;
+          pt.p0 += cam.BasisZ * additionalZDepthNear;
 
-            if (maxDistance > 0)
-            {
-              pt.p1 = pt.p0 + (pt.p1 - pt.p0).normalize() * (maxDistance - additionalZDepthNear);
-            }
+          if (maxDistance > 0)
+          {
+            pt.p1 = pt.p0 + (pt.p1 - pt.p0).normalize() * (maxDistance - additionalZDepthNear);
           }
 
           pt_ret = pt;
@@ -254,15 +306,23 @@ namespace PirateCraft
     }
     #endregion
   }
-
+  [DataContract]
   public class Viewport
   {
     //Viewport is in TOP LEFT coordinates.
     // OpenGL = bottom left, we convert this in the renderer
-    public int X { get; set; } = 0;
-    public int Y { get; set; } = 0;
-    public int Width { get; set; } = 1;
-    public int Height { get; set; } = 1;
+    //*Unscaled dimensiosn are the exact window dimensions (default framebuffer)
+    //*Current dimensions are the dimensions scaled to the current framebuffer size
+    public int X { get { return _x; } set { _x = value; } }
+    public int Y { get { return _y; } set { _y = value; } }
+    public int Width { get { return _width; } set { _width = value; } }
+    public int Height { get { return _height; } set { _height = value; } }
+
+    [DataMember] private int _x = 0;
+    [DataMember] private int _y = 0;
+    [DataMember] private int _width = 1;
+    [DataMember] private int _height = 1;
+
     public Viewport() { }
     public Viewport(int x, int y, int w, int h)
     {
@@ -279,242 +339,27 @@ namespace PirateCraft
     }
   }
 
-  //temp location for this class
-  //so, this is separate from picker because picker is generally a rendering layer thing, that comes at the end
-  //of rendering.. this comes within the update, and specifically the world- update- input- control logic
-  // however it is dependent on the current RenderView.
-  public enum InputState
+  public class ViewportOverlay
   {
-    Select,//Global state
-    Camera_Move,//TODO:
-    Camera_Pan, //TODO:
-    Selected_Move
-  }
-  public class KeyMap
-  {
-    //Pretty much, ready for this guy
-    //KeyCombo Ctrl+L
-    //KeyStroke Action KeyCombo(Ctrl+L) | KeyCombo(Ctrl+W)
-  }
-  public class ObjectSelector
-  {
-    public InputState InputState { get; private set; } = InputState.Select;
-    public List<WorldObject> SelectedObjects { get; set; } = new List<WorldObject>();
-
-    private List<PRS> _selectedObjectsPreviousState = new List<PRS>();
-    private vec3 _selectionOrigin = new vec3(0, 0, 0);
-    private Plane3f _selectionPlane = new Plane3f();
-    private bool _xform_XAxis = true;
-    private bool _xform_YAxis = true;
-    private bool _xform_ZAxis = true;
-    private vec2 _xform_MouseStart;
-    private vec2 _xform_WrapCount;
-    private Line3f? _xform_startRay = null;
-
-    public void Update(RenderView v)
+    private int _polygonMode = 0;
+    public bool ShowOverlay = true;//todo:all the overlay booleans, showfaces, shownormals..
+    private RenderView _view;
+    public ViewportOverlay(RenderView rv)
     {
-      var m = Gu.Context.PCMouse;
-      var k = Gu.Context.PCKeyboard;
-
-      if (InputState == InputState.Selected_Move)
+      _view = rv;
+    }
+    public void ToggleWireFrame()
+    {
+      if (_polygonMode == 0)
       {
-        //Grab the delta point 
-        if (k.Press(Keys.X))
-        {
-          if (k.PressOrDown(Keys.LeftShift) || k.PressOrDown(Keys.RightShift))
-          {
-            _xform_XAxis = false;
-            _xform_YAxis = true;
-            _xform_ZAxis = true;
-            _selectionPlane = new Plane3f(new vec3(1, 0, 0), _selectionOrigin);
-          }
-          else
-          {
-            _xform_XAxis = true;
-            _xform_YAxis = false;
-            _xform_ZAxis = false;
-            _selectionPlane = new Plane3f(new vec3(0, 1, 0), _selectionOrigin);
-          }
-        }
-        if (k.Press(Keys.Y))
-        {
-          if (k.PressOrDown(Keys.LeftShift) || k.PressOrDown(Keys.RightShift))
-          {
-            _xform_XAxis = true;
-            _xform_YAxis = false;
-            _xform_ZAxis = true;
-            _selectionPlane = new Plane3f(new vec3(0, 1, 0), _selectionOrigin);
-          }
-          else
-          {
-            _xform_XAxis = false;
-            _xform_YAxis = true;
-            _xform_ZAxis = false;
-            _selectionPlane = new Plane3f(new vec3(1, 0, 0), _selectionOrigin);
-          }
-        }
-        if (k.Press(Keys.Z))
-        {
-          if (k.PressOrDown(Keys.LeftShift) || k.PressOrDown(Keys.RightShift))
-          {
-            _xform_XAxis = true;
-            _xform_YAxis = true;
-            _xform_ZAxis = false;
-            _selectionPlane = new Plane3f(new vec3(0, 0, 1), _selectionOrigin);
-          }
-          else
-          {
-            _xform_XAxis = false;
-            _xform_YAxis = false;
-            _xform_ZAxis = true;
-            _selectionPlane = new Plane3f(new vec3(1, 0, 0), _selectionOrigin);
-          }
-        }
-
-        if (k.Press(Keys.Escape) || m.Press(MouseButton.Right))
-        {
-          //Revert changes
-          Gu.Assert(SelectedObjects.Count == _selectedObjectsPreviousState.Count);
-          for (var obi = 0; obi < _selectedObjectsPreviousState.Count; obi++)
-          {
-            SelectedObjects[obi].SetPRS_Local(_selectedObjectsPreviousState[obi]);
-          }
-          _selectedObjectsPreviousState.Clear();
-
-          InputState = InputState.Select;
-        }
-        else if (k.Press(Keys.Enter) || m.Press(MouseButton.Left))
-        {
-          //Keep changes.
-          InputState = InputState.Select;
-        }
-        else
-        {
-          //wrap mouse
-          var vwrap = Gu.Mouse.WarpMouse(v, WarpMode.Wrap, 0.001f);
-          if (vwrap != null)
-          {
-            _xform_WrapCount += vwrap.Value;
-          }
-          var mouse_wrapped = Gu.Mouse.GetWrappedPosition(v, _xform_WrapCount);
-          var xform_curRay = Gu.CastRayFromScreen(mouse_wrapped);
-
-          //Update
-          if (xform_curRay != null)
-          {
-            vec3 delta_pos = new vec3(0, 0, 0);
-            float tcur = _selectionPlane.IntersectLine(xform_curRay.Value.p0, xform_curRay.Value.p1);
-            //  float tstart = _selectionPlane.IntersectLine(_xform_startRay.Value.p0, _xform_startRay.Value.p1);
-            //  if (tcur >= 0 && tcur <= 1 /*&& tstart >= 0 && tstart <= 1*/)
-            // {
-            //dont check ray for [0,1] because we may be on any side of the plane.
-            //from the projected mouse points, start, and cur, get an "axis ray" that defines the xform axis.
-            //multiply this vector by the mouse movement distance adding wraps
-            var mouse_hit_plane_c = xform_curRay.Value.p0 + (xform_curRay.Value.p1 - xform_curRay.Value.p0) * tcur;
-            // var mouse_hit_plane_s = (_xform_startRay.Value.p1 - _xform_startRay.Value.p0) * tstart;
-            // var axis = mouse_hit_plane_c - mouse_hit_plane_s;
-
-            delta_pos = mouse_hit_plane_c - _selectionOrigin;
-            // }
-            Gu.CustomDebugBreak();
-
-            //Constrain
-            delta_pos = new vec3(
-              delta_pos.x * (_xform_XAxis ? 1.0f : 0.0f),
-              delta_pos.y * (_xform_YAxis ? 1.0f : 0.0f),
-              delta_pos.z * (_xform_ZAxis ? 1.0f : 0.0f)
-            );
-
-            Gu.Assert(SelectedObjects.Count == _selectedObjectsPreviousState.Count);
-            for (var obi = 0; obi < _selectedObjectsPreviousState.Count; obi++)
-            {
-              var newpos = _selectedObjectsPreviousState[obi].Position + delta_pos;
-              SelectedObjects[obi].Position_Local = newpos;
-            }
-          }
-
-
-        }
+        _view.PolygonMode = PolygonMode.Line;
+        _polygonMode = 1;
       }
-      else if (InputState == InputState.Select)
+      else if (_polygonMode == 1)
       {
-        if (m.Press(MouseButton.Left))
-        {
-          bool did_act = false;
-          var ob = Gu.Context.Renderer.Picker.PickedObjectFrame;
-          if (ob is WorldObject)
-          {
-            var wob = ob as WorldObject;
-            if (wob.Selectable)
-            {
-              if (k.PressOrDown(Keys.LeftShift) || k.PressOrDown(Keys.RightShift))
-              {
-                if (!SelectedObjects.Contains(wob))
-                {
-                  SelectedObjects.Add(wob);
-                  did_act = true;
-                }
-                else
-                {
-                  SelectedObjects.Remove(wob);
-                  did_act = true;
-                }
-              }
-              else
-              {
-                if (SelectedObjects.Contains(wob))
-                {
-                  SelectedObjects.Remove(wob);
-                  did_act = true;
-                }
-                else
-                {
-                  SelectedObjects.Clear();
-                  SelectedObjects.Add(wob);
-                  did_act = true;
-                }
-              }
-            }
-          }
-
-          //Deselect all if user clicked something that is not the UI 
-          // but isn't selectable or outside selection
-          if (did_act == false)
-          {
-            if (
-              ((ob is WorldObject) && ((ob as WorldObject).Selectable == false)) ||
-              (ob == null)
-              )
-            {
-              SelectedObjects.Clear();
-            }
-          }
-
-        }
-        else if (k.Press(Keys.G))
-        {
-          if (SelectedObjects.Count > 0)
-          {
-            InputState = InputState.Selected_Move;
-            _selectedObjectsPreviousState.Clear();
-            _selectionOrigin = new vec3();
-            foreach (var ob in SelectedObjects)
-            {
-              _selectionOrigin += ob.Position_World;
-              _selectedObjectsPreviousState.Add(ob.GetPRS_Local());
-            }
-            _selectionOrigin = _selectionOrigin / (float)SelectedObjects.Count;
-            _selectionPlane = new Plane3f(new vec3(0, 1, 0), _selectionOrigin);
-
-            _xform_XAxis = _xform_YAxis = _xform_ZAxis = true;
-            _xform_MouseStart = m.Pos;
-            _xform_WrapCount = new vec2(0, 0);
-            _xform_startRay = Gu.CastRayFromScreen(_xform_MouseStart);
-
-          }
-        }
+        _view.PolygonMode = PolygonMode.Fill;
+        _polygonMode = 0;
       }
-
     }
   }
 
@@ -522,7 +367,7 @@ namespace PirateCraft
   {
     //RenderView: The part of the window in which to render.
     //RenderView needs to use a percentage of the screen not exact coords, since resizing the screen we don't know how big to make the view.
-    public WeakReference<Camera3D> Camera { get; set; } = null;
+    public WeakReference<Camera3D> Camera { get; set; } = null;//i think the idea here is to allow objects to destroy when they are removed from scene
     public Viewport Viewport { get; set; } = null;
     public mat4 ProjectionMatrix { get; private set; } = mat4.Identity;
     public GpuCamera GpuCamera { get { return _gpuCamera; } private set { _gpuCamera = value; } }
@@ -534,21 +379,22 @@ namespace PirateCraft
     public UiElement DebugInfo { get; set; } = null;
     public PolygonMode PolygonMode = PolygonMode.Fill;
     public ViewInputMode ViewInputMode = ViewInputMode.Edit;
-    //public bool Visible { get; set; } = true;
-    public ObjectSelector ObjectSelector { get; private set; } = new ObjectSelector();
+    public ViewportOverlay Overlay { get; private set; } = null;
     public Line3f? MouseRay { get; private set; } = null;
+    public string Name { get; private set; } = "";
 
     private mat4 _projLast = mat4.Identity;
     private GpuCamera _gpuCamera = new GpuCamera();
     private vec2 _uv0 = vec2.Zero;
     private vec2 _uv1 = vec2.Zero;
-    public string Name { get; private set; } = "";
+    private float _renderFOV, _renderNear, _renderFar;//temps for rendering
 
     public RenderView(string name, vec2 uv0, vec2 uv1, int sw, int sh)
     {
       Name = name;
       //note: xy is bottom left in opengl
       Id = s_idGen++;
+      Overlay = new ViewportOverlay(this);
 
       _uv0 = uv0;
       _uv1 = uv1;
@@ -560,14 +406,13 @@ namespace PirateCraft
     public void Update_PostView()
     {
       ActiveGui?.Update(Gu.Context.Delta);
-      ObjectSelector?.Update(this);
 
       //Update Mouse Ray
       if (Gu.Context.GameWindow.ActiveViewCamera != null)
       {
         if (Gu.Context.GameWindow.ActiveViewCamera.Frustum != null)
         {
-          MouseRay = Gu.Context.GameWindow.ActiveViewCamera.Frustum.ScreenToWorld(Gu.Mouse.Pos);
+          MouseRay = Gu.Context.GameWindow.ActiveViewCamera.Frustum.RaycastWorld(Gu.Mouse.Pos);
         }
       }
     }
@@ -595,9 +440,10 @@ namespace PirateCraft
       //Return false if the camera for this view isn't set.
       if (Camera != null && Camera.TryGetTarget(out var c))
       {
+        _renderFOV = c.FOV;
+        _renderNear = c.Near;
+        _renderFar = c.Far;
         //Viewport.SetupViewport();
-        _projLast = ProjectionMatrix;
-        ProjectionMatrix = mat4.projection(c.FOV, Viewport.Width, Viewport.Height, c.Near, c.Far);
 
         GL.PolygonMode(MaterialFace.Front, this.PolygonMode);
 
@@ -608,7 +454,6 @@ namespace PirateCraft
     }
     public void EndRender3D()
     {
-      ProjectionMatrix = _projLast;
       SetModified();
     }
     public void BeginRender2D(mat4? customProj)
@@ -632,25 +477,75 @@ namespace PirateCraft
       ProjectionMatrix = _projLast;
       SetModified();
     }
+    public void BeginPipelineStage(PipelineStage ps)
+    {
+      UpdateDimensions(ps.Size.width, ps.Size.height);
+      int vx = Viewport.X;
+      //OpenGL Y = Bottom left!!!
+      int vy = ps.Size.y - Viewport.Y - Viewport.Height;
+      int vw = Viewport.Width;
+      int vh = Viewport.Height;
+      GL.Viewport(vx, vy, vw, vh);
+      GL.Scissor(vx, vy, vw, vh);
+
+      _projLast = ProjectionMatrix;
+      ProjectionMatrix = mat4.projection(_renderFOV, Viewport.Width, Viewport.Height, _renderNear, _renderFar);
+    }
+    public void EndPipelineStage(PipelineStage ps)
+    {
+      ProjectionMatrix = _projLast;
+    }
+
     public void OnResize(int sw, int sh)
     {
-      int x = (int)(Math.Round(_uv0.x * (float)sw));
-      int y = (int)(Math.Round(_uv0.y * (float)sh));
-      int w = (int)(Math.Round((_uv1.x - _uv0.x) * (float)sw));
-      int h = (int)(Math.Round((_uv1.y - _uv0.y) * (float)sh));
+      UpdateDimensions(sw, sh);
+      ActiveGui?.OnResize();//Gui is translated to the current FBO size in the shader.
+    }
+    public void UpdateDimensions(int cur_output_fbo_w, int cur_output_fbo_h)
+    {
+      //** CALLED EVERY PIPE STAGE **
+      //gui should be tied to the FBO that it renders to.
+      //hmm yes
+      var b = ComputeScaledView(_uv0, _uv1, cur_output_fbo_w, cur_output_fbo_h);
 
-      Gu.Log.Info("Resize View " + Name + ": " + x + "," + y + " " + w + "," + h);
-
-      if (w <= 0 || h <= 0)
+      if (b.w <= 0 || b.h <= 0)
       {
+        Gu.Log.Info("Resize View " + Name + ": " + b.x + "," + b.y + " " + b.w + "," + b.h);
         Gu.Log.Error("Resize View " + Name + " w/h was zero, setting to 1");
-        if (w <= 0) w = 1;
-        if (h <= 0) h = 1;
+        Gu.DebugBreak();
+        if (b.w <= 0) { b.w = 1; }
+        if (b.h <= 0) { b.h = 1; }
       }
 
-      Viewport = new Viewport(x, y, w, h);
-      ActiveGui?.OnResize();
+      Viewport = new Viewport(b.x, b.y, b.w, b.h);
     }
+
+    // int x = (int)(Math.Round(_uv0.x * (float)sw));
+    // int y = (int)(Math.Round(_uv0.y * (float)sh));
+    // int w = (int)(Math.Round((_uv1.x - _uv0.x) * (float)sw));
+    // int h = (int)(Math.Round((_uv1.y - _uv0.y) * (float)sh));
+
+    // Gu.Log.Info("Resize View " + Name + ": " + x + "," + y + " " + w + "," + h);
+
+    // if (w <= 0 || h <= 0)
+    // {
+    //   Gu.Log.Error("Resize View " + Name + " w/h was zero, setting to 1");
+    //   if (w <= 0) w = 1;
+    //   if (h <= 0) h = 1;
+    // }
+
+    // Viewport = new Viewport(x, y, w, h);
+    // ActiveGui?.OnResize();
+    public static Box2i ComputeScaledView(vec2 uv0, vec2 uv1, int width, int height)
+    {
+      Box2i b = new Box2i();
+      b.x = (int)(Math.Round(uv0.x * (float)width));
+      b.y = (int)(Math.Round(uv0.y * (float)height));
+      b.w = (int)(Math.Round((uv1.x - uv0.x) * (float)width));
+      b.h = (int)(Math.Round((uv1.y - uv0.y) * (float)height));
+      return b;
+    }
+
     public void CompileGpuData()
     {
       if (Modified || Gu.EngineConfig.Debug_AlwaysCompileAndReloadGpuUniformData)
@@ -665,6 +560,8 @@ namespace PirateCraft
         _gpuCamera._m4Projection = ProjectionMatrix;//Could be orthographic, or perspective depending
         _gpuCamera._fWindowWidth = Gu.Context.GameWindow.Width;
         _gpuCamera._fWindowHeight = Gu.Context.GameWindow.Height;
+        _gpuCamera._fRenderWidth = (float)Gu.Context.Renderer.CurrentStageFBOSize.x;
+        _gpuCamera._fRenderHeight = (float)Gu.Context.Renderer.CurrentStageFBOSize.y;
         _gpuCamera._vWindowViewport.x = Viewport.X;
         _gpuCamera._vWindowViewport.y = Viewport.Y;
         _gpuCamera._vWindowViewport.z = Viewport.Width;
@@ -672,13 +569,12 @@ namespace PirateCraft
       }
     }
   }
-
-  //Camera is loosely tied to the render viewport
-  // RenderViewport: Area of the window to render to. Could be whole window, or part of a window.
-  // Camera defines a sub-area of the viewport (e.g. blender->view camera)
-  // The camera viewport needs separate e.g. Our window is 16:9 but we only want to render to a 4:3 game.. then.. black bars.
   public class Camera3D : WorldObject
   {
+    //Camera is loosely tied to the render viewport
+    // RenderViewport: Area of the window to render to. Could be whole window, or part of a window.
+    // Camera defines a sub-area of the viewport (e.g. blender->view camera)
+    // The camera viewport needs separate e.g. Our window is 16:9 but we only want to render to a 4:3 game.. then.. black bars.    
     public Frustum Frustum { get; private set; } = null;
     public float FOV { get { return _fov; } set { _fov = value; } }
     public float Near { get { return _near; } set { _near = value; } }
@@ -691,7 +587,7 @@ namespace PirateCraft
     private float _near = 1;
     private float _far = 1000;
 
-    public Camera3D(string name, RenderView rv, float near = 1, float far = 1000) : base(name + "-cam")
+    public Camera3D(string name, RenderView rv, float near = 1, float far = 1000) : base(name)
     {
       _near = near;
       _far = far;

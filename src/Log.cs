@@ -48,6 +48,11 @@ namespace PirateCraft
     {
       Error(msg, "", "");
     }
+    public void Error(Exception ex)
+    {
+      string e_all = Gu.GetAllException(ex);
+      Error("", e_all, "");
+    }    
     public void Error(string pred, Exception ex)
     {
       string e_all = Gu.GetAllException(ex);
@@ -191,7 +196,7 @@ namespace PirateCraft
               {
               }
             }
-            using (FileStream file = new FileStream(_fileLoc, FileMode.Append, FileAccess.Write, FileShare.ReadWrite))
+            using (FileStream file = new FileStream(_fileLoc, System.IO.FileMode.Append, FileAccess.Write, FileShare.ReadWrite))
             using (StreamWriter writer = new StreamWriter(file, Encoding.ASCII))
             {
               writer.Write(s);

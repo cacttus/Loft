@@ -8,20 +8,6 @@
 //Do not remove the <> tag. This gets populated with varibles.
 <GLSL_CONTROL_DEFINES_HERE>
 
-#if defined(DEF_PIPELINE_STAGE_FORWARD) && (defined(DEF_PIPELINE_STAGE_DEFERRED) || defined(DEF_PIPELINE_STAGE_SHADOW_DEPTH) || defined(DEF_PIPELINE_STAGE_DEFERRED_BLIT) || defined(DEF_PIPELINE_STAGE_FORWARD_BLIT))
-#error Shader outputs are ambiguous.
-#elif defined(DEF_PIPELINE_STAGE_DEFERRED) && (defined(DEF_PIPELINE_STAGE_SHADOW_DEPTH) || defined(DEF_PIPELINE_STAGE_DEFERRED_BLIT) || defined(DEF_PIPELINE_STAGE_FORWARD_BLIT))
-#error Shader outputs are ambiguous.
-#elif defined(DEF_PIPELINE_STAGE_SHADOW_DEPTH) && (defined(DEF_PIPELINE_STAGE_DEFERRED_BLIT) || defined(DEF_PIPELINE_STAGE_FORWARD_BLIT))
-#error Shader outputs are ambiguous.
-#elif defined(DEF_PIPELINE_STAGE_DEFERRED_BLIT) && defined(DEF_PIPELINE_STAGE_FORWARD_BLIT)
-#error Shader outputs are ambiguous.
-#endif
-
-#if !defined(DEF_PIPELINE_STAGE_FORWARD) && !defined(DEF_PIPELINE_STAGE_DEFERRED) && !defined(DEF_PIPELINE_STAGE_SHADOW_DEPTH) && !defined(DEF_PIPELINE_STAGE_DEFERRED_BLIT) && !defined(DEF_PIPELINE_STAGE_FORWARD_BLIT)
-#error Shader had no outputs defined.
-#endif
-
 #ifdef DEF_SHADER_STAGE_VERTEX
 #ifdef DEF_SHADER_STAGE_GEOMETRY
 #error Shader was defined as both vertex and geometry.
@@ -45,3 +31,4 @@
 #endif
 #endif
 
+<GLSL_CONTROL_CONSTANTS_HERE>

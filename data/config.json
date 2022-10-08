@@ -1,7 +1,7 @@
 {
   "LogErrors" :true,
-  "ShaderCaching" : true, //cache shader binaries on disk.
-  "MaxCharactersPerBitmap" : 2048,//may not need this, MaxFontBitmapSize seems better
+  "ShaderCaching" : true,
+  "MaxCharactersPerBitmap" : 2048,
   "MaxBakedCharSize" : 64,
   "MaxFontBitmapSize" : 4096,
   "EnableMSAA" : false,
@@ -11,15 +11,16 @@
   "EnableRuntimeErrorChecking" : true,
   "BreakOnGraphicsError" : true,
   "ShowGuiBoxesAndDisableClipping" : false,
-  "SaveSTBFontImage" : true, //saves raw generated font images
-  "StartInEditMode" : true,//Set this to false to start the engine in game mode.
+  "SaveSTBFontImage" : true,
+  "StartInEditMode" : true, 
   "WindowInitX" : 100,
   "WindowInitY" : 100,
   "WindowInitW" : 1920,
   "WindowInitH" : 1080,
   "WindowInitScaleW" : 0.75,
   "WindowInitScaleH" : 0.75,
-  //"IncludeTest" : @"config_include.json:embedded",
+  "UserSavePath" : "./save",
+  "AutoSaveTimeoutSeconds" : 5,
   "fonts" : [
     {
       "name": "NotoSerif",
@@ -71,92 +72,5 @@
       }
     }
   ]
-
-  }
-//   public static FontFace Parisienne = new FontFace(
-//   new Dictionary<LanguageCode, FileLoc>() {
-//     { LanguageCode.en, new FileLoc("Parisienne-Regular.ttf", FileStorage.Embedded) }
-//   }
-// );
-// public static FontFace RobotoMono = new FontFace(
-//   new Dictionary<LanguageCode, FileLoc>() { 
-//     { LanguageCode.en, new FileLoc("RobotoMono-Regular.ttf", FileStorage.Embedded) } 
-//   }
-// );
-// public static FontFace PressStart2P = new FontFace(
-//   new Dictionary<LanguageCode, FileLoc>() { 
-//     { LanguageCode.en, new FileLoc("PressStart2P-Regular.ttf", FileStorage.Embedded) }
-//   }
-// );
-// public static FontFace Entypo = new FontFace(
-//   new Dictionary<LanguageCode, FileLoc>() {
-//     { LanguageCode.en, new FileLoc("Entypo.ttf", FileStorage.Embedded) } 
-//   }
-// );
-// public static FontFace Calibri = new FontFace(
-//   new Dictionary<LanguageCode, FileLoc>() { 
-//     { LanguageCode.en, new FileLoc("calibri.ttf", FileStorage.Embedded) }
-//   }
-// );
-// public static FontFace EmilysCandy = new FontFace(
-//   new Dictionary<LanguageCode, FileLoc>() { 
-//     { LanguageCode.en, new FileLoc("EmilysCandy-Regular.ttf", FileStorage.Embedded) } 
-//   }
-//   );
-// public static FontFace Noto = new FontFace(
-//   new Dictionary<LanguageCode, FileLoc>() {
-//      { LanguageCode.zh, new FileLoc("NotoSerifSC-Regular.otf", FileStorage.Embedded) }
-//    }
-//   );
-
-  // "TextureFolder": "./textures/",
-  // "ShaderFolder": "./shaders/",
-  // "ModelsTextFolder": "./mob/",
-  // "ModelsBinFolder": "./mbi/",
-  // "ScriptsFolder": "./scripts/",
-  // "SoundsFolder": "./sounds/",
-  // "FontsFolder": "./fonts/",
-  // "MaxPointLights": "999",
-  // "MaxDirLights": "999",
-  // "MaxCubeShadowSamples": "4",
-  // "MaxFrustShadowSamples": "4",
-  // "StartFullscreen": "false",
-  // "DefaultScreenWidth": "1280",
-  // "DefaultScreenHeight": "600",
-  // "ForceAspectRatio": "false",
-  // "EnableFileLog": "true",
-  // "EnableConsoleLog": "true",
-  // "GameHostTimeoutMs": "5000",
-  // "GameHostPort": "50209",
-  // "GpuDeviceName": "default",
-  // "DefaultFieldOfView": "60",
-  // "ColorSpace": "Linear",
-  // "FontBitmapSize": "1024",
-  // "FontBakedCharSize": "64",
-  // "EnableObjectShadows": "true",
-  // "EnableTerrainShadows": "true",
-  // "ShadowMapResolution": "256",
-  // "ShadowMapMaxInfluences": "4",
-  // "MaxPointLightShadowDistance": "2000",
-
-  // "NumTextQuads": "256",
-  // "EnableRuntimeErrorChecking": "true",
-  // "BreakOnSDLError": "true",
-  // "BreakOnGraphicsError": "true",
-  // "GraphicsErrorLogging_High": "true",
-  // "GraphicsErrorLogging_Medium": "true",
-  // "GraphicsErrorLogging_Low": "true",
-  // "GraphicsErrorLogging_Info": "true",
-  // "ShowConsole": "true",
-  // "ModelThumbSize": "256",
-  // "MaxHardwareIncomingBufferSizeBytes": "32767",
-  // "MaxHardwareOutgoingBufferSizeBytes": "32767",
-  // "MaxSoftwareIncomingBufferSizeBytes": "32767",
-  // "MaxSoftwareOutgoingBufferSizeBytes": "32767",
-  // "RenderSystem": "OpenGL",
-  // "OpenGLProfile": "Compatibility",
-  // "WindowedAspectRatio": "1920/1080",
-  // "GamePad": "KeyboardAndMouse",
-  // "Linux_ReadableBacktrace": "false",
-  // "VsyncEnabled": "false"                                                        
+                                               
 }

@@ -89,7 +89,7 @@ namespace PirateCraft
         br.Write(compressed);
       }
     }
-    public void Deserialize(BinaryReader br)
+    public void Deserialize(BinaryReader br,  SerializedFileVersion version)
     {
       Gu.BRThrowNotImplementedException();//We are now using T's Serialize/Deserialize this code is old
       int compressed_count = br.ReadInt32();
@@ -228,7 +228,7 @@ namespace PirateCraft
     }
   }//Grid3D
 
-  public class Grid2D<T> : ISerializeBinary where T : ISerializeBinary
+  public class Grid2D<T> : ISerializeBinary where T : ISerializeBinary, new()
   {
     public int SizeX { get; private set; } = 0;
     public int SizeY { get; private set; } = 0;
@@ -289,43 +289,52 @@ namespace PirateCraft
     }
     public void Serialize(BinaryWriter br)
     {
-      if (Grid == null)
-      {
-        br.Write((Int32)0);
-      }
-      else
-      {
+      br.Write((Int32)this.SizeX);
+      br.Write((Int32)this.SizeY);
 
-        var byteArr = new byte[Marshal.SizeOf(typeof(T)) * Grid.Length];
-        var pinnedHandle = GCHandle.Alloc(Grid, GCHandleType.Pinned);
-        Marshal.Copy(pinnedHandle.AddrOfPinnedObject(), byteArr, 0, byteArr.Length);
-        pinnedHandle.Free();
-        byte[] compressed = Gu.Compress(byteArr);
+      using (var ms = new System.IO.MemoryStream())
+      {
+        using (var bw2 = new System.IO.BinaryWriter(ms))
+        {
+          this.Iterate((g, x, y) =>
+          {
+            Get(x, y, IndexMode.Throw).Serialize(bw2);
+            return LambdaBool.Continue;
+          });
+        }
+        var bf = ms.GetBuffer();
+        byte[] compressed = Gu.Compress(bf);
+        var precount = bf.Length;
+        var postcount = compressed.Length;
+        bf=null;
+        Gu.Log.Debug($"Compressed Glob pre: {precount} -> {postcount}");
         br.Write((Int32)compressed.Length);
         br.Write(compressed);
       }
     }
-    public void Deserialize(BinaryReader br)
+    public void Deserialize(BinaryReader br,  SerializedFileVersion version)
     {
+      this.SizeX = br.ReadInt32();
+      this.SizeY = br.ReadInt32();
+
       int compressed_count = br.ReadInt32();
-      if (compressed_count == 0)
+      var compressed = br.ReadBytes(compressed_count);
+      byte[] decompressed = Gu.Decompress(compressed);
+
+      using (var ms = new System.IO.MemoryStream(decompressed))
       {
-        Grid = null;
+        using (var br2 = new System.IO.BinaryReader(ms))
+        {
+          this.Iterate((g, x, y) =>
+          {
+            T t = new T();
+            t.Deserialize(br2, version);
+            Set(x, y, t, IndexMode.Throw);
+            return LambdaBool.Continue;
+          });
+        }
       }
-      else
-      {
-        var compressed = br.ReadBytes(compressed_count);
 
-        byte[] decompressed = Gu.Decompress(compressed);
-        var numStructs = decompressed.Length / Marshal.SizeOf(typeof(ushort));
-
-        // Gu.Assert(numStructs == Drome.DromeBlockCount);
-
-        Grid = new T[numStructs];
-        var pinnedHandle = GCHandle.Alloc(Grid, GCHandleType.Pinned);
-        Marshal.Copy(decompressed, 0, pinnedHandle.AddrOfPinnedObject(), decompressed.Length);
-        pinnedHandle.Free();
-      }
     }
     private bool ClampOrWrap(ref int x, ref int y, IndexMode m)
     {
@@ -407,9 +416,10 @@ namespace PirateCraft
     {
       int ymax = SizeY;
       int xmax = SizeX;
-      if(inclusive){
-        ymax+=1;
-        xmax+=1;
+      if (inclusive)
+      {
+        ymax += 1;
+        xmax += 1;
       }
       for (int yi = 0; yi < ymax; yi++)
       {

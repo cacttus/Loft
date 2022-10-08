@@ -26,5 +26,4 @@ void main(void)
   setOutput_Pick(_vsPick);  
   setOutput_Normal(vec4(final_normal, 1));  
   setOutput_Position(vec4(_vsVertex, _ufGpuMaterial._flat));   
-  setOutput_Plane(vec4(0,0,0, 1));        
 }   

@@ -4,9 +4,9 @@ in vec2 _tcoordOut;
 
 void main()
 {
-  vec4 fragColor                        = getMRT_Color(_tcoordOut);
-  vec4 fragNormal_and_bump_intensity    = getMRT_Normal(_tcoordOut);
-  vec4 fragPos_and_nolight              = getMRT_Position(_tcoordOut);
+  vec4 fragColor                        = getInput_Color(_tcoordOut);
+  vec4 fragNormal_and_bump_intensity    = getInput_Normal(_tcoordOut);
+  vec4 fragPos_and_nolight              = getInput_Position(_tcoordOut);
  
   vec3 fragNormal                       = normalize(fragNormal_and_bump_intensity.xyz);//we are normalizing here, not in deferred.
   vec3 fragPos                          = fragPos_and_nolight.xyz;

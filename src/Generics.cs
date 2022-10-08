@@ -2,10 +2,16 @@
 using System.Collections;
 using System.Diagnostics;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
+using System.Runtime.Serialization;
 
 namespace PirateCraft
 {
+  public enum FileMode
+  {
+    Text, Binary
+  }
   public enum ActionState
   {
     Pause, Run, Stop
@@ -19,6 +25,11 @@ namespace PirateCraft
   {
     Break,
     Continue
+  }
+  public class TypeAttribute : Attribute
+  {
+    public Type? Type = null;
+    public TypeAttribute(Type t) { Type = t; }
   }
   public class MultiMap<TKey, TValue> : IEnumerable<KeyValuePair<TKey, TValue>> where TKey : notnull
   {
@@ -147,7 +158,7 @@ namespace PirateCraft
     }
   }
 
-  public class FileLoc
+  public class FileLoc : ISerializeBinary
   {
     /// FileLoc represents a virtual file location on disk, embed, or web
     //The name here has to be unique or it will cause conflicts.
@@ -159,12 +170,14 @@ namespace PirateCraft
     public static FileLoc Generated = new FileLoc("<generated>", FileStorage.Generated);
     public FileStorage FileStorage { get; set; } = FileStorage.Disk;
     public string RawPath { get; set; } = "";
-    public FileLoc Clone()
+
+    public string WorkspacePath
     {
-      FileLoc ret = new FileLoc();
-      ret.RawPath = this.RawPath;
-      ret.FileStorage = this.FileStorage;
-      return ret;
+      get
+      {
+        var p = System.IO.Path.Combine(Gu.WorkspaceDataPath, this.RawPath);
+        return p;
+      }
     }
     public string FileName
     {
@@ -198,10 +211,6 @@ namespace PirateCraft
         }
         return path;
       }
-    }
-    public bool ExistsOnDisk()
-    {
-      return File.Exists(WorkspacePath);
     }
     public bool Exists
     {
@@ -259,6 +268,30 @@ namespace PirateCraft
         throw new Exception("File " + QualifiedPath + " does not exist.");
       }
     }
+    public bool ExistsOnDisk()
+    {
+      return File.Exists(WorkspacePath);
+    }
+    public bool CopyFile(FileLoc fl)
+    {
+      try
+      {
+        System.IO.File.Copy(this.QualifiedPath, fl.QualifiedPath);
+      }
+      catch (Exception ex)
+      {
+        Gu.Log.Error("Failed to copy file: ", ex);
+        return false;
+      }
+      return true;
+    }
+    public FileLoc Clone()
+    {
+      FileLoc ret = new FileLoc();
+      ret.RawPath = this.RawPath;
+      ret.FileStorage = this.FileStorage;
+      return ret;
+    }
     public byte[] GetBytes()
     {
       byte[] bytes = null;
@@ -289,10 +322,12 @@ namespace PirateCraft
     {
       if (FileStorage == FileStorage.Embedded)
       {
+        AssertExists();
         return System.Reflection.Assembly.GetExecutingAssembly().GetManifestResourceStream(QualifiedPath);
       }
       else if (FileStorage == FileStorage.Disk)
       {
+        AssertExists();
         return File.OpenRead(QualifiedPath);
       }
       else
@@ -352,6 +387,42 @@ namespace PirateCraft
       ss = sb.ToString();
       return symbol;
     }
+    public void WriteAllText(string text)
+    {
+      using (var s = this.OpenWrite())
+      {
+        if (s != null)
+        {
+          using (var stream = new StreamWriter(s))
+          {
+            stream.Write(text);
+          }
+        }
+        else
+        {
+          Gu.BRThrowException($"'{this.QualifiedPath}' Failed to get write stream.");
+        }
+      }
+    }
+    public string? ReadAllText()
+    {
+      string? ret = null;
+      using (var s = this.OpenRead())
+      {
+        if (s != null)
+        {
+          using (var stream = new StreamReader(s))
+          {
+            ret = stream.ReadToEnd();
+          }
+        }
+        else
+        {
+          Gu.BRThrowException($"'{this.QualifiedPath}' Failed to get read stream.");
+        }
+      }
+      return ret;
+    }
     public string[] ReadAllLines()
     {
       //Read all lines with the embedded file, disk file, net file .. et.
@@ -381,6 +452,10 @@ namespace PirateCraft
               nline++;
             }
           }
+        }
+        else
+        {
+          Gu.BRThrowException($"'{this.QualifiedPath}' Failed to get read stream.");
         }
       }
       return ret;
@@ -446,6 +521,14 @@ namespace PirateCraft
         return a.QualifiedPath.GetHashCode();
       }
     }
+    public void Touch()
+    {
+      //Create if doesn't exist
+      if (!Exists)
+      {
+        Create();
+      }
+    }
     public void Create()
     {
       if (FileStorage == FileStorage.Disk)
@@ -457,14 +540,6 @@ namespace PirateCraft
       else
       {
         Gu.BRThrowNotImplementedException();
-      }
-    }
-    public string WorkspacePath
-    {
-      get
-      {
-        var p = System.IO.Path.Combine(Gu.WorkspaceDataPath, this.RawPath);
-        return p;
       }
     }
     public DateTime GetLastWriteTime(bool If_Is_Embedded_Then_Check_Data_Directory = true)
@@ -499,12 +574,33 @@ namespace PirateCraft
       bw.Write((Int32)FileStorage);
       bw.Write((string)RawPath);
     }
-    public void Deserialize(BinaryReader br)
+    public void Deserialize(BinaryReader br, SerializedFileVersion version)
     {
       FileStorage = (FileStorage)br.ReadInt32();
       RawPath = br.ReadString();
     }
 
+    public new string ToString()
+    {
+      Gu.MustTest();
+      string s = "{" + $"path:\"{RawPath}\", storage:{FileStorage.ToString()}" + "}";
+      return s;
+    }
+    public static FileLoc Parse(string loc)
+    {
+      Gu.MustTest();
+      Gu.Assert(StringUtil.IsNotEmpty(loc));
+      Gu.Assert(loc[0] == '{' && loc[loc.Length] == '}');
+      string loc2 = loc.Trim('{').Trim('}');
+      var i1 = loc2.IndexOf(':');
+      var i2 = loc2.IndexOf(',');
+      string rawpath = StringUtil.CutOut(ref loc2, i1, i2);
+      i1 = loc2.IndexOf(':');
+      i2 = loc2.Length;
+      FileStorage storage = Gu.ParseEnum<FileStorage>(StringUtil.CutOut(ref loc2, i1, i2));
+      FileLoc fs = new FileLoc(rawpath, storage);
+      return fs;
+    }
     #endregion
   }
 
@@ -522,6 +618,17 @@ namespace PirateCraft
 
   public class StringUtil
   {
+    public static string CutOut(ref string instr, int id0, int id1)
+    {
+      Gu.Assert(id0 <= id1);
+      if (id0 == id1)
+      {
+        return "";
+      }
+      var s = instr.Substring(id0, id1 - id0);
+      instr.Remove(id0, id1 - id0);
+      return s;
+    }
     public static bool IsNotEmpty(string s)
     {
       return !IsEmpty(s);
@@ -554,7 +661,6 @@ namespace PirateCraft
       y = y.Remove(y.Length - count, count);
       return y;
     }
-
     public static int[] SlidingDiff(string strlast, string strcur, int window = 16)
     {
       //The purpose of this is to test for subtle changes to a string, say if we replace a number in the debug. So we don't need an entire LCS matrix, or remove all glyphs.
@@ -727,87 +833,377 @@ namespace PirateCraft
     }
   }
 
-  public abstract class Cloneable<T>
+  public interface IClone
   {
-    public abstract T Clone(bool shallow = true);
+    public object? Clone(bool? shallow = null);
   }
-  public class MutableState
+  public interface ICopy<T>
   {
-    public bool Modified { get; protected set; } = false;
-    public void SetModified()
+    public void CopyFrom(T? other, bool? shallow = null);
+  }
+  public interface IMutableState
+  {
+    public bool Modified { get; }
+    public void SetModified();
+  }
+  [Serializable()]
+  public class MutableState : IMutableState
+  {
+    private bool _modified = false;
+    public virtual bool Modified { get { return _modified; } set { _modified = value; } }
+    public virtual void SetModified()
     {
-      Modified = true;
+      _modified = true;
     }
   }
-  public class DataBlock : MutableState
+
+  public enum DataCreateMode
   {
+    CreateNewOnly,
+    UseExistingOnly,
+    CreateNewOrUseExisting_ByName
+  }
+  public enum DataPersistence
+  {
+    Temporary = 1, // temporary variable (name/id = none)
+    Scene = 2, //attached to the scene (name/id = UT only)
+    Library = 3, //library resrouce (name/id = RT + UT)
+    LibraryDependency = 4, //depends on a library resource (name/id = RT only)
+  }
+  public enum ResourcePromotion
+  {
+    SceneAdd, //create resource
+    SceneRemove,
+    LibraryAdd,
+    LibraryRemove,
+    DataSource, //set the DS
+  }
+  public enum ResourceUpdateFilter
+  {
+    All,
+    TemporaryOnly,//only update temps
+  }
+  [DataContract]
+  [Serializable]
+  public abstract class DataBlock : IMutableState, ISerializeBinary, ICopy<DataBlock>
+  {
+    //Base class for serialization/ saving
     #region Members
 
-    private static UInt64 s_dataBlockIdGen = 1;//This is a problem, what if we load a model again?
-    private static UInt64 s_dataBlockTypeIdGen = 1;
-    private string _name = "<Unnamed>";
-    private UInt64 _typeId = 1; // When Clone() is called this gets duplicated
-    private UInt64 _uniqueId = 0; //Never duplicated, unique for all objs
+    [DataMember] private DataSource? _dataSource = null;
+    [DataMember] private string _name = Library.UnsetName;
+    [DataMember] private UInt64 _uniqueID = Library.NullID;
+    [DataMember] private DateTime _lastModifyTime = DateTime.MinValue;
+    [DataMember] private ResourceType _resType = ResourceType.Undefined;
+    [NonSerialized] private DataPersistence _persistance = DataPersistence.Temporary;//All resources are temporary unless WorldObject references it or we specify that it must be saved.
+    [NonSerialized] private bool _modified = false;
+    [NonSerialized] private DateTime _lastSaveOrLoadTime = DateTime.MinValue;
+    [NonSerialized] private ResourceLoadResult _loadResult = ResourceLoadResult.NotLoaded;
+    [NonSerialized] private int _loadCount = 0;
+    [NonSerialized] private int _unloadCount = 0;
 
-    public string Name { get { return _name; } set { _name = value; SetModified(); } }
-    public UInt64 UniqueID { get { return _uniqueId; } private set { _uniqueId = value; SetModified(); } }
-    //Type ID is used to instance mesh objects.
-    public UInt64 TypeID { get { return _typeId; } private set { _typeId = value; SetModified(); } }
+    public DataSource? DataSource { get { return _dataSource; } }
+    public int LoadCount { get { return _loadCount; } set { _loadCount = value; } }
+    public int UnloadCount { get { return _unloadCount; } set { _unloadCount = value; } }
+    public ResourceLoadResult LoadResult { get { return _loadResult; } set { _loadResult = value; } }
+    public DateTime LastModifyTime { get { return _lastModifyTime; } set { _lastModifyTime = value; } }
+    public UInt64 UniqueID { get { return _uniqueID; } set { _uniqueID = value; } }
+    public string Name { get { return _name; } set { _name = value; } }
+    public DataPersistence Persistence { get { return _persistance; } set { _persistance = value; } }
+    public bool Modified { get { return _modified; } set { if (!_modified && value) _lastModifyTime = DateTime.Now; _modified = value; } }
 
-    #endregion
-    #region Public Static: Methods
-
-    public static UInt64 GetNewId()
+    public virtual List<DataBlock> GetSubResources()
     {
-      return s_dataBlockIdGen++;
+      return new List<DataBlock>();
     }
-    public static UInt64 GetNewType()
-    {
-      return s_dataBlockTypeIdGen++;
-    }
-
     #endregion
+
     #region Methods
 
     protected DataBlock() { } //clone ctor
     public DataBlock(string name)
     {
       _name = name;
-      _uniqueId = GetNewId();
-      _typeId = GetNewType();
+    }
+    public virtual void PromoteResource(ResourcePromotion m, DataSource? source = null)
+    {
+      /*
+        ** resource promotion logic
+          sub = sub-resource (object->material->texture->image)
+          UTable - unique name table for global resources --on GU.lib
+          RTable - resource local table -- on datasource
+
+            Namespaces
+              temp - none 
+              scene - UT only - created in the application/script
+              libroot - root library object - RT and UT - generated/loaded
+              libdep - RT only - generated/loaded
+            Serialization
+            temp - none
+            scene - all nodes
+            libroot - DS
+            libdep - none
+
+            libadd 
+              if sub is lib - no change, do not traverse children
+              if sub is scene - error - must clone resource to add to library
+              if sub is temp -  set DS (for all) - if no DS - then is raw
+                                if is root resource
+                                  set lib - item will exist in UTable
+                                  gets uid/uname (creteresrouce)
+                                else
+                                  set libdep
+                                  rname from DataSource RTable (must be unique within resource context) - usually loaded from file.
+                                  if has no DS - raw serialized
+                                  if has DS - not serialized
+            sceneadd
+              if lib - no change, do not traverse
+              if scene - error - sub-object already added to scene, should not be possible
+              if temp - set to scene, make uid (createresource) for all temp sub-items
+            sceneremove
+              if sub is lib - no change
+              if sub is scene - remove uid/un 
+              if sub is temp - error
+            libremove
+              if sub is lib - remove uid/un
+              if sub is scene - error
+              if sub is temp - error
+      */
+
+      try
+      {
+        PromoteResourceInternal(m, source, null);
+      }
+      catch (Exception ex)
+      {
+        Gu.Log.Error($"Failed to promote resource '{this.Name}' from '{this.Persistence.ToString()}' with '{m.ToString()}'", ex);
+        Gu.DebugBreak();
+      }
+
+    }
+    private void PromoteResourceInternal(ResourcePromotion m, DataSource? source = null, DataBlock? parent = null)
+    {
+      bool traverse = false;
+      if (m == ResourcePromotion.DataSource)
+      {
+        if (_persistance == DataPersistence.Temporary)
+        {
+          _dataSource = source;
+          traverse = true;
+        }
+        else if (_persistance == DataPersistence.Scene)
+        {
+          Library.ResourceError(this, "tried to set datasource on scene node, this is not supported");
+          traverse = false;
+        }
+        else if (_persistance == DataPersistence.Library)
+        {
+          traverse = false;
+        }
+        else if (_persistance == DataPersistence.LibraryDependency)
+        {
+          traverse = false;
+        }
+      }
+      else if (m == ResourcePromotion.LibraryAdd)
+      {
+        if (_persistance == DataPersistence.Temporary)
+        {
+          if (_dataSource == null)
+          {
+            Gu.Assert(source != null);
+            _dataSource = source;
+          }
+          _dataSource = source;
+          if (parent == null)
+          {
+            _persistance = DataPersistence.Library;
+            _uniqueID = Gu.Lib.GetNewUniqueId();
+            Gu.Lib.CreateResource(this, _name);
+            traverse = true;
+          }
+          else
+          {
+            _persistance = DataPersistence.LibraryDependency;
+          }
+        }
+        else if (_persistance == DataPersistence.Scene)
+        {
+          Library.ResourceError(this, "Scene resource found in library resource.");
+          traverse = false;
+        }
+        else if (_persistance == DataPersistence.Library)
+        {
+          //no change, just stop traversing
+          traverse = false;
+        }
+        else if (_persistance == DataPersistence.LibraryDependency)
+        {
+          Library.ResourceError(this, "tried to add library dependency to existing library");
+          traverse = false;
+        }
+        else
+        {
+          Gu.BRThrowNotImplementedException();
+        }
+      }
+      else if (m == ResourcePromotion.LibraryRemove)
+      {
+        if (_persistance == DataPersistence.Temporary)
+        {
+          Library.ResourceError(this, "tried to remove temp from Lib");
+          traverse = false;
+        }
+        else if (_persistance == DataPersistence.Scene)
+        {
+          Library.ResourceError(this, "tried to remove scene node from Lib");
+          traverse = false;
+        }
+        else if (_persistance == DataPersistence.Library)
+        {
+          Gu.Lib.DeleteResource(this);
+          _uniqueID = Library.NullID;
+          _persistance = DataPersistence.Temporary;
+          traverse = false;
+        }
+        else if (_persistance == DataPersistence.LibraryDependency)
+        {
+          _persistance = DataPersistence.Temporary;
+          traverse = true;
+        }
+        else
+        {
+          Gu.BRThrowNotImplementedException();
+        }
+      }
+      else if (m == ResourcePromotion.SceneAdd)
+      {
+        if (_persistance == DataPersistence.Temporary)
+        {
+          _persistance = DataPersistence.Scene;
+          _uniqueID = Gu.Lib.GetNewUniqueId();
+          Gu.Lib.CreateResource(this, _name);
+          traverse = true;
+        }
+        else if (_persistance == DataPersistence.Scene)
+        {
+          Library.ResourceWarning(this, "tried to add existing scene resource to scene");
+          traverse = true;
+        }
+        else if (_persistance == DataPersistence.Library)
+        {
+          //no change
+          traverse = false;
+        }
+        else if (_persistance == DataPersistence.LibraryDependency)
+        {
+          Library.ResourceError(this, "tried to add library dependency to scene");
+          traverse = false;
+        }
+        else
+        {
+          Gu.BRThrowNotImplementedException();
+        }
+      }
+      else if (m == ResourcePromotion.SceneRemove)
+      {
+        if (_persistance == DataPersistence.Temporary)
+        {
+          Library.ResourceWarning(this, "tried to remove temp from scene, should be set to 'scene'");
+          traverse = true;
+        }
+        else if (_persistance == DataPersistence.Scene)
+        {
+          Gu.Lib.DeleteResource(this);
+          _uniqueID = Library.NullID;
+          _persistance = DataPersistence.Temporary;
+          traverse = true;
+        }
+        else if (_persistance == DataPersistence.Library)
+        {
+          //no change
+          traverse = false;
+        }
+        else if (_persistance == DataPersistence.LibraryDependency)
+        {
+          Library.ResourceError(this, "tried to remove library dependency from scene");
+          traverse = false;
+        }
+        else
+        {
+          Gu.BRThrowNotImplementedException();
+        }
+      }
+      else
+      {
+        Gu.BRThrowNotImplementedException();
+      }
+
+      if (traverse)
+      {
+        var deps = this.GetSubResources();
+        foreach (var child in deps)
+        {
+          child?.PromoteResourceInternal(m, source, this);
+        }
+      }
+
+    }
+    public void SetModified()
+    {
+      _modified = true;
+    }
+    public void ClearModified()
+    {
+      _modified = false;
+    }
+    public DataRef<T>? GetRef<T>() where T : DataBlock
+    {
+      //We shouldn't have to create a new reference every time right?
+      return new DataRef<T>(this as T);
+    }
+    public virtual void CopyFrom(DataBlock? other, bool? shallow = null)
+    {
+      Gu.Assert(other != null);
       SetModified();
-    }
-    public DataBlock Clone()
-    {
-      var d = new DataBlock();
-      Copy(d);
-      return d;
-    }
-    protected void Copy(DataBlock d)
-    {
-      d._name = this._name;
-      d._typeId = this._typeId;
-      d._uniqueId = s_dataBlockIdGen++;
-      d.SetModified();
     }
     public virtual void MakeUnique()
     {
-      _typeId = GetNewType();
       SetModified();
     }
-    public void Serialize(BinaryWriter br)
+    public virtual void Serialize(BinaryWriter br)
     {
-      br.Write(_name);
-      br.Write(_typeId);
+      // br.Write(_resource.Name);
+      // br.Write(_resource.UniqueID);
     }
-    public void Deserialize(BinaryReader br)
+    public virtual void Deserialize(BinaryReader br, SerializedFileVersion version)
     {
-      _name = br.ReadString();
-      _typeId = br.ReadUInt64();
+      // //We must make sure the uniquid is in the resource manager
+      // Gu.MustTest();
+
+      // var name = br.ReadString();
+      // var id = br.ReadUInt64();
+      // _resource = Gu.Lib.GetResourceById(id);
+      // if (_resource == null)
+      // {
+      //   //Hmm..rt may be invalid..
+      //   var byname = Gu.Lib.GetResourceByName(ResourceType, name);
+      //   if (byname != null)
+      //   {
+      //     Gu.Log.Error($"Resource name='{name}' id='{id}' was not found, but found similar resource '{byname.Name}', id='{byname.UniqueID}'.");
+      //   }
+      //   else
+      //   {
+      //     Gu.Log.Error($"Resource name='{name}' id='{id}' was not found.");
+      //   }
+      //   //Fix up resource JSON changing it to the correct ID
+      //   Gu.DebugBreak();
+      // }
     }
 
     #endregion
   }
+
   public class ModifiedList<T> : List<T>
   {
     public bool Modified { get; set; } = false;
@@ -930,16 +1326,15 @@ namespace PirateCraft
 
   }
 
-  public class DeltaTimer : Cloneable<DeltaTimer>
+  public class DeltaTimer : IClone, ICopy<DeltaTimer>
   {
-
     public double Frequency { get; private set; } = 0;
     public double Time { get; private set; } = 0;
     public ActionState State { get; private set; } = ActionState.Stop;
     public ActionRepeat Repeat { get; set; } = ActionRepeat.DoNotRepeat;
     public Action Action { get; set; } = null;
 
-    private DeltaTimer() { }//clone
+    public DeltaTimer() { }//clone
     public DeltaTimer(double frequency_seconds, ActionRepeat repeat, ActionState start, Action? act = null)
     {
       Frequency = frequency_seconds;
@@ -976,20 +1371,22 @@ namespace PirateCraft
     {
       State = ActionState.Stop;
     }
-    public override DeltaTimer Clone(bool shallow = true)
+    public object? Clone(bool? shallow = null)
     {
-      DeltaTimer d = new DeltaTimer();
-      d.Frequency = this.Frequency;
-      d.Time = this.Time;
-      d.State = this.State;
-      d.Action = this.Action;
-      d.Repeat = this.Repeat;
-
-      return d;
+      return Gu.Clone<DeltaTimer>(this);
+    }
+    public void CopyFrom(DeltaTimer? d, bool? shallow = null)
+    {
+      Gu.Assert(d != null);
+      this.Frequency = d.Frequency;
+      this.Time = d.Time;
+      this.State = d.State;
+      this.Action = d.Action;
+      this.Repeat = d.Repeat;
     }
   }
 
-  public class ByteParser
+  public static class ByteParser
   {
     //Parse utilities
     public static bool IsWS(char c)
@@ -1251,13 +1648,20 @@ namespace PirateCraft
       System.IO.File.WriteAllBytes(System.IO.Path.Combine(Gu.LocalTmpPath, _fileLoc.RawPath + "_debug.txt"), _data.Take(_idx).ToArray());
 #endif
     }
-    public bool Load()
+    public bool Load(string? inputdata = null)
     {
       Gu.Assert(_fileLoc.Exists);
       var sw = new Stopwatch();
       sw.Start();
 
-      _data = _fileLoc.ReadAllData();
+      if (inputdata != null)
+      {
+        _data = Encoding.ASCII.GetBytes(inputdata);
+      }
+      else
+      {
+        _data = _fileLoc.ReadAllData();
+      }
 
       BeforeParse();
       ParseLoop();
@@ -1373,11 +1777,251 @@ namespace PirateCraft
     #endregion
   }
 
-
   public interface ISerializeBinary
   {
     public abstract void Serialize(BinaryWriter br);
-    public abstract void Deserialize(BinaryReader br);
+    public abstract void Deserialize(BinaryReader br, SerializedFileVersion version);
+  }
+  public class SerializedFileVersion
+  {
+    public int Version { get; } = 0;//for future implementation, file version
+    public SerializedFileVersion(int v) { Version = v; }
+  }
+
+  public interface ISerializeByteArray
+  {
+    public void Serialize(ByteBuffer b);
+    public void Deserialize(ByteBuffer b);
+  }
+  public class ByteBuffer
+  {
+    public enum AccessMode
+    {
+      Read, Write
+    }
+    public Byte[] Bytes = null;
+    public int ReadOffset { get; set; } = 0;
+    public AccessMode Mode { get; set; } = AccessMode.Read;
+    public ByteBuffer(AccessMode mode, byte[] initialBytes = null)
+    {
+      Mode = mode;
+      Bytes = initialBytes;
+
+      if (mode == AccessMode.Read)
+      {
+        Gu.Assert(initialBytes != null);
+      }
+    }
+    public void WriteInt32(Int32 n)
+    {
+      Gu.Assert(this.Mode == AccessMode.Write);
+      var data = new byte[Marshal.SizeOf(typeof(Int32))];
+      using (var memoryStream = new MemoryStream(Bytes))
+      using (var writer = new BinaryWriter(memoryStream))
+      {
+        writer.Write(data);
+      }
+      WriteBuffer(data);
+    }
+    public Int32 ReadInt32()
+    {
+      Gu.Assert(this.Mode == AccessMode.Read);
+
+      Int32 ret = 0;
+      using (var memoryStream = new MemoryStream(Bytes))
+      using (var reader = new BinaryReader(memoryStream))
+      {
+        ret = reader.ReadInt32();
+      }
+      ReadOffset += Marshal.SizeOf(typeof(Int32));
+      return ret;
+    }
+    public void WriteStructs<T>(T[] items) where T : struct
+    {
+      Gu.Assert(this.Mode == AccessMode.Write);
+
+      WriteInt32(items.Length);
+      int structsize = Marshal.SizeOf(typeof(T));
+      WriteInt32(structsize);
+
+      var data = new byte[structsize * items.Length];
+      var pinnedHandle = GCHandle.Alloc(items, GCHandleType.Pinned);
+      Marshal.Copy(pinnedHandle.AddrOfPinnedObject(), data, 0, data.Length);
+      pinnedHandle.Free();
+
+      using (var memoryStream = new MemoryStream(Bytes))
+      using (var writer = new BinaryWriter(memoryStream))
+      {
+        writer.Write(data);
+      }
+
+      WriteBuffer(data);
+    }
+    public T[] ReadStructs<T>() where T : struct
+    {
+      Gu.Assert(this.Mode == AccessMode.Read);
+
+      int len = ReadInt32();
+      int size = ReadInt32();
+
+      var ret = new T[len];
+
+      var pinnedHandle = GCHandle.Alloc(ret, GCHandleType.Pinned);
+      Marshal.Copy(Bytes, ReadOffset, pinnedHandle.AddrOfPinnedObject(), size * len);
+      pinnedHandle.Free();
+
+      ReadOffset += size * len;
+
+      return ret;
+    }
+
+    public void WriteBuffer(byte[] buf)
+    {
+      Gu.Assert(this.Mode == AccessMode.Write);
+      if (Bytes == null)
+      {
+        Bytes = new Byte[0];
+      }
+      var newbytes = new Byte[Bytes.Length + buf.Length];
+      Buffer.BlockCopy(Bytes, 0, newbytes, 0, Bytes.Length);
+      Buffer.BlockCopy(buf, 0, newbytes, Bytes.Length, buf.Length);
+    }
+  }
+  public class ByteArrayUtils
+  {
+    public static unsafe vec2[] ParseVec2fArray(byte[] Data, int item_count, int byte_offset)
+    {
+      vec2[] ret = new vec2[item_count];
+      fixed (byte* raw = Data)
+      {
+        int component_byte_size = 4;//sizeof float
+        int tensor_rank = 2;// 2 sca
+        int tensor_byte_size = component_byte_size * tensor_rank;
+        //***** not sure if count is number of bytes, or components
+        for (int ioff = 0; ioff < item_count; ioff++)
+        {
+          int offset = byte_offset + ioff * tensor_byte_size;
+          Gu.Assert(offset < Data.Length);
+          vec2 v = *((vec2*)(raw + offset));
+          ret[ioff] = v;
+        }
+      }
+      return ret;
+    }
+    public static unsafe vec3[] ParseVec3fArray(byte[] Data, int item_count, int byte_offset)
+    {
+      vec3[] ret = new vec3[item_count];
+      fixed (byte* raw = Data)
+      {
+        int component_byte_size = 4;//sizeof float
+        int tensor_rank = 3;// 3 scalars
+        int tensor_byte_size = component_byte_size * tensor_rank;
+        //***** not sure if count is number of bytes, or components
+        for (int ioff = 0; ioff < item_count; ioff++)
+        {
+          int offset = byte_offset + ioff * tensor_byte_size;
+          Gu.Assert(offset < Data.Length);
+          vec3 v = *((vec3*)(raw + offset));
+          ret[ioff] = v;
+        }
+      }
+      return ret;
+    }
+    public static unsafe vec4[] ParseVec4fArray(byte[] Data, int item_count, int byte_offset)
+    {
+      vec4[] ret = new vec4[item_count];
+      fixed (byte* raw = Data)
+      {
+        int component_byte_size = 4;//sizeof float
+        int tensor_rank = 4;// 4 scalars
+        int tensor_byte_size = component_byte_size * tensor_rank;
+        //***** not sure if count is number of bytes, or components
+        for (int ioff = 0; ioff < item_count; ioff++)
+        {
+          int offset = byte_offset + ioff * tensor_byte_size;
+          Gu.Assert(offset < Data.Length);
+          vec4 v = *((vec4*)(raw + offset));
+          ret[ioff] = v;
+        }
+      }
+      return ret;
+    }
+    public static unsafe quat[] ParseQuatArray(byte[] Data, int item_count, int byte_offset)
+    {
+      quat[] ret = new quat[item_count];
+      fixed (byte* raw = Data)
+      {
+        int component_byte_size = 4;//sizeof float
+        int tensor_rank = 4;// 4 scalars
+        int tensor_byte_size = component_byte_size * tensor_rank;
+        //***** not sure if count is number of bytes, or components
+        for (int ioff = 0; ioff < item_count; ioff++)
+        {
+          int offset = byte_offset + ioff * tensor_byte_size;
+          Gu.Assert(offset < Data.Length);
+          quat v = *((quat*)(raw + offset));
+          ret[ioff] = v;
+        }
+      }
+      return ret;
+    }
+    public static unsafe ushort[] ParseUInt16Array(byte[] Data, int item_count, int byte_offset)
+    {
+      ushort[] ret = new ushort[item_count];
+      fixed (byte* raw = Data)
+      {
+        int component_byte_size = 2;//sizeof ushort
+        int tensor_rank = 1;// 3 scalars
+        int tensor_byte_size = component_byte_size * tensor_rank;
+        //***** not sure if count is number of bytes, or components
+        for (int ioff = 0; ioff < item_count; ioff++)
+        {
+          int offset = byte_offset + ioff * tensor_byte_size;
+          Gu.Assert(offset < Data.Length);
+          ushort v = *((ushort*)(raw + offset));
+          ret[ioff] = v;
+        }
+      }
+      return ret;
+    }
+    public static unsafe uint[] ParseUInt32Array(byte[] Data, int item_count/*not sure*/, int byte_offset)
+    {
+      uint[] ret = new uint[item_count];
+      fixed (byte* raw = Data)
+      {
+        int component_byte_size = 4;//sizeof uint
+        int tensor_rank = 1;// 3 scalars
+        int tensor_byte_size = component_byte_size * tensor_rank;
+        //***** not sure if count is number of bytes, or components
+        for (int ioff = 0; ioff < item_count; ioff++)
+        {
+          int offset = byte_offset + ioff * tensor_byte_size;
+          Gu.Assert(offset < Data.Length);
+          uint v = *((uint*)(raw + offset));
+          ret[ioff] = v;
+        }
+      }
+      return ret;
+    }
+    public static unsafe float[] ParseFloatArray(byte[] Data, int scalar_count/*not sure*/, int byte_offset)
+    {
+      float[] floats = new float[scalar_count];
+      fixed (byte* raw = Data)
+      {
+        int component_byte_size = 4;//sizeof uint
+        int tensor_rank = 1;// 3 scalars
+        int tensor_byte_size = component_byte_size * tensor_rank;
+        //***** not sure if count is number of bytes, or components
+        for (int ioff = 0; ioff < scalar_count; ioff++)
+        {
+          int offset = byte_offset + ioff * tensor_byte_size;
+          Gu.Assert(offset < Data.Length);
+          float v = *((float*)(raw + offset));
+          floats[ioff] = v;
+        }
+      }
+      return floats;
+    }
   }
   //We will probably delete the range stuff, just keeping it here for now.
   public interface IRangeItem
@@ -1385,424 +2029,151 @@ namespace PirateCraft
     public ushort Min { get; }
     public ushort Max { get; }
   }
-  // public class RangeList
-  // {
-  //   //Range list for [max,min] IRangeItem.  
-  //   // Constraint: Max!=Min, 
-  //   // elements max/min can *coincide*
-  //   // a--a b-------bc--c   d------d <example
-  //   // a----ab-----b < ok
-  //   // aa < bad
-  //   // ab < ok
 
-  //   public const int c_iNotFound = -1;
-  //   private List<IRangeItem>? _items = new List<IRangeItem>();
-  //   public RangeList()
-  //   {
-  //   }
-  //   public List<IRangeItem> GetCoincidentRanges(IRangeItem ri)
-  //   {
-  //     //return all coinciding ranges
-  //     List<IRangeItem> ret = null;
+  public class BList<T> : List<T> where T : IComparable
+  {
+    //Sorted list O(logn)
+    public enum DupeFindMode { AnyDupe, BeforeDupes, AfterDupes }
+    public const int c_iNotFound = -1;
+    public bool Unique { get; set; } = false;
+    public DupeFindMode DupeMode { get; set; } = DupeFindMode.AfterDupes;
 
-  //     if (_items.Count == 0)
-  //     {
-  //       return new List<IRangeItem>();
-  //     }
+    public BList(bool unique_values_only = false)
+    {
+      Unique = unique_values_only;
+    }
+    public void CheckOrderSlow()
+    {
+      if (this.Count <= 1) { return; }
+      var x1 = this[0];
+      foreach (var x2 in this)
+      {
+        Gu.Assert(x1.CompareTo(x2) <= 0);
+        x1 = x2;
+      }
+    }
+    public new void Add(T item)
+    {
+      base.Add(item);
+      // Sort(this,Count);
 
-  //     Gu.Assert(ri.Min != ri.Max);
-  //     FindClosest_LeftGuaranteed(ri.Min, out int min_left, out int min_right);
-  //     FindClosest_LeftGuaranteed(ri.Max, out int max_left, out int max_right);
 
-  //     Gu.Assert(max_left >= min_left);
-  //     if (_items[min_left].Max >= ri.Min && _items[max_left].Min <= ri.Max)
-  //     {
-  //       ret = _items.GetRange(min_left, max_left - min_left);
-  //     }
+      // if (Count == 0)
+      // {
+      //   base.Add(item);
+      // }
+      // else
+      // {
+      //   Find(item, out var p, DupeMode);
 
-  //     return ret;
-  //   }
-  //   public void Add(IRangeItem e)
-  //   {
-  //     Gu.Assert(e != null);
-  //     int tindl = 0, bindl = 0, tindr = 0, bindr = 0;
+      //   base.Insert(p, item);
+      // }
+      // CheckOrderSlow();
+    }
+    public new bool Remove(T item)
+    {
 
-  //     //Max=min would mess this whole thing up  could return infinite elements
-  //     if (e.Max == e.Min)
-  //     {
-  //       Gu.BRThrowException("Beam max must not equal min.");
-  //     }
-  //     Gu.Assert(_items != null);
+      // if (Count == 1)
+      // {
+      //   return base.Remove(item);
+      // }
+      // else if (Find(item, out var p, DupeMode))
+      // {
+      //   base.RemoveAt(p);
+      //   return true;
+      // }
+      // CheckOrderSlow();
+      return false;
+    }
+    public bool Find(T value, out int pos, DupeFindMode mode = DupeFindMode.AfterDupes)
+    {
+      //BSearch and Return indexs into _items for the ranges that contain h.
+      if (Count == 0)
+      {
+        pos = c_iNotFound;
+        return false;
+      }
 
-  //     if (_items.Count == 0)
-  //     {
-  //       _items.Add(e);
-  //     }
-  //     else if (!FindClosest_LeftGuaranteed(e.Max, out tindl, out tindr) && !FindClosest_LeftGuaranteed(e.Min, out bindl, out bindr))
-  //     {
-  //       //bind is guaranteed in the array > 0
-  //       // we sort by bot value.
-  //       _items.Insert(bindl, e);
-  //     }
-  //     else
-  //     {
-  //       Gu.Log.Error("edge was coincident");
-  //       Gu.DebugBreak();
-  //     }
-  //   }
-  //   public bool Find(ushort value, out IRangeItem left, out IRangeItem right)
-  //   {
-  //     return Find(value, out left, out right, out int l, out int r);
-  //   }
-  //   public bool Find(ushort value, out IRangeItem left, out IRangeItem right, out int closest_left, out int closest_right)
-  //   {
-  //     //Returns 1 or 2 matching range items.
-  //     left = right = null;
-  //     var ret = false;
+      bool ret = false;
+      //pos = Count / 2;
 
-  //     //Note this finds the CLOSEST value
-  //     if (FindClosest_LeftGuaranteed(value, out closest_left, out closest_right))
-  //     {
-  //       if (closest_left != c_iNotFound)
-  //       {
-  //         if (left == null)
-  //         {
-  //           if (_items[closest_left].Min <= value && _items[closest_left].Max >= value)
-  //           {
-  //             left = _items[closest_left];
-  //             ret = true;
-  //           }
-  //         }
-  //         else
-  //         {
-  //           Gu.Assert(left == _items[closest_left]);//Extra check - the left/right order would always be the same, and the left/right beam would always be the same.
-  //         }
-  //       }
-  //       if (closest_right != c_iNotFound)
-  //       {
-  //         if (right == null)
-  //         {
-  //           if (_items[closest_right].Min <= value && _items[closest_right].Max >= value)
-  //           {
-  //             right = _items[closest_right];
-  //             ret = true;
-  //           }
-  //         }
-  //         else
-  //         {
-  //           Gu.Assert(right == _items[closest_right]);//Extra check - the left/right order would always be the same, and the left/right beam would always be the same.
-  //         }
-  //       }
-  //     }
+      pos = Count / 2;
+      int range = Count / 2;
+      bool even = true;//range % 2 == 0; /// 2x range = even right?
+      // even = range % 2 == 0;
 
-  //     return ret;
-  //   }
-  //   public bool FindClosest_LeftGuaranteed(ushort h, out int left, out int right)
-  //   {
-  //     //Get closest left and right indexes to a given value, one may be null if they do not coincide
-  //     // The closest value is for valid index for array insertion
-  //     // Return TRUE if h coincides with a range (left || right != c_iNotFound).
-  //     // *** left is guaranteed to be in the bounds of the array if the array size >0.
-  //     //this may return 2 values since the range values may be equal
-  //     left = right = c_iNotFound;
-  //     if (_items == null || _items.Count == 0)
-  //     {
-  //       return false;
-  //     }
+      if (Count == 23)
+      {
+        Gu.Trap();
+      }
+      for (int xi = 0; Gu.WhileTrueGuard(xi, Gu.c_intMaxWhileTrueLoopBinarySearch64Bit); xi++)
+      {
+        Gu.Assert(pos >= 0 && pos <= Count);//can equal count if beyond array
+        if (range <= 0)
+        {
+          break;
+        }
 
-  //     bool ret = false;
-  //     int pos = _items.Count / 2;
-  //     int range = _items.Count / 2;
+        var cmp_left = (pos == 0) ? 1 : value.CompareTo(this.ElementAt(pos - 1));
+        var cmp_right = (pos == Count) ? -1 : value.CompareTo(this.ElementAt(pos));
+        if ((cmp_left == 0 || cmp_right == 0) && mode == DupeFindMode.AnyDupe)
+        {
+          ret = true;
+          break;
+        }
+        else if (cmp_left == 0 && cmp_right < 0 && mode == DupeFindMode.AfterDupes)
+        {
+          ret = true;
+          break;
+        }
+        else if (cmp_left > 0 && cmp_right == 0 && mode == DupeFindMode.BeforeDupes)
+        {
+          ret = true;
+          break;
+        }
+        else if (cmp_left > 0 && cmp_right < 0)
+        {
+          ret = true;
+          break;
+        }
+        // else if (cmp_right > 0 && pos == Count - 1)
+        // { 
+        //   //This is a dud case for 'end' value - probably not worth it - and should be fixed
+        //   pos += 1;
+        //   ret = true;
+        //   break;
+        // }
+        else if (cmp_right > 0)//search right
+        {
+          pos += range;
+          if (!even)
+          {
+            pos += 1;
+          }
+        }
+        else if (cmp_left < 0)//search left
+        {
+          pos -= range;
+        }
+        else
+        {
+          Gu.BRThrowNotImplementedException();
+        }
 
-  //     IRangeItem el = null, er = null;
+        even = range % 2 == 0;
+        range = range / 2;
+        //  if(even){range+=1;}
 
-  //     for (int xi = 0; Gu.WhileTrueGuard(xi, Gu.c_intMaxWhileTrueLoopBinarySearch); xi++)
-  //     {
-  //       left = pos;
-  //       right = left + 1;
+      }
 
-  //       Gu.Assert(left < _items.Count);
 
-  //       el = _items[left];
-  //       if (right < _items.Count)
-  //       {
-  //         er = _items[right];
-  //       }
-  //       else
-  //       {
-  //         right = c_iNotFound;
-  //       }
-
-  //       if (el.Min <= h && el.Max >= h)
-  //       {
-  //         //in exclusive range
-  //         ret = true;
-  //         break;
-  //       }
-
-  //       if (er != null && er.Min <= h && er.Max > h)//note > 
-  //       {
-  //         el = er;
-  //         er = null;
-  //         left = right;
-  //         right = c_iNotFound;
-  //         ret = true;
-  //         break;
-  //       }
-
-  //       if (range <= 1)
-  //       {
-  //         //no hit
-  //         break;
-  //       }
-
-  //       //continue divide
-  //       range /= 2;
-  //       if (h < el.Min)
-  //       {
-  //         pos = pos - range;
-  //       }
-  //       else if (h > el.Max)
-  //       {
-  //         pos = pos + range;
-  //       }
-
-  //       if (pos < _items.Count || pos > _items.Count)
-  //       {
-  //         //no hit
-  //         break;
-  //       }
-  //     }
-
-  //     //l must be a count
-  //     Gu.Assert(left <= _items.Count);
-  //     if (right != c_iNotFound)
-  //     {
-  //       Gu.Assert(right <= _items.Count);
-  //     }
-
-  //     return ret;
-  //   }
-  // }//cl
-  // public class RangeList
-  // {
-  //     public List<IRangeItem> Children = null;// new List<RangeNode>();//sort by min<=min
-
-  //   private class RangeNode
-  //   {
-  //     public ushort Min = 0;
-  //     public ushort Max = 0;
-  //     public IRangeItem Item = null;
-  //     public RangeNode(ushort min, ushort max)
-  //     {
-  //       Min = min;
-  //       Max = max;
-  //     }
-  //   }
-  //   public int Count {get; private set;}= 0;
-  //   //Something like a range K-D tree 
-  //   //New list for beams, with entire beam being min/max
-  //   //Range list for [max,min] IRangeItem, Overlapping
-  //   // Constraint: a is not contained within B
-  //   // a---b-a----c--b--c   d------d <example
-
-  //   public const int c_iNotFound = -1;
-  //   //private List<IRangeItem>? _items = new List<IRangeItem>();
-  //   //private RangeNode _root = null;
-  //   //private Dictionary<ushort,ushort[]> _index = new Dictionary<ushort, ushort[]>();// O --> oo
-  //   private RangeNode _root=null;
-  //   private ushort _maxRange = 0;
-  //   public RangeList(ushort range)
-  //   {
-  //     _maxRange = range;
-  //     _root = new RangeNode(range);
-  //   }
-  //   public void Add(IRangeItem ri, RangeNode? root=null)
-  //   {
-  //     Count++;
-  //     if(root==null){
-  //       root = _root;
-  //     }
-  //     if(ri.Max)
-
-  //     Gu.Assert(_items.Count < ushort.MaxValue-2);
-  //     _items.Add(ri);
-  //     ushort idx = (ushort)_items.Count;
-  //     if(_root ==0){
-
-  //     }
-  //   }
-  //   private void Add(IRangeItem ri){
-
-  //   }
-  //   public List<IRangeItem> GetRanges(ushort s)
-  //   {
-
-  //   }
-  //   public List<IRangeItem> GetRanges(IRangeItem ri)
-  //   {
-
-  //   }
-
-  //   public List<IRangeItem> GetCoincidentRanges(IRangeItem ri)
-  //   {
-  //     //return all coinciding ranges
-  //     List<IRangeItem> ret = null;
-
-  //     if (_items.Count == 0)
-  //     {
-  //       return new List<IRangeItem>();
-  //     }
-
-  //     Gu.Assert(ri.Min != ri.Max);
-  //     FindClosest_LeftGuaranteed(ri.Min, out int min_left, out int min_right);
-  //     FindClosest_LeftGuaranteed(ri.Max, out int max_left, out int max_right);
-
-  //     Gu.Assert(max_left >= min_left);
-  //     if (_items[min_left].Max >= ri.Min && _items[max_left].Min <= ri.Max)
-  //     {
-  //       ret = _items.GetRange(min_left, max_left - min_left);
-  //     }
-
-  //     return ret;
-  //   }
-  //   public void Add(IRangeItem e)
-  //   {
-  //     Gu.Assert(e != null);
-  //     int tindl = 0, bindl = 0, tindr = 0, bindr = 0;
-
-  //     //Max=min would mess this whole thing up  could return infinite elements
-  //     if (e.Max == e.Min)
-  //     {
-  //       Gu.BRThrowException("Beam max must not equal min.");
-  //     }
-  //     Gu.Assert(_items != null);
-
-  //     if (_items.Count == 0)
-  //     {
-  //       _items.Add(e);
-  //     }
-  //     else if (!FindClosest_LeftGuaranteed(e.Max, out tindl, out tindr) && !FindClosest_LeftGuaranteed(e.Min, out bindl, out bindr))
-  //     {
-  //       //bind is guaranteed in the array > 0
-  //       // we sort by bot value.
-  //       _items.Insert(bindl, e);
-  //     }
-  //     else
-  //     {
-  //       Gu.Log.Error("edge was coincident");
-  //       Gu.DebugBreak();
-  //     }
-  //   }
-  //   public bool Find(ushort value, out IRangeItem left, out IRangeItem right)
-  //   {
-  //     return Find(value, out left, out right, out int l, out int r);
-  //   }
-  //   public bool Find(ushort value, out IRangeItem left, out IRangeItem right, out int closest_left, out int closest_right)
-  //   {
-  //     //Returns 1 or 2 matching range items.
-  //     left = right = null;
-  //     var ret = false;
-
-  //     //Note this finds the CLOSEST value
-  //     if (FindClosest_LeftGuaranteed(value, out closest_left, out closest_right))
-  //     {
-  //       if (closest_left != c_iNotFound)
-  //       {
-  //         if (left == null)
-  //         {
-  //           if (_items[closest_left].Min <= value && _items[closest_left].Max >= value)
-  //           {
-  //             left = _items[closest_left];
-  //             ret = true;
-  //           }
-  //         }
-  //         else
-  //         {
-  //           Gu.Assert(left == _items[closest_left]);//Extra check - the left/right order would always be the same, and the left/right beam would always be the same.
-  //         }
-  //       }
-  //       if (closest_right != c_iNotFound)
-  //       {
-  //         if (right == null)
-  //         {
-  //           if (_items[closest_right].Min <= value && _items[closest_right].Max >= value)
-  //           {
-  //             right = _items[closest_right];
-  //             ret = true;
-  //           }
-  //         }
-  //         else
-  //         {
-  //           Gu.Assert(right == _items[closest_right]);//Extra check - the left/right order would always be the same, and the left/right beam would always be the same.
-  //         }
-  //       }
-  //     }
-
-  //     return ret;
-  //   }
-  //   public bool FindRangeIndexes(ushort h, out int min_index, out int max_index)
-  //   {
-  //     //BSearch and Return indexs into _items for the ranges that contain h.
-  //     min_index = max_index = c_iNotFound;
-  //     if (_items == null || _items.Count == 0)
-  //     {
-  //       return false;
-  //     }
-
-  //     bool ret = false;
-  //     int pos = _items.Count / 2;
-  //     int range = _items.Count / 2;
-
-  //     for (int xi = 0; Gu.WhileTrueGuard(xi, Gu.c_intMaxWhileTrueLoopBinarySearch); xi++)
-  //     {
-  //       min_index = pos;
-
-  //       Gu.Assert(min_index < _items.Count);
-
-  //       var el = _items[min_index];
-
-  //       if (el.Min <= h && el.Max >= h)
-  //       {
-  //         //in exclusive range
-  //         ret = true;
-  //         break;
-  //       }
-
-  //       if (range <= 1)
-  //       {
-  //         //no hit
-  //         break;
-  //       }
-
-  //       //continue divide
-  //       range /= 2;
-  //       if (h < el.Min)
-  //       {
-  //         pos = pos - range;
-  //       }
-  //       else if (h > el.Max)
-  //       {
-  //         pos = pos + range;
-  //       }
-
-  //       if (pos < _items.Count || pos > _items.Count)
-  //       {
-  //         //no hit
-  //         break;
-  //       }
-  //     }
-
-  //     //l must be a count
-  //     Gu.Assert(left <= _items.Count);
-  //     if (right != c_iNotFound)
-  //     {
-  //       Gu.Assert(right <= _items.Count);
-  //     }
-
-  //     return ret;
-  //   }
-  // }//cl
+      return ret;
+    }
+    public new string ToString()
+    {
+      return String.Join(',', this);
+    }
+  }//cl
   public interface ISimpleFlags
   {
     public bool Test(int x);
@@ -1815,7 +2186,7 @@ namespace PirateCraft
       return lower;
     }
   }
-  public struct ByteFlags : ISimpleFlags
+  public struct ByteFlags : ISimpleFlags, ISerializeBinary
   {
     //C# bitwise stuff is integer only so yeah
     byte _flags = 0;
@@ -1838,11 +2209,19 @@ namespace PirateCraft
       byte ret = (byte)(~((int)lower) & (int)_flags);
       return ret;
     }
+    public void Serialize(BinaryWriter bw)
+    {
+      bw.Write((byte)_flags);
+    }
+    public void Deserialize(BinaryReader br, SerializedFileVersion version)
+    {
+      _flags = br.ReadByte();
+    }
   }//cl
-  public struct ShortFlags : ISimpleFlags
+  public struct ShortFlags : ISimpleFlags, ISerializeBinary
   {
     //C# bitwise stuff is integer only so yeah
-    short _flags = 0;
+    ushort _flags = 0;
     public ShortFlags() { }
     public bool Test(int bits)
     {
@@ -1862,7 +2241,145 @@ namespace PirateCraft
       byte ret = (byte)(~((int)lower) & (int)_flags);
       return ret;
     }
+    public void Serialize(BinaryWriter bw)
+    {
+      bw.Write((UInt16)_flags);
+    }
+    public void Deserialize(BinaryReader br, SerializedFileVersion version)
+    {
+      _flags = br.ReadUInt16();
+    }
   }//cl
+  public class RefList<T> : IClone, ICopy<RefList<T>>, IEnumerable<T> where T : DataBlock
+  {
+    public List<DataRef<T>> _items = new List<DataRef<T>>();
+    public int Count { get { return _items.Count; } }
+    public T? First()
+    {
+      var item = _items.First();
+      Gu.Assert(item != null);
+      return item.Get;
+    }
+    public void AddRef(DataRef<T> x)
+    {
+      _items.Add(x);
+    }
+    public void Add(T x)
+    {
+      _items.Add(x.GetRef<T>());
+    }
+    public T this[int k]
+    {
+      //operator[]
+      get
+      {
+        return _items.ElementAt(k).Get;
+      }
+      set
+      {
+        _items[k] = value.GetRef<T>();
+      }
+    }
+    public bool Remove(T val)
+    {
+      if (_items.Count == 0)
+      {
+        return false;
+      }
+      for (int i = _items.Count - 1; i >= 0; i--)
+      {
+        Gu.Assert(_items[i] != null);
+        if (_items[i]._ref == val)
+        {
+          _items.RemoveAt(i);
+          return true;
+        }
+      }
+      return false;
+    }
+    public void Clear()
+    {
+      _items.Clear();
+    }
+    public IEnumerator<T> GetEnumerator()
+    {
+      foreach (var x in _items)
+      {
+        yield return x.Get;
+      }
+    }
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+      foreach (var x in _items)
+      {
+        yield return x.Get;
+      }
+    }
+    public object? Clone(bool? shallow = null)
+    {
+      return Gu.Clone<RefList<T>>(this);
+    }
+    public void CopyFrom(RefList<T>? other, bool? shallow = null)
+    {
+      Gu.Assert(other != null);
+      this._items = new List<DataRef<T>>(other._items);
+    }
+    public void Serialize(BinaryWriter bw)
+    {
+      //Ok so Action() can't be serialized, this is a problem. Maybe we add a quick LUA script hting..ughhh
+      Gu.BRThrowNotImplementedException();
+    }
+    public void Deserialize(BinaryReader br, SerializedFileVersion version)
+    {
+      Gu.BRThrowNotImplementedException();
+    }
+  }
+
+  public class DataRef<T> : IClone, ICopy<DataRef<T>>, ISerializeBinary where T : DataBlock
+  {
+    //This would be a much more compact DataRef than the other, assuming it would work
+    public object? _ref = null;
+    public DataRef() { }
+    public DataRef(UInt64 id)
+    {
+      _ref = id;
+    }
+    public DataRef(T? val)
+    {
+      _ref = val;
+    }
+    public T? Get
+    {
+      get
+      {
+        //C# version of a pointer fix-up. Box the loaded object as UInt64, then look it up when referenced.
+        // if (_ref is UInt64)
+        // {
+        //   _ref = Gu.Lib.GetOrLoadExistingResource((UInt64)_ref);
+        //   Gu.Assert(_ref != null);
+        // }
+        Gu.BRThrowNotImplementedException();
+        return _ref as T;
+      }
+    }
+    public object? Clone(bool? shallow = null)
+    {
+      return Gu.Clone<DataRef<T>>(this);
+    }
+    public void CopyFrom(DataRef<T>? other, bool? shallow = null)
+    {
+      Gu.Assert(other != null);
+      this._ref = other._ref;
+    }
+    public void Serialize(BinaryWriter bw)
+    {
+      Gu.BRThrowNotImplementedException();
+    }
+    public void Deserialize(BinaryReader bw, SerializedFileVersion version)
+    {
+      Gu.BRThrowNotImplementedException();
+    }
+  }
 
 
 }//ns

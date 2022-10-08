@@ -253,11 +253,11 @@ namespace PirateCraft
     static int _scale = 8;
     static int _ngridpoints = (int)Math.Pow(_bsiz / _scale, 3);
     static int _seed = 940275;
-    public static Texture2D TestNoise()
+    public static Texture TestNoise()
     {
       int nCount = 0;
       //   Bitmap b = new Bitmap(_bsiz, _bsiz, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-      Img32 b = new Img32("noise-image", _bsiz, _bsiz, Img32.ImagePixelFormat.RGBA32ub);
+      Image b = new Image("noise-image", _bsiz, _bsiz, Image.ImagePixelFormat.RGBA32ub);
       int z = 0;// (int z = 0; z < _bsiz; z++)
       {
         for (int y = 0; y < _bsiz; y++)
@@ -282,7 +282,7 @@ namespace PirateCraft
 
 
       }
-      Texture2D t = new Texture2D(b, true, TexFilter.Trilinear);
+      Texture t = new Texture(b, true, TexFilter.Trilinear);
       return t;
     }
 

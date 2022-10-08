@@ -9,6 +9,7 @@ using System.Runtime.Serialization.Formatters.Binary;
 namespace PirateCraft
 {
   //A buffer on GPU, vertex buffer, index buffer .. 
+
   public class GPUBuffer : OpenGLResource
   {
     //private int _glBufferId = 0;
@@ -22,7 +23,7 @@ namespace PirateCraft
     public int ItemCount { get { return _itemCount; } }
     public int ItemSizeBytes { get { return _itemSize; } }
 
-    public GPUBuffer(string name, VertexFormat fmt, BufferTarget t, int itemSize, int itemCount, object items) : base(name + "-buffer")
+    public GPUBuffer(string name, VertexFormat fmt, BufferTarget t, int itemSize, int itemCount, object items) : base(name)
     {
       BufferTarget = t;
 

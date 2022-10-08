@@ -28,8 +28,6 @@ struct GpuWorld {
 layout(std140, binding = <UBO_BINDING_ID>) uniform _ufGpuWorld_Block {
   GpuWorld _ufGpuWorld;
 };
-uniform sampler2D _ufGpuWorld_s2EnvironmentMap;//Equirectangular ENv map
-uniform sampler2D _ufGpuWorld_s2IrradiancaMap; //Equirectangular IRr map.
 struct GpuCamera { 
   mat4 _m4View;            
   mat4 _m4Projection;
@@ -41,6 +39,11 @@ struct GpuCamera {
   float _fWindowHeight;
 //
   vec4 _vWindowViewport;//x,y,w,h
+//
+  float _fRenderWidth; 
+  float _fRenderHeight;
+  float _pad0;
+  float _pad1;
 };
 layout(std140, binding = <UBO_BINDING_ID>) uniform _ufGpuCamera_Block {
   GpuCamera _ufGpuCamera;
@@ -65,17 +68,7 @@ struct GpuMaterial {
 layout(std140, binding = <UBO_BINDING_ID>) uniform _ufGpuMaterial_Block {
   GpuMaterial _ufGpuMaterial;
 };
-//TODO: sampler2DArray, and use indexes, we can put them in the shader in cs if we wish
-uniform sampler2D _ufGpuMaterial_s2Albedo;     // deferred = Color
-uniform sampler2D _ufGpuMaterial_s2Normal;     // deferred = normal
-uniform sampler2D _ufGpuMaterial_s2Roughness;  // deferred = position
-uniform sampler2D _ufGpuMaterial_s2Metalness;  // deferred = plane
-uniform sampler2D _ufGpuMaterial_s2Position;   // 
-
-vec4 getMRT_Color(vec2 tcoord)    { return texture(_ufGpuMaterial_s2Albedo, vec2(tcoord)); }   
-vec4 getMRT_Normal(vec2 tcoord)   { return texture(_ufGpuMaterial_s2Normal, vec2(tcoord)); }   
-vec4 getMRT_Position(vec2 tcoord) { return texture(_ufGpuMaterial_s2Position, vec2(tcoord)); } 
-vec4 getMRT_Plane_And_Mat(vec2 tcoord) { return texture(_ufGpuMaterial_s2Metalness, vec2(tcoord)); }
+<GLSL_CONTROL_INPUT_MATERIAL_TEXTURES>
 
 struct GpuPointLight {
   vec3 _pos;
@@ -100,6 +93,7 @@ struct GpuDirLight {
 layout(std140, binding = <UBO_BINDING_ID>) uniform _ufGpuDirLights_Block {
   GpuPointLight _ufGpuDirLights[DEF_MAX_DIR_LIGHTS];
 };
+
 
 uniform samplerCube _ufShadowBoxSamples[DEF_MAX_CUBE_SHADOW_SAMPLES];
 uniform samplerCube _ufShadowFrustumSamples[DEF_MAX_FRUS_SHADOW_SAMPLES];

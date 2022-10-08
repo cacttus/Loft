@@ -26,11 +26,19 @@ vec4 windowRect(in vec4 screen) {
   // Xw = (Xd+1) (Wv/2) + Xv
   // Xd = (Xw-Xv)/(Wv/2) - 1
   // Xw = Window x, Xv = Viewport x, Xd = device X, Wv = Viewport width
-  float wh = _ufGpuCamera._fWindowHeight;
+  float wh = _ufGpuCamera._fRenderHeight;
   float vx = _ufGpuCamera._vWindowViewport.x;
   float vy = _ufGpuCamera._vWindowViewport.y;
   float vw = _ufGpuCamera._vWindowViewport.z;
   float vh = _ufGpuCamera._vWindowViewport.w;
+
+  //*this piece resizes the GUI to be the size of the current FBO (_fRenderHeight)
+  float rx = _ufGpuCamera._fRenderHeight / _ufGpuCamera._fWindowHeight;
+  float ry = _ufGpuCamera._fRenderWidth / _ufGpuCamera._fWindowWidth;
+  screen.x *= rx;
+  screen.y *= ry;
+  screen.z *= rx;
+  screen.w *= ry;
 
   //Convert top left y into OpenGL bottom left Y & Flip min/max Y due to y conversion
   vy = wh - vy - vh;
@@ -40,11 +48,15 @@ vec4 windowRect(in vec4 screen) {
   screen.y = screen.w;
   screen.w = tmp;
 
+
+
   screen.x = (screen.x - vx) / (vw / 2.0f) - 1.0f;
   screen.z = (screen.z - vx) / (vw / 2.0f) - 1.0f;
 
   screen.y = (screen.y - vy) / (vh / 2.0f) - 1.0f;
   screen.w = (screen.w - vy) / (vh / 2.0f) - 1.0f;
+
+
 
   return screen;
 }
@@ -53,8 +65,8 @@ void main() {
   _clipVS = windowRect(_v402);
   _texVS = _v403;
 
-  float w2 = _ufGpuCamera._fWindowWidth * 0.5f; 
-  float h2 = _ufGpuCamera._fWindowHeight * 0.5f;
+  float w2 = _ufGpuCamera._fRenderWidth * 0.5f; 
+  float h2 = _ufGpuCamera._fRenderHeight * 0.5f;
 
     //Corners
   _rtl_rtrVS = _v404;

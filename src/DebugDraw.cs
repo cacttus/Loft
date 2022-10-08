@@ -11,6 +11,7 @@ namespace PirateCraft
     public List<v_v3c4> LinePoints = new List<v_v3c4>();
     public List<uint> LineInds = new List<uint>();
     public List<v_v3c4> Points = new List<v_v3c4>();
+    public List<v_v3c4> TriPoints = new List<v_v3c4>();
 
     public bool DrawBoundBoxes { get; set; } = false;
     public bool DrawVertexNormals { get; set; } = false;
@@ -26,42 +27,55 @@ namespace PirateCraft
       LinePoints.Add(new v_v3c4() { _v = b, _c = color });
       Line(n + 0, n + 1);
     }
-    public void BeginFrame()
-    {
-      //Lines.Clear();
-      //Points.Clear();
-    }
     public void EndFrame()
     {
       LinePoints.Clear();
       LineInds.Clear();
       Points.Clear();
+      TriPoints.Clear();
     }
+    public void Triangle(vec3 v0, vec3 v1, vec3 v2, vec4 c)
+    {
+      TriPoints.Add(new v_v3c4() { _v = v0, _c = c });
+      TriPoints.Add(new v_v3c4() { _v = v1, _c = c });
+      TriPoints.Add(new v_v3c4() { _v = v2, _c = c });
+    }    
     public void Point(vec3 v, vec4 c)
     {
       Points.Add(new v_v3c4() { _v = v, _c = c });
     }
-    public void Sphere(int slices, int stacks, float radius, vec3 pos, vec4 color)
+    public void Point(vec3 v)
     {
-      Ellipsoid(slices, stacks, new vec3(radius, radius, radius), pos, color);
+      Points.Add(new v_v3c4() { _v = v, _c = new vec4(1, 1, 1, 1) });
     }
-    public void Ellipsoid(int slices, int stacks, vec3 radius, vec3 pos, vec4 color)
+    public void DrawAxisLine(vec3 origin, vec3 axis)
     {
-      v_v3n3x2t3u1[] verts;
-      ushort[] inds;
-
-      MeshData.GenEllipsoid(out verts, out inds, radius, slices, stacks, false, false);
-
-      int n = LinePoints.Count;
-      foreach (var vr in verts)
-      {
-        LinePoints.Add(new v_v3c4() { _v = pos + vr._v, _c = color });
-      }
-      foreach (var ind in inds)
-      {
-        LineInds.Add((uint)((int)n + ind));
-      }
+      float drawaxis_length = 10000;
+      vec3 linea = origin + axis * drawaxis_length;
+      vec3 lineb = origin + axis * -drawaxis_length;
+      Gu.Context.DebugDraw.Line(linea, lineb, new vec4(.9221f, .9413f, .7912f, 1));
     }
+    // public void Sphere(int slices, int stacks, float radius, vec3 pos, vec4 color)
+    // {
+    //   Ellipsoid(slices, stacks, new vec3(radius, radius, radius), pos, color);
+    // }
+    // public void Ellipsoid(int slices, int stacks, vec3 radius, vec3 pos, vec4 color)
+    // {
+    //   v_v3n3x2t3u1[] verts;
+    //   ushort[] inds;
+
+    //   MeshData.GenEllipsoid(out verts, out inds, radius, slices, stacks, false, false);
+
+    //   int n = LinePoints.Count;
+    //   foreach (var vr in verts)
+    //   {
+    //     LinePoints.Add(new v_v3c4() { _v = pos + vr._v, _c = color });
+    //   }
+    //   foreach (var ind in inds)
+    //   {
+    //     LineInds.Add((uint)((int)n + ind));
+    //   }
+    // }
     public void Box(Box3f b, vec4 color, PrimitiveType t = PrimitiveType.Lines)
     {
       Box(b._min, b._max, color, t);

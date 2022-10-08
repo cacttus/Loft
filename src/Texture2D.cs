@@ -1,5 +1,6 @@
 ﻿
 using System.Runtime.InteropServices;
+using System.Runtime.Serialization;
 using OpenTK.Graphics.OpenGL4;
 
 namespace PirateCraft
@@ -16,7 +17,24 @@ namespace PirateCraft
     Trilinear, //Linear filter texture, linear filter between mipmaps. (very smooth / blurry).
     Separate
   }
-  public class Texture2D : OpenGLResource
+  public class GpuTexture : OpenGLResource
+  {
+    public GpuTexture(string name) : base(name)
+    {
+      this._glId = GL.GenTexture();
+    }
+    public override void Dispose_OpenGL_RenderThread()
+    {
+      if (GL.IsTexture(GlId))
+      {
+        GL.DeleteTexture(GlId);
+      }
+    }
+  }
+
+  [DataContract]
+  [Serializable]
+  public class Texture : OpenGLContextDataManager<GpuTexture>
   {
     private class BoundTexture2DState
     {
@@ -27,65 +45,98 @@ namespace PirateCraft
 
     public static NormalMapFormat NormalMapFormat { get; private set; } = NormalMapFormat.Yup;
 
-    public int Width { get; private set; } = 0;
-    public int Height { get; private set; } = 0;
-    public TextureMinFilter MinFilter { get; private set; } = TextureMinFilter.Nearest;
-    public TextureMagFilter MagFilter { get; private set; } = TextureMagFilter.Nearest;
-    public TextureWrapMode WrapModeS { get; private set; } = TextureWrapMode.ClampToEdge;
-    public TextureWrapMode WrapModeT { get; private set; } = TextureWrapMode.ClampToEdge;
-    public PixelFormat PixelFormat { get; private set; }
-    public PixelInternalFormat PixelInternalFormat { get; private set; }
-    public PixelType PixelType { get; private set; }
-    public TextureTarget TextureTarget { get; private set; }
+    public int Width { get { return _width; } set { _width = value; } }
+    public int Height { get { return _height; } set { _height = value; } }
+    public ivec2 Size { get { return new ivec2(_width, _height); } }
+    public TextureMinFilter MinFilter { get { return _minFilter; } set { _minFilter = value; } }
+    public TextureMagFilter MagFilter { get { return _magFilter; } set { _magFilter = value; } }
+    public TextureWrapMode WrapModeS { get { return _wrapModeS; } set { _wrapModeS = value; } }
+    public TextureWrapMode WrapModeT { get { return _wrapModeT; } set { _wrapModeT = value; } }
+    public PixelFormat PixelFormat { get { return _pixelFormat; } set { _pixelFormat = value; } }
+    public PixelInternalFormat PixelInternalFormat { get { return _pixelInternalFormat; } set { _pixelInternalFormat = value; } }
+    public PixelType PixelType { get { return _pixelType; } set { _pixelType = value; } }
+    public TextureTarget TextureTarget { get { return _textureTarget; } set { _textureTarget = value; } }
+
+    protected override GpuTexture CreateNew()
+    {
+      return new GpuTexture(this.Name);
+    }
 
     #endregion
     #region Private:Members
 
-    private TextureUnit _boundUnit = TextureUnit.Texture0;
-    private int _numMipmaps = 0; // if zero mipmapping disabledd
-    private Stack<BoundTexture2DState> _states = new Stack<BoundTexture2DState>();
-    private static StaticContextData<Texture2D> _default1x1ColorPixel_RGBA32ub = new StaticContextData<Texture2D>();
-    private static StaticContextData<Texture2D> _default1x1NormalPixel_RGBA32ub = new StaticContextData<Texture2D>();
+    [DataMember] private int _width = 0;
+    [DataMember] private int _height = 0;
+    [DataMember] private TextureMinFilter _minFilter = TextureMinFilter.Nearest;
+    [DataMember] private TextureMagFilter _magFilter = TextureMagFilter.Nearest;
+    [DataMember] private TextureWrapMode _wrapModeS = TextureWrapMode.ClampToEdge;
+    [DataMember] private TextureWrapMode _wrapModeT = TextureWrapMode.ClampToEdge;
+    [DataMember] private Image _image = null;//Data source for this texture.
+    [DataMember] private int _numMipmaps = 0; // if zero mipmapping disabledd
+    [DataMember] private PixelFormat _pixelFormat;
+    [DataMember] private PixelInternalFormat _pixelInternalFormat;
+    [DataMember] private PixelType _pixelType;
+    [DataMember] private TextureTarget _textureTarget;
+    [NonSerialized] private TextureUnit _boundUnit = TextureUnit.Texture0;
+    [NonSerialized] private Stack<BoundTexture2DState> _states = new Stack<BoundTexture2DState>();
+    [NonSerialized] private static Texture _default1x1ColorPixel_RGBA32ub = null;
+    [NonSerialized] private static Texture _default1x1NormalPixel_RGBA32ub = null;
+
+    public bool IsTexture
+    {
+      get
+      {
+        var t = GpuTexture;
+        Gu.Assert(t != null);
+        return GL.IsTexture(t.GlId);
+      }
+    }
+    public int GlId
+    {
+      get
+      {
+        var t = GpuTexture;
+        Gu.Assert(t != null);
+        return t.GlId;
+      }
+    }
+    public GpuTexture GpuTexture
+    {
+      get
+      {
+        return this.GetDataForContext(Gu.Context);
+      }
+    }
 
     #endregion
     #region Public:Methods
-    public Texture2D(string name, Img32 img, bool mipmaps, TexFilter filter, TextureWrapMode wrap = TextureWrapMode.Repeat) : base(name + "-tex2d")
+    protected Texture() { } //Clone/serialie 
+    public Texture(string name, Image img, bool mipmaps, TexFilter filter, TextureWrapMode wrap = TextureWrapMode.Repeat) : base(name)
     {
+      //set params but do not load unless specified by Load()
       LoadToGpu(img, mipmaps, filter, wrap);
     }
-    public Texture2D(string name, Img32 img, bool mipmaps, TextureMinFilter minf, TextureMagFilter magf, TextureWrapMode wrapS, TextureWrapMode wrapT) : base(name + "-tex2d")
+    public Texture(string name, Image img, bool mipmaps, TextureMinFilter minf, TextureMagFilter magf, TextureWrapMode wrapS, TextureWrapMode wrapT) : base(name)
     {
       LoadToGpu(img, mipmaps, minf, magf, wrapS, wrapT);
     }
-    public Texture2D(Img32 img, bool mipmaps, TexFilter filter, TextureWrapMode wrap = TextureWrapMode.Repeat) : base(img.Name)
+    public Texture(Image img, bool mipmaps, TexFilter filter, TextureWrapMode wrap = TextureWrapMode.Repeat) : base(img.Name)
     {
       LoadToGpu(img, mipmaps, filter, wrap);
     }
-    public Texture2D(FileLoc loc, bool mipmaps, TexFilter filter, TextureWrapMode wrap = TextureWrapMode.Repeat) : base(loc.QualifiedPath)
-    {
-      Img32 img = null;
-      try
-      {
-        img = ResourceManager.LoadImage(loc);
-      }
-      catch (Exception ex)
-      {
-        Gu.Log.Error("Image not found. Loading default image.", ex);
-        img = Img32.Default1x1_RGBA32ub(255, 0, 255, 255, "imgloadfailed2");
-      }
-
-      LoadToGpu(img, mipmaps, filter, wrap);
-    }
-    public Texture2D(string name, PixelInternalFormat eInternalFormat, PixelFormat eTextureFormat, PixelType eDataType, int iWidth, int iHeight, int nSamples) : base(name + "-tex2d")
+    public Texture(string name, PixelInternalFormat eInternalFormat, PixelFormat eTextureFormat, PixelType eDataType, int iWidth, int iHeight, int nSamples) : base(name)
     {
       //MakeRenderTexture
       Gpu.CheckGpuErrorsRt();
       GL.ActiveTexture(TextureUnit.Texture0);
 
-      this._glId = GL.GenTexture();
+      this.Persistence = DataPersistence.Temporary;
+
       this.PixelFormat = eTextureFormat;
       this.PixelType = eDataType;
       this.PixelInternalFormat = eInternalFormat;
+      this.Width = iWidth;
+      this.Height = iHeight;
 
       Gpu.CheckGpuErrorsRt();
 
@@ -95,7 +146,7 @@ namespace PirateCraft
       if (nSamples > 0)
       {
         TextureTarget = TextureTarget.Texture2DMultisample;
-        GL.BindTexture(TextureTarget, this._glId);
+        GL.BindTexture(TextureTarget, GlId);
         Gpu.CheckGpuErrorsRt();
 
         //if (Gu::GetEngineDisplayParams()->getEnableAnisotropicFiltering())
@@ -111,7 +162,7 @@ namespace PirateCraft
       else
       {
         TextureTarget = TextureTarget.Texture2D;
-        GL.BindTexture(TextureTarget, this._glId);
+        GL.BindTexture(TextureTarget, GlId);
         Gpu.CheckGpuErrorsRt();
 
         //if (Gu::GetEngineDisplayParams()->getEnableAnisotropicFiltering())
@@ -119,6 +170,11 @@ namespace PirateCraft
         //   GL.TexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, Gu::GetEngineDisplayParams()->getTextureAnisotropyLevel());
         //    Gu::getGraphicsContext()->chkErrRt();
         //}
+        if (eInternalFormat == PixelInternalFormat.R32ui)
+        {
+          Gu.Trap();
+        }
+
         GL.TexImage2D(TextureTarget, 0, eInternalFormat, iWidth, iHeight, 0, eTextureFormat, eDataType, IntPtr.Zero);
         Gpu.CheckGpuErrorsRt();
 
@@ -127,16 +183,17 @@ namespace PirateCraft
 
         GL.TexParameter(TextureTarget, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
         Gpu.CheckGpuErrorsRt();
-
-
       }
       GL.Disable(EnableCap.Dither);  //Dithering gets enabled for some reason
 
       Gpu.CheckGpuErrorsRt();
 
-      SetObjectLabel();
+      GpuTexture.SetObjectLabel();
+
+      GL.BindTexture(TextureTarget, 0);
+      Gpu.CheckGpuErrorsRt();
     }
-    public Texture2D(string owner, int w, int h, int nMsaaSamples) : base(owner + "_DepthTexture" + (nMsaaSamples > 0 ? "_Multisample" : ""))
+    public Texture(string owner, int w, int h, int nMsaaSamples) : base(owner + "_DepthTexture" + (nMsaaSamples > 0 ? "_Multisample" : ""))
     {
       //createdepthtexture
       //Creates a depth texture, or multisample depth texture on texture channel 0
@@ -144,10 +201,14 @@ namespace PirateCraft
       Gpu.CheckGpuErrorsRt();
       //TextureTarget texTarget;
 
+      this.Persistence = DataPersistence.Temporary;
+
       GL.ActiveTexture(TextureUnit.Texture0);
 
       PixelFormat = PixelFormat.DepthComponent;
       PixelType = PixelType.Float;
+      this.Width = w;
+      this.Height = h;
 
       //this is for mipmaps or shadows .. array textures
       //      GL.TexStorage2D(TextureTarget2d.Texture2D, _numMipmaps, this.SizedInternalFormat, (int)Width, (int)Height);
@@ -161,9 +222,9 @@ namespace PirateCraft
         this.TextureTarget = TextureTarget.Texture2D;
       }
       GL.ActiveTexture(TextureUnit.Texture0);
-      this._glId = GL.GenTexture();
+      var created = GpuTexture;
       Gpu.CheckGpuErrorsRt();
-      GL.BindTexture(this.TextureTarget, this._glId);
+      GL.BindTexture(this.TextureTarget, GlId);
 
       //THe following parameters are for depth textures only
       Gpu.CheckGpuErrorsRt();
@@ -218,54 +279,19 @@ namespace PirateCraft
 
       Gpu.CheckGpuErrorsRt();
 
+      GpuTexture.SetObjectLabel();
       GL.BindTexture(this.TextureTarget, 0);
       Gpu.CheckGpuErrorsRt();
 
-      SetObjectLabel();
     }
-    public override void Dispose_OpenGL_RenderThread()
+
+    public override List<DataBlock?> GetSubResources()
     {
-      if (GL.IsTexture(GetGlId()))
-      {
-        GL.DeleteTexture(GetGlId());
-      }
-    }
-    public static Texture2D Default1x1ColorPixel_RGBA32ub(vec4ub color)
-    {
-      var t = _default1x1ColorPixel_RGBA32ub.Get();
-      if (t == null)
-      {
-        t = new Texture2D("default1x1-color", Img32.Default1x1_RGBA32ub(Byte.MaxValue, Byte.MaxValue, Byte.MaxValue, Byte.MaxValue, "color"), false, TexFilter.Nearest);
-        _default1x1ColorPixel_RGBA32ub.Set(t);
-      }
-      return t;
-    }
-    public static Texture2D Default1x1NormalPixel_RGBA32ub()
-    {
-      var t = _default1x1NormalPixel_RGBA32ub.Get();
-      if (t == null)
-      {
-        byte nmap_zero = Byte.MaxValue/2;//zero in normal map is .5
-        byte nmap_one = Byte.MaxValue;
-        if (NormalMapFormat == NormalMapFormat.Yup)
-        {
-          t = new Texture2D("default1x1-normal", Img32.Default1x1_RGBA32ub(nmap_zero, nmap_one, nmap_zero, Byte.MaxValue, "normalyup"), false, TexFilter.Nearest);
-        }
-        else if (NormalMapFormat == NormalMapFormat.Zup)
-        {
-          t = new Texture2D("default1x1-normal", Img32.Default1x1_RGBA32ub(nmap_zero, nmap_zero, nmap_one, Byte.MaxValue, "normalzup"), false, TexFilter.Nearest);
-        }
-        else
-        {
-          Gu.BRThrowNotImplementedException();
-        }
-        _default1x1NormalPixel_RGBA32ub.Set(t);
-      }
-      return t;
+      return new List<DataBlock?> { _image };
     }
     public void SetWrap(TextureWrapMode wraps, TextureWrapMode wrapt)
     {
-      Gu.Assert(GL.IsTexture(this.GetGlId()));
+      Gu.Assert(GL.IsTexture(this.GlId));
       WrapModeS = wraps;
       WrapModeT = wrapt;
       PushState(TextureTarget);
@@ -276,7 +302,7 @@ namespace PirateCraft
     }
     public void SetFilter(TextureMinFilter min, TextureMagFilter mag)
     {
-      Gu.Assert(GL.IsTexture(this.GetGlId()));
+      Gu.Assert(GL.IsTexture(GpuTexture.GlId));
       MinFilter = min;
       MagFilter = mag;
       PushState(TextureTarget);
@@ -338,7 +364,7 @@ namespace PirateCraft
     }
     public void Bind(TextureUnit unit)
     {
-      if (GetGlId() == 0)
+      if (GlId == 0)
       {
         throw new System.Exception("Texture ID was 0 when binding texture.");
       }
@@ -347,7 +373,7 @@ namespace PirateCraft
       Gpu.CheckGpuErrorsDbg();
       GL.ActiveTexture(unit);
       Gpu.CheckGpuErrorsDbg();
-      GL.BindTexture(TextureTarget, GetGlId());
+      GL.BindTexture(TextureTarget, GlId);
       Gpu.CheckGpuErrorsDbg();
     }
     public void Unbind()
@@ -430,15 +456,16 @@ namespace PirateCraft
       Gu.BRThrowNotImplementedException();
       return SizedInternalFormat.R16;
     }
-    private void LoadToGpu(Img32 bmp, bool mipmaps, TexFilter simpleFilter, TextureWrapMode wrapST)
+    private void LoadToGpu(Image bmp, bool mipmaps, TexFilter simpleFilter, TextureWrapMode wrapST)
     {
       TextureMinFilter minf = TextureMinFilter.Nearest;
       TextureMagFilter magf = TextureMagFilter.Nearest;
       GetSimpleFilter(simpleFilter, mipmaps, out minf, out magf);
       LoadToGpu(bmp, mipmaps, minf, magf, wrapST, wrapST);
     }
-    private void LoadToGpu(Img32 bmp, bool mipmaps, TextureMinFilter minf, TextureMagFilter magf, TextureWrapMode wrapS, TextureWrapMode wrapT)
+    private void LoadToGpu(Image bmp, bool mipmaps, TextureMinFilter minf, TextureMagFilter magf, TextureWrapMode wrapS, TextureWrapMode wrapT)
     {
+      _image = bmp;
       Width = bmp.Width;
       Height = bmp.Height;
       //Filter = filter;
@@ -450,7 +477,7 @@ namespace PirateCraft
       PixelInternalFormat = PixelInternalFormat.Rgba;
       TextureTarget = TextureTarget.Texture2D;
 
-      int ts = Gu.Context.Gpu.GetMaxTextureSize();
+      int ts = Gu.Context.Gpu.MaxTextureSize;
       if (Width >= ts)
       {
         Gu.BRThrowException("Texture is too large");
@@ -466,8 +493,8 @@ namespace PirateCraft
         _numMipmaps = GetNumMipmaps((int)Width, (int)Height);
       }
 
-      _glId = GL.GenTexture();
-      GL.BindTexture(TextureTarget, GetGlId());
+      var loadtex = GpuTexture;
+      GL.BindTexture(TextureTarget, GlId);
       //SetSimpleFilter(filter);
       SetWrap(WrapModeS, WrapModeT);
 
@@ -489,9 +516,10 @@ namespace PirateCraft
         GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
       }
 
-      SetObjectLabel();
+      GpuTexture.SetObjectLabel();
 
       GL.BindTexture(TextureTarget, 0);
+
     }
 
     #endregion

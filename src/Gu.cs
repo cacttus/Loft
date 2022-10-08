@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using OpenTK.Windowing.Desktop;
 using System.Reflection;
 using System.Diagnostics;
+using System.Linq.Expressions;
 
 namespace PirateCraft
 {
@@ -13,15 +14,24 @@ namespace PirateCraft
   {
     public static bool BreakRenderState = false;
 
+    private static bool SkipRequiredTests = false;
+    public static void MustTest()
+    {
+      //Must test this method.
+      if (!SkipRequiredTests)
+      {
+        Gu.DebugBreak();
+      }
+    }
     // Global Utils. static Class
     #region Public: Constants
 
-    public const int c_intMaxWhileTrueLoopBinarySearch = 64;//dummy infinite loop blocker
+    public const int c_intMaxWhileTrueLoopBinarySearch64Bit = 64;//dummy infinite loop blocker
     public const int c_intMaxWhileTrueLoopSmall = 1000;//dummy infinite loop blocker
     public const int c_intMaxWhileTrueLoop = 100000;//dummy infinite loop blocker
     public const int c_intMaxWhileTrueLoopLONG = 100000000;//dummy infinite loop blocker
-    public const string UnsetName = "<unset>";
-    public const string CopyName = "-copy";
+
+
     #endregion
     #region Public: Static Members
 
@@ -41,17 +51,20 @@ namespace PirateCraft
     public static string LocalTmpPath { get; private set; } = "";//logs..debug..shaderdebug..
     public static string WorkspacePath { get; private set; } = "";
     public static string WorkspaceDataPath { get; private set; } = "";// the ./Data directory. This is not present on embedded versions.
-    public static readonly string EmbeddedDataPath = "PirateCraft.data.";
     public static string SavePath { get; private set; } = "";
-    public static ResourceManager Resources { get; private set; } = null;
-    public static AudioManager Audio { get; private set; } = null;
-    public static Gui2dManager Gui2dManager { get; private set; } = null;
-    public static FrameDataTimer GlobalTimer { get; private set; } = null;//Global frame timer, for all windows;
-    public static Translator Translator { get; private set; } = null;
+    public static string BackupPath { get; private set; } = "";
+    public static readonly string EmbeddedDataPath = "PirateCraft.data.";
+    public static Library?  Lib {get; private set;}=null;
+    public static AudioManager?  Audio { get; private set; } = null;
+    public static Gui2dManager?  Gui2dManager { get; private set; } = null;
+    public static FrameDataTimer?  GlobalTimer { get; private set; } = null;//Global frame timer, for all windows;
+    public static Translator?  Translator { get; private set; } = null;
+    public static UiWindowBase? FocusedWindow { get; set; } = null;
 
     #endregion
     #region Private: Static Members
 
+    private static bool _exitPosted = false;
     private static List<UiWindowBase> toClose = new List<UiWindowBase>();
     private static bool _customDebugBreak = false;
 
@@ -65,7 +78,6 @@ namespace PirateCraft
       ExePath = System.IO.Path.GetDirectoryName(assemblyLoc);
       LocalTmpPath = System.IO.Path.Combine(ExePath, "./tmp");
       LocalCachePath = System.IO.Path.Combine(ExePath, "./cache");
-      SavePath = System.IO.Path.Combine(ExePath, "./save");
 
       //This is for debug files and file changes. 
       WorkspacePath = System.IO.Path.Combine(ExePath, "../../../");
@@ -76,15 +88,104 @@ namespace PirateCraft
       Gu.Log.Info("Initializing Globals");
       Gu.Log.Info("CurrentDirectory =" + System.IO.Directory.GetCurrentDirectory());
 
+      BListTest_GonnaUseItQuestionMark();
       //Config
       EngineConfig = new EngineConfig(new FileLoc("config.json", FileStorage.Embedded));
 
+      if (StringUtil.IsNotEmpty(EngineConfig.UserSavePath))
+      {
+        try
+        {
+          SavePath = System.IO.Path.Combine(ExePath, EngineConfig.UserSavePath);
+        }
+        catch (Exception ex)
+        {
+          Gu.Log.Error(ex);
+        }
+      }
+
+      if (StringUtil.IsEmpty(SavePath))
+      {
+        SavePath = System.IO.Path.Combine(ExePath, "./save");
+      }
+
+      if (StringUtil.IsEmpty(BackupPath))
+      {
+        BackupPath = System.IO.Path.Combine(ExePath, "./backup");
+      }
+
+      Gu.Log.Info($"ExePath: {ExePath}");
+      Gu.Log.Info($"SavePath: {SavePath}");
+      Gu.Log.Info($"BackupPath: {BackupPath}");
+      Gu.Log.Info($"LocalTmpPath: {LocalTmpPath}");
+      Gu.Log.Info($"LocalCachePath: {LocalCachePath}");
+      Gu.Log.Info($"WorkspacePath: {WorkspacePath}");
+      Gu.Log.Info($"WorkspaceDataPath: {WorkspaceDataPath}");
+      if (
+        !SavePath.Contains(ExePath) ||
+        !BackupPath.Contains(ExePath) ||
+        !LocalTmpPath.Contains(ExePath) ||
+        !LocalCachePath.Contains(ExePath) ||
+        !WorkspacePath.Contains(ExePath) ||
+        !WorkspaceDataPath.Contains(ExePath)
+        )
+      {
+        Gu.Log.Warn("Paths may be invalid. Make sure not root.");
+        Gu.DebugBreak();
+      }
+
+
       //Manager
       Translator = new Translator();
-      Resources = new ResourceManager();
+      Lib = new Library();
       GlobalTimer = new FrameDataTimer();
       Audio = new AudioManager();
       Gui2dManager = new Gui2dManager();
+    }
+    public static void BListTest_GonnaUseItQuestionMark()
+    {
+      System.Text.StringBuilder sb = new System.Text.StringBuilder();
+
+      // sb.AppendLine("");
+      // sb.AppendLine("");
+      // sb.AppendLine("");
+      var x = new BList<int>() { };
+      // sb.AppendLine(x.ToString());
+      // x.Add(955);
+      // sb.AppendLine(x.ToString());
+      // x.Remove(3);
+      // x.Remove(9);
+      // x.Remove(955);
+      // sb.AppendLine(x.ToString());
+
+      //check non dupe adds
+      // sb.AppendLine("non dupes");
+      x = new BList<int>() { 19, 0, 1, 5, 4, 3, 6, 8, 2, 12, 7, 13, 10, 14, 11, 16, 15, 17, 18, 1853 };
+      for (var i = 0; i < 5000; ++i)
+      {
+        var yy = Random.NextInt(0, 2000);
+        if (!x.Contains(yy)) { x.Add(yy); }
+      }
+      sb.AppendLine(x.ToString());
+
+      //check dupe ads
+      sb.AppendLine("dupes");
+      x = new BList<int>() { 13, 8, 14, 14, 2, 19, 5, 30, 1, 1, 30, 14 };
+      x = new BList<int>() { };
+      for (var i = 0; i < 50; ++i)
+      {
+        x.Add(Random.NextInt(0, 20));
+      }
+      sb.AppendLine(x.ToString());
+
+      for (int ct = x.Count - 1; ct >= 0; ct--)
+      {
+        var ccc = x[ct];
+        x.Remove(ccc);
+      }
+      sb.AppendLine(x.ToString());
+      Gu.Log.Info(sb.ToString());
+
     }
     public static void Run()
     {
@@ -107,7 +208,6 @@ namespace PirateCraft
             }
 
             GlobalTimer.Update();
-            Resources.Update(GlobalTimer.Delta);
 
             foreach (var win in wins)
             {
@@ -117,8 +217,6 @@ namespace PirateCraft
                 win.Load();
               }
               win.ProcessEvents();
-              //win.SetActiveView();//make sure the view<->camera is updated to the active view of the window.
-              win.SetActiveView();
               Gu.Context.Update();
 
               if (Gu.World.UpdateContext == Gu.Context)
@@ -130,21 +228,7 @@ namespace PirateCraft
               win.RenderAsync();
             }
 
-            //Remove/Destroy windows / main window destroys app
-            foreach (var win in toClose)
-            {
-              win.Context.MakeNoneCurrent();
-              Contexts.Remove(win);
-              win.Close();
-              win.IsVisible = false;
-
-
-              if (Contexts.Count == 0 || win.IsMain)
-              {
-                break;
-              }
-            }
-            toClose.Clear();
+            CheckExit();
 
             _customDebugBreak = false;
           }
@@ -155,11 +239,46 @@ namespace PirateCraft
         Gu.Log.Error("Fatal error: ", ex);
       }
     }
+    private static void CheckExit()
+    {
+      //Remove/Destroy windows / main window destroys app, or force
+      foreach (var win in toClose)
+      {
+        win.Context.MakeNoneCurrent();
+        Contexts.Remove(win);
+        win.Close();
+        win.IsVisible = false;
+
+        if (Contexts.Count == 0 || win.IsMain)
+        {
+          Environment.Exit(0);
+          break;
+        }
+      }
+      toClose.Clear();
+
+      if (_exitPosted)
+      {
+        //Basically Exit() failed, maybe there was a window created since Exit() was called..
+        Environment.Exit(0);
+      }
+    }
+    public static void Exit()
+    {
+      _exitPosted = true;
+      foreach (var ct in Contexts)
+      {
+        CloseWindow(ct.Key);
+      }
+    }
     public static void CloseWindow(UiWindowBase win)
     {
       if (win != null)
       {
-        toClose.Add(win);
+        if (!toClose.Contains(win))
+        {
+          toClose.Add(win);
+        }
       }
     }
     public static void CreateContext(string name, UiWindowBase uw)
@@ -228,12 +347,31 @@ namespace PirateCraft
       Gu.DebugBreak();
       throw new NotImplementedException();
     }
-    public static void Assert(bool x, [CallerLineNumber] int lineNumber = 0, [CallerMemberName] string caller = null)
+    public static void AssertDebug(bool x, [CallerLineNumber] int lineNumber = 0, [CallerMemberName] string caller = null)
+    {
+      Assert(x, string.Empty, lineNumber, caller, true);
+    }
+    public static void Assert(bool x, [CallerLineNumber] int lineNumber = 0, [CallerMemberName] string caller = null, bool debugOnly = false)
+    {
+      Assert(x, string.Empty, lineNumber, caller);
+    }
+    public static void Assert(bool x, string emsg, [CallerLineNumber] int lineNumber = 0, [CallerMemberName] string caller = null, bool debugOnly = false)
     {
       if (!x)
       {
-        Gu.DebugBreak();//First catch before we can't change the FOE
-        throw new Exception("Assertion failed: " + caller + ":" + lineNumber.ToString());
+        string msg = $"Assertion failed {emsg}: {caller}:{lineNumber.ToString()}";
+        if (emsg.IsNotEmpty())
+        {
+          emsg = $"'{emsg}'";
+        } 
+        Gu.Log.Error(emsg);
+        Gu.DebugBreak();
+
+        if (debugOnly == false)
+        {
+          System.Diagnostics.Debug.Assert(x, msg);
+          throw new Exception(msg);
+        }
       }
     }
     public static void DebugBreak()
@@ -389,7 +527,7 @@ namespace PirateCraft
       {
         if (Gu.Context.GameWindow.ActiveViewCamera.Frustum != null)
         {
-          v = Gu.Context.GameWindow.ActiveViewCamera.Frustum.ScreenToWorld(screen_pt);
+          v = Gu.Context.GameWindow.ActiveViewCamera.Frustum.RaycastWorld(screen_pt);
         }
       }
       return v;
@@ -409,14 +547,14 @@ namespace PirateCraft
     {
       int obcount = 1000;
       //Integrity test of GPU memory management.
-      for (int i = 0; i < obcount; ++i)
-      {
-        Gu.World.CreateAndAddObject("BoxMesh", MeshData.GenBox(1, 1, 1), Material.DefaultFlatColor);
-      }
-      for (int i = 1; i < obcount; ++i)
-      {
-        Gu.World.DestroyObject("BoxMesh-" + i.ToString());
-      }
+      // for (int i = 0; i < obcount; ++i)
+      // {
+      //   Gu.World.CreateAndAddObject("BoxMesh", MeshData.GenBox(1, 1, 1), Material.DefaultFlatColor);
+      // }
+      // for (int i = 1; i < obcount; ++i)
+      // {
+      //   Gu.World.DestroyObject("BoxMesh-" + i.ToString());
+      // }
     }
 
     public static ushort QuantitizeUShortFloat(float in_value, float min_float_value, float max_float_value, ushort max_ushort_value)
@@ -447,6 +585,161 @@ namespace PirateCraft
       Gu.Assert((float)ev <= max_float_value);
 
       return (float)ev;
+    }
+
+    public static T? ParseEnum<T>(string s, bool ignorecase = false, bool bthrow = true)
+    {
+      T? ret = default(T);
+      object? obj = null;
+      if (Enum.TryParse(typeof(T), s.Trim(), ignorecase, out obj))
+      {
+        if (obj != null)
+        {
+          ret = (T)obj;
+        }
+        else
+        {
+          var msg = $"Could not cast enum '{typeof(T).ToString()}'";
+          if (bthrow)
+          {
+            Gu.BRThrowException(msg);
+          }
+          else
+          {
+            Gu.Log.Error(msg);
+          }
+        }
+      }
+      return ret;
+    }
+    public static void AssertDistinctEnum<T>()
+    {
+      var enums = (T[])Enum.GetValues(typeof(T));
+      Gu.Assert(enums.Count() == enums.Distinct().Count());
+    }
+    public static void ClearDirectory(string dir)
+    {
+      if (System.IO.Directory.Exists(dir))
+      {
+        Gu.Log.Info($"Clearing dir {dir}");
+        var fs = System.IO.Directory.GetFiles(dir);
+        foreach (var f in fs)
+        {
+          try
+          {
+            System.IO.File.Delete(f);
+          }
+          catch (Exception ex)
+          {
+            Gu.Log.Error("Clear: Could not delete '" + f + "'", ex);
+          }
+        }
+      }
+    }
+    public static T? DeepClone<T>(T? obj) where T : ICopy<T>, IClone, new()
+    {
+      return Gu.Clone<T>(obj, false);
+    }
+    public static T? Clone<T>(T? obj, bool? shallow = null) where T : ICopy<T>, IClone, new()
+    {
+      T? t = new T();
+      t.CopyFrom(obj, shallow);
+      return t;
+    }
+    public static bool BackupFile(FileLoc fl, int maxbackups_size_MB = 200)
+    {
+      if (!fl.Exists)
+      {
+        return false;
+      }
+      long totalsize = 0;
+      string[] files = System.IO.Directory.GetFiles(fl.QualifiedPath);
+      SortedDictionary<DateTime, FileInfo> sorted = new SortedDictionary<DateTime, FileInfo>();
+      foreach (var f in files)
+      {
+        FileInfo fi = new FileInfo(f);
+        totalsize += fi.Length;
+        sorted.Add(fi.CreationTime, fi);
+      }
+      if (totalsize > maxbackups_size_MB)
+      {
+        Gu.Log.Info("Backup files are over the maximum length for backups, consider deleting them.");
+        Gu.DebugBreak();
+        //Automatic delete of files  not a good thing, but I'll leave this here
+        // Gu.MustTest();
+        // List<FileInfo> toDelete = new List<FileInfo>();
+        // foreach (var f in sorted)
+        // {
+        //   if (totalsize < maxbackups_size_MB)
+        //   {
+        //     break;
+        //   }
+        //   totalsize -= f.Value.Length;
+        //   toDelete.Add(f.Value);
+        // }
+        // Gu.Log.Info($"Deleting {toDelete.Count} backup files");
+        // foreach (var f in toDelete)
+        // {
+        //   try
+        //   {
+        //     System.IO.File.Delete(f.FullName);
+        //   }
+        //   catch (Exception ex)
+        //   {
+        //     Gu.Log.Error($"Failed to delete backup file {f.FullName}", ex);
+        //   }
+        // }
+      }
+
+      //This should be more of a global backup system.
+      string dt = Gu.GetFilenameDateTimeNOW();
+      bool b = fl.CopyFile(new FileLoc(Gu.BackupPath, dt + " " + fl.RawPath, FileStorage.Disk));
+      return b;
+    }
+    public static string GetMemberName<T, TValue>(Expression<Func<T, TValue>> memberAccess)
+    {
+      return ((MemberExpression)memberAccess.Body).Member.Name;
+    }
+
+    public static bool TryGetSelectedView(out RenderView? view)
+    {
+      //selected view - the view that the user is interacting with
+      //active view - the view being rendered to/updated      
+      //get renderview underneath mouse
+      view = null;
+      if (Gu.FocusedWindow != null)
+      {
+        view = Gu.FocusedWindow.SelectedView;
+      }
+      return view != null;
+    }
+    public static bool TryGetSelectedViewOverlay(out ViewportOverlay? over)
+    {
+      over = null;
+      if (TryGetSelectedView(out var vv))
+      {
+        over = vv.Overlay;
+      }
+      return over != null;
+    }
+    public static bool TryGetSelectedViewCamera(out Camera3D? cam)
+    {
+      cam = null;
+      if (TryGetSelectedView(out var vv))
+      {
+        if (vv.Camera.TryGetTarget(out var cm))
+        {
+          cam = cm;
+        }
+      }
+      return cam != null;
+    }
+    public static bool SaneFloat(float f)
+    {
+      bool a = Single.IsInfinity(f);
+      bool b = Single.IsNaN(f);
+
+      return !a && !b;
     }
     #endregion
 

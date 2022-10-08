@@ -64,7 +64,7 @@ namespace PirateCraft
     {
       bool handled = true;
 
-      DebugWriteFileToPos();
+     // DebugWriteFileToPos();
 
       if (c == '.')
       {

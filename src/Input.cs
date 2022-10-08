@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using OpenTK.Windowing.GraphicsLibraryFramework;
 
 namespace PirateCraft
 {
@@ -61,32 +62,46 @@ namespace PirateCraft
     public Dictionary<TButtonClass, PCButton> _keys = new Dictionary<TButtonClass, PCButton>();
     public TStateClass _deviceState;
 
-    public abstract TStateClass GetDeviceState();
-    public abstract bool GetDeviceButtonDown(TButtonClass button);
+    protected abstract TStateClass GetDeviceState();
+    protected abstract bool GetDeviceButtonDown(TButtonClass button);
 
     public virtual void Update()
     {
       _deviceState = GetDeviceState();
       foreach (var pair in _keys)
       {
-        pair.Value.UpdateState(GetDeviceButtonDown(pair.Key));
+        pair.Value.UpdateState(GetButtonDownWindowFocus(pair.Key));
       }
+    }
+    private bool GetButtonDownWindowFocus(TButtonClass key)
+    {
+      //simple hack to release all buttons when the window loses focus.
+      bool isButtonDown = false;
+      if (!Gu.Context.GameWindow.IsFocused && Gu.EngineConfig.ReleaseAllButtonsWhenWindowLosesFocus)
+      {
+        isButtonDown = false;
+      }
+      else
+      {
+        isButtonDown = GetDeviceButtonDown(key);
+      }
+      return isButtonDown;
     }
     public bool Press(TButtonClass key)
     {
-      var state = GetButtonState(key);
+      var state = State(key);
       return state == ButtonState.Press;
     }
     public bool PressOrDown(TButtonClass key)
     {
-      var state = GetButtonState(key);
+      var state = State(key);
       return (state == ButtonState.Press) || (state == ButtonState.Hold);
     }
     public bool PressOrDown(List<TButtonClass> keys)
     {
       foreach (var key in keys)
       {
-        var state = GetButtonState(key);
+        var state = State(key);
         if ((state == ButtonState.Press) || (state == ButtonState.Hold))
         {
           return true;
@@ -94,7 +109,11 @@ namespace PirateCraft
       }
       return false;
     }
-    public ButtonState GetButtonState(TButtonClass key)
+    public bool State(TButtonClass key, ButtonState check)
+    {
+      return State(key) == check;
+    }
+    public ButtonState State(TButtonClass key)
     {
       ButtonState ret = ButtonState.Up;
       PCButton but = null;
@@ -112,23 +131,75 @@ namespace PirateCraft
       else
       {
         //Key isn't registered
-        but = new PCButton(GetDeviceButtonDown(key));
+        but = new PCButton(GetButtonDownWindowFocus(key));
         ret = but.State;
         _keys.Add(key, but);
       }
       return ret;
     }
   }
-  public class PCKeyboard : ButtonInputDevice<OpenTK.Windowing.GraphicsLibraryFramework.KeyboardState, OpenTK.Windowing.GraphicsLibraryFramework.Keys>
+  public enum KeyMod { None, Any, Shift, Ctrl, Alt, CtrlShift, CtrlAlt, AltShift, CtrlAltShift, }
+
+  public class PCKeyboard : ButtonInputDevice<KeyboardState, Keys>
   {
-    public override OpenTK.Windowing.GraphicsLibraryFramework.KeyboardState GetDeviceState()
+    public bool ModIsDown(KeyMod Mod)
+    {
+      bool mod = true;
+      if (Mod == KeyMod.Any)
+      {
+        return true;
+      }
+      bool cd = (PressOrDown(Keys.LeftControl) || PressOrDown(Keys.RightControl));
+      bool sd = (PressOrDown(Keys.LeftShift) || PressOrDown(Keys.RightShift));
+      bool ad = (PressOrDown(Keys.LeftAlt) || PressOrDown(Keys.RightAlt));
+      bool mc = (Mod == KeyMod.Ctrl || Mod == KeyMod.CtrlShift || Mod == KeyMod.CtrlAlt || Mod == KeyMod.CtrlAltShift);
+      bool ms = (Mod == KeyMod.Shift || Mod == KeyMod.CtrlShift || Mod == KeyMod.AltShift || Mod == KeyMod.CtrlAltShift);
+      bool ma = (Mod == KeyMod.Alt || Mod == KeyMod.CtrlAlt || Mod == KeyMod.AltShift || Mod == KeyMod.CtrlAltShift);
+      mod = mod && ((mc && cd) || (!mc && !cd));
+      mod = mod && ((ms && sd) || (!ms && !sd));
+      mod = mod && ((ma && ad) || (!ma && !ad));
+      return mod;
+    }
+    protected override KeyboardState GetDeviceState()
     {
       return Gu.Context.GameWindow.KeyboardState;
     }
-    public override bool GetDeviceButtonDown(OpenTK.Windowing.GraphicsLibraryFramework.Keys button)
+    protected override bool GetDeviceButtonDown(Keys button)
     {
       return _deviceState.IsKeyDown(button);
     }
+    public bool AnyNonModKeyWasPressed(List<Keys>? keysOut = null)
+    {
+      foreach (var k in Enum.GetValues(typeof(Keys)))
+      {
+        var key = (Keys)k;
+        if (key != Keys.Unknown)
+        {
+          if (!(
+            key == Keys.LeftShift ||
+            key == Keys.RightShift ||
+            key == Keys.LeftControl ||
+            key == Keys.RightControl
+            ))
+          {
+            if (Press(key))
+            {
+              if (keysOut != null)
+              {
+                keysOut.Add(key);
+
+              }
+              else
+              {
+                return true;
+              }
+            }
+          }
+        }
+      }
+      return keysOut.Count > 0;
+    }
+
   }
   public enum WarpMode
   {
@@ -136,7 +207,7 @@ namespace PirateCraft
     Wrap,
     Clamp
   }
-  public class PCMouse : ButtonInputDevice<OpenTK.Windowing.GraphicsLibraryFramework.MouseState, OpenTK.Windowing.GraphicsLibraryFramework.MouseButton>
+  public class PCMouse : ButtonInputDevice<MouseState, MouseButton>
   {
     private long _warp_frame_stamp = 0;
     private vec2 _last = new vec2(0, 0);
@@ -176,11 +247,11 @@ namespace PirateCraft
       _last = _pos;
       _pos = v;
     }
-    public override OpenTK.Windowing.GraphicsLibraryFramework.MouseState GetDeviceState()
+    protected override MouseState GetDeviceState()
     {
       return Gu.Context.GameWindow.MouseState;
     }
-    public override bool GetDeviceButtonDown(OpenTK.Windowing.GraphicsLibraryFramework.MouseButton button)
+    protected override bool GetDeviceButtonDown(MouseButton button)
     {
       return _deviceState.IsButtonDown(button);
     }
@@ -276,6 +347,10 @@ namespace PirateCraft
     }
     public vec2 GetWrappedPosition(RenderView vp, vec2 wrap_sum)
     {
+      if (wrap_sum.x != 0 || wrap_sum.y != 0)
+      {
+        Gu.Trap();
+      }
       vec2 p_wrap = new vec2(
         Pos.x + vp.Viewport.Width * wrap_sum.x,
         Pos.y + vp.Viewport.Height * wrap_sum.y

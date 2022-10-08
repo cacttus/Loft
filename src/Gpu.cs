@@ -1,6 +1,7 @@
 ﻿using OpenTK.Graphics.OpenGL4;
 
 using System.Runtime.InteropServices;
+using System.Runtime.Serialization;
 using System.Collections.Generic;
 using System;
 using System.Text;
@@ -98,35 +99,42 @@ namespace PirateCraft
     }
   }
 
-  public class GpuRenderState
+  [Serializable]
+  [DataContract]
+  public class GpuRenderState : IClone, ICopy<GpuRenderState>
   {
     //State switches to prevent unnecessary gpu context changes.
-    private bool _depthTestEnabledLast = false;
-    private bool _depthTestEnabled = true;
-    private bool _cullFaceEnabledLast = false;
-    private bool _cullFaceEnabled = true;
-    private bool _scissorTestEnabledLast = false;
-    private bool _scissorTestEnabled = true;
-    private bool _blendEnabledLast = false;
-    private bool _blendEnabled = false;
-    private BlendEquationMode _blendFuncLast = BlendEquationMode.FuncAdd;
-    private BlendEquationMode _blendFunc = BlendEquationMode.FuncAdd;
-    private BlendingFactor _blendFactorLast = BlendingFactor.OneMinusSrcAlpha;
-    private BlendingFactor _blendFactor = BlendingFactor.OneMinusSrcAlpha;
+    [DataMember] private bool _depthTestEnabled = true;
+    [DataMember] private bool _cullFaceEnabled = true;
+    [DataMember] private bool _scissorTestEnabled = true;
+    [DataMember] private bool _blendEnabled = false;
+    [DataMember] private BlendEquationMode _blendFuncLast = BlendEquationMode.FuncAdd;
+    [DataMember] private BlendEquationMode _blendFunc = BlendEquationMode.FuncAdd;
+    [DataMember] private BlendingFactor _blendFactorLast = BlendingFactor.OneMinusSrcAlpha;
+    [DataMember] private BlendingFactor _blendFactor = BlendingFactor.OneMinusSrcAlpha;
+    [NonSerialized] private bool _scissorTestEnabledLast = false;
+    [NonSerialized] private bool _cullFaceEnabledLast = false;
+    [NonSerialized] private bool _depthTestEnabledLast = false;
+    [NonSerialized] private bool _blendEnabledLast = false;
 
-    public GpuRenderState Clone()
+    public object? Clone(bool? shallow = true)
     {
       GpuRenderState clone = new GpuRenderState();
-      clone._depthTestEnabledLast = _depthTestEnabledLast;
-      clone._depthTestEnabled = _depthTestEnabled;
-      clone._cullFaceEnabledLast = _cullFaceEnabledLast;
-      clone._cullFaceEnabled = _cullFaceEnabled;
-      clone._scissorTestEnabledLast = _scissorTestEnabledLast;
-      clone._scissorTestEnabled = _scissorTestEnabled;
-      clone._blendEnabled = _blendEnabled;
-      clone._blendFunc = _blendFunc;
-      clone._blendFactor = _blendFactor;
+      clone.CopyFrom(this, shallow);
       return clone;
+    }
+    public void CopyFrom(GpuRenderState? from, bool? shallow = null)
+    {
+      Gu.Assert(from != null);
+      this._depthTestEnabledLast = from._depthTestEnabledLast;
+      this._depthTestEnabled = from._depthTestEnabled;
+      this._cullFaceEnabledLast = from._cullFaceEnabledLast;
+      this._cullFaceEnabled = from._cullFaceEnabled;
+      this._scissorTestEnabledLast = _scissorTestEnabledLast;
+      this._scissorTestEnabled = from._scissorTestEnabled;
+      this._blendEnabled = from._blendEnabled;
+      this._blendFunc = from._blendFunc;
+      this._blendFactor = from._blendFactor;
     }
 
     public bool CullFace { get { return _cullFaceEnabled; } set { _cullFaceEnabledLast = _cullFaceEnabled; _cullFaceEnabled = value; } }
@@ -209,37 +217,7 @@ namespace PirateCraft
 
   public class GPULog
   {
-    bool _bPrintingGPULog = false;
-    int _maxMsgLen = -1;
-
-    public GPULog()
-    {
-      GL.Enable(EnableCap.DebugOutput);
-      GL.Enable(EnableCap.DebugOutputSynchronous);
-    }
-
-    public bool chkErrRt(bool bDoNotBreak, bool doNotLog, string shaderName, bool clearOnly)
-    {
-      if (Gu.EngineConfig.EnableRuntimeErrorChecking == true)
-      {
-        return handleErrors(true, bDoNotBreak, doNotLog, shaderName, clearOnly);
-      }
-      return false;
-    }
-    public bool chkErrDbg(bool bDoNotBreak, bool doNotLog, string shaderName, bool clearOnly)
-    {
-      if (Gu.EngineConfig.EnableDebugErrorChecking == true)
-      {
-        return handleErrors(true, bDoNotBreak, doNotLog, shaderName, clearOnly);
-      }
-      return false;
-    }
-    public void clearGPULog()
-    {
-      printAndFlushGpuLog(true, true, true, "", true);
-    }
-
-    #region Private OGLERR
+    #region Members
 
     private enum GpuLogLevel
     {
@@ -248,100 +226,83 @@ namespace PirateCraft
       Inf_,
       Dbg_
     }
-    private static string glErrToStr(ErrorCode err)
+    bool _bPrintingGPULog = false;
+    int _maxMsgLen = -1;
+
+    #endregion
+    #region Public:Methods
+
+    public GPULog()
     {
-      switch (err)
-      {
-        case ErrorCode.NoError:
-          return "GL_NO_ERROR         ";
-        case ErrorCode.InvalidEnum:
-          return "GL_INVALID_ENUM     ";
-        case ErrorCode.InvalidValue:
-          return "GL_INVALID_VALUE    ";
-        case ErrorCode.InvalidOperation:
-          return "GL_INVALID_OPERATION";
-        case (ErrorCode)0x0503:
-          return "GL_STACK_OVERFLOW   ";
-        case (ErrorCode)0x0504:
-          return "GL_STACK_UNDERFLOW  ";
-        case ErrorCode.OutOfMemory:
-          return "GL_OUT_OF_MEMORY    ";
-      }
-      return " *GL Error code not recognized.";
+      GL.Enable(EnableCap.DebugOutput);
+      GL.Enable(EnableCap.DebugOutputSynchronous);
     }
-    private bool handleErrors(bool bShowNote, bool bDoNotBreak, bool doNotLog, string shaderName, bool clearOnly)
+    public bool CheckErrors(bool bDoNotBreak, bool doNotLog)
     {
-      //SDLUtils::checkSDLErr(doNotLog || !clearOnly, clearOnly);
+      StringBuilder sb = new StringBuilder();
+      StringBuilder eb = new StringBuilder();
 
-      //ErrorCode err = GL.GetError();
-      //if (err != ErrorCode.NoError)
-      //{
-      //  int n = 0;
-      //  n++;
-      //}
-      printAndFlushGpuLog(true, bDoNotBreak, doNotLog, shaderName, clearOnly);
+      GetAndFlushGPULog(sb);
+      var hasErrors = GetOpenGLErrors(eb);
 
-      return checkOglErr(bShowNote, bDoNotBreak || clearOnly, doNotLog || !clearOnly, shaderName);
-    }
-    private bool checkOglErr(bool bShowNote, bool bDoNotBreak, bool doNotLog, string shaderName)
-    {
-      bool bError = false;
-
-      //GPU Log -
-      // This isn't the Application log it's the hardware log on the card.
-      ErrorCode err = GL.GetError();
-      if (err != ErrorCode.NoError)
+      if (hasErrors)
       {
         if (doNotLog == false)
         {
-          string errmsg = "GL Error: " + glErrToStr(err) + " (" + (int)err + ")";
-          if (!string.IsNullOrEmpty(shaderName))
-          {
-            errmsg += Environment.NewLine + " -> shader: " + shaderName;
-          }
-          errmsg += GpuDebugInfo.DebugGetRenderState();
-          Gu.Log.Error(errmsg);
+          eb.Append(Environment.NewLine);
+          eb.Append(sb);
+          Gu.Log.Error(eb.ToString());
         }
 
-        if (Gu.EngineConfig.BreakOnGraphicsError == true)
+        if (bDoNotBreak == false && Gu.EngineConfig.BreakOnGraphicsError == true)
         {
-          if (bDoNotBreak == false)
-          {
-            Gu.DebugBreak();
-          }
+          Gu.DebugBreak();
         }
-        bError = true;
+      }
+      else
+      {
+        if (sb != null && sb.Length > 0 && doNotLog == false)
+        {
+          Gu.Log.Error(sb.ToString());
+        }
+      }
+
+      return hasErrors;
+    }
+    public void ClearGPULog()
+    {
+      GetAndFlushGPULog(null);
+    }
+
+    #endregion
+    #region Private:Methods
+
+    private bool GetOpenGLErrors(StringBuilder? eb)
+    {
+      bool bError = false;
+
+      for (int ierr = 0; Gu.WhileTrueGuard(ierr, Gu.c_intMaxWhileTrueLoop); ierr++)
+      {
+        ErrorCode err = GL.GetError();
+        if (err != ErrorCode.NoError)
+        {
+          if (eb != null)
+          {
+            string errmsg = $"GL Error: {glErrToStr(err)} ({(int)err})";
+            eb.Append(errmsg);
+          }
+          bError = true;
+        }
+        else
+        {
+          break;
+        }
       }
 
       return bError;
     }
-    private void printAndFlushGpuLog(bool bShowNote, bool bDoNotBreak, bool doNotLog, string shaderName, bool clearOnly)
+    private void GetAndFlushGPULog(StringBuilder? sb)
     {
-      if (_bPrintingGPULog)
-      {
-        //Prevent recursion.
-        return;
-      }
-      _bPrintingGPULog = true;
-      {
-        printAndFlushGpuLog_Notrap(bShowNote, bDoNotBreak, doNotLog, shaderName, clearOnly);
-      }
-      _bPrintingGPULog = false;
-    }
-    private void printAndFlushGpuLog_Notrap(bool bShowNote, bool bDoNotBreak, bool doNotLog, string shaderName, bool clearOnly)
-    {
-      //Enable this in engine.cpp glEnable(GL_DEBUG_OUTPUT);
-      //if (ctx == nullptr)
-      //{
-      //  BRLogWarn("Context not initialized (context isseu");
-      //  return;
-      //}
-      //if (!ctx->glGetDebugMessageLog)
-      //{
-      //  BRLogWarn("Opengl log not initialized (context isseu");
-      //  return;
-      //}
-
       int numMsgs = 1;
       int numFound;
 
@@ -356,43 +317,29 @@ namespace PirateCraft
         return;
       }
 
-      bool graphicsLogHigh = true;// Gu::getEngineConfig()->getGraphicsErrorLogging_High();
-      bool graphicsLogMed = true;//:getEngineConfig()->getGraphicsErrorLogging_Medium();
-      bool graphicsLogLow = true;//:getEngineConfig()->getGraphicsErrorLogging_Low();
-      bool graphicsLogInfo = true;//:getEngineConfig()->getGraphicsErrorLogging_Info();
+      bool graphicsLogHigh = Gu.EngineConfig.GraphicsErrorLogging_High;
+      bool graphicsLogMed = Gu.EngineConfig.GraphicsErrorLogging_Medium;
+      bool graphicsLogLow = Gu.EngineConfig.GraphicsErrorLogging_Low;
+      bool graphicsLogInfo = Gu.EngineConfig.GraphicsErrorLogging_Info;
 
       do
       {
-        //char[] msgData = new char[numMsgs * _maxMsgLen];
         DebugSource[] sources = new DebugSource[numMsgs];
         DebugType[] types = new DebugType[numMsgs];
         DebugSeverity[] severities = new DebugSeverity[numMsgs];
         int[] ids = new int[numMsgs];
         int[] lengths = new int[numMsgs];
 
-        //unsafe
-        // {
-        //Yeah i don't know what's up with opentk here.
         string msgcopy = "";
-
         numFound = GL.GetDebugMessageLog(numMsgs, numMsgs * _maxMsgLen, sources, types, ids, severities, lengths, out msgcopy);
-        //fixed (char* ptr = msgcopy)
-        //{
-        //  for (int x = 0; x < msgData.Length; x++)
-        //  {
-        //    msgData[x] = *(ptr + x);
-        //  }
-        //}
-
-        // }//
 
         if (numFound == 0)
         {
           return;
         }
-        if (clearOnly)
+        if (sb == null)//clearOnly
         {
-          continue;  //clear messages.
+          continue;
         }
 
         Array.Resize(ref sources, numFound);
@@ -401,105 +348,69 @@ namespace PirateCraft
         Array.Resize(ref ids, numFound);
         Array.Resize(ref lengths, numFound);
 
-
         int currPos = 0;
         for (int iMsg = 0; iMsg < lengths.Length; ++iMsg)
         {
           int id = ids[iMsg];
           if (!skipNVIDIA(id) && !skipATI(id))
           {
-            //string strMsg = "";
-            //for (int xx = currPos; xx < lengths[iMsg] - 1; xx++)
-            //{
-            //  strMsg += msgData[xx];  //who care man
-            //}
-            //stromg strMsg = msgcopy;
             DebugSeverity severity = severities[iMsg];
             DebugType type = types[iMsg];
             DebugSource source = sources[iMsg];
-            logGPUMessageText(msgcopy, id, shaderName, doNotLog, severity, type, source, graphicsLogHigh, graphicsLogMed, graphicsLogLow, graphicsLogInfo);
+            LogGPUMessageText(sb, msgcopy, id, severity, type, source, graphicsLogHigh, graphicsLogMed, graphicsLogLow, graphicsLogInfo);
           }
           currPos = currPos + lengths[iMsg];
         }
 
       } while (numFound > 0);
     }
-    private void logGPUMessageText(string cstrMsg, int msgId, string shaderName, bool doNotLog, DebugSeverity severity, DebugType type,
+    private void LogGPUMessageText(StringBuilder sb, string cstrMsg, int msgId, DebugSeverity severity, DebugType type,
       DebugSource source, bool graphicsLogHigh, bool graphicsLogMed, bool graphicsLogLow, bool graphicsLogInfo)
     {
       string msg = "";
       string shaderMsg = "";
+      Gu.Assert(sb != null);
+      string strId = " [id=0x" + msgId.ToString("X") + "]";
 
-      if (!String.IsNullOrEmpty(shaderName))
+      //Skip if the config.xml has turned off this kind of logging.
+      if (severity == DebugSeverity.DebugSeverityHigh && graphicsLogHigh == false)
       {
-        shaderMsg = " -> shader: " + shaderName;
+        return;
       }
-      if (doNotLog == false)
+      else if (severity == DebugSeverity.DebugSeverityMedium && graphicsLogMed == false)
       {
-        string strId = " 0x" + msgId.ToString("X");
+        return;
+      }
+      else if (severity == DebugSeverity.DebugSeverityLow && graphicsLogLow == false)
+      {
+        return;
+      }
+      else if (severity == DebugSeverity.DebugSeverityNotification && graphicsLogInfo == false)
+      {
+        return;
+      }
 
-        //Skip if the config.xml has turned off this kind of logging.
-        if (severity == DebugSeverity.DebugSeverityHigh && graphicsLogHigh == false)
-        {
-          return;
-        }
-        else if (severity == DebugSeverity.DebugSeverityMedium && graphicsLogMed == false)
-        {
-          return;
-        }
-        else if (severity == DebugSeverity.DebugSeverityLow && graphicsLogLow == false)
-        {
-          return;
-        }
-        else if (severity == DebugSeverity.DebugSeverityNotification && graphicsLogInfo == false)
-        {
-          return;
-        }
+      string strSev = "";
+      string strType = "";
+      string strSource = "";
+      GpuLogLevel level = GpuLogLevel.Dbg_;
+      GetTypeSevSourceLevel(type, severity, source, ref strType, ref strSev, ref strSource, ref level);
 
-        string strSev = "";
-        string strType = "";
-        string strSource = "";
-        GpuLogLevel level = GpuLogLevel.Dbg_;
-        getTypeSevSourceLevel(type, severity, source, ref strType, ref strSev, ref strSource, ref level);
+      msg = $"GPU Log:{strId}{strType}{strSev}{strSource}{cstrMsg}";
 
-        //Prevent infinite recursion to dump the rendering state.
-        string strStackInfo = "";
-        string strRenderState = "";
-        //static bool _bPrintingGPULog = false;
-        //if (_bPrintingGPULog == false)
-        {
-          _bPrintingGPULog = true;
-          //This isn't necessary. We can just add it above. what's happening is calling renderstate() resets the glError.
-          // Also the GL Error automatically resets.
-          strRenderState = (severity == DebugSeverity.DebugSeverityNotification) ? "" : GpuDebugInfo.DebugGetRenderState(true, false, false);
-          strStackInfo = "";//(type ==GLenum.GL_DEBUG_TYPE_ERROR || type ==GLenum.GL_DEBUG_SEVERITY_NOTIFICATION) ? "" : DebugHelper::getStackTrace();  //error prints stack.
-          _bPrintingGPULog = false;
-        }
-        //else
-        //{
-        //  strRenderState = " RenderState: Gpu Log is currently in recursive call, no information can be displayed.";
-        //  strStackInfo = " Stack: Gpu Log is currently in recursive call, no information can be displayed.";
-        //}
-
-        msg = "GPU_LOG_MSG" + strId + strType + strSev + strSource + Environment.NewLine +
-              shaderMsg + Environment.NewLine +
-              " MSG ID: " + strId + Environment.NewLine +
-              " Msg: " + cstrMsg + Environment.NewLine +
-              " Render: " + Environment.NewLine + strStackInfo + Environment.NewLine;
-
+      if (sb != null)
+      {
         if (type == DebugType.DebugTypeError)
         {
-          Gu.Log.Error(msg, strRenderState);
-          Gu.DebugBreak();
-
+          sb.AppendLine(msg);
         }
         else if (severity == DebugSeverity.DebugSeverityNotification)
         {
-          Gu.Log.Info(msg);
+          sb.AppendLine(msg);
         }
         else
         {
-          Gu.Log.Warn(msg);
+          sb.AppendLine(msg);
         }
       }
     }
@@ -539,7 +450,7 @@ namespace PirateCraft
     {
       return false;
     }
-    private static void getTypeSevSourceLevel(DebugType type, DebugSeverity severity, DebugSource source, ref string strType, ref string strSev, ref string strSource, ref GpuLogLevel level)
+    private static void GetTypeSevSourceLevel(DebugType type, DebugSeverity severity, DebugSource source, ref string strType, ref string strSev, ref string strSource, ref GpuLogLevel level)
     {
       if (type == DebugType.DebugTypeError)
       {
@@ -621,9 +532,29 @@ namespace PirateCraft
         strSource = "[source=OTHER]";
       }
     }
+    private static string glErrToStr(ErrorCode err)
+    {
+      switch (err)
+      {
+        case ErrorCode.NoError:
+          return "GL_NO_ERROR         ";
+        case ErrorCode.InvalidEnum:
+          return "GL_INVALID_ENUM     ";
+        case ErrorCode.InvalidValue:
+          return "GL_INVALID_VALUE    ";
+        case ErrorCode.InvalidOperation:
+          return "GL_INVALID_OPERATION";
+        case (ErrorCode)0x0503:
+          return "GL_STACK_OVERFLOW   ";
+        case (ErrorCode)0x0504:
+          return "GL_STACK_UNDERFLOW  ";
+        case ErrorCode.OutOfMemory:
+          return "GL_OUT_OF_MEMORY    ";
+      }
+      return " *GL Error code not recognized.";
+    }
 
     #endregion
-
   }
 
   public enum GPUVendor
@@ -633,7 +564,11 @@ namespace PirateCraft
   public class Gpu
   {
     private Dictionary<WindowContext, List<Action<WindowContext>>> RenderThreadActions = new Dictionary<WindowContext, List<Action<WindowContext>>>();
-    private int _maxTextureSize = 1;
+
+    //Limits
+    public int MaxTextureSize { get; private set; } = 0;
+    public int MaxTextureImageUnits { get; private set; } = 0;
+
     //  public GpuRenderState GpuRenderState { get; set; } = new GpuRenderState();
     public int RenderThreadID { get; private set; } = -1;
 
@@ -646,7 +581,11 @@ namespace PirateCraft
 
       int[] maxTextureSize = new int[2];
       GL.GetInteger(GetPName.MaxTextureSize, maxTextureSize);
-      _maxTextureSize = maxTextureSize[0];
+      MaxTextureSize = maxTextureSize[0];
+
+      int tmp = 0;
+      GL.GetInteger(GetPName.MaxCombinedTextureImageUnits, out tmp);
+      MaxTextureImageUnits = tmp;
 
       VendorString = GL.GetString​(StringName.Vendor);
       if (VendorString.Contains("ATI")) { Vendor = GPUVendor.ATI; }
@@ -656,10 +595,6 @@ namespace PirateCraft
       {
         Gu.BRThrowException("Invalid GPU vendor string: " + VendorString);
       }
-    }
-    public int GetMaxTextureSize()
-    {
-      return _maxTextureSize;
     }
     public static TextureUnit GetActiveTexture()
     {
@@ -732,17 +667,25 @@ namespace PirateCraft
       }
     }
     private static GPULog GPULog = new GPULog();
-    public static bool CheckGpuErrorsRt(bool donotbreak = false, bool donotlog = false, string shadername = "", bool clearonly = false)
+    public static bool CheckGpuErrorsRt(bool donotbreak = false, bool donotlog = false)
     {
-      return GPULog.chkErrRt(donotbreak, donotlog, shadername, clearonly);
+      if (Gu.EngineConfig.EnableRuntimeErrorChecking == true)
+      {
+        return GPULog.CheckErrors(donotbreak, donotlog);
+      }
+      return false;
     }
-    public static bool CheckGpuErrorsDbg(bool donotbreak = false, bool donotlog = false, string shadername = "", bool clearonly = false)
+    public static bool CheckGpuErrorsDbg(bool donotbreak = false, bool donotlog = false)
     {
 #if DEBUG
-      return GPULog.chkErrDbg(donotbreak, donotlog, shadername, clearonly);
+      if (Gu.EngineConfig.EnableDebugErrorChecking == true)
+      {
+        return GPULog.CheckErrors(donotbreak, donotlog);
+      }
 #endif
+      return false;
     }
-    public static Img32 GetTextureDataFromGpu(int iGLTexId, TextureTarget eTexTargetBase, ref PixelFormat outFormat, ref PixelType outType, ref PixelInternalFormat outInternalFormat, int iCubeMapSide = -1)
+    public static Image GetTextureDataFromGpu(int iGLTexId, TextureTarget eTexTargetBase, ref PixelFormat outFormat, ref PixelType outType, ref PixelInternalFormat outInternalFormat, int iCubeMapSide = -1)
     {
       //Input image32 must be not nulll
       int iSavedTextureBinding;
@@ -889,7 +832,7 @@ namespace PirateCraft
       // char* buf = new char[bufsiz_bytes];
       // glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, (GLvoid*)bi.getData()->ptr());
       //glGetTexImage(GL_TEXTURE_2D, iMipLevel, GL_RGBA, GL_UNSIGNED_BYTE, (GLvoid*)bi.getData()->ptr());
-      Img32 image = new Img32("GpuTexture", w, h, null, Img32.ImagePixelFormat.RGBA32ub);
+      Image image = new Image("GpuTexture", w, h, null, Image.ImagePixelFormat.RGBA32ub);
       var handle = GCHandle.Alloc(image.Data, GCHandleType.Pinned);
       GL.GetTexImage(eTexTargetSide, iMipLevel, calculatedFmt, calculatedType, handle.AddrOfPinnedObject());
       handle.Free();
@@ -1932,7 +1875,8 @@ namespace PirateCraft
       strState.AppendLine("---------------- Window Info ----------------");
       strState.AppendLine($"Cur Context: '{Gu.Context.GameWindow.Title.ToString()}'");
       strState.AppendLine($"  Title: '{Gu.Context.GameWindow.Title.ToString()}'");
-      strState.AppendLine($"  Dims: {Gu.Context.GameWindow.Width}x{Gu.Context.GameWindow.Height}");
+      strState.AppendLine($"  WinDims: {Gu.Context.GameWindow.Width}x{Gu.Context.GameWindow.Height}");
+      strState.AppendLine($"  RenderDims: {Gu.Context.Renderer.CurrentStageFBOSize.ToString()}");
       //strState.AppendLine($"Screen Dims: {Gu.Context.GameWindow.monitor}x{Gu.Context.GameWindow.Height}");
       //strState.AppendLine($"This API: {Gu.Context.GameWindow.API.ToString()}");
       strState.AppendLine($"  GL Profile: {Gu.Context.GameWindow.Profile.ToString()}");

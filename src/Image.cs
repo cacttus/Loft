@@ -2,10 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
-using System.Drawing;
-using System.Drawing.Imaging;
+using System.Runtime.Serialization;
 
 namespace PirateCraft
 {
@@ -91,11 +88,10 @@ namespace PirateCraft
 
       return Kernel;
     }
-
-
   }
 
-  public class Img32
+  [DataContract] [Serializable]
+  public class Image : DataBlock, IClone, ICopy<Image>, ISerializeBinary
   {
     //Note: this class initializes the data buffer when you create it. It requires a w/h
     public enum ImagePixelFormat
@@ -107,11 +103,16 @@ namespace PirateCraft
       BGRA32ub,
       R32f
     }
-    public string Name { get; private set; } = "img32-unnamed";
-    public int Width { get; private set; } = 0;
-    public int Height { get; private set; } = 0;
+    [DataMember] public int _width = 0;
+    [DataMember] public int _height = 0;
+    [NonSerialized] public byte[] _data = null;//This is only if there is no data source
+    [DataMember] public ImagePixelFormat _format = ImagePixelFormat.Undefined;
+
+    public int Width { get { return _width; } private set { _width = value; } }
+    public int Height { get { return _height; } private set { _height = value; } }
+    public byte[] Data { get { return _data; } private set { _data = value; } }
+    public ImagePixelFormat Format { get { return _format; } private set { _format = value; } }
     public float SizeRatio { get { return Height != 0 ? Width / Height : 1; } }
-    public byte[] Data { get; private set; } = null;
 
     public int BytesPerPixel
     {
@@ -138,40 +139,24 @@ namespace PirateCraft
       {
       }
     }//Always 4BPP in our system.
-    public ImagePixelFormat Format { get; private set; } = ImagePixelFormat.Undefined;
 
-    private Img32()
+    protected Image() { }
+    public static Image Default1x1_RGBA32ub(string name, byte r, byte g, byte b, byte a)
+    {
+      var img = new Image(name, 1, 1, new byte[] { r, g, b, a }, ImagePixelFormat.RGBA32ub);
+      return img;
+    }
+    public static Image Default1x1_RGBA32ub(string name, vec4ub v4)
+    {
+      return Default1x1_RGBA32ub(name, v4.r, v4.g, v4.b, v4.a);
+    }
+    public Image(string name, int w, int h, ImagePixelFormat sc = ImagePixelFormat.RGBA32ub) : this(name, w, h, null, sc)
     {
     }
-    public static Img32 Default1x1_RGBA32ub(byte r, byte g, byte b, byte a, string nameapp)
-    {
-      return new Img32("default1x1-" + nameapp, 1, 1, new byte[] { r, g, b, a }, ImagePixelFormat.RGBA32ub);
-    }
-    public static Img32 Default1x1_RGBA32ub(vec4ub v4, string nameapp)
-    {
-      return Default1x1_RGBA32ub(v4.r, v4.g, v4.b, v4.a, nameapp);
-    }
-    public Img32 Clone()
-    {
-      Img32 m = new Img32();
-      m.Name = Name;
-      m.Width = Width;
-      m.Height = Height;
-      m.Data = new byte[Data.Length];
-      m.BytesPerPixel = BytesPerPixel;
-      m.Format = Format;
-      Buffer.BlockCopy(Data, 0, m.Data, 0, Data.Length);
-      return m;
-    }
-    public Img32(string name, int w, int h, ImagePixelFormat sc = ImagePixelFormat.RGBA32ub)
+    public Image(string name, int w, int h, byte[] data, ImagePixelFormat sc = ImagePixelFormat.RGBA32ub) : base(name)
     {
       //Note if data is null data will still get allocated
-      init(name, w, h, null, sc);
-    }
-    public Img32(string name, int w, int h, byte[] data, ImagePixelFormat sc = ImagePixelFormat.RGBA32ub)
-    {
-      //Note if data is null data will still get allocated
-      init(name, w, h, data, sc);
+      init(w, h, data, sc);
     }
     public void FlipBR()
     {
@@ -209,12 +194,13 @@ namespace PirateCraft
       }
       Data = newData;
     }
-    public void init(string name, int w, int h, byte[] data, ImagePixelFormat sc)
+    public void init(int w, int h, byte[] data, ImagePixelFormat sc)
     {
+      Gu.Assert(w>0, $"{Name}: Image Width was zero");
+      Gu.Assert(h>0, $"{Name}: Image Height was zero");
       Width = w;
       Height = h;
       Format = sc;
-      Name = name + "-img32";
       if (data == null)
       {
         data = new byte[w * h * BytesPerPixel];
@@ -224,15 +210,15 @@ namespace PirateCraft
 
       Data = data;
     }
-    public Img32 copySubImageTo(ivec2 off, ivec2 size)
+    public Image copySubImageTo(ivec2 off, ivec2 size)
     {
-      Img32 ret = new Img32("subimage-cpy", size.x, size.y, Format);
+      Image ret = new Image("subimage-cpy", size.x, size.y, Format);
       // ret.init(size.x, size.y);//ret.create(size.x, size.y);
       ret.copySubImageFrom(new ivec2(0, 0), off, size, this);
       return ret;
     }
     //Image formats must be identical
-    public void copySubImageFrom(ivec2 myOff, ivec2 otherOff, ivec2 size, Img32 pOtherImage)
+    public void copySubImageFrom(ivec2 myOff, ivec2 otherOff, ivec2 size, Image pOtherImage)
     {
       if (Data == null)
       {
@@ -279,18 +265,18 @@ namespace PirateCraft
         Buffer.BlockCopy(pOtherImage.Data, srcff, Data, dstff, scanLineByteSize);
       }
     }
-    private int vofftos(int row, int col, int items_per_row)
+    public static int vofftos(int row, int col, int items_per_row)
     {
       return (col * items_per_row + row);
     }
-    public Img32 CreateNormalMap(bool isbumpmap, float depth_amount = 0.70f)/*testing*/
+    public Image CreateNormalMap(bool isbumpmap, float depth_amount = 0.70f)/*testing*/
     {
       //This is too slow for C# //TODO: put on GPU
       if (Data == null)
       {
         return null;
       }
-      Img32 ret = this.Clone();
+      Image ret = (Image?)this.Clone();
 
       for (int j = 0; j < ret.Height; ++j)
       {
@@ -302,10 +288,10 @@ namespace PirateCraft
 
       return ret;
     }
-    public static Img32 RandomImage_R32f(int size_x, int size_y, Minimax<float> height)
+    public static Image RandomImage_R32f(int size_x, int size_y, Minimax<float> height)
     {
       //Get random image
-      Img32 rando = new Img32("rand", size_x, size_y, ImagePixelFormat.R32f);
+      Image rando = new Image(Gu.Lib.GetUniqueName(ResourceType.Image, "rand"), size_x, size_y, ImagePixelFormat.R32f);
 
       for (int j = 0; j < rando.Height; ++j)
       {
@@ -316,7 +302,7 @@ namespace PirateCraft
       }
       return rando;
     }
-    public Img32 CreateHeightMap(int ksize = 1, float kweight = 0.1f, int smooth_iterations = 1)
+    public Image CreateHeightMap(int ksize = 1, float kweight = 0.1f, int smooth_iterations = 1)
     {
       //creates a NOT NORMALIZED height map call Normalize to normalize
       //ksize= kernel radius - has little effect on the map, k=1 will produce a little "deeper" map vs k=2,3..
@@ -327,15 +313,15 @@ namespace PirateCraft
       var ret = ApplyKernel_R32f(kern, smooth_iterations);
       return ret;
     }
-    private Img32 ApplyKernel_R32f(ImageKernel<double> kern, int iterations)
+    private Image ApplyKernel_R32f(ImageKernel<double> kern, int iterations)
     {
       Gu.Assert(this.Format == ImagePixelFormat.R32f);
       Gu.Assert(iterations > 0);
-      Img32 ret_last = this;
-      Img32 ret = this;
+      Image ret_last = this;
+      Image ret = this;
       for (int iter = 0; iter < iterations; iter++)
       {
-        ret = ret.Clone();
+        ret = (Image?)ret.Clone();
         ret_last.Iterate((x, y) =>
         {
           var test_p = GetPixel_R32f(x, y);
@@ -376,11 +362,11 @@ namespace PirateCraft
 
       return sum;
     }
-    public Img32 Normalized_R32f()
+    public Image Normalized_R32f()
     {
       Gu.Assert(this.Format == ImagePixelFormat.R32f);
       //Normalize floating point image from [-inf, inf] to [0,1]
-      Img32 ret = this.Clone();
+      Image ret = (Image?)this.Clone();
       float min = float.MaxValue;
       float max = float.MinValue;
       ret.Iterate((x, y) =>
@@ -400,12 +386,12 @@ namespace PirateCraft
       });
       return ret;
     }
-    public Img32 Convert(ImagePixelFormat toFmt, bool set_rgba_alpha_to_one = true)
+    public Image Convert(ImagePixelFormat toFmt, bool set_rgba_alpha_to_one = true)
     {
-      Img32 cpy = new Img32(this.Name + "-converted", this.Width, this.Height, toFmt);
+      Image cpy = new Image(this.Name + "-converted", this.Width, this.Height, toFmt);
       if (this.Format == ImagePixelFormat.R32f)
       {
-        Img32 normalized = this.Normalized_R32f();
+        Image normalized = this.Normalized_R32f();
         if (toFmt == ImagePixelFormat.RGBA32ub)
         {
           normalized.Iterate((x, y) =>
@@ -429,8 +415,7 @@ namespace PirateCraft
       }
       return cpy;
     }
-
-    private byte toGray(Pixel4ub pix)
+    public static byte toGray(Pixel4ub pix)
     {
       return (byte)((11 * pix.r + 16 * pix.g + 5 * pix.b) / 32);
     }
@@ -448,7 +433,7 @@ namespace PirateCraft
     public float GetPixel_R32f(int x, int y)
     {
       Gu.Assert(this.Format == ImagePixelFormat.R32f);
-      Gu.Assert(x<= this.Width && y <= this.Height && x>=0 && y>=0);
+      Gu.Assert(x <= this.Width && y <= this.Height && x >= 0 && y >= 0);
       int off = vofftos(x, y, Width) * BytesPerPixel;  //StaticBufffer is a char array so we must scale the size
       unsafe
       {
@@ -481,21 +466,21 @@ namespace PirateCraft
       Data[off + 3] = pix.a;
       //Modify...
     }
-    int hwrap(int off)
+    public int hwrap(int off)
     {
       int ret = off % Width;
       if (ret < 0)
         ret += Width;
       return ret;
     }
-    int vwrap(int off)
+    public int vwrap(int off)
     {
       int ret = off % Height;
       if (ret < 0)
         ret += Height;
       return ret;
     }
-    Pixel4ub normalizePixel32(int x, int y, bool is_bump_map_pixel, float depth_amount)
+    public Pixel4ub normalizePixel32(int x, int y, bool is_bump_map_pixel, float depth_amount)
     {
       //TODO: use the new Kernel methods here.
       //is_bump_map_pixel - if we are a bump map, use the pixel's grayscale value for the normal depth.
@@ -574,7 +559,7 @@ namespace PirateCraft
       pix.a = 255;
 
       //This format must match the Texutre.default normal map
-      if (Texture2D.NormalMapFormat == NormalMapFormat.Zup)
+      if (Texture.NormalMapFormat == NormalMapFormat.Zup)
       {
         byte tmp = pix.g;
         pix.g = pix.b;
@@ -612,7 +597,33 @@ namespace PirateCraft
 
       this.Data = st;
     }
-
+    public object? Clone(bool? shallow = null)
+    {
+      if (shallow != null && shallow == false)
+      {
+        Gu.BRThrowException("Cannot shallow copy an Img32.");
+      }
+      Image other = new Image();
+      other.CopyFrom(this, shallow);
+      return other;
+    }
+    public void CopyFrom(Image? other, bool? shallow = null)
+    {
+      if (shallow != null && shallow == false)
+      {
+        Gu.BRThrowException("Cannot shallow copy an Img32.");
+      }
+      Gu.Assert(other != null);
+      base.CopyFrom(other, shallow);
+      this._width = other._width;
+      this._height = other._height;
+      this._format = other._format;
+      if (other._data != null)
+      {
+        this._data = new byte[other._data.Length];
+        Buffer.BlockCopy(other._data, 0, this._data, 0, other._data.Length);
+      }
+    }
 
 
   }

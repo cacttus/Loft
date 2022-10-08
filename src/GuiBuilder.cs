@@ -105,6 +105,7 @@ namespace PirateCraft
         {
           Color = new vec4(0.63f, 0.7f, 0.7f, 0.3f)
           ,MaxWidth = 400
+          ,FontSize = 20
         },
         new UiStyle(StyleName.Toolbar, new List<string>() { StyleName.Base })
         {

@@ -693,7 +693,7 @@ namespace PirateCraft
     }
     public UiStyle Clone()
     {
-      UiStyle ret = new UiStyle(this.Name + Gu.CopyName, this._superStylesNames);
+      UiStyle ret = new UiStyle(this.Name + Library.CopyName, this._superStylesNames);
       ret._props = _props.Clone();
       ret._eles = null;
       ret._bMustCompile = true;
@@ -1092,9 +1092,9 @@ namespace PirateCraft
           DoEvents(g, UiEventId.Mouse_Enter, mouse);
         }
 
-        ButtonState eLmb = mouse.GetButtonState(MouseButton.Left);
-        ButtonState eRmb = mouse.GetButtonState(MouseButton.Right);
-        ButtonState eMmb = mouse.GetButtonState(MouseButton.Middle);
+        ButtonState eLmb = mouse.State(MouseButton.Left);
+        ButtonState eRmb = mouse.State(MouseButton.Right);
+        ButtonState eMmb = mouse.State(MouseButton.Middle);
 
         DoMouseButtonEvent(g, mouse, UiEventId.Mouse_Lmb_Up, eLmb, ButtonState.Up);
         DoMouseButtonEvent(g, mouse, UiEventId.Mouse_Lmb_Hold, eLmb, ButtonState.Hold);
@@ -1510,7 +1510,7 @@ namespace PirateCraft
               else
               {
                 //child wasn't picked, try parent.
-                var pixid = Gu.Context.Renderer.Picker.GetSelectedPixelId();
+                var pixid = Gu.Context.Renderer.Picker.SelectedPixelId;
                 if (pixid != Picker.c_iInvalidPickId)
                 {
                   if (pixid == _iPickId)
@@ -2181,7 +2181,7 @@ namespace PirateCraft
     private FileLoc _location = null;
     private Dictionary<string, UiStyle> Styles = new Dictionary<string, UiStyle>();
     private List<string> _errors = new List<string>();
-    public string Name { get; private set; } = Gu.UnsetName;
+    public string Name { get; private set; } = Library.UnsetName;
 
     public UiStyleSheet(FileLoc loc)
     {
@@ -2247,6 +2247,7 @@ namespace PirateCraft
   }
   public class Gui2d : UiElement
   {
+    //*note:GUI element sizes translated relative to the current FBO size in the shader, all gui coords are in window coords
     #region Public: Members
 #if DEBUG
     private v_v4v4v4v2u2v4v4[] _debug_pt = new v_v4v4v4v2u2v4v4[3]; //save 3 points to see what they are (debug)
@@ -2284,6 +2285,7 @@ namespace PirateCraft
     }
     public void OnResize()
     {
+      //*note:GUI is translated to the current FBO size in the shader, all gui coords are in window coords
       SetLayoutChanged();
     }
     public void Render(RenderView rv)
@@ -2490,12 +2492,12 @@ namespace PirateCraft
 
       if (tx != null)
       {
-        var shader = Gu.Resources.LoadShader("v_gui", true, FileStorage.Embedded, OpenTK.Graphics.OpenGL4.PrimitiveType.Points);
+        var shader = Gu.Lib.LoadShader(RName.Shader_GuiShader);
         Dummy = new WorldObject("gui");
         Dummy.Material = new Material("GuiMT", shader);
         Dummy.Material.GpuRenderState.DepthTest = false;
         Dummy.Material.GpuRenderState.Blend = true;
-        Dummy.Material.AlbedoSlot.Texture = tx.AlbedoTexture;
+        Dummy.Material.AlbedoSlot.Texture = tx.Albedo;
       }
       else
       {
@@ -2504,9 +2506,13 @@ namespace PirateCraft
     }
 
   }//Gui2dShared
+
+  //We will need to split this. Guimanager isn't a datablock
   public class Gui2dManager : OpenGLContextDataManager<Dictionary<ulong, Gui2dShared>>
   {
-
+    public Gui2dManager() : base("Gui2DManager")
+    {
+    }
     //Shared GUI data for each context
     protected override Dictionary<ulong, Gui2dShared> CreateNew()
     {
@@ -2514,7 +2520,6 @@ namespace PirateCraft
     }
     public Gui2dShared GetOrCreateGui2d(string name, List<FileLoc> resources)
     {
-
       var qualifiedPaths = resources.ConvertAll((x) => { return x.QualifiedPath; });
       var hash = Gu.HashStringArray(qualifiedPaths);
 

@@ -1,5 +1,10 @@
 ﻿using OpenTK.Graphics.OpenGL4;
+using System.Runtime.InteropServices;
+using System.Runtime.Serialization.Formatters.Binary;
+using System.Runtime.Serialization;
 using System.Text;
+using Newtonsoft.Json;
+using OpenTK.Windowing.GraphicsLibraryFramework;
 
 namespace PirateCraft
 {
@@ -193,7 +198,6 @@ namespace PirateCraft
 
     public static Dictionary<TileImage, FileLoc> TileImages = new Dictionary<TileImage, FileLoc>() {
             { TileImage.Grass, new FileLoc("tx64_grass.png", FileStorage.Embedded) },
-            //LOAD FASTER
             { TileImage.GrassSide, new FileLoc("tx64_grass_side.png", FileStorage.Embedded) },
             { TileImage.Dirt, new FileLoc("tx64_dirt.png", FileStorage.Embedded) },
             { TileImage.Plank, new FileLoc("tx64_plank.png", FileStorage.Embedded) },
@@ -269,74 +273,59 @@ namespace PirateCraft
     TopConfigIsLeftConfig = 0x01, // the 2 triangles that form the top point to the right |/| vs, left |\|
     BotConfigIsLeftConfig = 0x02
   }
-  public struct BeamVert : ISerializeBinary
+  public class BeamVert
   {
     public const ushort MaxVal = ushort.MaxValue;
-
-    public ushort Y = 0;
-    public ByteFlags Flags = new ByteFlags(); //BarVertFlag
-    public byte pad = 0;
-    // 4 bytes
-    public BeamVert(ushort y, byte flags = 0)
-    {
-      Y = y;
-      Flags.Set((int)flags);
-    }
-    public void Serialize(BinaryWriter bw)
-    {
-      Gu.BRThrowNotImplementedException();
-    }
-    public void Deserialize(BinaryReader br)
-    {
-      Gu.BRThrowNotImplementedException();
-    }
+    public const ushort MinVal = 1;
+    //Beam edges can't be zero, in case we do use the RangeList (eventually)
+    // however they must have a "zero height" because we allow for "pyramids"
   }
-  public struct BeamEdge : ISerializeBinary, IRangeItem
+  [StructLayout(LayoutKind.Sequential)]
+  public struct BeamEdge : IRangeItem
   {
     //The reason using short instead of float, is that it makes it very fast to index the vertex grabbing the monad, 
     //space, yes also space, but that's not a huge concern with beams
-    public BeamVert[] _verts = new BeamVert[2] { new BeamVert(0, 0), new BeamVert(0, 0) };
+    //In Marshal.SizeOf can't serialize if it has sub-structs so BeamVert must be contained
     public ByteFlags Flags = new ByteFlags();
     public byte pad = 0;
-    //4 bytes + 2 bytes = 6 bytes;
+    public ushort _min = 0;
+    public ushort _max = 1;
+    //Beam edges can't be zero, in case we do use the RangeList (eventually)
+    // however they must have a "zero height" because we allow for "single pyramids"
 
-    public ushort _min = 0, _max = 0;
+    public ushort Min { get { return _min; } }
+    public ushort Max { get { return _max; } }
+    public ushort Top { get { return _max; } set { _max = value; } }
+    public ushort Bot { get { return _min; } set { _min = value; } }
 
-    public ushort Min { get { return Bot.Y; } }
-    public ushort Max { get { return Top.Y; } }
-    public BeamVert Top { get { return _verts[0]; } set { _verts[0] = value; } }
-    public BeamVert Bot { get { return _verts[1]; } set { _verts[1] = value; } }
-    public bool ContainsOrEqual(ushort h)
-    {
-      return h >= Min && h <= Max;
-    }
     public ushort Height
     {
       get
       {
-        Gu.Assert(Top.Y >= Bot.Y);
-        return (ushort)(Top.Y - Bot.Y);
+        return (ushort)(_max - _min);
       }
     }
     public BeamEdge() { }
-    public BeamEdge(ushort t, ushort b, byte eflags = 0, byte v0flags = 0, byte v1flags = 0)
+    public BeamEdge(ushort b, ushort t, byte eflags = 0, byte v0flags = 0, byte v1flags = 0)
     {
-      Gu.Assert(Top.Y >= Bot.Y);
-      Bot = new BeamVert(b, v0flags);
-      Top = new BeamVert(t, v1flags);
+      Bot = b;
+      Top = t;
       Flags.Set((int)eflags);
     }
     public bool HasHeight(ushort h)
     {
-      return h >= Bot.Y && h <= Top.Y;
+      return h >= _min && h <= _max;
     }
-    public void Serialize(BinaryWriter bw)
+    public bool ContainsOrEqual(ushort h)
     {
-      Gu.BRThrowNotImplementedException();
+      return h >= Min && h <= Max;
     }
-    public void Deserialize(BinaryReader br)
+    public void Sanitize()
     {
-      Gu.BRThrowNotImplementedException();
+      if (_max <= _min)
+      {
+        _max = (ushort)(_min + 1);
+      }
     }
   }
   public class Beam : ISerializeBinary
@@ -346,6 +335,10 @@ namespace PirateCraft
     public const int c_iSideCount = 6;
 
     public BeamEdge[] Edges = new BeamEdge[4]; //6 bytes * 4 = 24 bytes;
+    public ushort[] Tiles = new ushort[c_iSideCount] {  // 6 * 2 = 12 bytes
+      TileCode.Dirt , TileCode.Dirt, TileCode.Dirt,
+      TileCode.Grass, TileCode.Dirt, TileCode.Dirt  };
+    ShortFlags Flags = new ShortFlags(); // 2 bytes
 
     public static bool ContainsHeightInclusive_WithCaps(ushort val, ushort min, ushort max)
     {
@@ -389,25 +382,12 @@ namespace PirateCraft
       ushort miny = (ushort)Math.Max(e[0].Value.Max, e[1].Value.Max);
       return miny;
     }
-
-    public ushort[] Tiles = new ushort[c_iSideCount] {  // 6 * 2 = 12 bytes
-      //BeamFaceIndex = LRBTAF
-      TileCode.Dirt,
-      TileCode.Dirt,
-      TileCode.Dirt,
-      TileCode.Grass,
-      TileCode.Dirt,
-      TileCode.Dirt
-    };
-    ShortFlags Flags = new ShortFlags(); // 2 bytes
-
-    //38 bytes / column, not counting extra crap (vptr..)
     public ushort MaxHeight()
     {
       ushort y = 0;
       foreach (var e in Edges)
       {
-        y = Math.Max(e.Top.Y, y);
+        y = Math.Max(e._max, y);
       }
       return y;
     }
@@ -416,7 +396,7 @@ namespace PirateCraft
       ushort y = BeamVert.MaxVal;
       foreach (var e in Edges)
       {
-        y = Math.Min(e.Bot.Y, y);
+        y = Math.Min(e._min, y);
       }
       return y;
     }
@@ -428,7 +408,7 @@ namespace PirateCraft
         ushort y = 0;
         foreach (var e in Edges)
         {
-          y = Math.Min(e.Top.Y, y);
+          y = Math.Min(e._max, y);
         }
         return y;
       }
@@ -441,7 +421,7 @@ namespace PirateCraft
         ushort y = BeamVert.MaxVal;
         foreach (var e in Edges)
         {
-          y = Math.Max(e.Bot.Y, y);
+          y = Math.Max(e._min, y);
         }
         return y;
       }
@@ -456,6 +436,12 @@ namespace PirateCraft
       Gu.Assert(heights.Length == 8);
       for (int i = 0; i < 8; i += 2)
       {
+        if (heights[i + 0] > heights[i + 1])
+        {
+          Gu.Log.Warn($"beam height {heights[i + 0]},{heights[i + 1]} was invalid.");
+          heights[i + 1] = heights[i + 0];
+          Gu.DebugBreak();
+        }
         Edges[i / 2] = new BeamEdge(
           heights[i + 0],
           heights[i + 1],
@@ -465,7 +451,6 @@ namespace PirateCraft
 
       }
     }
-
     public bool TopConfigIsLeftConfig()
     {
       return Flags.Test((int)BeamFlags.TopConfigIsLeftConfig);
@@ -476,11 +461,15 @@ namespace PirateCraft
     }
     public void Serialize(BinaryWriter bw)
     {
-      Gu.BRThrowNotImplementedException();
+      bw.Write(Edges);
+      bw.Write(Tiles);
+      Flags.Serialize(bw);
     }
-    public void Deserialize(BinaryReader br)
+    public void Deserialize(BinaryReader br, SerializedFileVersion version)
     {
-      Gu.BRThrowNotImplementedException();
+      Edges = br.Read<BeamEdge>();
+      Tiles = br.Read<ushort>();
+      Flags.Deserialize(br, version);
     }
   }
   // public class VertexMonad
@@ -495,12 +484,12 @@ namespace PirateCraft
   {
     public List<Beam> _beams = new List<Beam>();
     public List<Beam> Beams { get { return _beams; } }
+    public BeamList() { }
     public void AddBeam(Beam b)
     {
       _beams.Add(b);
       _beams.Sort((x, y) => x.MinHeight() - y.MinHeight());
     }
-    //i am done trying to overcomplicate this with efficiency just loop a friggin list
     public List<Beam> GetBeamsForHeight(ushort h)
     {
       //Return an ordered list of beams by range - bottom to top
@@ -532,14 +521,24 @@ namespace PirateCraft
     }
     public void Serialize(BinaryWriter bw)
     {
-      Gu.BRThrowNotImplementedException();
+      bw.Write((Int32)this.Beams.Count);
+      foreach (var b in this.Beams)
+      {
+        b.Serialize(bw);
+      }
     }
-    public void Deserialize(BinaryReader br)
+    public void Deserialize(BinaryReader br, SerializedFileVersion version)
     {
-      Gu.BRThrowNotImplementedException();
+      var nbeams = br.ReadInt32();
+      for (int n = 0; n < nbeams; n++)
+      {
+        Beam b = new Beam();
+        b.Deserialize(br, version);
+        Beams.Add(b);
+      }
     }
   }
-  public class Glob
+  public class Glob : ISerializeBinary
   {
     public enum GlobState
     {
@@ -558,7 +557,13 @@ namespace PirateCraft
     public Grid2D<BeamList> BeamGrid = null;
     public GlobState State = GlobState.CreatedOrLoaded;
     private bool _locked = false;
-
+    public string Name
+    {
+      get
+      {
+        return "glob:" + Pos.ToString();
+      }
+    }
     public void Lock() { _locked = true; }
     public void Unlock() { _locked = false; }
 
@@ -576,12 +581,12 @@ namespace PirateCraft
         return r;
       }
     }
-    public Glob(World w, ivec3 pos, Int64 genframeStamp)
+    public Glob(World w, ivec3 pos)
     {
       BeamGrid = new Grid2D<BeamList>(w.Info.GlobBlocksX, w.Info.GlobBlocksZ);
       _world = w;
       Pos = pos;
-      GeneratedFrameStamp = genframeStamp;
+      GeneratedFrameStamp = Gu.Context.FrameStamp;
     }
     public void DestroyGlob()
     {
@@ -608,11 +613,11 @@ namespace PirateCraft
       Gu.Assert(f >= 0 && f <= 1);
       return f * max;
     }
-    public void Edit_GenHills(float y_base_rel, float min_height, float max_height)
+    public void Edit_GenHills(float y_base_rel, float min_height, float max_height, bool rnadomJunk)
     {
       //TODO: generate linked topology
 
-      var rimg = Img32.RandomImage_R32f(BeamGrid.SizeX + 1, BeamGrid.SizeY + 1, new Minimax<float>(min_height, max_height)).CreateHeightMap(2, 1f, 2).Normalized_R32f();//+1 due to vertex, not beam
+      var rimg = Image.RandomImage_R32f(BeamGrid.SizeX + 1, BeamGrid.SizeY + 1, new Minimax<float>(min_height, max_height)).CreateHeightMap(2, 1f, 2).Normalized_R32f();//+1 due to vertex, not beam
 
       //ResourceManager.SaveImage(System.IO.Path.Combine(Gu.LocalTmpPath, "test-hm1a.png"), rimg.Convert(Img32.ImagePixelFormat.RGBA32ub, true), true);  
 
@@ -633,7 +638,7 @@ namespace PirateCraft
         if (bl == bs) { bl = (ushort)(bs + 1); }
         if (br == bs) { br = (ushort)(bs + 1); }
 
-        if ((x == 8 && z == 8) || (x == 9 && z == 8))
+        if (rnadomJunk && ((x == 8 && z == 8) || (x == 9 && z == 8)))
         {
           //TESTING DEBUG
           //TESTING DEBUG
@@ -642,15 +647,26 @@ namespace PirateCraft
         }
 
         BeamList b = new BeamList();
-        b.AddBeam(new Beam(new ushort[] { bl, bs, br, bs, tl, bs, tr, bs }));
+        b.AddBeam(new Beam(new ushort[] { bs, bl, bs, br, bs, tl, bs, tr }));
         BeamGrid.Set(new ivec2(x, z), b);
+
+        var bbbtest = BeamGrid.Get(new ivec2(x, z));
+
 
         return LambdaBool.Continue;
       }, false);
     }
-
+    public void Serialize(BinaryWriter bw)
+    {
+      bw.Write((ivec3)Pos);
+      this.BeamGrid.Serialize(bw);
+    }
+    public void Deserialize(BinaryReader br, SerializedFileVersion version)
+    {
+      Pos = br.ReadIVec3();
+      this.BeamGrid.Deserialize(br, version);
+    }
   }
-
   public class GlobArray
   {
     //GlobManifold, QueuedGlob
@@ -720,7 +736,6 @@ namespace PirateCraft
     {
     }
   }
-
   public class WorldTile
   {
     //Provides the visible information for a block. Images. Mesh type. Visibility.
@@ -755,69 +770,61 @@ namespace PirateCraft
     {
       _mtTex = tex;
       //BL BR TL TR
-      //      texs[0] = new vec2(0, 1);
-      //texs[1] = new vec2(1, 1);
-      //texs[2] = new vec2(0, 0);
-      //texs[3] = new vec2(1, 0);
-      //For testing this is 4 values, but i think it's going to be 2 
-      UV = new vec2[] {
-        new vec2(_mtTex.uv0.x, _mtTex.uv1.y),
-        _mtTex.uv1,
-        _mtTex.uv0,
-        new vec2(_mtTex.uv1.x, _mtTex.uv0.y)
-       };
+      // UV = new vec2[] {
+      //   new vec2(_mtTex.uv0.x, _mtTex.uv1.y),
+      //   _mtTex.uv1,
+      //   _mtTex.uv0,
+      //   new vec2(_mtTex.uv1.x, _mtTex.uv0.y)
+      //  };
+
+      //New UV - 00BL -> 11TR
+      UV = new vec2[] { _mtTex.uv0, _mtTex.uv1 };
     }
   }
-  public class EditState
-  {
-    public int EditView { get; set; } = 1;
-    public const int c_MaxEditViews = 4;
-  }
 
-  public class WorldInfo
+  [DataContract]
+  [Serializable]
+  public class WorldInfo : ISerializeBinary
   {
+    //Contains base metrics for creating a world, size, voxels .. 
+
     #region Public:Members
 
-    //Contains base metrics for creating a world, size, voxels .. 
-    //Constants before, now drive the individual world areas.
-    public string Name { get; private set; } = Gu.UnsetName;
-    public FileLoc FileLoc { get; private set; } = null;
-
+    public const float c_EarthGravity = -9.8f;//m/s
+    public const float MaxVelocity_Second_Frame = 5 * 2.32f;//max length of vel per second / frame *NOT PER FRAME but by dt*
+    public const float MinVelocity = 0.000001f;
+    public const float MinVelocity2 = (MinVelocity * MinVelocity);
+    public const float MinTimeStep = 0.00001f;
     public const float DropDestroyTime_Seconds = (60) * 3; // x minutes
     public const int MaxGlobsToGeneratePerFrame_Sync = 32;//number of glob copy operations per render side frame. This can slow down / speed up rendering.
+                                                          //public const float PlayerHeight  = 2.0f;
+                                                          //public const float PlayerWidth  = 0.5f;
+                                                          //public const float PlayerDepth  = 0.1f;
 
-    public float BlockSize { get; private set; } = 0;
-    public float HeightScale { get; private set; } = 0; // Height of a block relative to BlockSize
-    public float WallXFactor { get; private set; } = 0.1f; // Width of a wall / [0,1] = % of BlockSize
-    public float WallYFactor { get; private set; } = 0.1f; // 
-    public float WallZFactor { get; private set; } = 0.1f; // 
+    //Temp variables
+    [NonSerialized] public bool DeleteStartFresh = false;
+    [DataMember] public int LimitYAxisGeneration = 0;//0 = off, >0 - limit globs generated along Y axis (faster generation)
 
-    //This will allow us to have variable width blocks, to make the topo less regular.
-    public Func<WorldInfo, float, float> GlobWidthXFunction = (i, x) => { return i.BlockSizeX; };
-    public Func<WorldInfo, float, float> GlobWidthYFunction = (i, z) => { return i.BlockSizeY; };
-    public Func<WorldInfo, float, float> GlobWidthZFunction = (i, z) => { return i.BlockSizeZ; };
-
-    public float BlockSizeX { get; private set; } = 0;
-    public float BlockSizeY { get; private set; } = 0; // BlockSizeX * HeightScale;
-    public float BlockSizeZ { get; private set; } = 0; // BlockSizeX;
-    public int GlobBlocksX { get; private set; } = 0;
-    public int GlobBlocksY { get; private set; } = 0; //No y, but we can have a Y Snap
-    public int GlobBlocksZ { get; private set; } = 0;
-    public float GlobWidthX { get; private set; } = 0;
-    public float GlobWidthY { get; private set; } = 0;
-    public float GlobWidthZ { get; private set; } = 0;
-
-    public bool DeleteStartFresh = false;
-    public int LimitYAxisGeneration = 0;//0 = off, >0 - limit globs generated along Y axis (faster generation)
-
-    //Player
-    public float PlayerHeight { get; private set; } = 2.0f;
-    public float PlayerWidth { get; private set; } = 0.5f;
-    public float PlayerDepth { get; private set; } = 0.1f;
+    //Serialized
+    [DataMember] public string Name { get; private set; } = Library.UnsetName;
+    [DataMember] public float HeightScale { get; private set; } = 0; // Height of a block relative to BlockSize
+    [DataMember] public float WallXFactor { get; private set; } = 0.1f; // Width of a wall / [0,1] = % of BlockSize
+    [DataMember] public float WallYFactor { get; private set; } = 0.1f; // 
+    [DataMember] public float WallZFactor { get; private set; } = 0.1f; // 
+    [DataMember] public float BlockSizeX { get; private set; } = 0;
+    [DataMember] public float BlockSizeY { get; private set; } = 0; // BlockSizeX * HeightScale;
+    [DataMember] public float BlockSizeZ { get; private set; } = 0; // BlockSizeX;
+    [DataMember] public int GlobBlocksX { get; private set; } = 0;
+    [DataMember] public int GlobBlocksY { get; private set; } = 0; //No y, but we can have a Y Snap
+    [DataMember] public int GlobBlocksZ { get; private set; } = 0;
+    [DataMember] public float GlobWidthX { get; private set; } = 0;
+    [DataMember] public float GlobWidthY { get; private set; } = 0;
+    [DataMember] public float GlobWidthZ { get; private set; } = 0;
+    [DataMember] public float Gravity { get; private set; } = c_EarthGravity * 0.5f; //m/s
 
     //Generation shell
-    private int _currentShell = 1;
-    private const int _maxShells = 4;//keep this < Min(DromeGlobs) to prevent generating more dromes
+    [NonSerialized] private int _currentShell = 1;
+    [NonSerialized] private const int _maxShells = 4;//keep this < Min(DromeGlobs) to prevent generating more dromes
     public float GenRadiusShell { get { return GlobWidthX; } }
     public float DeleteMaxDistance { get { return (GenRadiusShell * (float)(_maxShells + 1)); } }//distance beyond which things are deleted, this must be greater than max gen distance to prevent ping pong loading
     public float GenerateDistance { get { return (GenRadiusShell * (float)_currentShell); } } //distance under which things are generated
@@ -825,30 +832,22 @@ namespace PirateCraft
 
     #endregion
 
-    public WorldInfo(string worldName, bool delete_world_start_fresh, int limit_y_axis = 0, float blockSize = 4.0f, float heightScale = 0.25f, float playerHeight = 2.0f, int globBlocksX = 16)
+    public WorldInfo(string worldName, bool delete_world_start_fresh, int limit_y_axis = 0, float blockSize = 4.0f, float blockHeightScale = 0.25f, int globBlocksX = 16)
     {
       Name = worldName;
       LimitYAxisGeneration = limit_y_axis;
       DeleteStartFresh = delete_world_start_fresh;
       BlockSizeX = blockSize;
-      PlayerHeight = playerHeight;
       GlobBlocksX = globBlocksX;
-      HeightScale = heightScale;
+      HeightScale = blockHeightScale;
 
       Compute();
     }
     public void Compute()
     {
-      float playerSizeChangeRatio = PlayerHeight / 2.0f;
-      PlayerWidth = PlayerWidth * playerSizeChangeRatio;
-      PlayerDepth = PlayerDepth * playerSizeChangeRatio;
-
       BlockSizeY = BlockSizeX * HeightScale;
       BlockSizeZ = BlockSizeX;
-      //Relative to player who is 2 meters tlal
-
       GlobBlocksZ = GlobBlocksY = GlobBlocksX;
-
       GlobWidthX = (float)GlobBlocksX * BlockSizeX;
       GlobWidthY = (float)GlobBlocksY * BlockSizeY;
       GlobWidthZ = (float)GlobBlocksZ * BlockSizeZ;
@@ -859,7 +858,7 @@ namespace PirateCraft
       }
     }
 
-    //indexing stuff
+    #region Indexing Stuff
 
     private float R3toI3BlockComp(float R3, float BlocksAxis, float BlockWidth)
     {
@@ -1000,10 +999,10 @@ namespace PirateCraft
       float h0 = 0, h1 = 0, h2 = 0, h3 = 0;
       if (cap == BeamCap.Bottom)
       {
-        h0 = ConvertHeight(beam.Edges[0].Top.Y);
-        h1 = ConvertHeight(beam.Edges[1].Top.Y);
-        h2 = ConvertHeight(beam.Edges[2].Top.Y);
-        h3 = ConvertHeight(beam.Edges[3].Top.Y);
+        h0 = ConvertHeight(beam.Edges[0].Top);
+        h1 = ConvertHeight(beam.Edges[1].Top);
+        h2 = ConvertHeight(beam.Edges[2].Top);
+        h3 = ConvertHeight(beam.Edges[3].Top);
 
         if (!beam.BotConfigIsLeftConfig())
         {
@@ -1018,10 +1017,10 @@ namespace PirateCraft
       }
       else
       {
-        h0 = ConvertHeight(beam.Edges[0].Bot.Y);
-        h1 = ConvertHeight(beam.Edges[1].Bot.Y);
-        h2 = ConvertHeight(beam.Edges[2].Bot.Y);
-        h3 = ConvertHeight(beam.Edges[3].Bot.Y);
+        h0 = ConvertHeight(beam.Edges[0].Bot);
+        h1 = ConvertHeight(beam.Edges[1].Bot);
+        h2 = ConvertHeight(beam.Edges[2].Bot);
+        h3 = ConvertHeight(beam.Edges[3].Bot);
         if (!beam.TopConfigIsLeftConfig())
         {
           tid0 = 0;
@@ -1108,9 +1107,48 @@ namespace PirateCraft
       else { Gu.BRThrowNotImplementedException(); }
       return side_origin;
     }
+    #endregion
+
+    public void Serialize(BinaryWriter bw)
+    {
+      bw.Write((String)Name);
+      bw.Write((Single)HeightScale);
+      bw.Write((Single)WallXFactor);
+      bw.Write((Single)WallYFactor);
+      bw.Write((Single)WallZFactor);
+      bw.Write((Single)BlockSizeX);
+      bw.Write((Single)BlockSizeY);
+      bw.Write((Single)BlockSizeZ);
+      bw.Write((Int32)GlobBlocksX);
+      bw.Write((Int32)GlobBlocksY);
+      bw.Write((Int32)GlobBlocksZ);
+      bw.Write((Single)GlobWidthX);
+      bw.Write((Single)GlobWidthY);
+      bw.Write((Single)GlobWidthZ);
+
+    }
+    public void Deserialize(BinaryReader br, SerializedFileVersion version)
+    {
+      Name = br.ReadString();
+      HeightScale = br.ReadSingle();
+      WallXFactor = br.ReadSingle();
+      WallYFactor = br.ReadSingle();
+      WallZFactor = br.ReadSingle();
+      BlockSizeX = br.ReadSingle();
+      BlockSizeY = br.ReadSingle();
+      BlockSizeZ = br.ReadSingle();
+      GlobBlocksX = br.ReadInt32();
+      GlobBlocksY = br.ReadInt32();
+      GlobBlocksZ = br.ReadInt32();
+      GlobWidthX = br.ReadSingle();
+      GlobWidthY = br.ReadSingle();
+      GlobWidthZ = br.ReadSingle();
+    }
 
   }
 
+  [DataContract]
+  [Serializable]
   public class World
   {
     #region Private:Constants
@@ -1125,67 +1163,57 @@ namespace PirateCraft
     #endregion
     #region Public:Members
 
-    public WorldInfo Info { get; private set; } = null;
-    public WorldObject SceneRoot { get; private set; } = new WorldObject("Scene_Root");
-    public int NumCulledObjects { get; private set; } = 0;
+    public WorldInfo Info { get { return _worldInfo; } }
+    public WorldEditor Editor { get { return _worldEditor; } }
+    public WorldObject SceneRoot { get { return _sceneRoot; } }
     public int NumGlobs { get { return _globs.Count; } }
     public int NumRenderGlobs { get { return _renderGlobs.Count; } }
     public int NumVisibleRenderGlobs { get { return _visibleRenderGlobs.Count; } }
     public WorldProps WorldProps { get { return _worldProps; } }
-
-
+    public int NumCulledObjects { get; private set; } = 0;
+    public WindowContext UpdateContext { get; private set; } = null;
     public GameMode GameMode
     {
       get { return _eGameMode; }
       set
       {
         _eGameMode = value;
-        if (_eGameMode == GameMode.Edit & EditState == null)
-        {
-          EditState = new EditState();//this may end up having a ton of data, only construct it if we need it
-        }
       }
     }
-    public EditState EditState { get; private set; } = null;
 
     #endregion
     #region Private:Members
-
-
-    private long _lastShellIncrementTimer_ms = 0;
-    private long _lastShellIncrementTimer_ms_Max = 500;
-    private WorldObject dummy = new WorldObject("dummy_beginrender");
-    private WorldObject _debugDrawLines = null;
-    private WorldObject _debugDrawPoints = null;
-    private DrawCall _visibleObsAll = new DrawCall();
-    private DrawCall _visibleObsFirst_FW = new DrawCall();
-    private DrawCall _visibleObsMid_FW = new DrawCall();
-    private DrawCall _visibleObsLast_FW = new DrawCall();
-    private DrawCall _visibleObsFirst_DF = new DrawCall();
-    private DrawCall _visibleObsMid_DF = new DrawCall();
-    private DrawCall _visibleObsLast_DF = new DrawCall();
-    //globs - any loaded globs, even neighbor loads for topo
-    //visible globs - globs that are visible,but may or may not have topo
-    //render globs - globs that are processed through the topologizer
-    //visible render globs - render globs that are visible
-
-    private Dictionary<ivec3, Glob> _globs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //All globs, which may be null if the glob region has been visible, but does not exist
-    private Dictionary<ivec3, Glob> _existingGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //globs that are loaded, and exist
-    private MultiMap<float, GlobArray> _queuedGlobs = new MultiMap<float, GlobArray>();// queued for topology
-    private Dictionary<ivec3, Glob> _renderGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //globs that can be drawn this frame. 
-    private Dictionary<ivec3, Glob> _visibleRenderGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //globs that must be drawn this frame
-    private Dictionary<string, WorldObject> _objects = new Dictionary<string, WorldObject>();//Flat list of all objects
-    private Dictionary<ushort, WorldTile> _blockTiles = null;
-    private WorldProps _worldProps = null; //Environment props.
-    private string _worldSavePath = "";
-    private Material _worldMaterial_Op = null;
-    private Material _worldMaterial_Tp = null;
-    private MegaTex _worldMegatex = null;
-    private Material _blockObjectMaterial = null;
-    private double _autoSaveTimeoutSeconds = 2;
-    private double _autoSaveTimeout = 0;
-    private GameMode _eGameMode = GameMode.Edit;
-    public WindowContext UpdateContext { get; private set; } = null;
+    [DataMember] private GameMode _eGameMode = GameMode.Edit;
+    [NonSerialized] private WorldEditor? _worldEditor = null;
+    [DataMember] private WorldInfo? _worldInfo = null;
+    [DataMember] private WorldObject _sceneRoot = new WorldObject("Scene_Root");
+    [NonSerialized] private long _lastShellIncrementTimer_ms = 0;
+    [NonSerialized] private long _lastShellIncrementTimer_ms_Max = 500;
+    [NonSerialized] private WorldObject dummy = new WorldObject("dummy_beginrender");
+    [NonSerialized] private WorldObject? _debugDrawLines = null;
+    [NonSerialized] private WorldObject? _debugDrawPoints = null;
+    [NonSerialized] private WorldObject? _debugDrawTris = null;
+    [NonSerialized] private DrawCall _visibleObsAll = new DrawCall();
+    [NonSerialized] private DrawCall _visibleObsFirst_FW = new DrawCall();
+    [NonSerialized] private DrawCall _visibleObsMid_FW = new DrawCall();
+    [NonSerialized] private DrawCall _visibleObsLast_FW = new DrawCall();
+    [NonSerialized] private DrawCall _visibleObsFirst_DF = new DrawCall();
+    [NonSerialized] private DrawCall _visibleObsMid_DF = new DrawCall();
+    [NonSerialized] private DrawCall _visibleObsLast_DF = new DrawCall();
+    [NonSerialized] private Dictionary<ivec3, Glob> _globs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //All globs, which may be null if the glob region has been visible, but does not exist
+    [NonSerialized] private Dictionary<ivec3, Glob> _existingGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //globs that are loaded, and exist
+    [NonSerialized] private MultiMap<float, GlobArray> _queuedGlobs = new MultiMap<float, GlobArray>();// queued for topology
+    [NonSerialized] private Dictionary<ivec3, Glob> _renderGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //globs that can be drawn this frame. 
+    [NonSerialized] private Dictionary<ivec3, Glob> _visibleRenderGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //globs that must be drawn this frame
+    //[NonSerialized] private Dictionary<string, WorldObject> _objects = new Dictionary<string, WorldObject>();//Flat list of all objects
+    [NonSerialized] private Dictionary<ushort, WorldTile>? _blockTiles = null;
+    [NonSerialized] private WorldProps? _worldProps = null; //Environment props.
+    [NonSerialized] private Material? _worldMaterial_Op = null;
+    [NonSerialized] private Material? _worldMaterial_Tp = null;
+    [NonSerialized] private MegaTex? _worldMegatex = null;
+    [NonSerialized] private Material? _blockObjectMaterial = null;
+    [NonSerialized] private double _autoSaveTimeoutSeconds = 5;
+    [NonSerialized] private double _autoSaveTimeout = 0;
 
     #endregion
 
@@ -1195,26 +1223,22 @@ namespace PirateCraft
     }
     public void Initialize(WorldInfo info)
     {
-      Info = info;
+
+      EmbeddedResources.BuildResources();
+
+      _worldInfo = info;
+      _worldEditor = new WorldEditor();
 
       _worldProps = new WorldProps("WorldProps");
 
       GameMode = Gu.EngineConfig.StartInEditMode ? GameMode.Edit : GameMode.Play;
-
-      //This would actually be incorrect world OBs should be instanced
-      //Init draw array.
-      // _visible_objects_ordered = new Dictionary<DrawOrder, List<WorldObject>>();
-      // for (int do_i = 0; do_i < (int)DrawOrder.MaxDrawOrders; do_i++)
-      // {
-      //   _visible_objects_ordered.Add((DrawOrder)do_i, new List<WorldObject>());
-      // }
 
       DefineWorldTiles();
       CreateMaterials();
 
       InitWorldDiskFile(info.DeleteStartFresh);
 
-      _worldProps.EnvironmentMap = Gu.Resources.LoadTexture(new FileLoc("hilly_terrain_01_2k.hdr", FileStorage.Embedded), true, TexFilter.Nearest);
+      _worldProps.EnvironmentMap = new Texture("_worldProps.EnvironmentMap", Gu.Lib.LoadImage("envmap", new FileLoc("hilly_terrain_01_2k.hdr", FileStorage.Embedded)), true, TexFilter.Nearest);
       _worldProps.DayNightCycle = new DayNightCycle();
       _worldProps.DayNightCycle.Update(0);
 
@@ -1225,12 +1249,17 @@ namespace PirateCraft
       //* UpdateLiterallyEverything_Blockish(Camera); // This will generate the globs
       //* WaitForAllGlobsToGenerate();
     }
+    private void IterateObjectsSafe(Func<WorldObject, LambdaBool> f, bool iterateDeleted = false)
+    {
+      SceneRoot.IterateChildrenSafe(f, iterateDeleted);
+    }
     public void View(RenderView rv)
     {
-      foreach (var obj in this._objects)
+      IterateObjectsSafe((obj) =>
       {
-        obj.Value.View(rv);
-      }
+        obj.View(rv);
+        return LambdaBool.Continue;
+      });
     }
     public void Update(double dt)
     {
@@ -1240,11 +1269,20 @@ namespace PirateCraft
         Gu.DebugBreak();
       }
 
+      Gu.Lib.Update(dt);
+
+
       UpdateObjects(dt);
       //UpdateLiterallyEverything_Blockish(cam);
       //LaunchGlobAndDromeQueues();
-      AutoSaveWorld(dt);
+      CheckSaveWorld(dt);
       PickGLobs();
+
+      Gu.Assert(_worldEditor != null);
+      Gu.TryGetSelectedView(out var selview);
+      //update after picking, view can be null
+      _worldEditor.Update(selview);
+
 
       TopologizeGlobs();
 
@@ -1266,7 +1304,7 @@ namespace PirateCraft
         {
           if (g.Value.Opaque.PickId != Picker.c_iInvalidPickId)
           {
-            var pixid = Gu.Context.Renderer.Picker.GetSelectedPixelId();
+            var pixid = Gu.Context.Renderer.Picker.SelectedPixelId;
             if (pixid != 0)
             {
               if (pixid == g.Value.Opaque.PickId)
@@ -1280,7 +1318,7 @@ namespace PirateCraft
         {
           if (g.Value.Transparent.PickId != Picker.c_iInvalidPickId)
           {
-            var pixid = Gu.Context.Renderer.Picker.GetSelectedPixelId();
+            var pixid = Gu.Context.Renderer.Picker.SelectedPixelId;
             if (pixid != 0)
             {
               if (pixid == g.Value.Transparent.PickId)
@@ -1296,6 +1334,8 @@ namespace PirateCraft
     {
       if (rv.Camera != null && rv.Camera.TryGetTarget(out var cm))
       {
+        cm.SanitizeTransform();
+
         BuildGrid(cm.Position_World, Info.GenerateDistance);
         View(rv);
         CollectVisibleGlobs(cm);
@@ -1451,7 +1491,6 @@ namespace PirateCraft
             }
             DoSideOrCap(BeamFaceIndex.Bottom, beam.Edges[2].Min, beam.Edges[0].Min, beam.Edges[3].Min, beam.Edges[1].Min, verts, inds, beam_origin, top_botuv);
 
-
           }
         }
 
@@ -1462,7 +1501,7 @@ namespace PirateCraft
       {
         //ushort[] inds = MeshData.GenerateQuadIndices(verts.Length / 4, false);
 
-        string name = "glob:" + g.Pos.ToString();
+        string name = g.Name;
         if (g.Opaque == null)
         {
           var pickid = Gu.Context.Renderer.Picker.GenPickId();
@@ -1473,7 +1512,7 @@ namespace PirateCraft
         var vertsarr = verts.ToArray();
         var indsarr = inds.ToArray();
 
-        var faces = MeshData.ComputeNormalsAndTangents(vertsarr, indsarr.AsUIntArray(), true, true);
+        var faces = MeshGen.ComputeNormalsAndTangents(vertsarr, indsarr.AsUIntArray(), true, true);
 
         g.Opaque.Mesh = new MeshData(name, PrimitiveType.Triangles,
                 Gpu.CreateVertexBuffer(name, vertsarr),
@@ -1496,7 +1535,6 @@ namespace PirateCraft
 
       g.State = Glob.GlobState.Topologized;
     }
-
     private void DoSideOrCap(int iface, ushort ce0_min, ushort ce0_max, ushort ce1_min, ushort ce1_max, List<v_v3n3x2t3u1> verts, List<ushort> inds, vec3 beam_origin, vec2[] uvs)
     {
       //value input edge id = 0,2,1,3 for top
@@ -1522,6 +1560,24 @@ namespace PirateCraft
       bool doe1 = ce1_min < ce1_max;
       bool isCap = ((iface == BeamFaceIndex.Top) || (iface == BeamFaceIndex.Bottom));
 
+      //Make sure edges are kosher
+      if (doe0)
+      {
+        if (ce0_min >= ce0_max)
+        {
+          ce0_max = (ushort)(ce0_min + 1);
+          Gu.Log.WarnCycle("Edge1 was invalid");
+        }
+      }
+      if (doe1)
+      {
+        if (ce1_min >= ce1_max)
+        {
+          ce1_max = (ushort)(ce1_min + 1);
+          Gu.Log.WarnCycle("Edge2 was invalid");
+        }
+      }
+
       if (isCap || doe0 || doe1)
       {
         //make some data for whatever face we need
@@ -1533,12 +1589,33 @@ namespace PirateCraft
         vec3 n = WorldStaticData.face_idx_to_normal[iface]; //this is the default, compute_normalsandtangents can compute the correct face normals.
         vec3 e0_orig = beam_origin + Info.FaceOrigin(iface);
         vec3 e1_orig = beam_origin + Info.FaceOrigin(iface) + Info.E2OffFace(iface);
+
         var qverts = new v_v3n3x2t3u1[4] {
-          new v_v3n3x2t3u1(){_v = e0_orig + new vec3(0, he0_min, 0) , _n = n, _x = uvs[0] },//uvs are wrong, some kind of tiling will need
-          new v_v3n3x2t3u1(){_v = e1_orig + new vec3(0, he1_min, 0) , _n = n, _x = uvs[1] },
-          new v_v3n3x2t3u1(){_v = e0_orig + new vec3(0, he0_max, 0) , _n = n, _x = uvs[2] },
-          new v_v3n3x2t3u1(){_v = e1_orig + new vec3(0, he1_max, 0) , _n = n, _x = uvs[3] },
+          new v_v3n3x2t3u1(){_v = e0_orig + new vec3(0, he0_min, 0) , _n = n, _x = new vec2(uvs[0].x,uvs[0].y) },//uvs are wrong, some kind of tiling will need
+          new v_v3n3x2t3u1(){_v = e1_orig + new vec3(0, he1_min, 0) , _n = n, _x = new vec2(uvs[1].x,uvs[0].y) },
+          new v_v3n3x2t3u1(){_v = e0_orig + new vec3(0, he0_max, 0) , _n = n, _x = new vec2(uvs[0].x,uvs[1].y) },
+          new v_v3n3x2t3u1(){_v = e1_orig + new vec3(0, he1_max, 0) , _n = n, _x = new vec2(uvs[1].x,uvs[1].y) },
         };
+
+        //This is temporary eventually we'll do blending like in dmc
+        if (iface == BeamFaceIndex.Top || iface == BeamFaceIndex.Bottom)
+        {
+        }
+        else
+        {
+          //We need to go into the DMC shader and see how we did this.
+          //1 11 < megatex uvs
+          //0 1
+          //2 3 < ordinals
+          //0 1
+          float uvw = uvs[1].x - uvs[0].x;
+          float uvh = uvs[1].y - uvs[0].y;
+
+          qverts[0]._x = new vec2(uvs[0].x, uvs[0].y + (qverts[0]._v.y % Info.BlockSizeY));
+          qverts[1]._x = new vec2(uvs[1].x, uvs[0].y + (qverts[1]._v.y % Info.BlockSizeY));
+          qverts[2]._x = qverts[0]._x + new vec2(0, ((qverts[2]._v.y - qverts[0]._v.y) / Info.BlockSizeY) / uvh);
+          qverts[3]._x = qverts[1]._x + new vec2(0, ((qverts[3]._v.y - qverts[1]._v.y) / Info.BlockSizeY) / uvh);
+        }
 
         //*** TODO SPLIT TRIANGLES FOR HALF SIDES
 
@@ -1554,8 +1631,8 @@ namespace PirateCraft
           if (iface == BeamFaceIndex.Top)
           {
             inds.AddRange(new ushort[6] {
-            (ushort)(voff + 0), (ushort)(voff + 3), (ushort)(voff + 2),
-            (ushort)(voff + 0), (ushort)(voff + 1), (ushort)(voff + 3) });
+            (ushort) (voff + 0), (ushort) (voff + 3), (ushort) (voff + 2),
+            (ushort) (voff + 0), (ushort) (voff + 1), (ushort) (voff + 3) });
           }
           else
           {
@@ -1657,11 +1734,19 @@ namespace PirateCraft
       // }
       return null;
     }
-    public WorldObject FindObject(string name)
+    public WorldObject? FindObject(string name)
     {
-      WorldObject obj = null;
-      _objects.TryGetValue(name, out obj);
-      return obj;
+      WorldObject? ret = null;
+      IterateObjectsSafe((ob) =>
+      {
+        if (ob.Name == name)
+        {
+          ret = ob;
+          return LambdaBool.Break;
+        }
+        return LambdaBool.Continue;
+      });
+      return ret;
     }
     public Camera3D CreateCamera(string name, RenderView rv, vec3 pos)
     {
@@ -1674,7 +1759,6 @@ namespace PirateCraft
     public WorldObject CreateObject(string name, MeshData mesh, Material material, vec3 pos = default(vec3))
     {
       WorldObject ob = new WorldObject(name);
-      ob.Name = name;
       ob.Position_Local = pos;
       ob.Mesh = mesh;
       ob.Material = material;
@@ -1684,60 +1768,44 @@ namespace PirateCraft
     {
       return AddObject(CreateObject(name, mesh, material, pos));
     }
-    public void DestroyObject(WorldObject wo)
+    public void RemoveObject(WorldObject ob)
     {
-      wo.Unlink();
-      wo.OnDestroyed?.Invoke(wo);
-      wo.IterateComponentsSafe((cmp) =>
-      {
-        cmp.OnDestroy(wo);
-        return LambdaBool.Continue;
-      });
+      //wo.State = WorldObjectState.Removed;
+      //
+      RemoveObjectInternal(ob);
     }
-    public void DestroyObject(string name)
+    private void RemoveObjectInternal(WorldObject wo)
     {
-      //To destroy you should call the WorldObject's Destroy method
-      if (_objects.TryGetValue(name, out WorldObject wo))
-      {
-        DestroyObject(wo);
-        _objects.Remove(name);
-      }
-      else
-      {
-        Gu.Log.Error("Object '" + name + "' was not found.");
-      }
+      wo.PromoteResource(ResourcePromotion.SceneRemove);
+      wo.UnlinkFromParent();
+      wo.State = WorldObjectState.Removed;
+      _worldEditor.Edited = true;
     }
     public WorldObject AddObject(WorldObject ob)
     {
+      //Add object to the scene root
       if (ob == null)
       {
         Gu.Log.Error("Object was null adding to world.");
+        Gu.DebugBreak();
         return null;
       }
-      //TODO: optimize (hash map or something)
-      foreach (var ob2 in _objects.Values)
-      {
-        if (ob == ob2)
-        {
-          Gu.Log.Error("Tried to add Object " + ob.Name + " twice. Clone instance if duplicate needed.");
-          Gu.DebugBreak();
-          return ob;
-        }
-      }
-      //Use a suffix if there is a duplicate object
-      int suffix = 0;
-      string name_suffix = ob.Name;
-      while (FindObject(name_suffix) != null)
-      {
-        suffix++;
-        name_suffix = ob.Name + "-" + suffix.ToString();
-      }
-      ob.Name = name_suffix;
-      _objects.Add(name_suffix, ob);
-      SceneRoot.AddChild(ob);
 
+      if (ob.Mesh == null)
+      {
+        ob.Mesh = MeshData.DefaultBox;
+      }
+      if (ob.Material == null)
+      {
+        ob.Material = Material.DefaultObjectMaterial;
+      }
+
+      ob.PromoteResource(ResourcePromotion.SceneAdd);
+
+      SceneRoot.AddChild(ob);
       ob.OnAddedToScene?.Invoke(ob);
       ob.State = WorldObjectState.Active;
+      _worldEditor.Edited = true;
 
       return ob;
     }
@@ -1745,11 +1813,10 @@ namespace PirateCraft
     {
       Box3f dummy = Box3f.Zero;
       dummy.genResetLimits();
-      List<string> toRemove = new List<string>();
-      foreach (var kvp in _objects)
+      List<WorldObject> toRemove = new List<WorldObject>();
+      IterateObjectsSafe((ob) =>
       {
-        var ob = kvp.Value;
-        if (ob.State != WorldObjectState.Destroyed)
+        if (ob.State != WorldObjectState.Removed)
         {
           //We could drop physics here if we wanted to
           ob.Update(this, dt, ref dummy);
@@ -1766,29 +1833,41 @@ namespace PirateCraft
         }
         else
         {
-          toRemove.Add(kvp.Key);
+          toRemove.Add(ob);
         }
-
-      }
+        return LambdaBool.Continue;
+      });
       foreach (var x in toRemove)
       {
-        DestroyObject(x);
+        RemoveObjectInternal(x);
       }
       toRemove.Clear();
+
+      if (Gu.Context.Renderer.Picker.PickedObjectFrame == null || !(Gu.Context.Renderer.Picker.PickedObjectFrame is WorldObject))
+      {
+        if (Gu.Keyboard.PressOrDown(Keys.B))
+        {
+          Gu.Trap();
+          if (Gu.Context.Renderer.Picker.PickedObjectFrameLast != null)
+          {
+            var ob = (Gu.Context.Renderer.Picker.PickedObjectFrameLast as WorldObject);
+            ob.Pick();
+            int n = 0; n++;
+            //(Gu.Context.Renderer.Picker.PickedObjectFrameLast as WorldObject).Update(this,0,ref dummy);
+          }
+
+        }
+      }
     }
-    private float Gravity = -9.8f * 0.5f; //m/s
-    private const float MaxVelocity_Second_Frame = 5 * 2.32f;//max length of vel per second / frame *NOT PER FRAME but by dt*
-    private const float MinVelocity = 0.000001f;
-    private const float MinVelocity2 = (MinVelocity * MinVelocity);
-    private const float MinTimeStep = 0.00001f;
+
     private void UpdateObjectPhysics(WorldObject ob, float dt)
     {
-      if (dt < MinTimeStep)
+      if (dt < WorldInfo.MinTimeStep)
       {
-        dt = MinTimeStep;
+        dt = WorldInfo.MinTimeStep;
       }
       //Assuming we're going to modify object resting state when other objects change state
-      float vlen2 = (ob.Velocity * (float)dt).length2();
+      float vlen2 = (ob.Velocity * (float)dt).len2();
       if (ob.OnGround && vlen2 > 0)
       {
         ob.OnGround = false;
@@ -1798,7 +1877,7 @@ namespace PirateCraft
         return;
       }
 
-      float maxv = MaxVelocity_Second_Frame * dt;
+      float maxv = WorldInfo.MaxVelocity_Second_Frame * dt;
       float maxv2 = (float)Math.Pow(maxv, 2.0f);
 
       vec3 dbg_initial_v = ob.Velocity;
@@ -1808,7 +1887,7 @@ namespace PirateCraft
       vec3 final_v = ob.Velocity * dt;
 
       //Too big
-      vlen2 = (final_v * dt).length2();
+      vlen2 = (final_v * dt).len2();
       if (vlen2 > maxv2)
       {
         final_v = final_v.normalized() * maxv;
@@ -1817,7 +1896,7 @@ namespace PirateCraft
       vec3 g_v = vec3.Zero;
       if (ob.HasGravity)
       {
-        g_v = new vec3(0, Gravity * dt, 0);
+        g_v = new vec3(0, _worldInfo.Gravity * dt, 0);
       }
 
       if (ob.Collides)
@@ -1948,11 +2027,11 @@ namespace PirateCraft
           }
 
           //Zero out small v so we don't simulate forever
-          if (final_v.length2() < MinVelocity2)
+          if (final_v.len2() < WorldInfo.MinVelocity2)
           {
             final_v = vec3.Zero;
           }
-          if (final_v.length2() > maxvdt2)
+          if (final_v.len2() > maxvdt2)
           {
             final_v = final_v.normalized() * maxvdt;
           }
@@ -1968,11 +2047,11 @@ namespace PirateCraft
         else
         {
           //no hit, break out
-          if (final_v.length2() < MinVelocity2)
+          if (final_v.len2() < WorldInfo.MinVelocity2)
           {
             final_v = vec3.Zero;
           }
-          if ((final_v * dt).length2() > maxvdt2)
+          if ((final_v * dt).len2() > maxvdt2)
           {
             final_v = final_v.normalized() * maxvdt;
           }
@@ -2059,13 +2138,14 @@ namespace PirateCraft
         }
       }
     }
-    private void AutoSaveWorld(double dt)
+    private void CheckSaveWorld(double dt)
     {
       _autoSaveTimeout += dt;
-      if (_autoSaveTimeout > _autoSaveTimeoutSeconds)
+      if (_autoSaveTimeout > _autoSaveTimeoutSeconds || _worldEditor.Edited)
       {
-        _autoSaveTimeout = 0;
         SaveWorld();
+        _autoSaveTimeout = 0;
+        _worldEditor.Edited = false;
       }
     }
 
@@ -2082,7 +2162,6 @@ namespace PirateCraft
       _visibleObsFirst_DF.Draw(_worldProps, rv);
       _visibleObsMid_DF.Draw(_worldProps, rv);
       _visibleObsLast_DF.Draw(_worldProps, rv);
-
     }
     public void RenderForward(double Delta, RenderView rv)
     {
@@ -2101,7 +2180,7 @@ namespace PirateCraft
         if (Gu.Context.DebugDraw.DrawBoundBoxes)
         {
           vec4 bbcolor = new vec4(1, 0, 0, 1);
-          foreach (var obm in _visibleObsAll.VisibleObjects.Objects)
+          foreach (var obm in _visibleObsAll.VisibleObjects.MatMeshInstances)
           {
             foreach (var obi in obm.Value)
             {
@@ -2128,11 +2207,11 @@ namespace PirateCraft
       // Debug helpers
       if (Gu.Context.DebugDraw.LinePoints.Count > 0)
       {
-        GL.LineWidth(1.5f);
+        GL.LineWidth(1.0f);
         Gpu.CheckGpuErrorsDbg();
         if (_debugDrawLines == null)
         {
-          _debugDrawLines = CreateObject("debug_lines", null, new Material("debugLines", Gu.Resources.LoadShader("v_v3c4_debugdraw", false, FileStorage.Embedded)));
+          _debugDrawLines = CreateObject("debug_lines", null, Gu.Lib.LoadMaterial(RName.Material_DebugDrawMaterial));
         }
         _debugDrawLines.Mesh = new MeshData("debug_lines", PrimitiveType.Lines,
           Gpu.CreateVertexBuffer("debug_lines", Gu.Context.DebugDraw.LinePoints.ToArray()),
@@ -2148,7 +2227,7 @@ namespace PirateCraft
         Gpu.CheckGpuErrorsDbg();
         if (_debugDrawPoints == null)
         {
-          _debugDrawPoints = CreateObject("debug_points", null, new Material("debugPoints", Gu.Resources.LoadShader("v_v3c4_debugdraw", false, FileStorage.Embedded)));
+          _debugDrawPoints = CreateObject("debug_points", null, Gu.Lib.LoadMaterial(RName.Material_DebugDrawMaterial));
         }
         _debugDrawPoints.Mesh = new MeshData("debug_points", PrimitiveType.Points,
           Gpu.CreateVertexBuffer("debug_points", Gu.Context.DebugDraw.Points.ToArray()),
@@ -2157,12 +2236,29 @@ namespace PirateCraft
           );
         DrawCall.Draw(_worldProps, rv, _debugDrawPoints);
       }
+      if (Gu.Context.DebugDraw.TriPoints.Count > 0)
+      {
+        GL.PointSize(1);
+        GL.LineWidth(1);
+        Gpu.CheckGpuErrorsDbg();
+        if (_debugDrawTris == null)
+        {
+          _debugDrawTris = CreateObject("debug_tris", null, Gu.Lib.LoadMaterial(RName.Material_DebugDrawMaterial));
+        }
+        _debugDrawTris.Mesh = new MeshData("debug_tris", PrimitiveType.Triangles,
+          Gpu.CreateVertexBuffer("debug_tris", Gu.Context.DebugDraw.TriPoints.ToArray()),
+          null,
+          false
+          );
+        DrawCall.Draw(_worldProps, rv, _debugDrawTris);
+      }
 
     }
     private void CollectObjects(RenderView rv, Camera3D cam, WorldObject ob)
     {
       Gu.Assert(ob != null);
 
+      //TODO: fix this.
       if (ob.ExcludeFromRenderView != null && ob.ExcludeFromRenderView.TryGetTarget(out var obrv))
       {
         if (obrv == rv)
@@ -2171,15 +2267,14 @@ namespace PirateCraft
         }
       }
 
-      if (ob.Mesh != null)
+      if (cam.Frustum.HasBox(ob.BoundBox))
       {
-        if (cam.Frustum.HasBox(ob.BoundBox))
+        if (ob is Light)
         {
-          if (ob is Light)
-          {
-            this._worldProps.Lights.Add(ob as Light);
-          }
-
+          this._worldProps.Lights.Add(ob as Light);
+        }
+        if (ob.Mesh != null)
+        {
           if (ob.Mesh.DrawMode == DrawMode.Deferred)
           {
             //light objects CAn have meshes too. Cameras too.
@@ -2219,10 +2314,22 @@ namespace PirateCraft
         }
       }
 
-      foreach (var c in ob.Children)
+      ob.IterateChildrenSafe((c) =>
       {
         CollectObjects(rv, cam, c);
-      }
+        return LambdaBool.Continue;
+      });
+    }
+    public List<WorldObject> GetAllRootObjects()
+    {
+      var r = new List<WorldObject>();
+      this.SceneRoot.IterateChildrenSafe((o) =>
+      {
+        Gu.Assert(o is WorldObject);
+        r.Add(o);
+        return LambdaBool.Continue;
+      });
+      return r;
     }
     private WorldTile AddWorldTile(ushort code, TileImage img, TileVis vis, float hardness, BlockMeshType meshType, float opacity)
     {
@@ -2239,14 +2346,14 @@ namespace PirateCraft
     {
       var maps = CreateAtlas();
       var shader = Shader.DefaultObjectShader();// Gu.Resources.LoadShader("v_Glob", false, FileStorage.Embedded);
-      _worldMaterial_Op = new Material("worldMaterial_Op", shader, maps.AlbedoTexture, maps.NormalTexture);
-      _worldMaterial_Tp = new Material("worldMaterial_Tp", shader, maps.AlbedoTexture, maps.NormalTexture);
+      _worldMaterial_Op = new Material("worldMaterial_Op", shader, maps.Albedo, maps.Normal);
+      _worldMaterial_Tp = new Material("worldMaterial_Tp", shader, maps.Albedo, maps.Normal);
       _worldMaterial_Tp.GpuRenderState.Blend = true;
       _worldMaterial_Tp.GpuRenderState.DepthTest = true;
       _worldMaterial_Tp.GpuRenderState.CullFace = false;
 
       //Block Material
-      _blockObjectMaterial = new Material("BlockObject", Gu.Resources.LoadShader("v_v3n3x2_BlockObject_Instanced", false, FileStorage.Embedded));
+      _blockObjectMaterial = Gu.Lib.LoadMaterial("BlockObjectMaterial", Gu.Lib.LoadShader("v_v3n3x2_BlockObject_Instanced", "v_v3n3x2_BlockObject_Instanced", false, FileStorage.Embedded));
     }
     private void DefineWorldTiles()
     {
@@ -2272,7 +2379,11 @@ namespace PirateCraft
       var cmp = _worldMegatex.Compile();
 
       //From the generated image, set the WorldTile UV coordinates to the generated UV coords.
-      cmp.AlbedoTexture.SetFilter(TextureMinFilter.LinearMipmapLinear, TextureMagFilter.Linear);
+      cmp.Albedo.SetFilter(TextureMinFilter.LinearMipmapLinear, TextureMagFilter.Linear);
+      cmp.Normal.SetFilter(TextureMinFilter.LinearMipmapLinear, TextureMagFilter.Linear);
+      //note:this doesn't mtter for tiles, since megatex is packed we must repeat uv's manually
+      cmp.Albedo.SetWrap(TextureWrapMode.Repeat, TextureWrapMode.Repeat);
+      cmp.Normal.SetWrap(TextureWrapMode.Repeat, TextureWrapMode.Repeat);
 
       foreach (var imgfile in _worldMegatex.Files)
       {
@@ -2325,14 +2436,7 @@ namespace PirateCraft
         _existingGlobs.Add(gpos, g);
       }
       _globs.Add(gpos, g);
-    }
-
-    public void CreateEntity(vec3 pos, vec3 vel, WorldTile tile)
-    {
-      var new_ent = tile.Entity.Clone();
-      new_ent.Position_Local = pos;
-      new_ent.Velocity = vel;
-      Gu.World.AddObject(new_ent);
+      _worldEditor.Edited = true;
     }
 
     #endregion
@@ -2377,6 +2481,9 @@ namespace PirateCraft
         ivec3 gpos = new ivec3(x, y, z);
         Glob g;
 
+        //Sanitize Glob Pos
+
+
         if (Glob_Can_Generate_Distance(origin, Info.GetGlobBoxGlobalI3(gpos)))
         {
           if (!_globs.TryGetValue(gpos, out g))
@@ -2408,24 +2515,20 @@ namespace PirateCraft
       }
       return false;
     }
-    private string GetGlobFileName(ivec3 gpos)
-    {
-      //[8][8][8]
-      Gu.Assert(System.IO.Directory.Exists(_worldSavePath));
-      string sx = (gpos.x < 0 ? "" : "+") + gpos.x.ToString("D8");
-      string sy = (gpos.y < 0 ? "" : "+") + gpos.y.ToString("D8");
-      string sz = (gpos.z < 0 ? "" : "+") + gpos.z.ToString("D8");
-      return System.IO.Path.Combine(_worldSavePath, sx + sy + sz + ".drome");
-    }
     private string GetWorldFileName()
     {
-      Gu.Assert(System.IO.Directory.Exists(_worldSavePath));
       string worldfile = Info.Name + ".world";
-      return System.IO.Path.Combine(_worldSavePath, worldfile);
+      return System.IO.Path.Combine(Gu.SavePath, worldfile);
+    }
+    private string GetObjectsFileName()
+    {
+      return GetWorldFileName() + ".objects";
     }
     private Glob LoadGlobOrSetEmpty(ivec3 gpos)
     {
-      Glob? g = TryLoadGlob(gpos);
+      //Basically this is designed to load globs from the file where needed however that is
+      //a future features "dynamic glob loading" for now we have them all loaded  BR_DYNAMIC_GLOB_LOADING
+      Glob? g = null;//TryLoadGlob(gpos);
       if (g != null)
       {
         g.State = Glob.GlobState.CreatedOrLoaded;
@@ -2446,203 +2549,169 @@ namespace PirateCraft
     }
     private void InitWorldDiskFile(bool delete_world_start_fresh)
     {
-      _worldSavePath = System.IO.Path.Combine(Gu.SavePath, Info.Name);
-
       if (delete_world_start_fresh)
       {
-        if (System.IO.Directory.Exists(_worldSavePath))
+        if (System.IO.Directory.Exists(Gu.SavePath))
         {
-          Gu.Log.Info("Starting Fresh - Deleting " + _worldSavePath);
-          Directory.Delete(_worldSavePath, true);
+          Gu.Log.Info("Starting Fresh - Deleting " + Gu.SavePath);
+          Directory.Delete(Gu.SavePath, true);
         }
       }
-
-      // This is the WORLD save file. Player position and stuff
-      // This isn't the blocks data
-      Gu.Log.Info("Creating world save directory " + _worldSavePath);
-      if (!System.IO.Directory.Exists(_worldSavePath))
+      Gu.Log.Info("Creating world save directory " + Gu.SavePath);
+      if (!System.IO.Directory.Exists(Gu.SavePath))
       {
-        System.IO.Directory.CreateDirectory(_worldSavePath);
+        System.IO.Directory.CreateDirectory(Gu.SavePath);
       }
       if (!TryLoadWorld())
       {
         SaveWorld();
       }
     }
-    public void SaveWorld()
+    public bool SaveWorld()
     {
-      //Serilize all objects .. connect players to window views
+      string worldfn = GetWorldFileName();
+      try
+      {
+        if (!System.IO.Directory.Exists(Gu.SavePath))
+        {
+          System.IO.Directory.CreateDirectory(Gu.SavePath);
+        }
 
-      //We can call this if the player moves or something.
-      // if (Player == null)
-      // {
-      //   Gu.BRThrowException("Player must not be null when creating world.");
-      // }
+        var enc = Encoding.GetEncoding("iso-8859-1");
+        using (var fs = System.IO.File.OpenWrite(worldfn))
+        {
+          using (var bwFile = new System.IO.BinaryWriter(fs, enc))
+          {
+            bwFile.Write((string)c_strSaveWorldHeader);
 
-      // string worldfn = GetWorldFileName();
-      // var enc = Encoding.GetEncoding("iso-8859-1");
-      // using (var fs = System.IO.File.OpenWrite(worldfn))
-      // using (var br = new System.IO.BinaryWriter(fs, enc))
-      // {
-      //   br.Write((string)c_strSaveWorldHeader);
-      //   br.Write(Player.Position_Local);
-      //   br.Write(Player.Rotation_Local);
-      // }
+            SerializeTools.SerializeEverything(bwFile, this);
+
+            bwFile.Write((Int32)_globs.Count);//ivec3
+            foreach (var g in _globs)
+            {
+              bwFile.Write(g.Key);//ivec3
+              if (g.Value != null)
+              {
+                bwFile.Write(true);
+                SerializeTools.SerializeBlock(g.Value.Name, bwFile, false, (b) =>
+                {
+                  g.Value.Serialize(b.Writer);
+                });
+              }
+              else
+              {
+                bwFile.Write(false);
+              }
+            }
+
+            //   Gu.Log.Warn(("TODO:save obvjects"));
+            //   bwFile.Write((Int32)_objects.Count);//ivec3
+            //   foreach (var ob in this._objects)
+            //   {
+            //     SerializeTools.SerializeBlock(ob.Value.Name, bwFile, false, (b) =>
+            //     {
+            //       ob.Value.Serialize(b.Writer);//get key from ob.Name
+            //     });
+            //   }
+            // }
+
+          }
+        }
+
+        //build table with object ids
+
+
+        //TODO: fix up data sources so that we do not serialize data classes
+        //Note: Img32 Data is not being serialized
+
+
+
+        // var s = SerializeTools.SerializeJSON(this, true);
+        // new FileLoc(GetObjectsFileName(), FileStorage.Disk).WriteAllText(s);
+        // var ob = JsonConvert.DeserializeObject(s);
+
+
+        // using (var fs2 = System.IO.File.OpenWrite())
+        // {
+        //   JsonSerializer.SerializeToUtf8Bytes(data,
+        //             new JsonSerializerOptions { WriteIndented = false, IgnoreNullValues = true });
+
+        //   var bf = new BinaryFormatter();
+        //   bf.Serialize(fs2, this);
+        // }
+
+      }
+      catch (Exception ex)
+      {
+        Gu.Log.Error($"Failed to load world file{worldfn}", ex);
+        return false;
+      }
+      return true;
     }
+
     private bool TryLoadWorld()
     {
       return false;
-      //Deserilize all objects .. connect players to window views
 
-      // if (Player == null)
-      // {
-      //   Gu.BRThrowException("Player must not be null when creating world.");
-      // }
-
-      // string worldfn = GetWorldFileName();
-      // var enc = Encoding.GetEncoding("iso-8859-1");
-      // if (!System.IO.File.Exists(worldfn))
-      // {
-      //   return false;
-      // }
-
-      // using (var fs = System.IO.File.OpenRead(worldfn))
-      // using (var br = new System.IO.BinaryReader(fs, enc))
-      // {
-      //   string h = br.ReadString();
-      //   if (h != c_strSaveWorldHeader)
-      //   {
-      //     Gu.BRThrowException("World header '" + h + "' does not match current header version '" + c_strSaveWorldHeader + "'");
-      //   }
-      //   Player.Position_Local = br.ReadVec3();
-      //   Player.Rotation_Local = br.ReadQuat();
-      // }
-      // return true;
-    }
-    private string DromeFooter = "EndOfDrome";
-    private void SaveGlob(Glob g)
-    {
-      string globfn = GetGlobFileName(g.Pos);
+      string worldfn = GetWorldFileName();
       var enc = Encoding.GetEncoding("iso-8859-1");
-      bool append = false;
-      if (System.IO.File.Exists(globfn))
-      {
-        append = true;
-      }
 
       try
       {
-        //     using (var fs = System.IO.File.OpenWrite(globfn))
-        //     using (var br = new System.IO.BinaryWriter(fs, enc))
-        //     {
-        //       br.Write((Int32)DromeFileVersion);
-        //       br.Write((Int32)d.Pos.x);
-        //       br.Write((Int32)d.Pos.y);
-        //       br.Write((Int32)d.Pos.z);
-        //       d.BlockStats.Serialize(br);
-        //       d.Blocks.Serialize(br);
-
-        //       if (d.GlobRegionStates == null)
-        //       {
-        //         br.Write((Int32)0);
-        //       }
-        //       else
-        //       {
-        //         var byteArr = new byte[Marshal.SizeOf(typeof(RegionBlocks)) * d.GlobRegionStates.Length];
-        //         var pinnedHandle = GCHandle.Alloc(d.GlobRegionStates, GCHandleType.Pinned);
-        //         Marshal.Copy(pinnedHandle.AddrOfPinnedObject(), byteArr, 0, byteArr.Length);
-        //         pinnedHandle.Free();
-        //         byte[] compressed = Gu.Compress(byteArr);
-        //         br.Write((Int32)compressed.Length);
-        //         br.Write(compressed);
-        //       }
-
-        //       br.Write(DromeFooter);
-        //       br.Close();
-        //     }
-
-      }
-      catch (Exception ex)
-      {
-        //Delete corrupt files if we created corrupt one.
-        if (append == false)
+        if (!System.IO.File.Exists(worldfn))
         {
-          if (File.Exists(globfn))
+          return false;
+        }
+        SerializedFileVersion version = new SerializedFileVersion(1000);
+        using (var fs = System.IO.File.OpenRead(worldfn))
+        using (var br = new System.IO.BinaryReader(fs, enc))
+        {
+          string h = br.ReadString();
+          if (h != c_strSaveWorldHeader)
           {
-            File.Delete(globfn);
+            Gu.BRThrowException("World header '" + h + "' does not match current header version '" + c_strSaveWorldHeader + "'");
           }
-        }
-        throw ex;
-      }
-    }
-    private Glob TryLoadGlob(ivec3 dpos)
-    {
-      //Return null if no glob file was found.
-      string fn = GetGlobFileName(dpos);
-      Glob g = null;
-      try
-      {
-        if (File.Exists(fn))
-        {
-          //       d = new Drome(this, new ivec3(0, 0, 0), Gu.Context.FrameStamp);
 
-          //       var enc = Encoding.GetEncoding("iso-8859-1");
+          SerializeTools.DeserializeBlock(br, (b) => { Info.Deserialize(b.Reader, version); });
 
-          //       using (var fs = File.OpenRead(dromefn))
-          //       using (var br = new System.IO.BinaryReader(fs, enc))
-          //       {
-          //         Int32 version = br.ReadInt32();
-          //         if (version != DromeFileVersion)
-          //         {
-          //           Gu.BRThrowException("Glob file verison '" + version + "' does not match required version '" + DromeFileVersion + "'.");
-          //         }
+          var gcount = br.ReadInt32();//ivec3
+          for (int i = 0; i < gcount; i++) //foreach (var g in _globs)
+          {
+            ivec3 gp = br.ReadIVec3();// bw.Write(g.Key);//ivec3
+            bool exist = br.ReadBoolean();
+            Glob g = new Glob(this, gp);
+            if (exist)
+            {
+              SerializeTools.DeserializeBlock(br, (b) =>
+              {
+                g.Deserialize(b.Reader, version);
+              });
+            }
+            SetGlob(gp, g);
+          }
 
-          //         //d.DensityState = (Glob.GlobDensityState)br.ReadInt32();
-          //         d.Pos.x = br.ReadInt32();
-          //         d.Pos.y = br.ReadInt32();
-          //         d.Pos.z = br.ReadInt32();
-          //         d.BlockStats.Deserialize(br);
+          var obcount = br.ReadInt32();//ivec3
+          for (int i = 0; i < obcount; ++i)
+          {
+            WorldObject wo = new WorldObject(Library.UnsetName);
+            SerializeTools.DeserializeBlock(br, (b) =>
+            {
+              wo.Deserialize(b.Reader, version);
+            });
+            AddObject(wo);
+          }
 
-          //         d.AllocateBlocks();
-          //         d.Blocks.Deserialize(br);
-
-          //         int compressed_count = br.ReadInt32();
-          //         if (compressed_count == 0)
-          //         {
-          //           d.GlobRegionStates = null;
-          //         }
-          //         else
-          //         {
-          //           var compressed = br.ReadBytes(compressed_count);
-
-          //           byte[] decompressed = Gu.Decompress(compressed);
-          //           var numStructs = decompressed.Length / Marshal.SizeOf(typeof(RegionBlocks));
-
-          //           Gu.Assert(numStructs == Drome.DromeRegionStateCount);
-
-          //           d.GlobRegionStates = new RegionBlocks[numStructs];
-          //           var pinnedHandle = GCHandle.Alloc(d.GlobRegionStates, GCHandleType.Pinned);
-          //           Marshal.Copy(decompressed, 0, pinnedHandle.AddrOfPinnedObject(), decompressed.Length);
-          //           pinnedHandle.Free();
-          //         }
-
-          //         string footer = br.ReadString();
-          //         if (!footer.Equals(DromeFooter))
-          //         {
-          //           Gu.BRThrowException("Error: Invalid drome file. Incorrect footer.");
-          //         }
-
-          //         br.Close();
-          //       }
+          _worldEditor.Edited = false;//This will be set, unset it.
         }
       }
       catch (Exception ex)
       {
-        Gu.Log.Error("Glob " + fn + " had an error loading. ", ex);
-        return null;
+        Gu.Log.Error($"Failed to load world file{worldfn}", ex);
+        return false;
       }
-      return g;
+      return true;
     }
+
 
     #endregion
 
@@ -2682,15 +2751,14 @@ namespace PirateCraft
       w.Initialize(wi);
       return w;
     }
-    public void CreateFlatArea()
+    public void CreateHillsArea()
     {
       Gu.Assert(Gu.World != null);
-      Box3i b = new Box3i(new ivec3(-1, 0, -1), new ivec3(1, 1, 1));
+      Box3i b = new Box3i(new ivec3(-2, 0, -2), new ivec3(2, 1, 2));
       b.iterate((x, y, z, dbgcount) =>
       {
-        var g = new Glob(Gu.World, new ivec3(x, y, z), Gu.Context.FrameStamp);
-        //g.BarGrid.Edit_GenFlat(0, Gu.World.Info.BlockSizeY);
-        g.Edit_GenHills(0, Gu.World.Info.BlockSizeY, Gu.World.Info.BlockSizeY * 5);
+        var g = new Glob(Gu.World, new ivec3(x, y, z));
+        g.Edit_GenHills(0, Gu.World.Info.BlockSizeY, Gu.World.Info.BlockSizeY * 5, true);
         Gu.World.SetGlob(g.Pos, g);
         return LambdaBool.Continue;
       }, false);

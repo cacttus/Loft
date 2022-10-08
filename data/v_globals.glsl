@@ -81,30 +81,30 @@ vec4 fog2(in float dist, in vec4 vFragColor) {
   vRetColor.a = vFragColor.a;
   return vRetColor;
 }
-vec4 mirror(in vec4 vColor, in float fMirrorAmount, in vec3 vFragToViewDir, in vec3 fragNormal, in vec3 fragPos) {
-  if(fMirrorAmount <= 0.0001) { 
-      return vColor;
-  }
+// vec4 mirror(in vec4 vColor, in float fMirrorAmount, in vec3 vFragToViewDir, in vec3 fragNormal, in vec3 fragPos) {
+//   if(fMirrorAmount <= 0.0001) { 
+//       return vColor;
+//   }
     
-  vec3 vReflect = reflect(vFragToViewDir, fragNormal);
-  vec2 tex;
-  tex.t = dot(normalize(vReflect), vec3(0.0, -1.0, 0.0));//This produces upside down ENV maps. swapped vec3.. with -1.0
-  vReflect.y = 0.0;
-  tex.s = dot(normalize(vReflect), vec3(1.0, 0.0, 0.0)) * 0.5;
+//   vec3 vReflect = reflect(vFragToViewDir, fragNormal);
+//   vec2 tex;
+//   tex.t = dot(normalize(vReflect), vec3(0.0, -1.0, 0.0));//This produces upside down ENV maps. swapped vec3.. with -1.0
+//   vReflect.y = 0.0;
+//   tex.s = dot(normalize(vReflect), vec3(1.0, 0.0, 0.0)) * 0.5;
     
-  //float r = 10.0f;
+//   //float r = 10.0f;
     
-  if (vReflect.z >= 0.0) {
-      tex = (tex + 1.0) * 0.5;
-  }
-  else {
-      tex.t = (tex.t + 1.0) * 0.5;
-      tex.s = (-tex.s) * 0.5 + 1.0;
-  }
+//   if (vReflect.z >= 0.0) {
+//       tex = (tex + 1.0) * 0.5;
+//   }
+//   else {
+//       tex.t = (tex.t + 1.0) * 0.5;
+//       tex.s = (-tex.s) * 0.5 + 1.0;
+//   }
     
-  vec3 vOut = mix( vec3(vColor), vec3(texture(_ufGpuWorld_s2EnvironmentMap, tex)), fMirrorAmount);
-  return vec4(vOut, vColor.a);
-}
+//   vec3 vOut = mix( vec3(vColor), vec3(texture(_ufGpuWorld_s2EnvironmentMap, tex)), fMirrorAmount);
+//   return vec4(vOut, vColor.a);
+// }
 vec3 lightFragmentCookTorrence(in vec3 in_vpos, in vec4 in_albedo, in vec3 in_normal, in float in_rough, in float in_spec, in float in_IOR) {
 
   vec3 finalColor = vec3(0,0,0);
