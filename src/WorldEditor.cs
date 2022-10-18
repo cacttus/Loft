@@ -2,7 +2,7 @@ using System;
 using System.Runtime.Serialization;
 using System.Runtime.InteropServices;
 using OpenTK.Windowing.GraphicsLibraryFramework;
-
+using System.Text;
 namespace PirateCraft
 {
   public enum InputState
@@ -18,6 +18,7 @@ namespace PirateCraft
     Done,
     Cancel,
   }
+
   public abstract class WorldAction
   {
     public WorldAction() { }
@@ -33,9 +34,19 @@ namespace PirateCraft
   }
   public class GlobalAction : WorldAction
   {
+    //any action - for anything
     public GlobalAction() { }
-    public override bool IsHistoryAction { get { return false; } }
-    public override WorldActionState Do(WorldEditor editor, RenderView? renderview, PCKeyboard k, PCMouse m) { return WorldActionState.Done; }
+    public override bool IsHistoryAction { get; }
+    public override WorldActionState Do(WorldEditor editor, RenderView? renderview, PCKeyboard k, PCMouse m) { return WorldActionState.Cancel; }
+    public override void Undo(WorldEditor editor) { }
+    public override void Redo(WorldEditor editor) { }
+  }
+  public class GUIAction : WorldAction
+  {
+    //for when gui is picked only
+    public GUIAction() { }
+    public override bool IsHistoryAction { get; }
+    public override WorldActionState Do(WorldEditor editor, RenderView? renderview, PCKeyboard k, PCMouse m) { return WorldActionState.Cancel; }
     public override void Undo(WorldEditor editor) { }
     public override void Redo(WorldEditor editor) { }
   }
@@ -118,7 +129,7 @@ namespace PirateCraft
             if (!editor.SelectedObjects.Contains(ob))
             {
               editor.SelectedObjects.Add(ob);
-              ob.Selected = true;
+              ob.IsSelected = true;
               _somethingChanged = true;
             }
           }
@@ -127,7 +138,7 @@ namespace PirateCraft
             if (editor.SelectedObjects.Contains(ob))
             {
               editor.SelectedObjects.Remove(ob);
-              ob.Selected = false;
+              ob.IsSelected = false;
               _somethingChanged = true;
             }
           }
@@ -158,14 +169,25 @@ namespace PirateCraft
       {
         _doing = new List<WorldAction>(_actions);
       }
+      bool did_cancel = false;
       _doing.IterateSafe<WorldAction>((x) =>
       {
-        if (x.Do(editor, renderview, k, m) == WorldActionState.Done)
+        var dd = x.Do(editor, renderview, k, m);
+        if (dd == WorldActionState.Done)
         {
           _doing.Remove(x);
         }
+        else if (dd == WorldActionState.Cancel)
+        {
+          did_cancel = true;
+          return LambdaBool.Break;
+        }
         return LambdaBool.Continue;
       });
+      if (did_cancel)
+      {
+        return WorldActionState.Cancel;
+      }
       return _doing.Count == 0 ? WorldActionState.Done : WorldActionState.StillDoing;
     }
     public override void Undo(WorldEditor editor)
@@ -185,76 +207,86 @@ namespace PirateCraft
       }
     }
   }
+  public enum XFormOrigin
+  {
+    Average, Individual,
+  }
+  public enum XFormSpace
+  {
+    Global, Local, Free
+  }
   public class MoveRotateScaleAction : WorldObjectAction
   {
     private class ObjectXFormSpace
     {
-      public vec3 Axis;
+      /*
+      fixingthis..
+      KEEP FIRST PROJECT POS**
+      sub projection pos p2-p1 to calculate delta
+      the further mouse is away from object, the greater the delta meaning
+      |p2-p1| / |p1-origin|
+
+      move free -> project ray onto view plane
+      move 2 axes -> project ray onto plane with axis as normal
+      move 1 axis -> project ray onto axis line
+
+      scale free (all dims)-> project ray onto view plane -> use delta distance from ray to center as scale change amount
+      scale 2 axes -> same, project onto plane, use distance as delta.
+      scale 1 axis-> project onto ray line, use delta as change
+
+      rotate -> mouse move in circular motion always no matter what axis selected
+      p1 = cos, sin
+      p2 = cos, sin
+      wrap when p1>p2 or p1<p2
+      free -> rotate about view plane
+      2 axes, .. same as others .. use the axis
+
+      */
+      public mat4 Space;
+      public float ConstraintX;
+      public float ConstraintY;
+      public float ConstraintZ;
       public vec3 Origin;
-      public ObjectXFormSpace(vec3 axis, vec3 origin)
+      public ObjectXFormSpace(mat4 space, float cx, float cy, float cz, vec3 origin)
       {
-        Axis = axis;
+        Space = space;
+        ConstraintX = cx;
+        ConstraintY = cy;
+        ConstraintZ = cz;
         Origin = origin;
       }
-    }
-    public enum XFormOrigin
-    {
-      Average, Individual,
-    }
-    public enum XFormSpace
-    {
-      Global, Local
     }
     public enum MoveRotateScale
     {
       Move, Rotate, Scale
     }
+
+    private XFormSpace _xFormSpace = XFormSpace.Free;//global/local transform blender: z->z /x->x etc
     private MoveRotateScale _type = MoveRotateScale.Move;
-    private List<PRS> _lastPRS = null;
-    private List<PRS> _newPRS = null;
+    private List<mat4> _lastMat = null;
+    private List<mat4> _newMat = null;
     private List<ObjectXFormSpace> _obj_xform = null;
-    private vec3 _savedSelectionOrigin = new vec3(0, 0, 0);
-    private bool _xform_Plane = false;//move along plane, or axis
-    private vec3 _xform_global_axis = new vec3(0, 1, 0);
-    private WorldEditEvent _current_XForm = WorldEditEvent.TransformPlaneView;
-    private XFormSpace _xform_Space = XFormSpace.Global;//global/local transform blender: z->z /x->x etc
-    private XFormOrigin _xform_Origin = XFormOrigin.Average;
     private vec2 _xform_MouseStart;
     private vec2 _mouse_wrapcount;
     private Line3f? _xform_startRay = null;
+    private WorldEditEvent? _current_XForm = null;
 
     public MoveRotateScaleAction(List<WorldObject> objs, MoveRotateScale type) : base(objs)
     {
       _type = type;
-      Gu.Assert(Gu.World.Editor.SelectionOrigin != null);
-      _savedSelectionOrigin = Gu.World.Editor.SelectionOrigin.Value;
 
-      _lastPRS = new List<PRS>();
+      _lastMat = new List<mat4>();
       for (int i = 0; i < _objects.Count; ++i)
       {
         var w = _objects[i];
-        _lastPRS.Add(w.GetPRS_Local());
+        _lastMat.Add(w.LocalMatrix);
       }
-
-      SetXFormView();
 
       _xform_MouseStart = Gu.Context.PCMouse.Pos;
       _mouse_wrapcount = new vec2(0, 0);
-      _xform_startRay = Gu.CastRayFromScreen(_xform_MouseStart);
+      _xform_startRay = Gu.TryCastRayFromScreen(_xform_MouseStart);
 
-      ComputeXFormSpace(_xform_Space, _xform_Origin);
-    }
-    private void SetXFormView()
-    {
-      if (Gu.TryGetSelectedView(out var rv))
-      {
-        if (rv.Camera.TryGetTarget(out var c))
-        {
-          _xform_global_axis = -c.BasisZ; //"view" translation
-          _xform_Plane = true;
-          _current_XForm = WorldEditEvent.TransformPlaneView;
-        }
-      }
+      ComputeXFormSpace(Gu.World.Editor);
     }
     public override WorldActionState Do(WorldEditor editor, RenderView? renderview, PCKeyboard k, PCMouse m)
     {
@@ -262,21 +294,21 @@ namespace PirateCraft
     }
     public override void Undo(WorldEditor editor)
     {
-      Gu.Assert(_lastPRS != null && _lastPRS.Count == _objects.Count);
+      Gu.Assert(_lastMat != null && _lastMat.Count == _objects.Count);
       for (int i = 0; i < _objects.Count; ++i)
       {
         var w = _objects[i];
-        w.SetPRS_Local(_lastPRS[i]);
+        w.LocalMatrix = _lastMat[i];
       }
       editor.UpdateSelectionOrigin();
     }
     public override void Redo(WorldEditor editor)
     {
-      Gu.Assert(_newPRS != null && _newPRS.Count == _objects.Count);
+      Gu.Assert(_newMat != null && _newMat.Count == _objects.Count);
       for (int i = 0; i < _objects.Count; ++i)
       {
         var w = _objects[i];
-        w.SetPRS_Local(_newPRS[i]);
+        w.LocalMatrix = _newMat[i];
       }
       editor.UpdateSelectionOrigin();
     }
@@ -292,45 +324,86 @@ namespace PirateCraft
     {
       return _obj_xform[index];
     }
-    private void ToggleGlobalLocalXFormAxis()
+    private void ToggleXFormSpace(WorldEditor e)
     {
-      if (_xform_Space == XFormSpace.Global)
+      if (_xFormSpace == XFormSpace.Global)
       {
-        _xform_Space = XFormSpace.Local;
+        _xFormSpace = XFormSpace.Local;
       }
-      else
+      else if (_xFormSpace == XFormSpace.Local)
       {
-        _xform_Space = XFormSpace.Global;
+        _xFormSpace = XFormSpace.Free;
       }
-      ComputeXFormSpace(_xform_Space, _xform_Origin);
+      else if (_xFormSpace == XFormSpace.Free)
+      {
+        _xFormSpace = XFormSpace.Global;
+      }
     }
     private vec3 ComputeLocalObjectAxis(int obi, vec3 global_axis)
     {
-      vec3 locla = (_lastPRS[obi].toMat4().invert() * global_axis.toVec4(1)).toVec3().normalize();
+      vec3 locla = (_lastMat[obi].invert() * global_axis.toVec4(1)).toVec3().normalize();
       return locla;
     }
-    private void ComputeXFormSpace(XFormSpace space, XFormOrigin origin)
+    private void ComputeXFormSpace(WorldEditor editor)
     {
-      vec3 average_origin = _savedSelectionOrigin;
-      vec3 average_axis = new vec3(0, 0, 0);
-      for (int obi = 0; obi < _objects.Count; obi++)
-      {
-        average_axis += ComputeLocalObjectAxis(obi, _xform_global_axis);
-      }
-      average_axis = (average_axis / (float)_objects.Count).normalize();
+      Gu.Assert(Gu.World.Editor.SelectionOrigin != null);
+      // vec3 average_axis = new vec3(0, 0, 0);
+      // for (int obi = 0; obi < _objects.Count; obi++)
+      // {
+      //   average_axis += ComputeLocalObjectAxis(obi, _xform_global_axis);
+      // }
+      // average_axis = (average_axis / (float)_objects.Count).normalize();
 
       _obj_xform = new List<ObjectXFormSpace>();
       for (int obi = 0; obi < _objects.Count; obi++)
       {
-        _obj_xform.Add(ComputeObjectXFormSpace(obi, space, origin, _xform_global_axis, average_origin, average_axis));
+        _obj_xform.Add(ComputeObjectXFormSpace(obi, _xFormSpace, editor.XFormOrigin, editor.SelectionOrigin.Value));
       }
     }
-    private ObjectXFormSpace ComputeObjectXFormSpace(int obi, XFormSpace space, XFormOrigin origin, vec3 global_axis, vec3 average_origin, vec3 average_axis)
+    private ObjectXFormSpace ComputeObjectXFormSpace(int obi, XFormSpace space, XFormOrigin origin, vec3 average_origin)
     {
       ObjectXFormSpace ret = null;
 
-      var ob_axis = vec3.Zero;
+      //var ob_axis = vec3.Zero;
       var ob_origin = vec3.Zero;
+      //    bool plane = false;
+      //vec3 global_axis = new vec3(0, 0, 0);
+      vec3 basisX = new vec3(1, 0, 0), basisY = new vec3(0, 1, 0), basisZ = new vec3(0, 0, 1);
+      float cX = 1, cY = 1, cZ = 1;
+      mat4 mspace = new mat4();
+
+      if (space == XFormSpace.Free)
+      {
+        //"view" translation
+        if (Gu.TryGetSelectedView(out var rv))
+        {
+          if (rv.Camera.TryGetTarget(out var c))
+          {
+            mspace = new mat4(new vec4(c.BasisX_World, 0), new vec4(-c.BasisZ_World, 0), new vec4(c.BasisY_World, 0), new vec4(0, 0, 0, 1));
+            cX = cZ = 1;
+            cY = 0;
+          }
+        }
+      }
+      else
+      {
+        if (_current_XForm == WorldEditEvent.MRS_TransformAxisX) { cX = 1; cY = 0; cZ = 0; }
+        else if (_current_XForm == WorldEditEvent.MRS_TransformAxisY) { cX = 0; cY = 1; cZ = 0; }
+        else if (_current_XForm == WorldEditEvent.MRS_TransformAxisZ) { cX = 0; cY = 0; cZ = 1; }
+
+        else if (_current_XForm == WorldEditEvent.MRS_TransformPlaneX) { cX = 0; cY = 1; cZ = 1; }
+        else if (_current_XForm == WorldEditEvent.MRS_TransformPlaneY) { cX = 1; cY = 0; cZ = 1; }
+        else if (_current_XForm == WorldEditEvent.MRS_TransformPlaneZ) { cX = 1; cY = 1; cZ = 0; }
+
+        if (space == XFormSpace.Global)
+        {
+          mspace = mat4.Identity;
+        }
+        else if (space == XFormSpace.Local)
+        {
+          mspace = _lastMat[obi].toQuat().toMat4();
+        }
+      }
 
       if (origin == XFormOrigin.Average)
       {
@@ -338,52 +411,44 @@ namespace PirateCraft
       }
       else if (origin == XFormOrigin.Individual)
       {
-        ob_origin = _lastPRS[obi].Position.Value;
+        ob_origin = _lastMat[obi].ExtractTranslation();
       }
       else
       {
         Gu.BRThrowNotImplementedException();
       }
 
-      if (space == XFormSpace.Local)
-      {
-        ob_axis = ComputeLocalObjectAxis(obi, global_axis);
-      }
-      else if (space == XFormSpace.Global)
-      {
-        ob_axis = global_axis;
-      }
-      else
-      {
-        Gu.BRThrowNotImplementedException();
-      }
-
-      ret = new ObjectXFormSpace(ob_axis, ob_origin);
+      ret = new ObjectXFormSpace(mspace, cX, cY, cZ, ob_origin);
       return ret;
     }
     public override WorldActionState HandleEvent(WorldEditor editor, WorldEditEvent code)
     {
-      if (code == WorldEditEvent.TransformPlaneView)
+      if (code == WorldEditEvent.MRS_TransformToggleOrigin)
       {
-        SetXFormView();
+        if (editor.XFormOrigin == XFormOrigin.Average)
+        {
+          editor.XFormOrigin = XFormOrigin.Individual;
+        }
+        else
+        {
+          editor.XFormOrigin = XFormOrigin.Average;
+        }
+        ComputeXFormSpace(editor);
       }
-      else if (code == WorldEditEvent.TransformAxisX || code == WorldEditEvent.TransformAxisY || code == WorldEditEvent.TransformAxisZ ||
-                code == WorldEditEvent.TransformPlaneX || code == WorldEditEvent.TransformPlaneY || code == WorldEditEvent.TransformPlaneZ)
+      else if (code == WorldEditEvent.MRS_TransformAxisX || code == WorldEditEvent.MRS_TransformAxisY || code == WorldEditEvent.MRS_TransformAxisZ ||
+                code == WorldEditEvent.MRS_TransformPlaneX || code == WorldEditEvent.MRS_TransformPlaneY || code == WorldEditEvent.MRS_TransformPlaneZ)
       {
-        if (code == WorldEditEvent.TransformAxisX) { _xform_global_axis = new vec3(1, 0, 0); _xform_Plane = false; }
-        if (code == WorldEditEvent.TransformAxisY) { _xform_global_axis = new vec3(0, 1, 0); _xform_Plane = false; }
-        if (code == WorldEditEvent.TransformAxisZ) { _xform_global_axis = new vec3(0, 0, 1); _xform_Plane = false; }
-        if (code == WorldEditEvent.TransformPlaneX) { _xform_global_axis = new vec3(0, 1, 0); _xform_Plane = true; }
-        if (code == WorldEditEvent.TransformPlaneY) { _xform_global_axis = new vec3(0, 0, 1); _xform_Plane = true; }
-        if (code == WorldEditEvent.TransformPlaneZ) { _xform_global_axis = new vec3(1, 0, 0); _xform_Plane = true; }
+        //move -> global, local free
+        //Rotate: Global->Local->free (also it is saved.)
 
         if (_current_XForm == code)//x->x
         {
-          ToggleGlobalLocalXFormAxis();
+          ToggleXFormSpace(editor);
         }
         _current_XForm = code;
-      }
 
+        ComputeXFormSpace(editor);
+      }
       else if (code == WorldEditEvent.Cancel)
       {
         return WorldActionState.Cancel;
@@ -401,62 +466,102 @@ namespace PirateCraft
     }
     private Line3f? GetWrappedScreenRay(RenderView? renderview)
     {
+      if (Gu.Context.PCKeyboard.Press(Keys.B))
+      {
+        Gu.Trap();
+      }
       //update - wrap mouse - wrap and count wraps, then project into world.
-      var vwrap = Gu.Mouse.WarpMouse(renderview, WarpMode.Wrap, 0.001f);
+      var vwrap = Gu.Context.PCMouse.WarpMouse(renderview, WarpMode.Wrap, 0.001f);
       if (vwrap != null)
       {
         _mouse_wrapcount += vwrap.Value;
       }
-      var mouse_wrapped = Gu.Mouse.GetWrappedPosition(renderview, _mouse_wrapcount);
-      return Gu.CastRayFromScreen(mouse_wrapped);
+
+      var mouse_wrapped = Gu.Context.PCMouse.GetWrappedPosition(renderview, _mouse_wrapcount);
+      return Gu.TryCastRayFromScreen(mouse_wrapped);
     }
     private WorldActionState UpdateMove(WorldEditor editor, RenderView? renderview, PCKeyboard k, PCMouse m)
     {
       var screen_ray = GetWrappedScreenRay(renderview);
       if (screen_ray != null)
       {
-        float amt_R_S = 0;
-        if (Gu.TryGetSelectedView(out var selv))
-        {
-          var dmos = (Gu.Mouse.Pos - _xform_MouseStart);
-          var dl = dmos.length();
-          if (dl != 0)
-          {
-            amt_R_S = ((dmos * _mouse_wrapcount).length() / dl) * 3;
-          }
-          else
-          {
-            amt_R_S = 0;
-          }
-          Gu.AssertDebug(Gu.SaneFloat(amt_R_S));
-        }
+        Gu.Assert(_lastMat != null);
+        Gu.Assert(_objects.Count == _lastMat.Count);
 
-        Gu.Assert(_lastPRS != null);
-        Gu.Assert(_objects.Count == _lastPRS.Count);
-        _newPRS = new List<PRS>();
-        for (var obi = 0; obi < _lastPRS.Count; obi++)
+        _newMat = new List<mat4>();
+        for (var obi = 0; obi < _lastMat.Count; obi++)
         {
-          vec3 axis = GetObjectXForm(obi).Axis;
-          vec3 origin = GetObjectXForm(obi).Origin;
+          var space = GetObjectXForm(obi);
 
           //TODO: this should  not happen every frame, create a mesh
-          Gu.Context.DebugDraw.DrawAxisLine(origin, axis);
+          Gu.Context.DebugDraw.DrawAxisLine(space.Origin, space.Space.Row1.xyz() * space.ConstraintX);
+          Gu.Context.DebugDraw.DrawAxisLine(space.Origin, space.Space.Row2.xyz() * space.ConstraintY);
+          Gu.Context.DebugDraw.DrawAxisLine(space.Origin, space.Space.Row3.xyz() * space.ConstraintZ);
 
-          PRS p = new PRS();
+          var axis = (space.Space.Row1.xyz() * space.ConstraintX + space.Space.Row2.xyz() * space.ConstraintY + space.Space.Row3.xyz() * space.ConstraintZ).normalize();
+          float delta = CalcDelta(axis, space.Origin, screen_ray, space.ConstraintX, space.ConstraintY, space.ConstraintZ);
+
+          mat4 mn = mat4.Identity;
           if (this._type == MoveRotateScale.Move)
           {
-            p.Position = Translate(axis, origin, screen_ray);
+            //p.Position = Translate(space.Axis, space.Origin, space.Plane, screen_ray);
           }
           if (this._type == MoveRotateScale.Rotate)
           {
-            p.Rotation = _lastPRS[obi].Rotation * quat.fromAxisAngle(axis, amt_R_S, false);
-            Gu.AssertDebug(p.Rotation.Value.IsSane());
+            mn = space.Space * quat.fromAxisAngle(axis, delta, false).toMat4() * _lastMat[obi];
           }
           if (this._type == MoveRotateScale.Scale)
           {
-            p.Scale = _lastPRS[obi].Scale + amt_R_S * axis;
+            //to scale local we need mat4 no?
+            // Either Premultiply or postmultiply
+            //local -> multiply the object's local matrix by the scale
+            //global -> multiply the object's global matrix by the scale
+            //[delta, 0 0, 0]
+            //[0 d 0, 0]
+            //[0 0 d, 0]
+            // scale *= Basisxyz * delta * constraint (0,1)
+            //pos += basisxyz * delta * constraint
+            //to do it we have a matrix in global coords, or local, like curently with the basis
+            //  the issue though is we need to figure out how to constrain one or more axes.. I guess that's easy - for scale set 1 for constrained axis..easy
+            //  we have to change PRS to use a matrix.
+            //  ok, then we can set the components by decomposing the matrix.
+            //  how to put one matrix in another space.. idk either A * B^-1..
+
+            //var ls = _lastMat[obi].Scale.Value;
+            //p.Scale = new vec3(ls.x * delta * space.ConstraintX, ls.y * delta * space.ConstraintY, ls.z * delta * space.ConstraintZ);
+            var mmm = CSharpScript.Call("PRSScript.cs", null);
+            if (mmm != null)
+            {
+              mn = (mat4)mmm;
+            }
+            else
+            {
+              mn = mat4.getScale(delta * space.ConstraintX + 1, delta * space.ConstraintY + 1, delta * space.ConstraintZ + 1) * _lastMat[obi];
+            }
+
+            // if (space.Free)
+            // {
+            //   p.Scale = _lastPRS[obi].Scale * delta;
+            // }
+            // else if (space.Plane)
+            // {
+            //       if (this._current_XForm == WorldEditEvent.TransformPlaneX) { p.Scale = new vec3(ls.x, ls.y * delta, ls.z * delta); }
+            //       else if (this._current_XForm == WorldEditEvent.TransformPlaneY) { p.Scale = new vec3(ls.x * delta, ls.y, ls.z * delta); }
+            //       else if (this._current_XForm == WorldEditEvent.TransformPlaneZ) { p.Scale = new vec3(ls.x * delta, ls.y * delta, ls.z); }
+            //       else { Gu.BRThrowNotImplementedException(); }
+            // }
+            // else
+            // {
+            //   var ls = _lastPRS[obi].Scale.Value;
+            //   if (this._current_XForm == WorldEditEvent.TransformAxisX) { p.Scale = new vec3(ls.x * delta, ls.y, ls.z); }
+            //   else if (this._current_XForm == WorldEditEvent.TransformAxisY) { p.Scale = new vec3(ls.x, ls.y * delta, ls.z); }
+            //   else if (this._current_XForm == WorldEditEvent.TransformAxisZ) { p.Scale = new vec3(ls.x, ls.y, ls.z * delta); }
+            //   else { Gu.BRThrowNotImplementedException(); }
+            // }
+
           }
-          _newPRS.Add(p);
+          Gu.AssertDebug(mn.IsSane());
+          _newMat.Add(mn);
         }
 
         Redo(editor);
@@ -465,66 +570,104 @@ namespace PirateCraft
       return WorldActionState.StillDoing;
 
     }//update
-    private vec3 Translate(vec3 axis, vec3 origin, Line3f? screen_ray)
+    private float CalcDelta(vec3 axis, vec3 origin, Line3f? screen_ray, float cx, float cy, float cz)
+    {
+      //this is invalid
+      Plane3f pf = new Plane3f(axis, origin);
+      float delta = 0;
+      if (pf.IntersectLine(screen_ray.Value.p0, screen_ray.Value.p1, out vec3 pt_cur))
+      {
+        if (cx + cy + cz > 1.001)
+        {
+          if (pf.IntersectLine(_xform_startRay.Value.p0, _xform_startRay.Value.p1, out vec3 pt_start))
+          {
+            float len0 = (pt_cur - origin).len2();
+            float len1 = (pt_start - origin).len2();
+
+            Gu.Context.DebugDraw.Point((pt_cur), new vec4(1, 0, 0, 1));
+            Gu.Context.DebugDraw.Point((pt_start), new vec4(1, 0, 1, 1));
+            Gu.Context.DebugDraw.Point((origin), new vec4(0, 1, 1, 1));
+
+            if (len1 > 0)
+            {
+              delta = len0 / len1;
+            }
+          }
+        }
+        else
+        {
+          //cast to the axis/line
+          var p0 = screen_ray.Value.p0;
+          var v0 = (screen_ray.Value.p1 - screen_ray.Value.p0).normalize();//prevent  huge numbers
+          var p1 = origin;
+          var v1 = axis;// space.BasisX * space.ConstraintX + space.BasisY * space.ConstraintY + space.BasisZ * space.ConstraintZ;
+          var tv = (v1 - v0);
+          var tp = (p1 - p0);
+          delta = tp.dot(tv) / tv.dot(tv);
+        }
+      }
+      return delta;
+    }
+    private vec3 Translate(vec3 axis, vec3 origin, bool plane, Line3f? screen_ray)
     {
       vec3 output_pos = new vec3(0, 0, 0);
-      if (_xform_Plane)
-      {
-        //different delta if we're on a plane.
-        Plane3f sp = new Plane3f(axis, origin);
-        float tcur = sp.IntersectLine(screen_ray.Value.p0, screen_ray.Value.p1);
-        vec3 mouse_hit_plane_c = screen_ray.Value.p0 + (screen_ray.Value.p1 - screen_ray.Value.p0) * tcur;
-        output_pos = origin + mouse_hit_plane_c - origin;
-      }
-      else
-      {
-        /*
-          ray-ray
-          pa = p0 + tv1
-          pb = p1 + tv2
-          |(p0 + tv0)-(p1 + tv1)| = d(t)
-          => |p + tv| = d(t)
-          => (t^2(v.v) + 2t(p.v) + p.p)^(1/2) = d(t)
-          => (t^2(v.v) + 2t(p.v) + p.p)^(1/2) = d/dt = 
-          
-          (1/2) (t^2(v.v) + 2t(p.v) + p.p)^(-1/2) (2t(v.v) + 2(p.v))
+      // if (plane)
+      // {
+      //   //different delta if we're on a plane.
+      //   Plane3f sp = new Plane3f(axis, origin);
+      //   float tcur = sp.IntersectLine(screen_ray.Value.p0, screen_ray.Value.p1);
+      //   vec3 mouse_hit_plane_c = screen_ray.Value.p0 + (screen_ray.Value.p1 - screen_ray.Value.p0) * tcur;
+      //   output_pos = origin + mouse_hit_plane_c - origin;
+      // }
+      // else
+      // {
+      //   /*
+      //     ray-ray
+      //     pa = p0 + tv1
+      //     pb = p1 + tv2
+      //     |(p0 + tv0)-(p1 + tv1)| = d(t)
+      //     => |p + tv| = d(t)
+      //     => (t^2(v.v) + 2t(p.v) + p.p)^(1/2) = d(t)
+      //     => (t^2(v.v) + 2t(p.v) + p.p)^(1/2) = d/dt = 
 
-        */
-        var p0 = screen_ray.Value.p0;
-        var v0 = (screen_ray.Value.p1 - screen_ray.Value.p0).normalize();//prevent  huge numbers
-        var p1 = origin;
-        var v1 = axis;
-        var tv = (v1 - v0);
-        var tp = (p1 - p0);
-        var t = tp.dot(tv) / tv.dot(tv);
+      //     (1/2) (t^2(v.v) + 2t(p.v) + p.p)^(-1/2) (2t(v.v) + 2(p.v))
 
-        vec3 c0 = (p0 - p1 + t * (v0 - v1));
-        vec3 c1 = (p0 - p1 + t * (v0 - v1));
-        /*
+      //   */
+      //   var p0 = screen_ray.Value.p0;
+      //   var v0 = (screen_ray.Value.p1 - screen_ray.Value.p0).normalize();//prevent  huge numbers
+      //   var p1 = origin;
+      //   var v1 = axis;
+      //   var tv = (v1 - v0);
+      //   var tp = (p1 - p0);
+      //   var t = tp.dot(tv) / tv.dot(tv);
 
-                  p0-p1=p, v0-v1=v
-                  => t^2(v.v) + 2t(p.v) + p.p = d(t)^2
-                  A = v.v, B = 2p.v, C = p.p
-                  => At^2 + Bt + C = d(t)^2
-                  => dd/dt = 2At + B = 2d(t)
-                  => dd/dt = At + B/2 = d(t)=0
-                  => t = -B/2A
-                  => t = -(p.v)/(v.v)
-        */
-        if (Gu.Context.PCKeyboard.Press(Keys.B))
-        {
-          Gu.Trap();
-        }
-        //This returns an exact position. kind of neat, but not axis
-        //delta_pos = (p0 + v1*t) - origin;
-        output_pos = origin + axis * (float)t;
-        //Gu.Context.DebugDraw.Point(origin, new vec4(1, 0, 0, 1));//TODO: this should  not happen every frame, create a mesh and keep it
-        //Gu.Context.DebugDraw.Point(output_pos, new vec4(0, 1, 1, 1));//TODO: this should  not happen every frame, create a mesh and keep it
-        Gu.Context.DebugDraw.Point(c0, new vec4(1, 0, 0, 1));//TODO: this should  not happen every frame, create a mesh and keep it
-        Gu.Context.DebugDraw.Point(c1, new vec4(1, 0, 1, 1));//TODO: this should  not happen every frame, create a mesh and keep it
+      //   vec3 c0 = (p0 - p1 + t * (v0 - v1));
+      //   vec3 c1 = (p0 - p1 + t * (v0 - v1));
+      //   /*
 
-        //delta_pos = Line3f.pointOnRay_t(axis, xform_curRay.Value.p0) - origin;
-      }
+      //             p0-p1=p, v0-v1=v
+      //             => t^2(v.v) + 2t(p.v) + p.p = d(t)^2
+      //             A = v.v, B = 2p.v, C = p.p
+      //             => At^2 + Bt + C = d(t)^2
+      //             => dd/dt = 2At + B = 2d(t)
+      //             => dd/dt = At + B/2 = d(t)=0
+      //             => t = -B/2A
+      //             => t = -(p.v)/(v.v)
+      //   */
+      //   if (Gu.Context.PCKeyboard.Press(Keys.B))
+      //   {
+      //     Gu.Trap();
+      //   }
+      //   //This returns an exact position. kind of neat, but not axis
+      //   //delta_pos = (p0 + v1*t) - origin;
+      //   output_pos = origin + axis * (float)t;
+      //   //Gu.Context.DebugDraw.Point(origin, new vec4(1, 0, 0, 1));//TODO: this should  not happen every frame, create a mesh and keep it
+      //   //Gu.Context.DebugDraw.Point(output_pos, new vec4(0, 1, 1, 1));//TODO: this should  not happen every frame, create a mesh and keep it
+      //   Gu.Context.DebugDraw.Point(c0, new vec4(1, 0, 0, 1));//TODO: this should  not happen every frame, create a mesh and keep it
+      //   Gu.Context.DebugDraw.Point(c1, new vec4(1, 0, 1, 1));//TODO: this should  not happen every frame, create a mesh and keep it
+
+      //   //delta_pos = Line3f.pointOnRay_t(axis, xform_curRay.Value.p0) - origin;
+      // }
       return output_pos;
 
     }//calcorigin
@@ -563,22 +706,25 @@ namespace PirateCraft
     {
     }
   }
-  public class SelectRangeAction : WorldAction//selectregion
+  public class SelectRegionAction : WorldAction
   {
+    //selectregion selectrange
     public vec2 _selectStart;
     private bool _somethingChanged = false;
     private List<WorldObject> _prev = new List<WorldObject>();
     private List<WorldObject> _cur = new List<WorldObject>();
-    //   private List<WorldObject> _deselect = new List<WorldObject>();
+    private bool _wasClick = false;//whether the user clicked (Raycast) or used region (beam)
+    WorldObject? _prevActive = null;
+    WorldObject? _curActive = null;
 
-    public SelectRangeAction()
+    public SelectRegionAction()
     {
-      _selectStart = Gu.Mouse.Pos;
+      _selectStart = Gu.Context.PCMouse.Pos;
     }
     public override bool IsHistoryAction { get { return true; } }
     public override WorldActionState Do(WorldEditor editor, RenderView? renderview, PCKeyboard k, PCMouse m)
     {
-      CastBeam(_selectStart, Gu.Mouse.Pos, true);
+      CastBeam(_selectStart, Gu.Context.PCMouse.Pos, true);
 
       return WorldActionState.StillDoing;
     }
@@ -603,45 +749,45 @@ namespace PirateCraft
             break;
           }
         }
-        if (!_somethingChanged)
+
+        if (_curActive != _prevActive)
         {
-          return false;
+          _somethingChanged = true;
         }
       }
-      return true;
+      else
+      {
+        _somethingChanged = true;
+      }
+      return _somethingChanged;
     }
     private void DoOrRedo(WorldEditor editor, bool undo)
     {
-      //avoid adding history if nothing changed.
-      if (!CheckIfSomethingChanged(editor))
-      {
-        return;
-      }
+      editor.ActiveObject = undo ? _prevActive : _curActive;
 
       // do select
       editor.SelectedObjects.IterateSafe((x) =>
       {
-        x.Selected = false;
+        x.IsSelected = false;
         return LambdaBool.Continue;
       });
       editor.SelectedObjects = new List<WorldObject>(undo ? _prev : _cur);
       editor.SelectedObjects.IterateSafe((x) =>
       {
-        x.Selected = true;
+        x.IsSelected = true;
         return LambdaBool.Continue;
       });
       editor.UpdateSelectionOrigin();
     }
     public override WorldActionState HandleEvent(WorldEditor editor, WorldEditEvent coide)
     {
-      if (coide == WorldEditEvent.SelectRangeEnd)
+      if (coide == WorldEditEvent.Edit_SelectRegionEnd)
       {
         FinalizeSelection(editor);
         if (!_somethingChanged)
         {
           return WorldActionState.Cancel;
         }
-
         return WorldActionState.Done;
       }
       else if (coide == WorldEditEvent.Cancel)
@@ -654,6 +800,7 @@ namespace PirateCraft
 
     private OOBox3f? CastBeam(vec2 p1, vec2 p2, bool draw)
     {
+      //This just draws the selection box (if needed)
       OOBox3f? ret = null;
       if (Gu.TryGetSelectedViewCamera(out var cam))
       {
@@ -698,10 +845,10 @@ namespace PirateCraft
       {
         var beam = bea.Value;
         beam.GetTrianglesAndPlanes(out var tris, out var planes);
-        var obs = WorldEditor.RemoveInvalidObjectsFromSelection(Gu.World.GetAllRootObjects());
+        var obs = WorldEditor.RemoveInvalidObjectsFromSelection(Gu.World.GetAllVisibleRootObjects());
         foreach (var ob in obs)
         {
-          if (ConvexHull.HasBox(ob.BoundBox, planes))
+          if (ConvexHull.HasBox(ob.BoundBoxMesh, planes))
           {
             objs.Add(ob);
           }
@@ -711,18 +858,42 @@ namespace PirateCraft
     }
     private void FinalizeSelection(WorldEditor editor)
     {
+      //Update selection
       _cur = new List<WorldObject>();
       _prev = new List<WorldObject>(editor.SelectedObjects);
 
       var picked = GetPickedObjects();
-      if (Gu.Keyboard.ModIsDown(KeyMod.Shift))
+
+      if (Gu.Context.PCKeyboard.ModIsDown(KeyMod.Shift))
       {
         _cur = new List<WorldObject>(editor.SelectedObjects);
-        _cur.AddRange(picked.Where(x => x.Selected == false));
+        _cur.AddRange(picked.Where(x => x.IsSelected == false));
       }
       else
       {
         _cur = picked;
+      }
+
+      //Set active object
+      _curActive = null;
+      _prevActive = editor.ActiveObject;
+      if (_cur.Count == 0)
+      {
+        _curActive = null;
+      }
+      else if (!_cur.Contains(_prevActive))
+      {
+        _curActive = picked[0];
+      }
+      else
+      {
+        _curActive = _prevActive;
+      }
+
+      //avoid adding history if nothing changed.
+      if (!CheckIfSomethingChanged(editor))
+      {
+        return;
       }
 
       Redo(editor);
@@ -730,15 +901,17 @@ namespace PirateCraft
     private List<WorldObject> GetPickedObjects()
     {
       //pick a beam region, or ray
-      var p2 = Gu.Mouse.Pos;
+      var p2 = Gu.Context.PCMouse.Pos;
       if (Math.Abs(p2.x - _selectStart.x) > 3 && Math.Abs(p2.y - _selectStart.y) > 3)
       {
+        _wasClick = false;
         //beam
         var objs = GetPickedObjectsRegion(_selectStart, p2);
         return objs;
       }
       else
       {
+        _wasClick = true;
         //ray
         List<WorldObject> objs = new List<WorldObject>();
         var ob = Gu.Context.Renderer.Picker.PickedObjectFrame as WorldObject;
@@ -759,50 +932,71 @@ namespace PirateCraft
     public override void Redo(WorldEditor editor) { }
     public override WorldActionState HandleEvent(WorldEditor editor, WorldEditEvent coide) { return WorldActionState.StillDoing; }
   }
-  /*
-  MoveRotateScaleAction(new ObjectSelectAction(new CloneObjectAction()), Move)
-cloneobjectaction().Then(new ObjectSelectAction()).Then()
-  */
-
+  public enum UserGesture
+  {
+    MouseMove, MouseWheel
+  }
   [DataContract]
   public class KeyStroke
   {
+    //keyboard / mouse 
     [DataMember] public Keys? Key = null;
     [DataMember] public MouseButton? MouseButton = null;
+    [DataMember] public UserGesture? Gesture = null;
     [DataMember] public KeyMod Mod = KeyMod.None;
-    [DataMember] public ButtonState State;
+    [DataMember] public ButtonState? State;
     public KeyStroke(KeyMod mod, Keys key, ButtonState state = ButtonState.Press)
     {
-      Key = key; Mod = mod; State = state;
+      Key = key;
+      Mod = mod;
+      State = state;
     }
     public KeyStroke(KeyMod mod, MouseButton b, ButtonState state = ButtonState.Press)
     {
-      MouseButton = b; Mod = mod; State = state;
+      MouseButton = b;
+      Mod = mod;
+      State = state;
+    }
+    public KeyStroke(KeyMod mod, UserGesture act)
+    {
+      Gesture = act;
+      Mod = mod;
     }
     public bool Trigger(PCKeyboard k, PCMouse m)
     {
-      bool mod = k.ModIsDown(Mod);
+      Gu.Assert(Key != null || MouseButton != null, "no key/mouse was specifie.d");
 
+      bool triggered = k.ModIsDown(Mod);
       if (Key != null)
       {
-        if (mod && k.State(Key.Value, State))
+        triggered = triggered && (State.Value == ButtonState.Any || k.HasState(Key.Value, State.Value));
+      }
+      if (MouseButton != null)
+      {
+        triggered = triggered && (State.Value == ButtonState.Any || m.HasState(MouseButton.Value, State.Value));
+      }
+      if (Gesture != null)
+      {
+        if (Gesture == UserGesture.MouseMove)
         {
-          return true;
+          if (m.PosDelta.x == 0 && m.PosDelta.y == 0)
+          {
+            triggered = false;
+          }
+        }
+        else if (Gesture == UserGesture.MouseWheel)
+        {
+          if (m.ScrollDelta.x == 0 && m.ScrollDelta.y == 0)
+          {
+            triggered = false;
+          }
+        }
+        else
+        {
+          Gu.BRThrowNotImplementedException();
         }
       }
-      else if (MouseButton != null)
-      {
-        if (mod && m.State(MouseButton.Value, State))
-        {
-          return true;
-        }
-      }
-      else
-      {
-        Gu.BRThrowException("no key/mouse was specifie.d");
-      }
-
-      return false;
+      return triggered;
     }
     public class EqualityComparer : IEqualityComparer<KeyStroke>
     {
@@ -826,158 +1020,305 @@ cloneobjectaction().Then(new ObjectSelectAction()).Then()
         return a.GetHashCode();
       }
     }
+    public override string ToString()
+    {
+      StringBuilder sb = new StringBuilder();
+
+      if (Mod != KeyMod.Any && Mod != KeyMod.None)
+      {
+        sb.Append(Mod.ToString());
+        sb.Append("+");
+      }
+      if (Key != null)
+      {
+        sb.Append(Key.Value.ToString());
+      }
+      else if (MouseButton != null)
+      {
+        if (MouseButton.Value == OpenTK.Windowing.GraphicsLibraryFramework.MouseButton.Left)
+        {
+          sb.Append("MouseLeft");
+        }
+        else if (MouseButton.Value == OpenTK.Windowing.GraphicsLibraryFramework.MouseButton.Right)
+        {
+          sb.Append("MouseRight");
+        }
+        else if (MouseButton.Value == OpenTK.Windowing.GraphicsLibraryFramework.MouseButton.Middle)
+        {
+          sb.Append("MouseMiddle");
+        }
+        else
+        {
+          sb.Append(MouseButton.Value.ToString());
+        }
+
+      }
+      sb.Append($"({State.ToString()})");
+
+      return sb.ToString();
+    }
+  }
+  [DataContract]
+  public class ActionCondition
+  {
+    public string Name { get { return _name; } }
+    public Func<WorldEditor, object?, bool> Func { get { return _func; } }
+
+    [DataMember] private string _name = Library.UnsetName;
+    [DataMember] private Func<WorldEditor, object?, bool> _func;
+
+    public ActionCondition(string name, Func<WorldEditor, object?, bool> cond)
+    {
+      Gu.Assert(cond != null);
+      _name = name;
+      _func = cond;
+    }
+    public ActionCondition(Type context_action)
+    {
+      Gu.Assert(context_action == typeof(WorldAction) ||
+                context_action.BaseType == typeof(WorldAction) ||
+                context_action.BaseType == typeof(WorldObjectAction));
+
+      _name = context_action.Name;
+      _func = (e, o) =>
+      {
+        if (e.Current != null)
+        {
+          return e.Current.GetType() == context_action;
+        }
+        return false;
+      };
+    }
   }
   [DataContract]
   public class KeyCombo
   {
-    public static KeyStroke NullStroke = new KeyStroke(KeyMod.None, Keys.LastKey);
-    [DataMember] public KeyStroke First;
-    [DataMember] public KeyStroke Second = NullStroke;
-    [DataMember] public Type Context;
+    #region Public: Members
 
-    public WorldEditEvent ActionType;
+    public static KeyStroke NullStroke = new KeyStroke(KeyMod.None, Keys.Unknown);
 
-    public KeyCombo(Type context, WorldEditEvent action, Keys key)
-      : this(context, action, KeyMod.None, key)
+    public KeyStroke First { get { return _first; } set { _first = value; } }
+    public KeyStroke Second { get { return _second; } set { _second = value; } }
+    public ActionCondition Condition { get { return _condition; } set { _condition = value; } }
+    public WorldEditEvent Event { get { return _event; } set { _event = value; } }
+
+    #endregion
+    #region Private: Members
+
+    [DataMember] private KeyStroke _first;
+    [DataMember] private KeyStroke _second = NullStroke;
+    [DataMember] private ActionCondition _condition;
+    [DataMember] private WorldEditEvent _event;
+
+    #endregion
+    #region Public: Methods
+
+    public KeyCombo(ActionCondition condition, WorldEditEvent action, Keys key)
+      : this(condition, action, KeyMod.None, key)
     {
     }
-    public KeyCombo(Type context, WorldEditEvent action, Keys key1, Keys key2)
-      : this(context, action, KeyMod.None, key1, KeyMod.None, key2)
+    public KeyCombo(ActionCondition condition, WorldEditEvent action, Keys key1, Keys key2)
+      : this(condition, action, KeyMod.None, key1, KeyMod.None, key2)
     {
     }
-    public KeyCombo(Type context, WorldEditEvent action, KeyMod mod, Keys key)
-      : this(context, action, new KeyStroke(mod, key))
+    public KeyCombo(ActionCondition condition, WorldEditEvent action, KeyMod mod, Keys key)
+      : this(condition, action, new KeyStroke(mod, key))
     {
     }
-    public KeyCombo(Type context, WorldEditEvent action, KeyMod mod1, Keys key1, KeyMod mod2, Keys key2)
-      : this(context, action, new KeyStroke(mod1, key1), new KeyStroke(mod2, key2))
+    public KeyCombo(ActionCondition condition, WorldEditEvent action, KeyMod mod, Keys key, ButtonState keystate)
+      : this(condition, action, new KeyStroke(mod, key, keystate))
     {
     }
-    public KeyCombo(Type context, WorldEditEvent action, MouseButton key)
-      : this(context, action, KeyMod.None, key)
+    public KeyCombo(ActionCondition condition, WorldEditEvent action, KeyMod mod1, Keys key1, KeyMod mod2, Keys key2)
+      : this(condition, action, new KeyStroke(mod1, key1), new KeyStroke(mod2, key2))
     {
     }
-    public KeyCombo(Type context, WorldEditEvent action, KeyMod mod, MouseButton key)
-      : this(context, action, new KeyStroke(mod, key), NullStroke)
+    public KeyCombo(ActionCondition condition, WorldEditEvent action, MouseButton key)
+      : this(condition, action, KeyMod.None, key)
     {
     }
-    public KeyCombo(Type context, WorldEditEvent action, MouseButton key, ButtonState state)
-      : this(context, action, KeyMod.None, key, state)
+    public KeyCombo(ActionCondition condition, WorldEditEvent action, KeyMod mod, MouseButton key)
+      : this(condition, action, new KeyStroke(mod, key), NullStroke)
     {
     }
-    public KeyCombo(Type context, WorldEditEvent action, KeyMod mod, MouseButton key, ButtonState state)
-      : this(context, action, new KeyStroke(mod, key, state), NullStroke)
+    public KeyCombo(ActionCondition condition, WorldEditEvent action, MouseButton key, ButtonState state)
+      : this(condition, action, KeyMod.None, key, state)
     {
     }
-    public KeyCombo(Type context, WorldEditEvent action, KeyMod mod1, Keys key1, KeyMod mod2, MouseButton key2)
-      : this(context, action, new KeyStroke(mod1, key1), new KeyStroke(mod2, key2))
+    public KeyCombo(ActionCondition condition, WorldEditEvent action, KeyMod mod, MouseButton key, ButtonState state)
+      : this(condition, action, new KeyStroke(mod, key, state), NullStroke)
     {
     }
-    public KeyCombo(Type context, WorldEditEvent action, KeyStroke stroke)
-      : this(context, action, stroke, NullStroke)
+    public KeyCombo(ActionCondition condition, WorldEditEvent action, KeyMod mod1, Keys key1, KeyMod mod2, MouseButton key2)
+      : this(condition, action, new KeyStroke(mod1, key1), new KeyStroke(mod2, key2))
     {
     }
-    public KeyCombo(Type context, WorldEditEvent action, KeyStroke first, KeyStroke second)
+    public KeyCombo(ActionCondition condition, WorldEditEvent action, KeyStroke stroke)
+      : this(condition, action, stroke, NullStroke)
+    {
+    }
+    public KeyCombo(ActionCondition condition, WorldEditEvent action, KeyMod mod, UserGesture gesture)
+      : this(condition, action, new KeyStroke(mod, gesture), NullStroke)
+    {
+
+    }
+    public KeyCombo(ActionCondition condition, WorldEditEvent action, KeyStroke first, KeyStroke second)
     {
       Gu.Assert(first != null);
       Gu.Assert(second != null);
-      Gu.Assert(context != null);
-      Gu.Assert(context.BaseType == typeof(WorldAction) || context.BaseType == typeof(WorldObjectAction));
-      ActionType = action;
+      Gu.Assert(condition != null);
+      Event = action;
       First = first;
       Second = second;
-      Context = context;
+      Condition = condition;
+    }
+    public override string ToString()
+    {
+      StringBuilder sb = new StringBuilder();//
+      if (Condition != null)
+      {
+        sb.Append($"[{Condition.Name}] ");
+      }
+      sb.Append($"{this.Event.ToString()} = ");
+      if (First != null && First != NullStroke)
+      {
+        sb.Append(First.ToString());
+      }
+      else
+      {
+        sb.Append("Error - no first keystroke");
+      }
+      if (Second != null && Second != NullStroke)
+      {
+        sb.Append($", {Second.ToString()}");
+      }
+      return sb.ToString();
     }
 
+    #endregion
   }
   [DataContract]
   public enum WorldEditEvent
   {
-    Quit, Cancel, Confirm, Undo, Redo, Create, Delete, CloneSelected,
-    SelectRange, SelectRangeEnd, SelectAll, DeselectAll,
-    TranslateObjects, ScaleObjects, RotateObjects,
-    TransformAxisX, TransformAxisY, TransformAxisZ,
-    TransformPlaneX, TransformPlaneY, TransformPlaneZ, TransformPlaneView,
-    Overlay_ShowWireFrame
+    Quit, Cancel, Confirm,
+
+    Edit_Undo, Edit_Redo, Edit_Create, Edit_Delete, Edit_CloneSelected,
+    Edit_SelectRegion, Edit_SelectRegionEnd, Edit_SelectAll, Edit_DeselectAll,
+    Edit_MoveObjects, Edit_ScaleObjects, Edit_RotateObjects,
+    Edit_ToggleView1, Edit_ToggleView2, Edit_ToggleView3, Edit_ToggleView4,
+    Edit_ToggleGameMode,
+
+    MRS_TransformAxisX, MRS_TransformAxisY, MRS_TransformAxisZ,
+    MRS_TransformPlaneX, MRS_TransformPlaneY, MRS_TransformPlaneZ, MRS_TransformToggleOrigin,
+
+    Debug_MoveCameraToOrigin,
+    Debug_UI_Toggle_ShowOverlay, Debug_UI_Toggle_DisableMarginsPadding, Debug_UI_Toggle_DisableClip,
+    Debug_ShowInfoWindow, Debug_ToggleShowConsole,
+    Debug_ToggleDebugInfo, Debug_ToggleVSync, Debug_DrawBoundBoxes, Debug_DrawNormalsTangents, Debug_SaveFBOs,
+    Debug_DrawObjectBasis, Debug_ShowWireFrame, Debug_ShowWireFrame_Overlay,
+
+    Window_ToggleFullscreen,
+
+    TestScript,
+
+    Ui_MouseLeft, Ui_MouseRight, Ui_MouseMove
   }
   [DataContract]
   public class KeyMap
   {
+    #region Private: Members
+
     private Dictionary<KeyStroke, List<KeyCombo>>? _first = null;
-    private Dictionary<Type, Dictionary<KeyStroke, Dictionary<KeyStroke, List<KeyCombo>>>> _dict;
+    private Dictionary<ActionCondition, Dictionary<KeyStroke, Dictionary<KeyStroke, List<KeyCombo>>>> _dict;
+    private List<KeyCombo> _combos;
+
+    #endregion
+    #region Public: Methods
+
     public KeyMap()
     {
-      var Q = new KeyStroke(KeyMod.None, Keys.Q);
-      var Escape = new KeyStroke(KeyMod.None, Keys.Escape);
-      var CS_Escape = new KeyStroke(KeyMod.CtrlShift, Keys.Escape);
+      var Global = new ActionCondition("Global", (e, o) => true);
+      var IsEditMode = new ActionCondition("IsEditMode", (e, o) => Gu.World.GameMode == GameMode.Edit);
+      var IsGUI = new ActionCondition("IsGUI", (e, o) => o is UiElement);
+      var IsWorld = new ActionCondition("IsWorld", (e, o) => !(o is UiElement));
+      var MoveRotScale = new ActionCondition(typeof(MoveRotateScaleAction));
+      var SelectRegion = new ActionCondition(typeof(SelectRegionAction));
 
-      List<KeyCombo> combos = new List<KeyCombo>(){
-        //type->event->keys
-        new KeyCombo(typeof(GlobalAction), WorldEditEvent.Quit, KeyMod.Ctrl, Keys.Q),
-        new KeyCombo(typeof(GlobalAction), WorldEditEvent.SelectRange, MouseButton.Left,  ButtonState.Press),
-        new KeyCombo(typeof(GlobalAction), WorldEditEvent.SelectRange, KeyMod.Any, MouseButton.Left,  ButtonState.Press),
-        new KeyCombo(typeof(SelectRangeAction), WorldEditEvent.SelectRangeEnd, KeyMod.Any, MouseButton.Left, ButtonState.Release),
-        new KeyCombo(typeof(SelectRangeAction), WorldEditEvent.Cancel, Keys.Escape),
-        new KeyCombo(typeof(GlobalAction), WorldEditEvent.SelectAll,KeyMod.Ctrl, Keys.A),
-        new KeyCombo(typeof(GlobalAction), WorldEditEvent.DeselectAll,KeyMod.Alt, Keys.A),
-        new KeyCombo(typeof(GlobalAction), WorldEditEvent.TranslateObjects, Keys.G),
-        new KeyCombo(typeof(GlobalAction), WorldEditEvent.ScaleObjects, KeyMod.Shift, Keys.S),
-        new KeyCombo(typeof(GlobalAction), WorldEditEvent.RotateObjects, Keys.R),
-        new KeyCombo(typeof(GlobalAction), WorldEditEvent.Delete, Keys.Delete),
-        new KeyCombo(typeof(GlobalAction), WorldEditEvent.Delete, Keys.X),
-        new KeyCombo(typeof(GlobalAction), WorldEditEvent.Undo, KeyMod.Ctrl, Keys.Z),
-        new KeyCombo(typeof(GlobalAction), WorldEditEvent.Redo, KeyMod.CtrlShift, Keys.Z),
-        new KeyCombo(typeof(GlobalAction), WorldEditEvent.Redo, KeyMod.Ctrl, Keys.Y),
-        new KeyCombo(typeof(GlobalAction), WorldEditEvent.Overlay_ShowWireFrame, Keys.Z),
-        new KeyCombo(typeof(GlobalAction), WorldEditEvent.CloneSelected, KeyMod.Shift, Keys.D),
+      //TODO: read from file.
+      _combos = new List<KeyCombo>(){
 
-        new KeyCombo(typeof(MoveRotateScaleAction), WorldEditEvent.TransformAxisX, Keys.X),
-        new KeyCombo(typeof(MoveRotateScaleAction), WorldEditEvent.TransformAxisY, Keys.Y),
-        new KeyCombo(typeof(MoveRotateScaleAction), WorldEditEvent.TransformAxisZ, Keys.Z),
-        new KeyCombo(typeof(MoveRotateScaleAction), WorldEditEvent.TransformPlaneView, Keys.V),
-        new KeyCombo(typeof(MoveRotateScaleAction), WorldEditEvent.TransformPlaneX, KeyMod.Shift, Keys.X),
-        new KeyCombo(typeof(MoveRotateScaleAction), WorldEditEvent.TransformPlaneY, KeyMod.Shift, Keys.Y),
-        new KeyCombo(typeof(MoveRotateScaleAction), WorldEditEvent.TransformPlaneZ, KeyMod.Shift, Keys.Z),
-        new KeyCombo(typeof(MoveRotateScaleAction), WorldEditEvent.Cancel, Keys.Escape),
-        new KeyCombo(typeof(MoveRotateScaleAction), WorldEditEvent.Cancel, MouseButton.Right),
-        new KeyCombo(typeof(MoveRotateScaleAction), WorldEditEvent.Cancel, Keys.Enter),
-        new KeyCombo(typeof(MoveRotateScaleAction), WorldEditEvent.Confirm, MouseButton.Left),
+        //Debug
+        new KeyCombo(Global, WorldEditEvent.Edit_ToggleGameMode, KeyMod.None, Keys.F1, ButtonState.Press),
+        new KeyCombo(Global, WorldEditEvent.Debug_ToggleVSync, KeyMod.None, Keys.F2, ButtonState.Press),
+        new KeyCombo(Global, WorldEditEvent.Debug_ShowWireFrame_Overlay, KeyMod.None, Keys.F3, ButtonState.Press),
+        new KeyCombo(Global, WorldEditEvent.Debug_DrawBoundBoxes, KeyMod.None, Keys.F4, ButtonState.Press),
+        new KeyCombo(Global, WorldEditEvent.Debug_DrawNormalsTangents, KeyMod.None, Keys.F5, ButtonState.Press),
+        new KeyCombo(Global, WorldEditEvent.Debug_SaveFBOs, KeyMod.None, Keys.F6, ButtonState.Press),
+        new KeyCombo(Global, WorldEditEvent.Debug_ToggleDebugInfo, KeyMod.None, Keys.F7, ButtonState.Press),
+        new KeyCombo(Global, WorldEditEvent.Debug_UI_Toggle_ShowOverlay, KeyMod.None, Keys.F9, ButtonState.Press),
+        new KeyCombo(Global, WorldEditEvent.Debug_UI_Toggle_DisableMarginsPadding, KeyMod.None, Keys.F10, ButtonState.Press),
+        new KeyCombo(Global, WorldEditEvent.Window_ToggleFullscreen, KeyMod.None, Keys.F11, ButtonState.Press),
+
+        new KeyCombo(Global, WorldEditEvent.Debug_ShowWireFrame, KeyMod.Shift, Keys.F3, ButtonState.Press),
+        new KeyCombo(Global, WorldEditEvent.Debug_DrawObjectBasis, KeyMod.Shift, Keys.F4, ButtonState.Press),
+        new KeyCombo(Global, WorldEditEvent.Debug_ShowInfoWindow, KeyMod.Shift, Keys.F9, ButtonState.Press),
+        new KeyCombo(Global, WorldEditEvent.Debug_UI_Toggle_DisableClip, KeyMod.Shift, Keys.F10, ButtonState.Press),
+
+        new KeyCombo(IsEditMode, WorldEditEvent.Edit_ToggleView1, KeyMod.None, Keys.D1, ButtonState.Press),
+        new KeyCombo(IsEditMode, WorldEditEvent.Edit_ToggleView2, KeyMod.None, Keys.D2, ButtonState.Press),
+        new KeyCombo(IsEditMode, WorldEditEvent.Edit_ToggleView3, KeyMod.None, Keys.D3, ButtonState.Press),
+        new KeyCombo(IsEditMode, WorldEditEvent.Edit_ToggleView4, KeyMod.None, Keys.D4, ButtonState.Press),
+
+        //World 
+        new KeyCombo(IsWorld, WorldEditEvent.Quit, KeyMod.Ctrl, Keys.Q),
+        new KeyCombo(IsWorld, WorldEditEvent.Edit_SelectRegion, KeyMod.Any, MouseButton.Left, ButtonState.Press),
+        new KeyCombo(IsWorld, WorldEditEvent.Edit_SelectAll, KeyMod.Ctrl, Keys.A),
+        new KeyCombo(IsWorld, WorldEditEvent.Edit_DeselectAll, KeyMod.Alt, Keys.A),
+        new KeyCombo(IsWorld, WorldEditEvent.Edit_MoveObjects, Keys.G),
+        new KeyCombo(IsWorld, WorldEditEvent.Edit_ScaleObjects, KeyMod.CtrlShift, Keys.S),
+        new KeyCombo(IsWorld, WorldEditEvent.Edit_RotateObjects, Keys.R),
+        new KeyCombo(IsWorld, WorldEditEvent.Edit_Delete, Keys.Delete),
+        new KeyCombo(IsWorld, WorldEditEvent.Edit_Delete, Keys.X),
+        new KeyCombo(IsWorld, WorldEditEvent.Edit_Undo, KeyMod.Ctrl, Keys.Z),
+        new KeyCombo(IsWorld, WorldEditEvent.Edit_Redo, KeyMod.CtrlShift, Keys.Z),
+        new KeyCombo(IsWorld, WorldEditEvent.Edit_Redo, KeyMod.Ctrl, Keys.Y),
+        new KeyCombo(IsWorld, WorldEditEvent.Edit_CloneSelected, KeyMod.Shift, Keys.D),
+        new KeyCombo(IsWorld, WorldEditEvent.Debug_MoveCameraToOrigin, Keys.O),
+        new KeyCombo(IsWorld, WorldEditEvent.TestScript, KeyMod.CtrlShift, Keys.K),
+
+        new KeyCombo(SelectRegion, WorldEditEvent.Edit_SelectRegionEnd, KeyMod.Any, MouseButton.Left, ButtonState.Release),
+        new KeyCombo(SelectRegion, WorldEditEvent.Cancel, Keys.Escape),
+
+        //GUI
+        new KeyCombo(IsGUI, WorldEditEvent.Ui_MouseLeft, KeyMod.Any,  MouseButton.Left, ButtonState.Any),
+        new KeyCombo(IsGUI, WorldEditEvent.Ui_MouseRight, KeyMod.Any, MouseButton.Right, ButtonState.Any),
+        new KeyCombo(IsGUI, WorldEditEvent.Ui_MouseMove, KeyMod.Any, UserGesture.MouseMove),
+
+        //MRS
+        new KeyCombo(MoveRotScale, WorldEditEvent.MRS_TransformAxisX, Keys.X),
+        new KeyCombo(MoveRotScale, WorldEditEvent.MRS_TransformAxisY, Keys.Y),
+        new KeyCombo(MoveRotScale, WorldEditEvent.MRS_TransformAxisZ, Keys.Z),
+        new KeyCombo(MoveRotScale, WorldEditEvent.MRS_TransformPlaneX, KeyMod.Shift, Keys.X),
+        new KeyCombo(MoveRotScale, WorldEditEvent.MRS_TransformPlaneY, KeyMod.Shift, Keys.Y),
+        new KeyCombo(MoveRotScale, WorldEditEvent.MRS_TransformPlaneZ, KeyMod.Shift, Keys.Z),
+        new KeyCombo(MoveRotScale, WorldEditEvent.Cancel, Keys.Escape),
+        new KeyCombo(MoveRotScale, WorldEditEvent.Cancel, MouseButton.Right),
+        new KeyCombo(MoveRotScale, WorldEditEvent.Cancel, Keys.Enter),
+        new KeyCombo(MoveRotScale, WorldEditEvent.Confirm, MouseButton.Left),
+        new KeyCombo(MoveRotScale, WorldEditEvent.MRS_TransformToggleOrigin, Keys.O),
       };
-      _dict = new Dictionary<Type, Dictionary<KeyStroke, Dictionary<KeyStroke, List<KeyCombo>>>>();
 
-      foreach (var k in combos)
-      {
-        Gu.Assert(k.First != null);
-        Dictionary<KeyStroke, Dictionary<KeyStroke, List<KeyCombo>>>? first = null;
-        if (!_dict.TryGetValue(k.Context, out first))
-        {
-          first = new Dictionary<KeyStroke, Dictionary<KeyStroke, List<KeyCombo>>>(new KeyStroke.EqualityComparer());
-          _dict.Add(k.Context, first);
-        }
-
-        Dictionary<KeyStroke, List<KeyCombo>>? second = null;
-        if (!first.TryGetValue(k.First, out second))
-        {
-          second = new Dictionary<KeyStroke, List<KeyCombo>>(new KeyStroke.EqualityComparer());
-          first.Add(k.First, second);
-        }
-
-        List<KeyCombo>? combolist = null;//null should be ok? maybe we'll see
-        if (!second.TryGetValue(k.Second, out combolist))
-        {
-          combolist = new List<KeyCombo>();
-          second.Add(k.Second, combolist);
-        }
-        combolist.Add(k);
-      }
+      BuildLookupTable();
     }
     public void Update(WorldEditor e, PCKeyboard k, PCMouse m)
     {
+      var picked_ob = Gu.Context.Renderer.Picker.PickedObjectFrame;
+
       if (_first == null)
       {
         foreach (var context in _dict)
         {
-          if ((e.Current == null && context.Key == typeof(GlobalAction)) || (e.Current != null && context.Key == e.Current.GetType()))
+          if (context.Key.Func(e, picked_ob))
           {
             foreach (var first in context.Value)
             {
@@ -995,7 +1336,7 @@ cloneobjectaction().Then(new ObjectSelectAction()).Then()
                       Gu.Trap();
                     }
 
-                    e.DoEvent(c.ActionType);
+                    e.DoEvent(c.Event);
                   }
                 }
                 else
@@ -1017,7 +1358,7 @@ cloneobjectaction().Then(new ObjectSelectAction()).Then()
             var combos = _first[second];
             foreach (var c in combos)
             {
-              e.DoEvent(c.ActionType);
+              e.DoEvent(c.Event);
             }
           }
         }
@@ -1029,28 +1370,138 @@ cloneobjectaction().Then(new ObjectSelectAction()).Then()
         }
       }
     }
+    public void ToString(StringBuilder sb, string tab = "")
+    {
+      //Q&D dump of control information
+      Gu.Assert(sb != null);
+      Gu.Assert(_combos != null);
+      foreach (var c in _combos)
+      {
+        sb.AppendLine($"{tab}{c.ToString()}");
+      }
+    }
+
+    #endregion
+    #region Private: Methods
+
+    private void BuildLookupTable()
+    {
+      _dict = new Dictionary<ActionCondition, Dictionary<KeyStroke, Dictionary<KeyStroke, List<KeyCombo>>>>();
+      foreach (var k in _combos)
+      {
+        Gu.Assert(k.First != null);
+        Dictionary<KeyStroke, Dictionary<KeyStroke, List<KeyCombo>>>? first = null;
+        if (!_dict.TryGetValue(k.Condition, out first))
+        {
+          first = new Dictionary<KeyStroke, Dictionary<KeyStroke, List<KeyCombo>>>(new KeyStroke.EqualityComparer());
+
+          _dict.Add(k.Condition, first);
+        }
+
+        CheckDuplicateStroke(k, k.First, first.Keys.ToList());
+
+        Dictionary<KeyStroke, List<KeyCombo>>? second = null;
+        if (!first.TryGetValue(k.First, out second))
+        {
+          second = new Dictionary<KeyStroke, List<KeyCombo>>(new KeyStroke.EqualityComparer());
+          first.Add(k.First, second);
+        }
+        CheckDuplicateStroke(k, k.Second, second.Keys.ToList());
+
+        List<KeyCombo>? combolist = null;//null should be ok? maybe we'll see
+        if (!second.TryGetValue(k.Second, out combolist))
+        {
+          combolist = new List<KeyCombo>();
+          second.Add(k.Second, combolist);
+        }
+        combolist.Add(k);
+      }
+    }
+    private void CheckDuplicateStroke(KeyCombo nkc, KeyStroke nks, List<KeyStroke> existing)
+    {
+      Gu.Assert(nkc != null);
+      Gu.Assert(nks != null);
+      Gu.Assert(existing != null);
+      foreach (var eks in existing)
+      {
+        //Two equivalent keystrokes can't have 'any' modifier. Must differ by type
+        if (nks.Key == eks.Key && nks.MouseButton == eks.MouseButton && nks.State == eks.State)
+        {
+          if (
+            (eks.Mod == KeyMod.Any) ||
+            (nks.Mod == KeyMod.Any) ||
+            (eks.Mod == nks.Mod)
+            )
+          {
+            Gu.Log.Error($"Duplicate keystrokes found, with equivalent, or 'any' modifiers, action='{nkc.Event.ToString()}'");
+            Gu.DebugBreak();
+          }
+        }
+
+      }
+    }
+
+    #endregion
+
   }//keymap
   [DataContract]
   public class WorldEditor
   {
-    [NonSerialized] private List<WorldObject> _selectedObjects = new List<WorldObject>();
-    [NonSerialized] private List<WorldActionGroup> _history = new List<WorldActionGroup>();
-    [NonSerialized] private int _historyIndex = -1;
-    [NonSerialized] private bool _worldEdited = false;
-    [NonSerialized] public InputState _inputState = InputState.SelectObject;
-    [NonSerialized] private vec3? _selectionOrigin = null;
-    [NonSerialized] private WorldAction? _current = null;
-    [NonSerialized] private KeyMap KeyMap = new KeyMap();
-    [DataMember] private int _editView = 1;//how many viewports are showing
+    // @class WorldEditor
+    // @description The world editor relies on a keymap that uses sends Events.
+    //  Events are sent from the keymap to the editor. 
+    //  They are then consumed, or routed to the active WorldAction.
+    //  Class updates its state with the routed events until the action is complete.
 
+    #region Public: Members
 
+    public XFormOrigin XFormOrigin { get { return _xFormOrigin; } set { _xFormOrigin = value; } }
     public int EditView { get { return _editView; } set { _editView = value; } }
     public List<WorldActionGroup> History { get { return _history; } set { _history = value; } }
     public bool Edited { get { return _worldEdited; } set { _worldEdited = value; } }
     public List<WorldObject> SelectedObjects { get { return _selectedObjects; } set { _selectedObjects = value; } }
+    public WorldObject? ActiveObject
+    {
+      get { return _activeObject; }
+      set
+      {
+        if (value == _activeObject)
+        {
+          return;
+        }
+        if (value != null)
+        {
+          value.IsActive = true;
+        }
+        if (_activeObject != null)
+        {
+          _activeObject.IsActive = false;
+        }
+        _activeObject = value;
+      }
+    }
     public InputState InputState { get { return _inputState; } set { _inputState = value; } }
     public vec3? SelectionOrigin { get { return _selectionOrigin; } set { _selectionOrigin = value; } }
     public WorldAction? Current { get { return _current; } }
+    public KeyMap KeyMap { get { return _keyMap; } }
+
+    #endregion
+    #region Private: Members
+
+    private List<WorldObject> _selectedObjects = new List<WorldObject>();
+    private WorldObject? _activeObject = null;
+    private List<WorldActionGroup> _history = new List<WorldActionGroup>();
+    private int _historyIndex = -1;
+    private bool _worldEdited = false;
+    private InputState _inputState = InputState.SelectObject;
+    private vec3? _selectionOrigin = null;
+    private WorldAction? _current = null;
+    private KeyMap _keyMap = new KeyMap();
+    [DataMember] private int _editView = 1;//how many viewports are showing
+    [DataMember] private XFormOrigin _xFormOrigin = XFormOrigin.Average;
+
+    #endregion
+    #region Public: Methods
 
     public WorldEditor()
     {
@@ -1061,7 +1512,7 @@ cloneobjectaction().Then(new ObjectSelectAction()).Then()
       var k = Gu.Context.PCKeyboard;
 
       //if window lost focus, then keyup / buttonup everything that is down..
-      KeyMap.Update(this, k, m);
+      _keyMap.Update(this, k, m);
 
       if (_current != null)
       {
@@ -1092,8 +1543,8 @@ cloneobjectaction().Then(new ObjectSelectAction()).Then()
     }
     public void DoEvent(WorldEditEvent code)
     {
-      var k = Gu.Keyboard;
-      var m = Gu.Mouse;
+      var k = Gu.Context.PCKeyboard;
+      var m = Gu.Context.PCMouse;
       WorldAction? act = null;
       if (_current != null)
       {
@@ -1107,64 +1558,63 @@ cloneobjectaction().Then(new ObjectSelectAction()).Then()
         {
           act = new QuitApplicationAction();
         }
-        else if (code == WorldEditEvent.SelectRange)
+        else if (code == WorldEditEvent.Edit_SelectRegion)
         {
-          DoAction(new SelectRangeAction());
+          DoAction(new SelectRegionAction());
         }
-        else if (code == WorldEditEvent.SelectAll)
+        else if (code == WorldEditEvent.Edit_SelectAll)
         {
           SelectAll(false);
         }
-        else if (code == WorldEditEvent.DeselectAll)
+        else if (code == WorldEditEvent.Edit_DeselectAll)
         {
           SelectAll(true);
         }
-        else if (code == WorldEditEvent.Delete)
+        else if (code == WorldEditEvent.Edit_Delete)
         {
-          DoAction(
-            new WorldActionGroup(new List<WorldAction>()
-            {
-              new ObjectSelectAction(SelectedObjects, ObjectSelectAction.SelectActionType.Deselect),
-              new ObjectDeleteAction(SelectedObjects),
-            }));
+          DoAction(new ObjectDeleteAction(SelectedObjects));
         }
-        else if (code == WorldEditEvent.Undo)
+        else if (code == WorldEditEvent.Edit_Undo)
         {
           UndoAction();
         }
-        else if (code == WorldEditEvent.Redo)
+        else if (code == WorldEditEvent.Edit_Redo)
         {
           RedoAction();
         }
-        else if (code == WorldEditEvent.TranslateObjects)
+        else if (code == WorldEditEvent.Edit_MoveObjects)
         {
           if (SelectedObjects.Count > 0)
           {
             DoAction(new MoveRotateScaleAction(SelectedObjects, MoveRotateScaleAction.MoveRotateScale.Move));
           }
         }
-        else if (code == WorldEditEvent.RotateObjects)
+        else if (code == WorldEditEvent.Edit_RotateObjects)
         {
           if (SelectedObjects.Count > 0)
           {
             DoAction(new MoveRotateScaleAction(SelectedObjects, MoveRotateScaleAction.MoveRotateScale.Rotate));
           }
         }
-        else if (code == WorldEditEvent.ScaleObjects)
+        else if (code == WorldEditEvent.Edit_ScaleObjects)
         {
           if (SelectedObjects.Count > 0)
           {
             DoAction(new MoveRotateScaleAction(SelectedObjects, MoveRotateScaleAction.MoveRotateScale.Scale));
           }
         }
-        else if (code == WorldEditEvent.Overlay_ShowWireFrame)
+        else if (code == WorldEditEvent.Debug_ShowWireFrame)
         {
           if (Gu.TryGetSelectedViewOverlay(out var v))
           {
             v.ToggleWireFrame();
           }
         }
-        else if (code == WorldEditEvent.CloneSelected)
+        else if (code == WorldEditEvent.Debug_ShowWireFrame_Overlay)
+        {
+          Gu.Context.DebugDraw.DrawWireframeOverlay = !Gu.Context.DebugDraw.DrawWireframeOverlay;
+        }
+        else if (code == WorldEditEvent.Edit_CloneSelected)
         {
           if (SelectedObjects.Count > 0)
           {
@@ -1174,6 +1624,183 @@ cloneobjectaction().Then(new ObjectSelectAction()).Then()
               );
           }
         }
+        else if (code == WorldEditEvent.Debug_MoveCameraToOrigin)
+        {
+          if (Gu.TryGetSelectedViewCamera(out var cm))
+          {
+            cm.RootParent.Position_Local = new vec3(0, 0, 0);
+            cm.RootParent.Velocity = vec3.Zero;
+          }
+        }
+        else if (code == WorldEditEvent.TestScript)
+        {
+          TestScript();
+        }
+        else if (code == WorldEditEvent.Ui_MouseLeft)
+        {
+          // if(Gu.TryGetSelectedViewGui(out var g){
+          //   g.DoMouseEvents();
+          // }
+        }
+        else if (code == WorldEditEvent.Debug_UI_Toggle_ShowOverlay)
+        {
+          if (Gu.TryGetSelectedViewGui(out var g))
+          {
+            g.DebugDraw.ShowOverlay = !g.DebugDraw.ShowOverlay;
+            g.SetLayoutChanged();
+          }
+        }
+        else if (code == WorldEditEvent.Debug_UI_Toggle_DisableMarginsPadding)
+        {
+          if (Gu.TryGetSelectedViewGui(out var g))
+          {
+            g.DebugDraw.DisableMarginsAndPadding = !g.DebugDraw.DisableMarginsAndPadding;
+            g.DebugDraw.DisableBorders = !g.DebugDraw.DisableBorders;
+            g.SetLayoutChanged();
+          }
+        }
+        else if (code == WorldEditEvent.Debug_UI_Toggle_DisableClip)
+        {
+          if (Gu.TryGetSelectedViewGui(out var g))
+          {
+            g.DebugDraw.DisableClip = !g.DebugDraw.DisableClip;
+            g.SetLayoutChanged();
+          }
+        }
+
+        else if (code == WorldEditEvent.Debug_ShowInfoWindow)
+        {
+          string c_infoWindowName = "ObjectInfo";
+          if (Gu.TryGetWindowByName(c_infoWindowName, out var win))
+          {
+            win.IsVisible = !win.IsVisible;
+          }
+          else
+          {
+            var iw = new InfoWindow(c_infoWindowName, Gu.Translator.Translate(Phrase.Information), new ivec2(200, 200), new ivec2(500, 400));
+            iw.IsVisible = true;
+          }
+        }
+        else if (code == WorldEditEvent.Debug_ToggleShowConsole)
+        {
+          OperatingSystem.ToggleShowConsole();
+        }
+        else if (code == WorldEditEvent.Debug_ToggleDebugInfo)
+        {
+          if (Gu.TryGetSelectedView(out var rv))
+          {
+            if (rv.Gui != null)
+            {
+              if (rv.ControlsInfo.Visible)
+              {
+                rv.ControlsInfo.Visible = false;
+                rv.WorldDebugInfo.Visible = true;
+              }
+              else if (rv.WorldDebugInfo.Visible)
+              {
+                rv.WorldDebugInfo.Visible = false;
+                rv.GpuDebugInfo.Visible = true;
+              }
+              else if (rv.GpuDebugInfo.Visible)
+              {
+                rv.GpuDebugInfo.Visible = false;
+              }
+              else
+              {
+                rv.ControlsInfo.Visible = true;
+              }
+            }
+          }
+        }
+        else if (code == WorldEditEvent.Debug_ToggleVSync)
+        {
+          if (Gu.TryGetMainwWindow(out var mw))
+          {
+            if (mw.VSync == OpenTK.Windowing.Common.VSyncMode.Off)
+            {
+              mw.VSync = OpenTK.Windowing.Common.VSyncMode.On;
+            }
+            else
+            {
+              mw.VSync = OpenTK.Windowing.Common.VSyncMode.Off;
+            }
+          }
+        }
+        else if (code == WorldEditEvent.Debug_DrawBoundBoxes)
+        {
+          Gu.Context.DebugDraw.DrawBoundBoxes = !Gu.Context.DebugDraw.DrawBoundBoxes;
+        }
+        else if (code == WorldEditEvent.Debug_DrawObjectBasis)
+        {
+          Gu.Context.DebugDraw.DrawObjectBasis = !Gu.Context.DebugDraw.DrawObjectBasis;
+        }
+        else if (code == WorldEditEvent.Debug_DrawNormalsTangents)
+        {
+          Gu.Context.DebugDraw.DrawVertexAndFaceNormalsAndTangents = !Gu.Context.DebugDraw.DrawVertexAndFaceNormalsAndTangents;
+        }
+        else if (code == WorldEditEvent.Debug_SaveFBOs)
+        {
+          Gu.SaveFBOs();
+        }
+        else if (code == WorldEditEvent.Window_ToggleFullscreen)
+        {
+          if (Gu.TryGetFocusedWindow(out var w))
+          {
+            if (w.WindowState == OpenTK.Windowing.Common.WindowState.Fullscreen)
+            {
+              w.WindowState = OpenTK.Windowing.Common.WindowState.Normal;
+            }
+            else
+            {
+              w.WindowState = OpenTK.Windowing.Common.WindowState.Fullscreen;
+            }
+          }
+        }
+        else if (code == WorldEditEvent.Edit_ToggleView1)
+        {
+          if (Gu.TryGetMainwWindow(out var w))
+          {
+            Gu.World.Editor.EditView = 1;
+            w.SetGameMode(Gu.World.GameMode);
+          }
+        }
+        else if (code == WorldEditEvent.Edit_ToggleView2)
+        {
+          if (Gu.TryGetMainwWindow(out var w))
+          {
+            Gu.World.Editor.EditView = 2;
+            w.SetGameMode(Gu.World.GameMode);
+          }
+        }
+        else if (code == WorldEditEvent.Edit_ToggleView3)
+        {
+          if (Gu.TryGetMainwWindow(out var w))
+          {
+            Gu.World.Editor.EditView = 3;
+            w.SetGameMode(Gu.World.GameMode);
+          }
+        }
+        else if (code == WorldEditEvent.Edit_ToggleView4)
+        {
+          if (Gu.TryGetMainwWindow(out var w))
+          {
+            Gu.World.Editor.EditView = 4;
+            w.SetGameMode(Gu.World.GameMode);
+          }
+        }
+        else if (code == WorldEditEvent.Edit_ToggleGameMode)
+        {
+          if (Gu.TryGetMainwWindow(out var w))
+          {
+            w.ToggleGameMode();
+          }
+        }
+
+
+
+
+
+
 
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////
         else
@@ -1193,35 +1820,6 @@ cloneobjectaction().Then(new ObjectSelectAction()).Then()
       Gu.TryGetSelectedViewCamera(out cam);
       s = s.Where((x) => { return (x.Selectable == true) && (x != cam); }).ToList();
       return s;
-    }
-    private void SelectAll(bool deselect)
-    {
-      var all_obs = RemoveInvalidObjectsFromSelection(Gu.World.GetAllRootObjects());
-
-      List<WorldObject> toSelect = new List<WorldObject>();
-      foreach (var ob in all_obs)
-      {
-        if (ob.Selected == deselect)
-        {
-          toSelect.Add(ob);
-        }
-      }
-      if (deselect)
-      {
-        DoAction(new ObjectSelectAction(toSelect, ObjectSelectAction.SelectActionType.Deselect));
-      }
-      else
-      {
-        if (toSelect.Count > 0)
-        {
-          DoAction(new ObjectSelectAction(toSelect, ObjectSelectAction.SelectActionType.Select));
-        }
-        else
-        {
-          //all objs are already selected, now deselect them
-          DoAction(new ObjectSelectAction(all_obs, ObjectSelectAction.SelectActionType.Deselect));
-        }
-      }
     }
     public void UndoAction()
     {
@@ -1253,7 +1851,61 @@ cloneobjectaction().Then(new ObjectSelectAction()).Then()
         _history[_historyIndex].Redo(this);
       }
     }
+    public void UpdateSelectionOrigin()
+    {
+      if (SelectedObjects.Count == 0)
+      {
+        _selectionOrigin = null;
+      }
+      else
+      {
+        _selectionOrigin = new vec3(0, 0, 0);
+        foreach (var ob in SelectedObjects)
+        {
+          _selectionOrigin += ob.Position_World;
+        }
+        _selectionOrigin = _selectionOrigin / (float)SelectedObjects.Count;
+      }
+    }
 
+    #endregion
+    #region Private: Methods
+
+    private void TestScript()
+    {
+      // CSharpScript s = new CSharpScript(new FileLoc("startup.cs", FileStorage.Embedded));
+      // s.Compile();
+      // s.Run();
+    }
+    private void SelectAll(bool deselect)
+    {
+      var all_obs = RemoveInvalidObjectsFromSelection(Gu.World.GetAllVisibleRootObjects());
+
+      List<WorldObject> toSelect = new List<WorldObject>();
+      foreach (var ob in all_obs)
+      {
+        if (ob.IsSelected == deselect)
+        {
+          toSelect.Add(ob);
+        }
+      }
+      if (deselect)
+      {
+        DoAction(new ObjectSelectAction(toSelect, ObjectSelectAction.SelectActionType.Deselect));
+      }
+      else
+      {
+        if (toSelect.Count > 0)
+        {
+          DoAction(new ObjectSelectAction(toSelect, ObjectSelectAction.SelectActionType.Select));
+        }
+        else
+        {
+          //all objs are already selected, now deselect them
+          DoAction(new ObjectSelectAction(all_obs, ObjectSelectAction.SelectActionType.Deselect));
+        }
+      }
+    }
     private void FixHistoryIndex()
     {
       if (_historyIndex < -1)
@@ -1318,23 +1970,10 @@ cloneobjectaction().Then(new ObjectSelectAction()).Then()
       }
       return false;
     }
-    public void UpdateSelectionOrigin()
-    {
-      if (SelectedObjects.Count == 0)
-      {
-        _selectionOrigin = null;
-      }
-      else
-      {
-        _selectionOrigin = new vec3(0, 0, 0);
-        foreach (var ob in SelectedObjects)
-        {
-          _selectionOrigin += ob.Position_World;
-        }
-        _selectionOrigin = _selectionOrigin / (float)SelectedObjects.Count;
-      }
-    }
-  }
+
+    #endregion
+
+  }//wordleditor
 
 
 

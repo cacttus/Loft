@@ -281,7 +281,6 @@ namespace PirateCraft
     }
   }
   [DataContract]
-  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public class Plane3f
   {
@@ -311,14 +310,30 @@ namespace PirateCraft
 
       d = -n.dot(origin);
     }
-    public float IntersectLine(vec3 p1, vec3 p2)
+    public bool IntersectLine(vec3 p1, vec3 p2, out float t)
     {
-      return IntersectRay(p1, p2 - p1);
+      return IntersectRay(p1, p2 - p1, out t);
     }
-    public float IntersectRay(vec3 origin, vec3 dir)
+    public bool IntersectLine(vec3 p1, vec3 p2, out vec3 pt)
     {
-      float t = -(n.dot(origin) + d) / ((dir).dot(n));
-      return t;
+      if (IntersectRay(p1, p2 - p1, out var t))
+      {
+        pt = p1 + (p2 - p1) * t;
+        return true;
+      }
+      pt = vec3.Zero;
+      return false;
+    }
+    public bool IntersectRay(vec3 origin, vec3 dir, out float t)
+    {
+      t = 0;
+      float denom = (dir).dot(n);
+      if (dir.dot(n) == 0)
+      {
+        return false;
+      }
+      t = -(n.dot(origin) + d) / ((dir).dot(n));
+      return true;
     }
     public float Distance(vec3 p)
     {
@@ -350,15 +365,16 @@ namespace PirateCraft
       ret.RaycastResult = RaycastResult.NoHit;
 
       // - Basic Plane Intersection
-      ret._t = IntersectRay(pr.Origin, pr.Dir);
-
-      // - Test to see if point is within triangle boundaries.
-      if (ret._t >= 0.0 && ret._t <= 1.0)
+      if (IntersectRay(pr.Origin, pr.Dir, out ret._t))
       {
-        vec3 v = pr.Origin + (pr.Dir * ret._t);
-        if (ContainsPoint(v))
+        // - Test to see if point is within triangle boundaries.
+        if (ret._t >= 0.0 && ret._t <= 1.0)
         {
-          ret.RaycastResult = RaycastResult.Hit;
+          vec3 v = pr.Origin + (pr.Dir * ret._t);
+          if (ContainsPoint(v))
+          {
+            ret.RaycastResult = RaycastResult.Hit;
+          }
         }
       }
 
@@ -410,7 +426,6 @@ namespace PirateCraft
 
   }//triplane
   [DataContract]
-  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct Line2f
   {
@@ -418,7 +433,6 @@ namespace PirateCraft
     [DataMember] public vec2 p1;
   }
   [DataContract]
-  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct Line3f
   {
@@ -450,7 +464,6 @@ namespace PirateCraft
 
   }
   [DataContract]
-  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct vec2
   {
@@ -461,6 +474,8 @@ namespace PirateCraft
     }
     [DataMember] public float x;
     [DataMember] public float y;
+    public float width { get { return x; } }
+    public float height { get { return y; } }
     public bool IsSane()
     {
       return Gu.SaneFloat(x) && Gu.SaneFloat(y);
@@ -512,10 +527,6 @@ namespace PirateCraft
     {
       return new vec2(f, f);
     }
-    //public static Vec2f operator =(Vec2f a, float f)
-    //{
-    //    return new Vec2f(f, f);
-    //}
     public static float Dot(vec2 a, vec2 b)
     {
       return (a.x * b.x) + (a.y * b.y);
@@ -575,11 +586,17 @@ namespace PirateCraft
       ret.y = (float)Math.Max(a.y, b.y);
       return ret;
     }
-    public override string ToString() { return "(" + x + "," + y + ")"; }
+    public override string ToString() { return $"({x},{y})"; }
     public string ToString(int prec) { return "(" + StringUtil.FormatPrec(x, prec) + "," + StringUtil.FormatPrec(y, prec) + ")"; }
   }
   [DataContract]
-  [Serializable]
+  [StructLayout(LayoutKind.Sequential)]
+  public struct dvec2
+  {
+    [DataMember] public double x;
+    [DataMember] public double y;
+  }
+  [DataContract]
   [StructLayout(LayoutKind.Sequential)]
   public struct dvec3
   {
@@ -1143,7 +1160,15 @@ namespace PirateCraft
     //};
   }
   [DataContract]
-  [Serializable]
+  [StructLayout(LayoutKind.Sequential)]
+  public struct dvec4
+  {
+    [DataMember] public double x;
+    [DataMember] public double y;
+    [DataMember] public double z;
+    [DataMember] public double w;
+  }
+  [DataContract]
   [StructLayout(LayoutKind.Sequential)]
   public struct vec3
   {
@@ -1708,7 +1733,6 @@ namespace PirateCraft
     //};
   }
   [DataContract]
-  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct vec4
   {
@@ -1730,11 +1754,19 @@ namespace PirateCraft
         Math.Clamp((float)a / 255.0f, 0, 1)
         );
     }
+
+    public float top { get { return x; } set { x = value; } }
+    public float right { get { return y; } set { y = value; } }
+    public float bot { get { return z; } set { z = value; } }
+    public float left { get { return w; } set { w = value; } }
+
     public vec4(vec3 d, float dw) { x = d.x; y = d.y; z = d.z; w = dw; }
     public vec4(vec4 dxy) { x = dxy.x; y = dxy.y; z = dxy.z; w = dxy.w; }
     public vec4(vec2 a, vec2 b) { x = a.x; y = a.y; z = b.x; w = b.y; }
     public vec4(float dx, float dy, float dz, float dw) { x = dx; y = dy; z = dz; w = dw; }
     public vec4(double dx, double dy, double dz, double dw) { x = (float)dx; y = (float)dy; z = (float)dz; w = (float)dw; }
+    public vec4(float xyzw) { x = y = z = w = xyzw; }
+    public vec4(float xyz, float dw) { x = y = z = xyz; w = dw; }
     public vec4(OpenTK.Mathematics.Vector4 v) { x = v.X; y = v.Y; z = v.Z; w = v.W; }//From XNA's Vector2
     public static vec4 One { get { return new vec4(1, 1, 1, 1); } }
     public static vec4 Zero { get { return new vec4(0, 0, 0, 0); } }
@@ -1973,7 +2005,6 @@ namespace PirateCraft
     public string ToString(int prec) { return "(" + StringUtil.FormatPrec(x, prec) + "," + StringUtil.FormatPrec(y, prec) + "," + StringUtil.FormatPrec(z, prec) + "," + StringUtil.FormatPrec(w, prec) + ")"; }
   }
   [DataContract]
-  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct vec4ub
   {
@@ -1999,7 +2030,6 @@ namespace PirateCraft
     public static vec4ub Black { get { return new vec4ub(0); } }
   }
   [DataContract]
-  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct ivec2
   {
@@ -2074,13 +2104,12 @@ namespace PirateCraft
     public int Layer { get { return y; } }
   }
   [DataContract]
-  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct uvec2
   {
-    public uvec2(uint dx, uint dy) { x = dx; y = dy; }
     [DataMember] public uint x;
     [DataMember] public uint y;
+    public uvec2(uint dx, uint dy) { x = dx; y = dy; }
     static public implicit operator uvec2(uint f)
     {
       return new uvec2(f, f);
@@ -2112,7 +2141,23 @@ namespace PirateCraft
     public override string ToString() { return "(" + x + "," + y + ")"; }
   }
   [DataContract]
-  [Serializable]
+  [StructLayout(LayoutKind.Sequential)]
+  public struct uvec3
+  {
+    [DataMember] public uint x;
+    [DataMember] public uint y;
+    [DataMember] public uint z;
+  }
+  [DataContract]
+  [StructLayout(LayoutKind.Sequential)]
+  public struct uvec4
+  {
+    [DataMember] public uint x;
+    [DataMember] public uint y;
+    [DataMember] public uint z;
+    [DataMember] public uint w;
+  }
+  [DataContract]
   [StructLayout(LayoutKind.Sequential)]
   public struct ivec3
   {
@@ -2242,7 +2287,6 @@ namespace PirateCraft
     public string ToString(int prec) { return "(" + StringUtil.FormatPrec(x, prec) + "," + StringUtil.FormatPrec(y, prec) + "," + StringUtil.FormatPrec(z, prec) + ")"; }
   }
   [DataContract]
-  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct ivec4
   {
@@ -2307,7 +2351,6 @@ namespace PirateCraft
     public override string ToString() { return "(" + x + "," + y + "," + z + "," + w + ")"; }
   }
   [DataContract]
-  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct mat2
   {
@@ -2341,7 +2384,6 @@ namespace PirateCraft
     }
   }
   [DataContract]
-  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct mat3
   {
@@ -2708,7 +2750,6 @@ namespace PirateCraft
     }
   }
   [DataContract]
-  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct mat4
   {
@@ -2716,14 +2757,21 @@ namespace PirateCraft
     [DataMember] public float _m21, _m22, _m23, _m24;  // 4,5,6,7...
     [DataMember] public float _m31, _m32, _m33, _m34;  //
     [DataMember] public float _m41, _m42, _m43, _m44;  //
-    public bool IsSane()
+
+    public static mat4 Identity
     {
-      return Gu.SaneFloat(_m11) && Gu.SaneFloat(_m12) && Gu.SaneFloat(_m13) && Gu.SaneFloat(_m14) &&
-              Gu.SaneFloat(_m21) && Gu.SaneFloat(_m22) && Gu.SaneFloat(_m23) && Gu.SaneFloat(_m24) &&
-              Gu.SaneFloat(_m31) && Gu.SaneFloat(_m32) && Gu.SaneFloat(_m33) && Gu.SaneFloat(_m34) &&
-              Gu.SaneFloat(_m41) && Gu.SaneFloat(_m42) && Gu.SaneFloat(_m43) && Gu.SaneFloat(_m44);
+      get
+      {
+        return new mat4(
+            1, 0, 0, 0,
+            0, 1, 0, 0,
+            0, 0, 1, 0,
+            0, 0, 0, 1);
+      }
+
     }
     public int CompSize() { return 16; }
+
     public mat4(in mat4 rhs)
     {
       _m11 = rhs._m11;
@@ -2792,6 +2840,13 @@ namespace PirateCraft
       _m43 = t14;
       _m44 = t15;
     }
+    public mat4(vec4 row1, vec4 row2, vec4 row3, vec4 row4)
+    {
+      _m11 = row1.x; _m12 = row1.y; _m13 = row1.z; _m14 = row1.w;
+      _m21 = row2.x; _m22 = row2.y; _m23 = row2.z; _m24 = row2.w;
+      _m31 = row3.x; _m32 = row3.y; _m33 = row3.z; _m34 = row3.w;
+      _m41 = row4.x; _m42 = row4.y; _m43 = row4.z; _m44 = row4.w;
+    }
     public mat4(OpenTK.Mathematics.Matrix4 m)
     {
       _m11 = m.M11;
@@ -2825,17 +2880,10 @@ namespace PirateCraft
       _m41, _m42, _m43, _m44);
       return ret;
     }
-    // public OpenTK.Mathematics.Matrix4 ToOpenTK()
-    // {
-    //   //Note: this does not convert between row/column major. 
-    //   //Simply allows this matrix to be used in OpenGL
-    //   OpenTK.Mathematics.Matrix4 ret = new OpenTK.Mathematics.Matrix4(
-    //   _m11, _m12, _m13, _m14,
-    //   _m21, _m22, _m23, _m24,
-    //   _m31, _m32, _m33, _m34,
-    //   _m41, _m42, _m43, _m44);
-    //   return ret;
-    // }
+    public vec4 Row1 { get { return new vec4(_m11, _m12, _m13, _m14); } set { _m11 = value.x; _m12 = value.y; _m13 = value.z; _m14 = value.w; } }
+    public vec4 Row2 { get { return new vec4(_m21, _m22, _m23, _m24); } set { _m21 = value.x; _m22 = value.y; _m23 = value.z; _m24 = value.w; } }
+    public vec4 Row3 { get { return new vec4(_m31, _m32, _m33, _m34); } set { _m31 = value.x; _m32 = value.y; _m33 = value.z; _m34 = value.w; } }
+    public vec4 Row4 { get { return new vec4(_m41, _m42, _m43, _m44); } set { _m41 = value.x; _m42 = value.y; _m43 = value.z; _m44 = value.w; } }
     public void set(float val, int index)
     {
       if (index == 0) { _m11 = val; }
@@ -2856,16 +2904,12 @@ namespace PirateCraft
       else if (index == 15) { _m44 = val; }
       else throw new Exception("Mat4 index out of range");
     }
-    public static mat4 Identity
+    public bool IsSane()
     {
-      get
-      {
-        return new mat4(
-            1, 0, 0, 0,
-            0, 1, 0, 0,
-            0, 0, 1, 0,
-            0, 0, 0, 1);
-      }
+      return Gu.SaneFloat(_m11) && Gu.SaneFloat(_m12) && Gu.SaneFloat(_m13) && Gu.SaneFloat(_m14) &&
+             Gu.SaneFloat(_m21) && Gu.SaneFloat(_m22) && Gu.SaneFloat(_m23) && Gu.SaneFloat(_m24) &&
+             Gu.SaneFloat(_m31) && Gu.SaneFloat(_m32) && Gu.SaneFloat(_m33) && Gu.SaneFloat(_m34) &&
+             Gu.SaneFloat(_m41) && Gu.SaneFloat(_m42) && Gu.SaneFloat(_m43) && Gu.SaneFloat(_m44);
     }
     public void clone(out mat4 to)
     {
@@ -3148,7 +3192,7 @@ namespace PirateCraft
         var x = m.Determinant;
         if (x != 0)
         {
-          m.Invert(); //may throw
+          m.Invert(); //may throw (det(x)==0)
           this = new mat4(m);
         }
       }
@@ -3506,7 +3550,6 @@ namespace PirateCraft
 
   }
   [DataContract]
-  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct quat
   {
@@ -3728,30 +3771,29 @@ namespace PirateCraft
     public override string ToString() { return "(" + x.ToString() + ", " + y.ToString() + "," + z.ToString() + ", " + w.ToString() + ")"; }
   }
   [DataContract]
-  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct Box2f
   {
+    public const float c_fMinVolume = 0.00001f;//float minvalue?
+
+    public static Box2f Max { get { return new Box2f(-float.MaxValue, -float.MaxValue, float.MaxValue, float.MaxValue); } }
+    public static Box2f Zero { get { return new Box2f(0, 0, 0, 0); } }
+    
+    //Dont add setters
+    public float Width { get { return _max.x - _min.x; }}
+    public float Height { get { return _max.y - _min.y; }}
+    public float Top { get { return _min.y; } }
+    public float Left { get { return _min.x; }}
+    public float Right { get { return _max.x; } }
+    public float Bottom { get { return _max.y; } }
+    public vec2 TopRight { get { return new vec2(_max.x, _min.y); } }
+    public vec2 BotRight { get { return new vec2(_max.x, _max.y); } }
+    public vec2 BotLeft { get { return new vec2(_min.x, _max.y); } }
+    public vec2 TopLeft { get { return new vec2(_min.x, _min.y); } }
+
     [DataMember] public vec2 _min;
     [DataMember] public vec2 _max;
 
-    public float Width() { return _max.x - _min.x; }
-    public float Height() { return _max.y - _min.y; }
-
-    public float Top { get { return _min.y; } }
-    public float Bottom { get { return _max.y; } }
-    public float Left { get { return _min.x; } }
-    public float Right { get { return _max.x; } }
-
-    public vec2 TopRight() { return new vec2(_max.x, _min.y); }
-    public vec2 BotRight() { return new vec2(_max.x, _max.y); }
-    public vec2 BotLeft() { return new vec2(_min.x, _max.y); }
-    public vec2 TopLeft() { return new vec2(_min.x, _min.y); }
-
-    public void Construct(vec2 min, vec2 max)
-    {
-      _min = min; _max = max;
-    }
     public Box2f(float x, float y, float w, float h)
     {
       _min = new vec2(x, y);
@@ -3761,6 +3803,10 @@ namespace PirateCraft
     {
       _min = min;
       _max = max;
+    }
+    public void Construct(vec2 min, vec2 max)
+    {
+      _min = min; _max = max;
     }
     public vec2 Center()
     {
@@ -3856,6 +3902,120 @@ namespace PirateCraft
       _min = vec2.Minv(_min, v);// Vec2f.ComponentMin(Min, v);// Vec2f.Minv(Min, v);
       _max = vec2.Maxv(_max, v); //Vec2f.ComponentMax(Max, v);// Vec2f.Maxv(Max, v);
     }
+    public bool ShrinkByBox(Box2f b)
+    {
+      // Shrink the box by the bounds of the other box, not growing this box at all,
+      // Essentially: x U y
+      //  returns false if the boxes did not coincide
+      if (b._min.x < this._max.x)
+      {
+        if (b._min.x > this._min.x)
+        {
+          this._min.x = b._min.x;
+        }
+      }
+      else
+      {
+        this._min.x = this._max.x;
+        return false;
+      }
+      if (b._min.y < this._max.y)
+      {
+        if (b._min.y > this._min.y)
+        {
+          this._min.y = b._min.y;
+        }
+      }
+      else
+      {
+        this._min.y = this._max.y;
+        return false;
+      }
+      if (b._max.x > this._min.x)
+      {
+        if (b._max.x < this._max.x)
+        {
+          this._max.x = b._max.x;
+        }
+      }
+      else
+      {
+        this._max.x = this._min.x;
+        return false;
+      }
+      if (b._max.y > this._min.y)
+      {
+        if (b._max.y < this._max.y)
+        {
+          this._max.y = b._max.y;
+        }
+      }
+      else
+      {
+        this._max.y = this._min.y;
+        return false;
+      }
+      return true;
+    }
+    public bool Validate(bool debug_break = true, float min_volume = 0)
+    {
+      //Validate and correct box
+      //specify 0 to not check volume.
+      bool wasvalid = true;
+      if (_min.x > _max.x)
+      {
+        if (debug_break)
+        {
+          Gu.DebugBreak();
+        }
+        _min.x = _max.x;
+        wasvalid = false;
+      }
+      if (_max.y < _min.y)
+      {
+        if (debug_break)
+        {
+          Gu.DebugBreak();
+        }
+        _max.y = _min.y;
+        wasvalid = false;
+      }
+      if (min_volume > 0)
+      {
+        wasvalid = wasvalid && ValidateVolume(min_volume);
+      }
+
+      if (!wasvalid && debug_break)
+      {
+        Gu.DebugBreak();
+      }
+
+      return wasvalid;
+    }
+    public bool ValidateVolume(float min_volume = 0)
+    {
+      Gu.Assert(min_volume >= 0);
+
+      bool hasx = _max.x - _min.x > 0;
+      bool hasy = _max.y - _min.y > 0;
+      if (hasx && hasy)
+      {
+        return true;
+      }
+      if (min_volume > 0)
+      {
+        //add volume if specified
+        if (!hasx)
+        {
+          _max.x = _min.x + min_volume;
+        }
+        else
+        {
+          _max.y = _min.y + min_volume;
+        }
+      }
+      return false;
+    }
     public bool BoxIntersect_EasyOut_Inclusive(Box2f cc)
     {
       return cc._min.x <= _max.x && cc._min.y <= _max.y && _min.x <= cc._max.x && _min.y <= cc._max.y;
@@ -3925,12 +4085,11 @@ namespace PirateCraft
     public override string ToString() { return "" + _min.ToString() + ", " + _max.ToString() + ")"; }
   }
   [DataContract]
-  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct Box2i
   {
-    [DataMember] public ivec2 _min = new ivec2(0,0);
-    [DataMember] public ivec2 _max = new ivec2(0,0);
+    [DataMember] public ivec2 _min = new ivec2(0, 0);
+    [DataMember] public ivec2 _max = new ivec2(0, 0);
     public Box2i(in ivec2 min, in ivec2 max)
     {
       _min = min;
@@ -3967,7 +4126,6 @@ namespace PirateCraft
     public override string ToString() { return "" + _min.ToString() + ", " + _max.ToString() + ")"; }
   }
   [DataContract]
-  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct Box3i
   {
@@ -4013,7 +4171,6 @@ namespace PirateCraft
 
   }
   [DataContract]
-  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct Box3f
   {
@@ -5085,7 +5242,6 @@ namespace PirateCraft
 
   }
   [DataContract]
-  [Serializable]
   public class Trianglef
   {
     [DataMember] public vec3[] _v;
@@ -5099,7 +5255,6 @@ namespace PirateCraft
     }
   }
   [DataContract]
-  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct OOBox3f
   {
@@ -5172,7 +5327,6 @@ namespace PirateCraft
     }
   }
   [DataContract]
-  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct vec3basis
   {
@@ -5182,7 +5336,6 @@ namespace PirateCraft
     public vec3 z = vec3.Zero;
   }
   [DataContract]
-  [Serializable]
   public class ConvexHull
   {
     [DataMember] public Plane3f[] Planes;

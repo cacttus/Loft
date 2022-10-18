@@ -137,7 +137,7 @@ namespace PirateCraft
         bwFile.Write((Int32)compressed.Length);
         bwFile.Write(compressed);
 
-        Gu.Log.Debug($"Wrote block '{blockname}' {compressinfo}");
+        //Gu.Log.Debug($"Wrote block '{blockname}' {compressinfo}");
       }
     }
     public static void DeserializeBlock(BinaryReader brFile, Action<WrappedBinaryReader> deserializeAction)

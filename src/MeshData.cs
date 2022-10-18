@@ -18,9 +18,9 @@ namespace PirateCraft
   }
   public enum DrawOrder
   {
-    First,
-    Mid,
-    Last,
+    First = 0,//The dictionary iterates lower to higher.
+    Mid = 1,
+    Last = 2,
     MaxDrawOrders
   }
   public enum DrawMode
@@ -34,7 +34,7 @@ namespace PirateCraft
   {
     public VertexArrayObject(string name) : base(name)
     {
-      _glId = GL.GenVertexArray();
+      _glId = GT.GenVertexArray();
       GL.BindVertexArray(_glId);
       SetObjectLabel();
     }
@@ -53,14 +53,16 @@ namespace PirateCraft
     //Do not implement finalizer
     public override void Dispose_OpenGL_RenderThread()
     {
-      GL.DeleteVertexArray(_glId);
+      if (GL.IsVertexArray(_glId))
+      {
+        GT.DeleteVertexArray(_glId);
+      }
     }
     public void Unbind()
     {
       GL.BindVertexArray(0);
     }
   }
-
   public class ContextMesh
   {
     public VertexArrayObject VAO { get; set; } = null;
@@ -70,78 +72,273 @@ namespace PirateCraft
       _meshData = new WeakReference<MeshData>(parent);
     }
   }
-  [DataContract] [Serializable]
+
+  [DataContract]
+  public class MeshView : DataBlock, IClone, ICopy<MeshView>, ISerializeBinary
+  {
+    // @class MeshView
+    // @brief Subset of mesh
+    // @details Lightweight data structure that points to a subset of mesh data.
+    //           see glDrawElementsIndexed** functions for more info
+    // @note TODO: this class will need to have views for each buffer for vertex arrays, or a view to the index buffer for indexed arrays
+    //        should probably contain references to the GPUBuffer's  
+    public MeshData? MeshData { get { return _meshData; } set { _meshData = value; SetLimits(null, null); } }
+    public int Start { get { return _start; } set { _start = value; CheckLimits(); } }
+    public int Count { get { return _count; } set { _count = value; CheckLimits(); } }
+
+    [DataMember] private MeshData? _meshData = null;
+    [DataMember] private int _start = 0;
+    [DataMember] private int _count = 0;
+
+    //junk
+    public static int dbg_numDrawElements_Frame = 0;
+    public static int dbg_numDrawArrays_Frame = 0;
+    private static long dbg_frame = 0;
+    public bool dbg_break_render = false;
+
+    protected MeshView() { }//clone/copy
+    public MeshView(MeshData? data, int? start = null, int? count = null) : base(data.Name)
+    {
+      _meshData = data;
+      SetLimits(start, count);
+    }
+    public void Draw(GpuInstanceData[] instances, OpenTK.Graphics.OpenGL4.PrimitiveType? primTypeOverride = null)
+    {
+      if (_meshData == null)
+      {
+        Gu.Log.Error($"'{Name}' Tried to draw null mesh");
+        return;
+      }
+
+      //@param instances - Can be null in which case we draw a mesh without an accompanying instance transform
+      var vao = _meshData.GetDataForContext(Gu.Context);
+
+      if (Gu.Context.FrameStamp != dbg_frame)
+      {
+        dbg_frame = Gu.Context.FrameStamp;
+        dbg_numDrawArrays_Frame = 0;
+        dbg_numDrawElements_Frame = 0;
+      }
+      Gpu.CheckGpuErrorsDbg();
+      vao.Bind();
+
+      //*****
+      if (Gu.BreakRenderState || dbg_break_render)
+      {
+        GpuDebugInfo.DebugGetRenderState(true);
+        Gu.DebugBreak();
+        Gu.BreakRenderState = false;
+      }
+      string n = "sky";
+      if (_meshData.Name.ToLower().Contains(n))
+      {
+        Gu.Trap();
+      }
+      //*****
+
+      OpenTK.Graphics.OpenGL4.PrimitiveType primType = _meshData.PrimitiveType;
+      if (primTypeOverride != null)
+      {
+        primType = primTypeOverride.Value;
+      }
+
+      //This is assuming the VAO and all other bindings are already called.
+      var ibo = _meshData.IndexBuffer;
+      if (_meshData.IndexBuffer != null)
+      {
+        Gu.Assert(ibo.ItemSizeBytes == 2 || ibo.ItemSizeBytes == 4);
+
+        if (instances != null && instances.Length > 0)
+        {
+          //GL.DrawElementsInstancedBaseVertexBaseInstance()
+          GL.DrawElementsInstanced(primType,
+            _count, 
+            ibo.DrawElementsType,
+            IntPtr.Zero + _start,
+            instances.Length
+            );
+          Gpu.CheckGpuErrorsDbg();
+          dbg_numDrawElements_Frame++;
+        }
+        else
+        {
+          //This shouldn't happen anymore (right now) testing out the entire instancing system
+          Gu.Log.ErrorCycle("Instances were not specified for mesh " + this.Name);
+          Gu.DebugBreak();
+
+          GL.DrawElements(primType,
+            _count,
+            ibo.DrawElementsType,
+            IntPtr.Zero + _start
+            );
+          Gpu.CheckGpuErrorsDbg();
+          dbg_numDrawElements_Frame++;
+        }
+      }
+      else
+      {
+        foreach (var vb in _meshData.VertexBuffers)
+        {
+          if (instances != null && instances.Length > 0)
+          {
+            GL.DrawArraysInstanced(primType,
+              _start,
+              _count,
+              instances.Length
+              );
+            Gpu.CheckGpuErrorsDbg();
+            dbg_numDrawArrays_Frame++;
+          }
+          else
+          {
+            //This shouldn't happen anymore (right now) testing out the entire instancing system
+            Gu.DebugBreak();
+            Gu.Log.ErrorCycle("Instances were not specified for mesh " + this.Name);
+            GL.DrawArrays(primType,
+              _start, 
+              _count
+              );
+            Gpu.CheckGpuErrorsDbg();
+            dbg_numDrawArrays_Frame++;
+          }
+        }
+      }
+      vao.Unbind();
+    }
+    public void SetLimits(int? nstart = null, int? ncount = null)
+    {
+      //Set the number of verts/inds to render
+      if (_meshData != null)
+      {
+        int start = 0, count = -1;
+        if (nstart != null)
+        {
+          start = nstart.Value;
+        }
+        if (ncount != null)
+        {
+          count = ncount.Value;
+        }
+
+        if (ncount == null)
+        {
+          count = GetDefaultVboOrIboCount(_meshData);
+        }
+        _start = start;
+        _count = count;
+        CheckLimits();
+      }
+    }
+    private void CheckLimits()
+    {
+      if (_meshData != null)
+      {
+        var ct = GetDefaultVboOrIboCount(_meshData);
+        if (_start > ct)
+        {
+          _start = 0;
+          Gu.Log.Warn($"{Name}: Mesh View was outside range.");
+          Gu.DebugBreak();
+        }
+        if (_count > ct)
+        {
+          _count = ct;
+          Gu.Log.Warn($"{Name}: Mesh View was outside range.");
+          Gu.DebugBreak();
+        }
+      }
+    }
+    private int GetDefaultVboOrIboCount(MeshData md)
+    {
+      int ele_count = 0;
+      Gu.Assert(md != null);
+      if (md.HasIndexes)
+      {
+        ele_count = md.IndexBuffer.ItemCount;
+      }
+      else if (md.VertexBuffers != null && md.VertexBuffers.Count == 1)
+      {
+        ele_count = md.VertexBuffers[0].ItemCount;
+      }
+      else
+      {
+        Gu.Log.Error($"{Name}: Could not set mesh view count, there was more than 1 VB and no indexes specified.");
+        Gu.DebugBreak();
+      }
+      return ele_count;
+    }
+    public object? Clone(bool? shallow = null)
+    {
+      var other = new MeshView();
+      other.CopyFrom(this, shallow);
+      return other;
+    }
+    public void CopyFrom(MeshView? other, bool? shallow = null)
+    {
+      Gu.Assert(other != null);
+      base.CopyFrom(other);
+      this._meshData = other._meshData;
+      this._start = other._start;
+      this._count = other._count;
+    }
+    public override void Serialize(BinaryWriter bw)
+    {
+      Gu.BRThrowNotImplementedException();
+      base.Serialize(bw);
+    }
+    public override void Deserialize(BinaryReader br, SerializedFileVersion version)
+    {
+      Gu.BRThrowNotImplementedException();
+      base.Deserialize(br, version);
+    }
+
+  }
+  [DataContract]
   public class MeshData : OpenGLContextDataManager<VertexArrayObject>, IClone, ICopy<MeshData>
   {
-    [NonSerialized] private static StaticContextData<MeshData> _defaultBox = new StaticContextData<MeshData>();
+    // @class MeshData
+    // @brief Manages mesh data and meshes among GL contexts.
+
+    #region Public: Members
+
+    public DrawMode DrawMode { get { return _drawMode; } set { _drawMode = value; } }
+    public DrawOrder DrawOrder { get { return _drawOrder; } set { _drawOrder = value; } }
+    public bool BoundBoxComputed { get { return _boundBoxComputed; } private set { _boundBoxComputed = value; } }
+    public Box3f BoundBox_Extent { get { return _boundBoxExtent; } } //Bond box of mesh extenss
+    public PrimitiveType PrimitiveType { get { return _primitiveType; } }
+    public List<GPUBuffer> VertexBuffers { get { return _vertexBuffers; } }
+    public GPUBuffer IndexBuffer { get { return _indexBuffer; } }
+    public GPUBuffer FaceData { get { return _faceData; } private set { _faceData = value; } }
+    public bool HasIndexes { get { return _indexBuffer != null; } }
+    public static MeshData DefaultBox
+    {
+      get
+      {
+        if (_defaultBox == null)
+        {
+          _defaultBox = Gu.Lib.LoadMesh(RName.Mesh_DefaultBox, new MeshGenBoxParams() { _w = 1, _h = 1, _d = 1 });
+        }
+        return _defaultBox;
+      }
+    }
+
+    #endregion
+    #region Private: Members
+
+    private static MeshData? _defaultBox = null;
     [DataMember] private GPUBuffer _indexBuffer = null;
     [DataMember] private List<GPUBuffer> _vertexBuffers = null;
     [DataMember] private bool _boundBoxComputed = false;
     [DataMember] private Box3f _boundBoxExtent = new Box3f();
     [DataMember] private PrimitiveType _primitiveType = PrimitiveType.Triangles;
-    [DataMember] public DrawMode _drawMode = DrawMode.Deferred;
-    [DataMember] public DrawOrder _drawOrder = DrawOrder.Mid; //This is a sloppy ordered draw routine to prevent depth test issues. In the future it goes away in favor of a nicer draw routine.
-    [DataMember] public GPUBuffer _faceData = null;
+    [DataMember] private DrawMode _drawMode = DrawMode.Deferred;
+    [DataMember] private DrawOrder _drawOrder = DrawOrder.Mid; //This is a sloppy ordered draw routine to prevent depth test issues. In the future it goes away in favor of a nicer draw routine.
+    [DataMember] private GPUBuffer _faceData = null;
 
-    public DrawMode DrawMode { get { return _drawMode; } set { _drawMode = value; } }
-    public DrawOrder DrawOrder { get { return _drawOrder; } set { _drawOrder = value; } }//This is a sloppy ordered draw routine to prevent depth test issues. In the future it goes away in favor of a nicer draw routine.
-    public bool BoundBoxComputed { get { return _boundBoxComputed; } private set { _boundBoxComputed = value; } }
-    public Box3f BoundBox_Extent { get { return _boundBoxExtent; } } //Bond box of mesh extenss
-    public PrimitiveType PrimitiveType { get { return _primitiveType; } }
-    public List<GPUBuffer> VertexBuffers { get { return _vertexBuffers; } }
-    public GPUBuffer FaceData { get { return _faceData; } private set { _faceData = value; } }
-    public bool HasIndexes { get { return _indexBuffer != null; } }
-    public string Name { get; protected set; }
+    #endregion
+    #region Public: Methods
 
-    public static MeshData DefaultBox//DefaultCube
-    {
-      get
-      {
-        MeshData box = _defaultBox.Get();
-        if (box == null)
-        {
-          box = Gu.Lib.LoadMesh(RName.Mesh_DefaultBox, new MeshGenBoxParams(){_w=1,_h=1,_d=1});
-          _defaultBox.Set(box);
-        }
-        return _defaultBox.Get();
-      }
-    }
-
-    [NonSerialized] public static int dbg_numDrawElements_Frame = 0;
-    [NonSerialized] public static int dbg_numDrawArrays_Frame = 0;
-    [NonSerialized] private static long dbg_frame = 0;
-    protected override VertexArrayObject CreateNew()
-    {
-      Gpu.CheckGpuErrorsDbg();
-      var vao = new VertexArrayObject(this.Name + "-VAO");
-      vao.Bind();
-
-      VertexFormat fmtLast = null;
-
-      foreach (var vb in _vertexBuffers)
-      {
-        vb.Bind();
-        Gu.Assert(vb.Format != null);
-        vb.Format.BindAttribs(fmtLast);
-        fmtLast = vb.Format;
-      }
-      if (_indexBuffer != null)
-      {
-        _indexBuffer.Bind();
-        //_indexBuffer.Format.BindAttribs(null);
-      }
-
-      Gpu.CheckGpuErrorsDbg();
-      vao.Unbind();
-
-      GPUBuffer.UnbindBuffer(BufferTarget.ArrayBuffer);
-      GPUBuffer.UnbindBuffer(BufferTarget.ElementArrayBuffer);
-
-      return vao;
-    }
-
-    //We will not have an empty serialized constructor, because meshes are loaded from disk, or generated.
-    private MeshData(string name) : base(name) { }
+    protected MeshData(string name) : base(name) { }//clone/copy
     public MeshData(string name, PrimitiveType pt, GPUBuffer vertexBuffer, GPUBuffer faceData = null, bool computeBoundBox = true) :
       this(name, pt, new List<GPUBuffer> { vertexBuffer }, null, faceData, computeBoundBox)
     {
@@ -201,101 +398,43 @@ namespace PirateCraft
       this._primitiveType = other._primitiveType;
 
     }
-    [NonSerialized] public bool DebugBreakRender = false;
 
-    public void Draw(GpuInstanceData[] instances, OpenTK.Graphics.OpenGL4.PrimitiveType? primTypeOverride = null)
+    #endregion
+    #region Protected: Methods
+
+    protected override VertexArrayObject CreateNew()
     {
-      //@param instances - Can be null in which case we draw a mesh without an accompanying instance transform
-
-      var vao = this.GetDataForContext(Gu.Context);
-
-      if (Gu.Context.FrameStamp != dbg_frame)
-      {
-        dbg_frame = Gu.Context.FrameStamp;
-        dbg_numDrawArrays_Frame = 0;
-        dbg_numDrawElements_Frame = 0;
-      }
       Gpu.CheckGpuErrorsDbg();
+      var vao = new VertexArrayObject(this.Name + "-VAO");
       vao.Bind();
 
-      //*****
-      if (Gu.BreakRenderState || DebugBreakRender)
+      GPUDataFormat fmtLast = null;
+
+      foreach (var vb in _vertexBuffers)
       {
-        GpuDebugInfo.DebugGetRenderState(true);
-        Gu.DebugBreak();
-        Gu.BreakRenderState = false;
+        vb.Bind();
+        Gu.Assert(vb.Format != null);
+        vb.Format.BindVertexAttribs(fmtLast);
+        fmtLast = vb.Format;
       }
-      //*****
-
-      OpenTK.Graphics.OpenGL4.PrimitiveType primType = this.PrimitiveType;
-      if (primTypeOverride != null)
+      if (_indexBuffer != null)
       {
-        primType = primTypeOverride.Value;
+        _indexBuffer.Bind();
+        //_indexBuffer.Format.BindAttribs(null);
       }
 
-      //This is assuming the VAO and all other bindings are already called.
-      if (HasIndexes)
-      {
-        if (_indexBuffer != null)
-        {
-          Gu.Assert(_indexBuffer.ItemSizeBytes == 2 || _indexBuffer.ItemSizeBytes == 4);
-
-          if (instances != null && instances.Length > 0)
-          {
-            GL.DrawElementsInstanced(primType,
-              _indexBuffer.ItemCount,
-              _indexBuffer.DrawElementsType,
-              IntPtr.Zero,
-              instances.Length
-              );
-            Gpu.CheckGpuErrorsDbg();
-            dbg_numDrawElements_Frame++;
-          }
-          else
-          {
-            //This shouldn't happen anymore (right now) testing out the entire instancing system
-            Gu.DebugBreak();
-
-            Gu.Log.ErrorCycle("Instances were not specified for mesh " + this.Name);
-            GL.DrawElements(primType,
-              _indexBuffer.ItemCount,
-              _indexBuffer.DrawElementsType,
-              IntPtr.Zero
-              );
-            Gpu.CheckGpuErrorsDbg();
-            dbg_numDrawElements_Frame++;
-          }
-        }
-        else
-        {
-          Gu.Log.Error("Indexes specified for mesh but index buffer was null. Skipping draw.");
-        }
-      }
-      else
-      {
-
-        foreach (var vb in _vertexBuffers)
-        {
-          if (instances != null && instances.Length > 0)
-          {
-            GL.DrawArraysInstanced(PrimitiveType, 0, vb.ItemCount, instances.Length);
-            Gpu.CheckGpuErrorsDbg();
-            dbg_numDrawArrays_Frame++;
-          }
-          else
-          {
-            //This shouldn't happen anymore (right now) testing out the entire instancing system
-            Gu.DebugBreak();
-
-            Gu.Log.ErrorCycle("Instances were not specified for mesh " + this.Name);
-            GL.DrawArrays(PrimitiveType, 0, vb.ItemCount);
-            Gpu.CheckGpuErrorsDbg();
-            dbg_numDrawArrays_Frame++;
-          }
-        }
-      }
+      Gpu.CheckGpuErrorsDbg();
       vao.Unbind();
+
+      GPUBuffer.UnbindBuffer(BufferTarget.ArrayBuffer);
+      GPUBuffer.UnbindBuffer(BufferTarget.ElementArrayBuffer);
+
+      return vao;
     }
+
+    #endregion
+    #region Private: Methods
+
     private void ComputeBoundBox()
     {
       _boundBoxExtent.genResetLimits();
@@ -309,10 +448,10 @@ namespace PirateCraft
     {
       Gu.Assert(b != null);
       Gu.Assert(b.Format != null);
-      int voff = b.Format.GetComponentOffset(VertexComponentType.v3_01);
+      int voff = b.Format.GetComponentOffset(ShaderVertexType.v3, 1);
       if (voff >= 0)
       {
-        var vertexes = b.CopyDataFromGPU();
+        var vertexes = b.CopyFromGPU();
 
         unsafe
         {
@@ -321,7 +460,7 @@ namespace PirateCraft
           {
             if (HasIndexes)
             {
-              var indexes = _indexBuffer.CopyDataFromGPU();
+              var indexes = _indexBuffer.CopyFromGPU();
               fixed (byte* ibarr = indexes.Bytes)
               {
                 for (int ii = 0; ii < indexes.Count; ++ii)
@@ -365,7 +504,7 @@ namespace PirateCraft
       }
     }
 
-
+    #endregion
 
   }//MeshData
 

@@ -8,370 +8,145 @@ namespace PirateCraft
 {
   #region Enums
 
-  public enum VertexComponentType
+  public enum ShaderVertexType
   {
-    v2_01,
-    v2_02,
-    v2_03,
-    v2_04,
-    v2_05,
+    //System types for vertexes that allow them to be re-used across different shaders.
+    //Feels like position/normal etc would be the correct usage, but we do need the
+    //component count because, say plugging a v2 pos into a v3 pos makes no sense.
+    Undefined,
+    v2, v3, v4, //position
+    c3, c4, //color
+    n3, //vertex normal
+    x2, //texcoord
+    f3, //face normal
+    t3, //vertex tangent
+    gl_InstanceID, gl_InstanceIndex, //gl stuff
 
-    v3_01,
-    v3_02,
-    v3_03,
-    v3_04,
-    v3_05,
-
-    v4_01,
-    v4_02,
-    v4_03,
-    v4_04,
-    v4_05,
-
-    c4_01,
-    c4_02,
-    c4_03,
-    c4_04,
-    c4_05,
-
-    c3_01,
-    c3_02,
-    c3_03,
-    c3_04,
-    c3_05,
-
-    n3_01,
-    n3_02,
-    n3_03,
-    n3_04,
-    n3_05,
-
-    f3_01,//face
-    f3_02,
-    f3_03,
-    f3_04,
-    f3_05,
-
-    t3_01, //tangent
-    t3_02,
-    t3_03,
-    t3_04,
-    t3_05,
-
-    x2_01,
-    x2_02,
-    x2_03,
-    x2_04,
-    x2_05,
-
-    i1_01, //int (4 bytes)
-    i1_02,
-    i1_03,
-    i2_01,
-    i2_02,
-    i2_03,
-    i3_01,
-    i3_02,
-    i3_03,
-
-    u1_01,//unsigned int
-    u1_02,
-    u1_03,
-    u2_01,
-    u2_02,
-    u2_03,
-    u3_01,
-    u3_02,
-    u3_03,
-
-    s1_01, // short (2 bytes)
-    s1_02,
-    s1_03,
-    s2_01,
-    s2_02,
-    s2_03,
-    s3_01,
-    s3_02,
-    s3_03,
-
-    S1_01,//unsigned short
-    S1_02,
-    S1_03,
-    S2_01,
-    S2_02,
-    S2_03,
-    S3_01,
-    S3_02,
-    S3_03,
-
-    b1_01,//byte
-    b1_02,
-    b1_03,
-    b2_01,
-    b2_02,
-    b2_03,
-    b3_01,
-    b3_02,
-    b3_03,
-
-    B1_01,//ubyte
-    B1_02,
-    B1_03,
-    B2_01,
-    B2_02,
-    B2_03,
-    B3_01,
-    B3_02,
-    B3_03,
-
-    gl_InstanceID,
-    gl_InstanceIndex,
-    NoVertexType
-  };
+    // The following are not built-in types but still have identifiers
+    u1, u2, u3,//uint
+    i1, i2, i3,//int
+    m2, m3, m4,//matrix
+  }
 
   #endregion
   [DataContract]
-  [Serializable]
-  public class VertexComponent
+  public class DataComponent
   {
-    public int SizeBytes { get { return _cizeBytes; } set { _cizeBytes = value; } }
+    public int SizeBytes { get { return _sizeBytes; } set { _sizeBytes = value; } }
     public int ComponentCount { get { return _componentCount; } set { _componentCount = value; } }
-    public VertexAttribPointerType DataType { get { return _dataType; } set { _dataType = value; } }
-    public VertexComponentType UserType { get { return _userType; } set { _userType = value; } }
+    public VertexAttribPointerType? FloatType { get { return _floatType; } set { _floatType = value; } }
+    public VertexAttribIntegerType? IntPointerType { get { return _intType; } set { _intType = value; } }
+    public VertexAttribDoubleType? DoublePointerType { get { return _doubleType; } set { _doubleType = value; } }
+    public ShaderVertexType UserType { get { return _userType; } set { _userType = value; } }
     public int ByteOffset { get { return _byteOffset; } set { _byteOffset = value; } }
     public int AttribLocation { get { return _attribLocation; } set { _attribLocation = value; } }
     public string Name { get { return _name; } set { _name = value; } }// _v2 _c4 ...
-    public int AttributeType { get { return VertexFormat.ComputeAttributeType((int)DataType, ComponentCount); } }
 
-    [DataMember] public int _cizeBytes = 0;
+    [DataMember] public int _sizeBytes = 0;
     [DataMember] public int _componentCount = 0;
-    [DataMember] public VertexAttribPointerType _dataType = VertexAttribPointerType.Float;
-    [DataMember] public VertexComponentType _userType = VertexComponentType.v3_01;
+    [DataMember] public VertexAttribPointerType? _floatType = null;
+    [DataMember] public VertexAttribIntegerType? _intType = null;
+    [DataMember] public VertexAttribDoubleType? _doubleType = null;
+    [DataMember] public ShaderVertexType _userType = ShaderVertexType.Undefined;
+    [DataMember] public int _lutHash = 0;
+    [DataMember] public int _lutIndex = 0;
     [DataMember] public int _byteOffset = 0;
     [DataMember] public int _attribLocation = 0;
     [DataMember] public string _name = Library.UnsetName;
   }
   [DataContract]
-  [Serializable]
-  public class VertexFormat : DataBlock
+  public class GPUDataFormat : NamedObject
   {
-    //Format for interleaved vertexes
-    #region Private:Members
+    //Specifies access information for interleaved data (such as vertexes), and other buffer data for the GPU.
+    //@note I figure we should serialize this and count it as scene data considering saved mesh data would require 
+    //      a vertex format to parse correctly.
 
-    [NonSerialized] private static Dictionary<string, VertexFormat> _formats = new Dictionary<string, VertexFormat>();
+    #region Private: Members
 
-    #endregion
-    #region Public:Members
-
-    public Dictionary<VertexComponentType, VertexComponent> Components { get { return _components; } private set { _components = value; } }
-    public int VertexSizeBytes_WithoutPadding { get { return _vertexSizeBytes_WithoutPadding; } private set { _vertexSizeBytes_WithoutPadding = value; } }  //Size of all added components - neglecting padding. (pretty much useless)
-    public int VertexSizeBytes { get { return _vertexSizeBytes; } private set { _vertexSizeBytes = value; } } // Size of the vert, including padding
-    public int MaxLocation { get { return Components.Count; } }
-    public Type Type { get { return _type; } private set { _type = value; } }
-
-    [NonSerialized] private Dictionary<VertexComponentType, VertexComponent> _components = new Dictionary<VertexComponentType, VertexComponent>();
-    [NonSerialized] private int _vertexSizeBytes_WithoutPadding = 0; //Size of all added components - neglecting padding. (pretty much useless)
-    [NonSerialized] private int _vertexSizeBytes = 0; // Size of the vert, including padding
-    [NonSerialized] private Type _type = null;
-    //not sure about this.
-    [DataMember] private string _typeString = Library.UnsetName;
-    //not sure about this.
+    private static Dictionary<Type, GPUDataFormat> _formats = new Dictionary<Type, GPUDataFormat>();
 
     #endregion
-    #region Public:Static Methods
+    #region Public: Members
 
-    public static VertexFormat GetVertexFormat<T>()
+    public Dictionary<int, Dictionary<int, DataComponent>> ComponentsLUT { get { return _componentsLUT; } private set { _componentsLUT = value; } }
+    public int VertexSizeBytes { get { return _vertexSizeBytes; } private set { _vertexSizeBytes = value; } }
+    public int MaxLocation { get { return _componentsLUT.Count; } }
+    public Type? Type { get { return _type; } }
+
+    //Note:primary key is the shader vertex type OR the hash of the input name if no type is specified.
+    private Dictionary<int, Dictionary<int, DataComponent>>? _componentsLUT = null;
+    private List<DataComponent>? _componentsOrdered = null;
+    private int _vertexSizeBytes = 0; // Size of the vert, including padding
+    private Type? _type = null;
+
+    #endregion
+    #region Public: Static Methods
+
+    public static GPUDataFormat GetDataFormat<T>()
     {
-      return GetVertexFormat(typeof(T));
+      return GetDataFormat(typeof(T));
     }
-    public static VertexFormat GetVertexFormat(Type vertexType)
+    public static GPUDataFormat GetDataFormat(Type ty)
     {
-      //Automatically compute a vertex format for a given vertex type.
-      //Cached
-      string szfmt = vertexType.Name;
-
-      VertexFormat ret = null;
-      if (!_formats.TryGetValue(szfmt, out ret))
+      GPUDataFormat? ret = null;
+      if (!_formats.TryGetValue(ty, out ret))
       {
-        ret = DeclareFormat(vertexType);
-        _formats.Add(szfmt, ret);
+        ret = new GPUDataFormat(ty);
+        _formats.Add(ty, ret);
       }
       return ret;
     }
-    public static int ComputeAttributeType(int /*GLenum*/ type, int count)
-    {
-      //We bh
-      if (type == (int)VertexAttribPointerType.Float)
-      {
-        if (count == 1)
-        {
-          return (int)VertexAttribPointerType.Float;
-        }
-        else if (count == 2)
-        {
-          return (int)AttributeType.FloatVec2;
-        }
-        else if (count == 3)
-        {
-          return (int)AttributeType.FloatVec3;
-        }
-        else if (count == 4)
-        {
-          return (int)AttributeType.FloatVec4;
-        }
-        else
-        {
-          Gu.BRThrowNotImplementedException();
-        }
-      }
-      else if (type == (int)VertexAttribPointerType.Int)
-      {
-        if (count == 1)
-        {
-          return (int)VertexAttribPointerType.Int;
-        }
-        else if (count == 2)
-        {
-          return (int)AttributeType.IntVec2;
-        }
-        else if (count == 3)
-        {
-          return (int)AttributeType.IntVec3;
-        }
-        else if (count == 4)
-        {
-          return (int)AttributeType.IntVec4;
-        }
-        else
-        {
-          Gu.BRThrowNotImplementedException();
-        }
-      }
-      else if (type == (int)VertexAttribPointerType.UnsignedInt)
-      {
-        if (count == 1)
-        {
-          return (int)VertexAttribPointerType.UnsignedInt;
-        }
-        else if (count == 2)
-        {
-          return (int)AttributeType.IntVec2;
-        }
-        else if (count == 3)
-        {
-          return (int)AttributeType.IntVec3;
-        }
-        else if (count == 4)
-        {
-          return (int)AttributeType.IntVec4;
-        }
-        else
-        {
-          Gu.BRThrowNotImplementedException();
-        }
-      }
-      else
-      {
-        Gu.BRThrowNotImplementedException();
-      }
-      return 0;
-    }
-    public static string GetUserTypeName(VertexComponentType eUserType)
-    {
-      switch (eUserType)
-      {
-        case VertexComponentType.c4_01:
-        case VertexComponentType.c4_02:
-        case VertexComponentType.c4_03:
-          return ("Color4f");
-        case VertexComponentType.v2_01:
-        case VertexComponentType.v2_02:
-        case VertexComponentType.v2_03:
-          return ("Position2f");
-        case VertexComponentType.v3_01:
-        case VertexComponentType.v3_02:
-        case VertexComponentType.v3_03:
-          return ("Position3f");
-        case VertexComponentType.n3_01:
-        case VertexComponentType.n3_02:
-        case VertexComponentType.n3_03:
-          return ("Normal3f");
-        case VertexComponentType.x2_01:
-        case VertexComponentType.x2_02:
-        case VertexComponentType.x2_03:
-          return ("Texcoord2f");
-        case VertexComponentType.i1_01:
-        case VertexComponentType.i1_02:
-        case VertexComponentType.i1_03:
-          return ("Int_1");
-        case VertexComponentType.i2_01:
-        case VertexComponentType.i2_02:
-        case VertexComponentType.i2_03:
-          return ("Int_2");
-        case VertexComponentType.i3_01:
-        case VertexComponentType.i3_02:
-        case VertexComponentType.i3_03:
-          return ("Int_3");
-        case VertexComponentType.u1_01:
-        case VertexComponentType.u1_02:
-        case VertexComponentType.u1_03:
-          return ("Unsigned_Int_1");
-        case VertexComponentType.u2_01:
-        case VertexComponentType.u2_02:
-        case VertexComponentType.u2_03:
-          return ("Unsigned_Int_2");
-        case VertexComponentType.u3_01:
-        case VertexComponentType.u3_02:
-        case VertexComponentType.u3_03:
-          return ("Unsigned_Int_3");
-        case VertexComponentType.v4_01:
-        case VertexComponentType.v4_02:
-        case VertexComponentType.v4_03:
-        case VertexComponentType.v4_04:
-        case VertexComponentType.v4_05:
-          return ("Position4f");
-      };
-
-      Gu.BRThrowNotImplementedException();
-      return ("Unknown User Type name.");
-    }
-    public static void ComputeNormalAndTangent(vec3 p0, vec3 p1, vec3 p2, vec2 x0, vec2 x1, vec2 x2, out vec3 normal, out vec3 tangent)
-    {
-      //https://learnopengl.com/Advanced-Lighting/Normal-Mapping
-      vec3 dp0 = p1 - p0;
-      vec3 dp1 = p2 - p0;
-      vec2 dx0 = x1 - x0;
-      vec2 dx1 = x2 - x0;
-
-      normal = dp1.cross(dp0).normalize();
-
-      float f = 1.0f / (dx0.x * dx1.y - dx1.x * dx0.y);
-      tangent = new vec3();
-      tangent.x = f * (dx1.y * dp0.x - dx0.y * dp1.x);
-      tangent.y = f * (dx1.y * dp0.y - dx0.y * dp1.y);
-      tangent.z = f * (dx1.y * dp0.z - dx0.y * dp1.z);
-      tangent.normalize();
-    }
 
     #endregion
-    #region Public:Methods
+    #region Public: Methods
 
-    public VertexFormat(string name, Type t) : base(name)
+    public GPUDataFormat(Type dataType) : base(dataType.Name)
     {
-      Name = name;
-      Type = t;
-      _typeString = t.ToString();
-    }
-    public int GetComponentOffset(VertexComponentType t)
-    {
-      VertexComponent val = null;
-      if (Components.TryGetValue(t, out val))
+      _type = dataType;
+      _vertexSizeBytes = Marshal.SizeOf(dataType);
+
+      _componentsOrdered = _componentsOrdered.ConstructIfNeeded();
+      _componentsLUT = _componentsLUT.ConstructIfNeeded();
+
+      Gu.Assert(dataType.IsValueType, $"'{Name}': must be a value type.");
+
+      if (!TryAddComponent(dataType.Name, dataType, 1))
       {
-        return val.ByteOffset;
+        var fieldFlags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public;
+        var vtx_comps = dataType.GetFields(fieldFlags);
+        Gu.Assert(vtx_comps != null);
+        foreach (var vtx_comp in vtx_comps)
+        {
+          //check value type
+          Gu.Assert(vtx_comp.FieldType.IsValueType, $"'{Name}::{vtx_comp.Name}': Component type {vtx_comp.FieldType.ToString()} must be a value type.");
+          var comp_fields = vtx_comp.FieldType.GetFields(fieldFlags);
+          foreach (var comp_field in comp_fields)
+          {
+            Gu.Assert(comp_field.FieldType.IsValueType, $"'{Name}::{vtx_comp.Name}::{comp_field.Name}': Component field must be a value type.");
+          }
+          Gu.Assert(comp_fields != null);
+
+          if (!TryAddComponent(vtx_comp.Name, vtx_comp.FieldType, comp_fields.Length))
+          {
+            Gu.Log.Error($"Could not find component '{vtx_comp.ToString()}'");
+            Gu.DebugBreak();
+          }
+        }
+      }
+    }
+    public bool TryGetComponent(ShaderVertexType cmp, int index, out DataComponent? val)
+    {
+      return TryGetComponent((int)cmp, index, out val);
+    }
+    public int GetComponentOffset(ShaderVertexType t, int index)
+    {
+      if (TryGetComponent(t, index, out var c))
+      {
+        return c.ByteOffset;
       }
       return -1;
     }
-    public void BindAttribs(VertexFormat previousFormat)
+    public void BindVertexAttribs(GPUDataFormat previousFormat)
     {
       //Previous format is if we are binding multiple vertex buffers to the vao / shader, we use the last location of the attrib from that buffer
       int previousFormatMaxAttribLocation = 0;
@@ -381,514 +156,220 @@ namespace PirateCraft
       }
       //Creates attribute arrays for all items in here.
       //Note: we use vec4 size offsets here because of the 16 byte padding required by GPUs.
-      foreach (var comp in Components)
+      foreach (var comp_by_index in ComponentsLUT)
       {
-        GL.EnableVertexAttribArray(previousFormatMaxAttribLocation + comp.Value.AttribLocation);
-        if (comp.Value.DataType == VertexAttribPointerType.Byte ||
-            comp.Value.DataType == VertexAttribPointerType.UnsignedByte ||
-            comp.Value.DataType == VertexAttribPointerType.Short ||
-            comp.Value.DataType == VertexAttribPointerType.UnsignedShort ||
-            comp.Value.DataType == VertexAttribPointerType.Int ||
-            comp.Value.DataType == VertexAttribPointerType.UnsignedInt)
+        foreach (var comp_pair in comp_by_index.Value)
         {
-          //OpenTK is so weird. Same enum, but in a separate enum?
-          VertexAttribIntegerType intType = VertexAttribIntegerType.Int;
+          var comp = comp_pair.Value;
 
-          if (comp.Value.DataType == VertexAttribPointerType.Byte)
-          {
-            intType = VertexAttribIntegerType.Byte;
-          }
-          else if (comp.Value.DataType == VertexAttribPointerType.UnsignedByte)
-          {
-            intType = VertexAttribIntegerType.UnsignedByte;
-          }
-          else if (comp.Value.DataType == VertexAttribPointerType.Short)
-          {
-            intType = VertexAttribIntegerType.Short;
-          }
-          else if (comp.Value.DataType == VertexAttribPointerType.UnsignedShort)
-          {
-            intType = VertexAttribIntegerType.UnsignedShort;
-          }
-          else if (comp.Value.DataType == VertexAttribPointerType.Int)
-          {
-            intType = VertexAttribIntegerType.Int;
-          }
-          else if (comp.Value.DataType == VertexAttribPointerType.UnsignedInt)
-          {
-            intType = VertexAttribIntegerType.UnsignedInt;
-          }
-          else
-          {
-            Gu.BRThrowNotImplementedException();
-          }
+          GL.EnableVertexAttribArray(previousFormatMaxAttribLocation + comp.AttribLocation);
 
-          GL.VertexAttribIPointer(
-            previousFormatMaxAttribLocation + comp.Value.AttribLocation,
-            comp.Value.ComponentCount,
-            intType,
-            VertexSizeBytes,
-            (IntPtr)(0 + comp.Value.ByteOffset)
-          );
-        }
-        else if (comp.Value.DataType == VertexAttribPointerType.Float ||
-                 comp.Value.DataType == VertexAttribPointerType.Double)
-        {
-          GL.VertexAttribPointer(
-            previousFormatMaxAttribLocation + comp.Value.AttribLocation,
-            comp.Value.ComponentCount,
-            comp.Value.DataType,
-            false,
-            VertexSizeBytes,
-            (IntPtr)(0 + comp.Value.ByteOffset)
-          );
-        }
-
-
-
-      }
-
-    }
-    public unsafe dynamic Access(int vertex_index, VertexComponentType type, byte[] data)
-    {
-      //This is fun. Ok.
-      //index is the vertex index
-      //comp_index is which ccomponent, e.g. in v_v3x2v3v3 comp_index is 0, 1, 2 for v3
-      VertexComponent comp = null;
-      if (!Components.TryGetValue(type, out comp))
-      {
-        Gu.BRThrowException("Could not get component value for " + type);
-      }
-
-      int comp_off = comp.ByteOffset;
-      int total_offset = vertex_index * VertexSizeBytes + comp_off;
-      if (total_offset >= data.Length)
-      {
-        Gu.BRThrowException("Access to vertex data byte buffer is out of range (" + total_offset + ").");
-      }
-
-      dynamic ret = null;
-      fixed (byte* dat = data)
-      {
-        //Declare more types here as needed.
-        if (comp.DataType == VertexAttribPointerType.Float)
-        {
-          if (comp.ComponentCount == 2)
+          if (comp.IntPointerType != null)
           {
-            ret = *((vec2*)(dat + total_offset));
+            GL.VertexAttribIPointer(
+              previousFormatMaxAttribLocation + comp.AttribLocation,
+              comp.ComponentCount,
+              comp.IntPointerType.Value,
+              VertexSizeBytes,
+              (IntPtr)(0 + comp.ByteOffset)
+            );
           }
-          else if (comp.ComponentCount == 3)
+          else if (comp.FloatType != null)
           {
-            ret = *((vec3*)(dat + total_offset));
+            GL.VertexAttribPointer(
+              previousFormatMaxAttribLocation + comp.AttribLocation,
+              comp.ComponentCount,
+              comp.FloatType.Value,
+              false,
+              VertexSizeBytes,
+              (IntPtr)(0 + comp.ByteOffset)
+            );
           }
-          else if (comp.ComponentCount == 4)
+          else if (comp.DoublePointerType != null)
           {
-            ret = *((vec4*)(dat + total_offset));
-          }
-          else
-          {
-            Gu.BRThrowNotImplementedException();
+            GL.VertexAttribLPointer(
+              previousFormatMaxAttribLocation + comp.AttribLocation,
+              comp.ComponentCount,
+              comp.DoublePointerType.Value,
+              VertexSizeBytes,
+              (IntPtr)(0 + comp.ByteOffset)
+            );
           }
         }
-        else if (comp.DataType == VertexAttribPointerType.Int)
-        {
-          if (comp.ComponentCount == 2)
-          {
-            ret = *((ivec2*)(dat + total_offset));
-          }
-          else if (comp.ComponentCount == 3)
-          {
-            ret = *((ivec3*)(dat + total_offset));
-          }
-          else if (comp.ComponentCount == 4)
-          {
-            ret = *((ivec3*)(dat + total_offset));
-          }
-          else
-          {
-            Gu.BRThrowNotImplementedException();
-          }
-        }
-        else
-        {
-          Gu.BRThrowNotImplementedException();
-        }
       }
-      return ret;
-    }
-    public void AddComponent(VertexComponentType eUserType, string name)
-    {
-
-      VertexAttribPointerType eType; //GLenum
-      int compCount;
-      int size;
-      switch (eUserType)
-      {
-        case VertexComponentType.v2_01:
-        case VertexComponentType.v2_02:
-        case VertexComponentType.v2_03:
-        case VertexComponentType.v2_04:
-        case VertexComponentType.v2_05:
-        case VertexComponentType.x2_01:
-        case VertexComponentType.x2_02:
-        case VertexComponentType.x2_03:
-        case VertexComponentType.x2_04:
-        case VertexComponentType.x2_05:
-          eType = VertexAttribPointerType.Float;
-          compCount = 2;
-          size = Marshal.SizeOf(default(vec2));
-          break;
-        case VertexComponentType.v3_01:
-        case VertexComponentType.v3_02:
-        case VertexComponentType.v3_03:
-        case VertexComponentType.v3_04:
-        case VertexComponentType.v3_05:
-        case VertexComponentType.c3_01:
-        case VertexComponentType.c3_02:
-        case VertexComponentType.c3_03:
-        case VertexComponentType.c3_04:
-        case VertexComponentType.c3_05:
-        case VertexComponentType.n3_01:
-        case VertexComponentType.n3_02:
-        case VertexComponentType.n3_03:
-        case VertexComponentType.n3_04:
-        case VertexComponentType.n3_05:
-        case VertexComponentType.f3_01:
-        case VertexComponentType.f3_02:
-        case VertexComponentType.f3_03:
-        case VertexComponentType.f3_04:
-        case VertexComponentType.f3_05:
-        case VertexComponentType.t3_01:
-        case VertexComponentType.t3_02:
-        case VertexComponentType.t3_03:
-        case VertexComponentType.t3_04:
-        case VertexComponentType.t3_05:
-          //*******************************************
-          //**note this from the opengl wiki
-          //"Implementations sometimes get the std140 layout wrong for vec3 components.
-          //You are advised to manually pad your structures/arrays out and avoid using vec3 at all."
-          eType = VertexAttribPointerType.Float;
-          compCount = 3;
-          size = Marshal.SizeOf(default(vec3));
-          //*******************************************
-          break;
-        case VertexComponentType.v4_01:
-        case VertexComponentType.v4_02:
-        case VertexComponentType.v4_03:
-        case VertexComponentType.v4_04:
-        case VertexComponentType.v4_05:
-        case VertexComponentType.c4_01:
-        case VertexComponentType.c4_02:
-        case VertexComponentType.c4_03:
-        case VertexComponentType.c4_04:
-        case VertexComponentType.c4_05:
-          eType = VertexAttribPointerType.Float;
-          compCount = 4;
-          size = Marshal.SizeOf(default(vec4));
-          break;
-        case VertexComponentType.i1_01:
-        case VertexComponentType.i1_02:
-        case VertexComponentType.i1_03:
-          eType = VertexAttribPointerType.Int;
-          compCount = 1;
-          size = Marshal.SizeOf(default(Int32)) * 1;
-          break;
-        case VertexComponentType.i2_01:
-        case VertexComponentType.i2_02:
-        case VertexComponentType.i2_03:
-          eType = VertexAttribPointerType.Int;
-          compCount = 2;
-          size = Marshal.SizeOf(default(Int32)) * 2;
-          break;
-        case VertexComponentType.i3_01:
-        case VertexComponentType.i3_02:
-        case VertexComponentType.i3_03:
-          eType = VertexAttribPointerType.Int;
-          compCount = 3;
-          size = Marshal.SizeOf(default(Int32)) * 3;
-          break;
-        case VertexComponentType.u1_01:
-        case VertexComponentType.u1_02:
-        case VertexComponentType.u1_03:
-          eType = VertexAttribPointerType.UnsignedInt;
-          compCount = 1;
-          size = Marshal.SizeOf(default(UInt32)) * 1;
-          break;
-        case VertexComponentType.u2_01:
-        case VertexComponentType.u2_02:
-        case VertexComponentType.u2_03:
-          eType = VertexAttribPointerType.UnsignedInt;
-          compCount = 2;
-          size = Marshal.SizeOf(default(UInt32)) * 2;
-          break;
-        case VertexComponentType.u3_01:
-        case VertexComponentType.u3_02:
-        case VertexComponentType.u3_03:
-          eType = VertexAttribPointerType.UnsignedInt;
-          compCount = 3;
-          size = Marshal.SizeOf(default(UInt32)) * 3;
-          break;
-
-        case VertexComponentType.s1_01:
-        case VertexComponentType.s1_02:
-        case VertexComponentType.s1_03:
-          eType = VertexAttribPointerType.Short;
-          compCount = 1;
-          size = Marshal.SizeOf(default(Int16)) * 1;
-          break;
-        case VertexComponentType.s2_01:
-        case VertexComponentType.s2_02:
-        case VertexComponentType.s2_03:
-          eType = VertexAttribPointerType.Short;
-          compCount = 2;
-          size = Marshal.SizeOf(default(Int16)) * 2;
-          break;
-        case VertexComponentType.s3_01:
-        case VertexComponentType.s3_02:
-        case VertexComponentType.s3_03:
-          eType = VertexAttribPointerType.Short;
-          compCount = 3;
-          size = Marshal.SizeOf(default(Int16)) * 3;
-          break;
-
-        case VertexComponentType.S1_01:
-        case VertexComponentType.S1_02:
-        case VertexComponentType.S1_03:
-          eType = VertexAttribPointerType.UnsignedShort;
-          compCount = 1;
-          size = Marshal.SizeOf(default(UInt16)) * 1;
-          break;
-        case VertexComponentType.S2_01:
-        case VertexComponentType.S2_02:
-        case VertexComponentType.S2_03:
-          eType = VertexAttribPointerType.UnsignedShort;
-          compCount = 2;
-          size = Marshal.SizeOf(default(UInt16)) * 2;
-          break;
-        case VertexComponentType.S3_01:
-        case VertexComponentType.S3_02:
-        case VertexComponentType.S3_03:
-          eType = VertexAttribPointerType.UnsignedShort;
-          compCount = 3;
-          size = Marshal.SizeOf(default(UInt16)) * 3;
-          break;
-
-        case VertexComponentType.b1_01:
-        case VertexComponentType.b1_02:
-        case VertexComponentType.b1_03:
-          eType = VertexAttribPointerType.Byte;
-          compCount = 1;
-          size = Marshal.SizeOf(default(SByte)) * 1;
-          break;
-        case VertexComponentType.b2_01:
-        case VertexComponentType.b2_02:
-        case VertexComponentType.b2_03:
-          eType = VertexAttribPointerType.Byte;
-          compCount = 2;
-          size = Marshal.SizeOf(default(SByte)) * 2;
-          break;
-        case VertexComponentType.b3_01:
-        case VertexComponentType.b3_02:
-        case VertexComponentType.b3_03:
-          eType = VertexAttribPointerType.Byte;
-          compCount = 3;
-          size = Marshal.SizeOf(default(SByte)) * 3;
-          break;
-
-        case VertexComponentType.B1_01:
-        case VertexComponentType.B1_02:
-        case VertexComponentType.B1_03:
-          eType = VertexAttribPointerType.UnsignedByte;
-          compCount = 1;
-          size = Marshal.SizeOf(default(byte)) * 1;
-          break;
-        case VertexComponentType.B2_01:
-        case VertexComponentType.B2_02:
-        case VertexComponentType.B2_03:
-          eType = VertexAttribPointerType.UnsignedByte;
-          compCount = 2;
-          size = Marshal.SizeOf(default(byte)) * 2;
-          break;
-        case VertexComponentType.B3_01:
-        case VertexComponentType.B3_02:
-        case VertexComponentType.B3_03:
-          eType = VertexAttribPointerType.UnsignedByte;
-          compCount = 3;
-          size = Marshal.SizeOf(default(byte)) * 3;
-          break;
-
-
-        default:
-          throw new Exception("Vertex user type not impelmented.");
-      }
-
-      AddComponent(eType, compCount, size, eUserType, name);
-    }
-    public void AddComponent(VertexAttribPointerType type, int componentCount, int size, VertexComponentType eUserType = VertexComponentType.NoVertexType, string name = "")
-    {
-      foreach (KeyValuePair<VertexComponentType, VertexComponent> entry in Components)
-      {
-        if (entry.Value.UserType == eUserType)
-        {
-          throw new Exception("Duplicate Vertex component '" + GetUserTypeName(eUserType) + "' for Vertex Type '" + Name + "'.");
-        }
-      }
-
-      VertexComponent cmp = new VertexComponent();
-      cmp.DataType = type;
-      cmp.ComponentCount = componentCount;
-      cmp.SizeBytes = size;
-      cmp.UserType = eUserType;
-      cmp.AttribLocation = Components.Count;
-      cmp.Name = name;
-
-      cmp.ByteOffset = 0;
-      foreach (KeyValuePair<VertexComponentType, VertexComponent> entry in Components)
-      {
-        cmp.ByteOffset += entry.Value.SizeBytes;
-      }
-
-      Components.Add(eUserType, cmp);
-
-      //Re-calculate size of vertex
-      VertexSizeBytes_WithoutPadding = 0;
-      foreach (KeyValuePair<VertexComponentType, VertexComponent> entry in Components)
-      {
-        VertexSizeBytes_WithoutPadding += entry.Value.SizeBytes;
-      }
-
     }
 
     #endregion
     #region Private: Methods
 
-    private static VertexFormat DeclareFormat(Type vertexType)
+    private bool TryAddComponent(string type_or_field_name, Type comp, int comp_count)
     {
-      string strFormat = vertexType.Name;
+      VertexAttribPointerType? ftype = null;
+      VertexAttribIntegerType? itype = null;
+      VertexAttribDoubleType? dtype = null;
 
-      //*** THIS SUCKS
-      //*** THIS SUCKS
-      // TODO: Reflection and get teh field infos, and deduce them by their field names.
-      //Don't use the class name itself.....
-
-      //an even easier way to declare shader input vertexes. 
-      // Format will get parsed v_xxyyzzww.. name is arbitrary
-      //ex v_v2c4x3
-      if (strFormat == "byte")
+      //float
+      if (comp == typeof(Single)) { ftype = VertexAttribPointerType.Float; }
+      else if (comp == typeof(vec2)) { ftype = VertexAttribPointerType.Float; }
+      else if (comp == typeof(vec3)) { ftype = VertexAttribPointerType.Float; }
+      else if (comp == typeof(vec4)) { ftype = VertexAttribPointerType.Float; }
+      else if (comp == typeof(mat2)) { ftype = VertexAttribPointerType.Float; }
+      else if (comp == typeof(mat3)) { ftype = VertexAttribPointerType.Float; }
+      else if (comp == typeof(mat4)) { ftype = VertexAttribPointerType.Float; }
+      //int
+      else if (comp == typeof(byte)) { itype = VertexAttribIntegerType.Byte; }
+      else if (comp == typeof(sbyte)) { itype = VertexAttribIntegerType.UnsignedByte; }
+      else if (comp == typeof(short)) { itype = VertexAttribIntegerType.Short; }
+      else if (comp == typeof(ushort)) { itype = VertexAttribIntegerType.UnsignedShort; }
+      else if (comp == typeof(int)) { itype = VertexAttribIntegerType.Int; }
+      else if (comp == typeof(uint)) { itype = VertexAttribIntegerType.UnsignedInt; }
+      else if (comp == typeof(ivec2)) { itype = VertexAttribIntegerType.Int; }
+      else if (comp == typeof(ivec3)) { itype = VertexAttribIntegerType.Int; }
+      else if (comp == typeof(ivec4)) { itype = VertexAttribIntegerType.Int; }
+      else if (comp == typeof(uvec2)) { itype = VertexAttribIntegerType.UnsignedInt; }
+      else if (comp == typeof(uvec3)) { itype = VertexAttribIntegerType.UnsignedInt; }
+      else if (comp == typeof(uvec4)) { itype = VertexAttribIntegerType.UnsignedInt; }
+      //double
+      else if (comp == typeof(Double)) { dtype = VertexAttribDoubleType.Double; }
+      else if (comp == typeof(dvec2)) { dtype = VertexAttribDoubleType.Double; }
+      else if (comp == typeof(dvec3)) { dtype = VertexAttribDoubleType.Double; }
+      else if (comp == typeof(dvec4)) { dtype = VertexAttribDoubleType.Double; }
+      else
       {
-        strFormat = "v_b1";
-      }
-      else if (strFormat == "SByte")
-      {
-        strFormat = "v_B1";
-      }
-      else if (strFormat == "short" || strFormat == "Int16")
-      {
-        strFormat = "v_s1";
-      }
-      else if (strFormat == "ushort" || strFormat == "UInt16")
-      {
-        strFormat = "v_S1";
-      }
-      else if (strFormat == "int" || strFormat == "Int32")
-      {
-        strFormat = "v_i1";
-      }
-      else if (strFormat == "uint" || strFormat == "UInt32")
-      {
-        strFormat = "v_u1";
-      }
-      else if (strFormat == "vec2")
-      {
-        strFormat = "v_v2";
-      }
-      else if (strFormat == "vec3")
-      {
-        strFormat = "v_v3";
-      }
-      else if (strFormat == "vec4")
-      {
-        strFormat = "v_v4";
+        return false;
       }
 
-      //I realy think this should just cycle through the properties using reflection
-      VertexFormat vft = new VertexFormat(strFormat, vertexType);
-      Dictionary<VertexComponentType, int> occurances = new Dictionary<VertexComponentType, int>();
-      if (!strFormat.StartsWith("v_", StringComparison.InvariantCulture))
+      int byte_size = Marshal.SizeOf(comp);
+
+      ShaderVertexType ctype = TryParseShaderInputType(type_or_field_name, comp_count);
+
+      AddComponent_Ordered(type_or_field_name, comp_count, byte_size, ftype, itype, dtype, ctype);
+
+      return true;
+    }
+    private ShaderVertexType TryParseShaderInputType(string name, int comp_count)
+    {
+      //Parse system user type.
+      //Kind of a hacky way to map vertex parameters to shader inputs.
+
+      var res = ShaderVertexType.Undefined;
+
+      name = name.Trim(new char[] { ' ', '\t', '\n', '\r' });
+
+      //Name must start with a _
+      if (!name.StartsWith('_'))
       {
-        throw new Exception("Vertex format class named '" + strFormat + "' must start with v_, and name attributes ex: v_v3n3x2c4");
+        return ShaderVertexType.Undefined;
       }
-      string c = "";
-      for (int i = 2; i < strFormat.Length; ++i) //start at v_
+      else if (name.Length >= 2 && name.Length <= 4)
       {
-        c += strFormat[i];
-        if (c.Length == 2)
+        int index = -1;
+        if (name.Length > 2)
         {
-          VertexComponentType outType = ParseUserType(c);
-          int count = 0;
-          if (occurances.TryGetValue(outType, out count))
+          var index_str = name.Substring(2); //index like _v2, or _v04, etc - 
+          if (Int32.TryParse(index_str, out index))
           {
-            if (count >= 5)
-            {
-              Gu.BRThrowException("Attribute count for type was more than 3. Not a bug, just we haven't supported it yet (update the enum).");
-            }
-            occurances[outType] += 1;
-            outType += count;
+            //TODO: index ,if needed ,probably not
           }
-          else
-          {
-            occurances.Add(outType, 1);
-          }
-          vft.AddComponent(outType, c);
+        }
 
-          c = "";
+        var type_str = name.Substring(1, 1); //v,f,c,
+        if (type_str == "v" && comp_count == 2) { res = ShaderVertexType.v2; }
+        else if (type_str == "v" && comp_count == 3) { res = ShaderVertexType.v3; }
+        else if (type_str == "v" && comp_count == 4) { res = ShaderVertexType.v4; }
+        else if (type_str == "c" && comp_count == 3) { res = ShaderVertexType.c3; }
+        else if (type_str == "c" && comp_count == 4) { res = ShaderVertexType.c4; }
+        else if (type_str == "n" && comp_count == 3) { res = ShaderVertexType.n3; }
+        else if (type_str == "x" && comp_count == 2) { res = ShaderVertexType.x2; }
+        else if (type_str == "f" && comp_count == 3) { res = ShaderVertexType.f3; }
+        else if (type_str == "t" && comp_count == 3) { res = ShaderVertexType.t3; }
+        else if (type_str == "y" && comp_count == 3) { res = ShaderVertexType.gl_InstanceID; }//never gonna remember this
+        else if (type_str == "Y" && comp_count == 3) { res = ShaderVertexType.gl_InstanceIndex; }
+        else if (type_str == "u" && comp_count == 1) { res = ShaderVertexType.u1; }
+        else if (type_str == "u" && comp_count == 2) { res = ShaderVertexType.u2; }
+        else if (type_str == "u" && comp_count == 3) { res = ShaderVertexType.u3; }
+        else if (type_str == "i" && comp_count == 1) { res = ShaderVertexType.i1; }
+        else if (type_str == "i" && comp_count == 2) { res = ShaderVertexType.i2; }
+        else if (type_str == "i" && comp_count == 3) { res = ShaderVertexType.i3; }
+        else if (type_str == "m" && comp_count == 4) { res = ShaderVertexType.m2; }
+        else if (type_str == "m" && comp_count == 9) { res = ShaderVertexType.m3; }
+        else if (type_str == "m" && comp_count == 16) { res = ShaderVertexType.m4; }
+
+      }
+
+      return res;
+    }
+    private void AddComponent_Ordered(string name, int componentCount, int size_bytes,
+                                     VertexAttribPointerType? ftype, VertexAttribIntegerType? itype, VertexAttribDoubleType? dtype,
+                                     ShaderVertexType eUserType)
+    {
+      //add a new component, the order in which we add them matters.
+      Gu.Assert(_componentsLUT != null);
+      Gu.Assert(_componentsOrdered != null);
+
+      //There can be only one
+      Gu.Assert(!(ftype != null && dtype != null));
+      Gu.Assert(!(ftype != null && itype != null));
+      Gu.Assert(!(itype != null && dtype != null));
+
+      DataComponent cm = new DataComponent();
+      cm._floatType = ftype;
+      cm._intType = itype;
+      cm._componentCount = componentCount;
+      cm._sizeBytes = size_bytes;
+      cm._userType = eUserType;
+      cm._attribLocation = _componentsOrdered.Count;
+      cm._name = name;
+
+      if (eUserType == ShaderVertexType.Undefined)
+      {
+        cm._lutHash = (int)Proteus.Crc32.Compute(cm._name);
+      }
+      else
+      {
+        cm._lutHash = (int)eUserType;
+      }
+
+      Dictionary<int, DataComponent>? byindex = null;
+      if (!_componentsLUT.TryGetValue(cm._lutHash, out byindex))
+      {
+        byindex = new Dictionary<int, DataComponent>();
+        _componentsLUT.Add(cm._lutHash, byindex);
+      }
+      var max_idx = 1;
+      if (byindex.Keys.Count > 0)
+      {
+        max_idx = byindex.Keys.Max() + 1;
+      }
+      byindex.Add(max_idx, cm);
+      cm._lutIndex = max_idx;
+
+      cm._byteOffset = 0;
+      foreach (var cmpi in _componentsOrdered)
+      {
+        cm._byteOffset += cmpi._sizeBytes;
+      }
+      _componentsOrdered.Add(cm);
+    }
+    private bool TryGetComponent(int cmpHash, int index, out DataComponent? val)
+    {
+      Gu.Assert(index > 0);//Index start at 1
+      Gu.Assert(_componentsLUT != null);
+      val = null;
+      if (_componentsLUT.TryGetValue(cmpHash, out var by_index))
+      {
+        if (by_index.TryGetValue(index, out val))
+        {
+          return val != null;
         }
       }
-
-      //Different from size without padding. Make sure this new one works
-      vft.VertexSizeBytes = Marshal.SizeOf(vertexType);
-
-      return vft;
+      return false;
     }
-    private static VertexComponentType ParseUserType(string st)
-    {
-      switch (st)
-      {
-        case "v2": return VertexComponentType.v2_01;//vertex
-        case "v3": return VertexComponentType.v3_01;
-        case "v4": return VertexComponentType.v4_01;
-        case "n3": return VertexComponentType.n3_01;//normal
-        case "f3": return VertexComponentType.f3_01;//face normal
-        case "t3": return VertexComponentType.t3_01;//tangent
-        case "c3": return VertexComponentType.c3_01;//color
-        case "c4": return VertexComponentType.c4_01;
-        case "x2": return VertexComponentType.x2_01;//texcoord
-        case "i1": return VertexComponentType.i1_01;//signed int
-        case "i2": return VertexComponentType.i2_01;
-        case "i3": return VertexComponentType.i3_01;
-        case "u1": return VertexComponentType.u1_01;//unsigned int
-        case "u2": return VertexComponentType.u2_01;
-        case "u3": return VertexComponentType.u3_01;
-        case "s1": return VertexComponentType.s1_01;//signed short
-        case "s2": return VertexComponentType.s2_01;
-        case "s3": return VertexComponentType.s3_01;
-        case "S1": return VertexComponentType.S1_01;//unsigned short 
-        case "S2": return VertexComponentType.S2_01;
-        case "S3": return VertexComponentType.S3_01;
-        case "b1": return VertexComponentType.b1_01;//signed byte
-        case "b2": return VertexComponentType.b2_01;
-        case "b3": return VertexComponentType.b3_01;
-        case "B1": return VertexComponentType.B1_01;//unsigned byte
-        case "B2": return VertexComponentType.B2_01;
-        case "B3": return VertexComponentType.B3_01;
-      }
-      Gu.BRThrowException("Component type '" + st + "' was not recognized. ");
-      Gu.BRThrowNotImplementedException();
-      return VertexComponentType.NoVertexType;
-    }
+
 
     #endregion
-  }
+  }//end datafrmt
+
   public class VertexPointer
   {
     //Generic vertex class
@@ -908,18 +389,18 @@ namespace PirateCraft
         Index = index;
       }
       //The 01 methods are for 01 data.
-      public vec3 _v { get { return Pointer.GetValue<vec3>(VertexComponentType.v3_01, Index); } set { Pointer.SetValue<vec3>(VertexComponentType.v3_01, Index, value); } }
-      public vec3 _n { get { return Pointer.GetValue<vec3>(VertexComponentType.n3_01, Index); } set { Pointer.SetValue<vec3>(VertexComponentType.n3_01, Index, value); } }
-      public vec3 _t { get { return Pointer.GetValue<vec3>(VertexComponentType.t3_01, Index); } set { Pointer.SetValue<vec3>(VertexComponentType.t3_01, Index, value); } }
-      public vec2 _x { get { return Pointer.GetValue<vec2>(VertexComponentType.x2_01, Index); } set { Pointer.SetValue<vec2>(VertexComponentType.x2_01, Index, value); } }
-      public vec2 _x2 { get { return Pointer.GetValue<vec2>(VertexComponentType.x2_02, Index); } set { Pointer.SetValue<vec2>(VertexComponentType.x2_02, Index, value); } }
-      public uint _u { get { return Pointer.GetValue<uint>(VertexComponentType.u1_01, Index); } set { Pointer.SetValue<uint>(VertexComponentType.u1_01, Index, value); } }
+      public vec3 _v { get { return Pointer.GetValue<vec3>(ShaderVertexType.v3, 1, Index); } set { Pointer.SetValue<vec3>(ShaderVertexType.v3, 1, Index, value); } }
+      public vec3 _n { get { return Pointer.GetValue<vec3>(ShaderVertexType.n3, 1, Index); } set { Pointer.SetValue<vec3>(ShaderVertexType.n3, 1, Index, value); } }
+      public vec3 _t { get { return Pointer.GetValue<vec3>(ShaderVertexType.t3, 1, Index); } set { Pointer.SetValue<vec3>(ShaderVertexType.t3, 1, Index, value); } }
+      public vec2 _x { get { return Pointer.GetValue<vec2>(ShaderVertexType.x2, 1, Index); } set { Pointer.SetValue<vec2>(ShaderVertexType.x2, 1, Index, value); } }
+      public vec2 _x2 { get { return Pointer.GetValue<vec2>(ShaderVertexType.x2, 2, Index); } set { Pointer.SetValue<vec2>(ShaderVertexType.x2, 2, Index, value); } }
+      public uint _u { get { return Pointer.GetValue<uint>(ShaderVertexType.u1, 1, Index); } set { Pointer.SetValue<uint>(ShaderVertexType.u1, 1, Index, value); } }
     }
 
     #endregion
     #region Public: Members
 
-    public VertexFormat Format { get; private set; } = null;
+    public GPUDataFormat Format { get; private set; } = null;
     public object Verts { get; private set; } = null;
     public int BufferSizeBytes { get; private set; } = 0;
     public int Length { get; private set; } = 0;
@@ -939,7 +420,7 @@ namespace PirateCraft
         Gu.BRThrowException("Element type of input vertex array was not a struct (value type).");
       }
       Verts = verts;
-      Format = VertexFormat.GetVertexFormat(t.GetElementType());
+      Format = GPUDataFormat.GetDataFormat(t.GetElementType());
       Length = (verts as Array).Length;
       BufferSizeBytes = Format.VertexSizeBytes * Length;
     }
@@ -950,7 +431,7 @@ namespace PirateCraft
         return new VertexPointerOffset(this, i);
       }
     }
-    public T GetValue<T>(VertexComponentType ctype, int off) where T : unmanaged
+    public T GetValue<T>(ShaderVertexType ctype, int comp_index, int off) where T : unmanaged
     {
       Gu.Assert(off < this.Length);
       //We could box this type, however we should technically never need to. C# should check bounds.
@@ -958,14 +439,14 @@ namespace PirateCraft
       {
         var pinnedHandle = GCHandle.Alloc(Verts, GCHandleType.Pinned);
         void* pt = pinnedHandle.AddrOfPinnedObject().ToPointer();
-        byte* b = GetPtr(ctype, off, pt);
+        byte* b = GetPtr(ctype, comp_index, off, pt);
         Gu.Assert(b != null);
         T ret = *((T*)b);
         pinnedHandle.Free();
         return ret;
       }
     }
-    public void SetValue<T>(VertexComponentType ctype, int off, T val) where T : unmanaged
+    public void SetValue<T>(ShaderVertexType ctype, int comp_index, int off, T val) where T : unmanaged
     {
       Gu.Assert(off < this.Length);
       //We could box this type, however we should technically never need to. C# should check bounds.
@@ -973,7 +454,7 @@ namespace PirateCraft
       {
         var pinnedHandle = GCHandle.Alloc(Verts, GCHandleType.Pinned);
         void* pt = pinnedHandle.AddrOfPinnedObject().ToPointer();
-        byte* b = GetPtr(ctype, off, pt);
+        byte* b = GetPtr(ctype, comp_index, off, pt);
         Gu.Assert(b != null);
         *((T*)b) = val;
         pinnedHandle.Free();
@@ -983,11 +464,12 @@ namespace PirateCraft
     #endregion
     #region Private: Methods
 
-    private unsafe byte* GetPtr(VertexComponentType comp, int offset, void* pt)
+    private unsafe byte* GetPtr(ShaderVertexType comp, int comp_index, int offset, void* pt)
     {
       byte* ret = null;
-      if (Format.Components.TryGetValue(comp, out var cmp))
+      if (Format.TryGetComponent(comp, comp_index, out var cmp))
       {
+        Gu.Assert(cmp != null);
         int vsize = Format.VertexSizeBytes;
         int boff = cmp.ByteOffset;
 
@@ -1003,42 +485,42 @@ namespace PirateCraft
 
     #endregion
   }
+
   #region Vertex Formats
 
-  //note i removed std430 padding .. this is erroneous.. we need to fix it
+  //note we removed std430 padding .. this is erroneous.. we need to fix it
   [StructLayout(LayoutKind.Sequential)]
   public struct v_v3c4
   {
     [DataMember] public vec3 _v;
     [DataMember] public vec4 _c;
   }
-  //Base object vertex, with picking<
   [DataContract]
-  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct v_v3n3x2t3u1
   {
+    //Base object vertex, with picking<
     [DataMember] public vec3 _v;
     [DataMember] public vec3 _n;
     [DataMember] public vec2 _x;
     [DataMember] public vec3 _t;
     public uint _u;//Face ID, note this is convenient just because we had a pad value.
   }
-  //GlobVert
   [DataContract]
-  [Serializable]
   [StructLayout(LayoutKind.Sequential)]
   public struct v_v3n3x2u1
   {
+    //GlobVert
     [DataMember] public vec3 _v; //3   = 3
     [DataMember] public vec3 _n; //3   = 9
     [DataMember] public vec2 _x; //2   = 11
     [DataMember] public uint _u; // 1  = 12  => 12%4=0
   }
-  //v_GuiVert
   [StructLayout(LayoutKind.Sequential)]
   public struct v_v4v4v4v2u2v4v4
   {
+    //26 float = 96B
+    //v_GuiVert
     [DataMember] public vec4 _rect;
     [DataMember] public vec4 _clip;
     [DataMember] public vec4 _tex;
@@ -1046,22 +528,16 @@ namespace PirateCraft
     [DataMember] public uvec2 _pick_color;
     [DataMember] public vec4 _rtl_rtr; //css corners = tl, tr, br, bl = xyzw
     [DataMember] public vec4 _rbr_rbl;
+    [DataMember] public vec4 _border_trbl;//top, right, bot, left
+    [DataMember] public vec4 _depth; //depth + pad
   };
   [StructLayout(LayoutKind.Sequential)]
   public struct v_v3x2
   {
+    //Textured Quad
     [DataMember] public vec3 _v;
     [DataMember] public vec2 _x;
   };
-  //Billboard Quad Vert
-  // [StructLayout(LayoutKind.Sequential)]
-  // public struct v_v4v2c4x4u2
-  // {
-  //   public vec4 _v401;//pos
-  //   public vec2 _v201;//size
-  //   public vec4 _x401;//uv0, uv1
-  //   public uvec2 _u201;//pick_color
-  // };
 
   #endregion
 

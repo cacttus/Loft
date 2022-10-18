@@ -307,7 +307,7 @@ namespace PirateCraft
         var precount = bf.Length;
         var postcount = compressed.Length;
         bf=null;
-        Gu.Log.Debug($"Compressed Glob pre: {precount} -> {postcount}");
+        //Gu.Log.Debug($"Compressed Glob pre: {precount} -> {postcount}");
         br.Write((Int32)compressed.Length);
         br.Write(compressed);
       }

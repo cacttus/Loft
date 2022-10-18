@@ -27,20 +27,24 @@ namespace PirateCraft
     public static string Tex2D_DefaultNormalPixel = "Tex2D_DefaultNormalPixel";
 
     public static string Shader_DebugDraw = "Shader_DebugDraw";
+    public static string Shader_Wireframe = "Shader_Wireframe";
     public static string Shader_GuiShader = "Shader_GuiShader";
     public static string Shader_DefaultObjectShader = "Shader_DefaultObjectShader";
     public static string Shader_DefaultFlatColorShader = "Shader_DefaultFlatColorShader";
     public static string Shader_DefaultBillboardPoints = "Shader_DefaultBillboardPoints";
+    public static string Shader_VertexFaceNormals = "Shader_VertexFaceNormals";
 
     public static string Material_DefaultFlatColorMaterial = "Material_DefaultFlatColorMaterial";
     public static string Material_DefaultObjectMaterial = "Material_DefaultObjectMaterial";
     public static string Material_DebugDraw_VertexNormals_FlatColor = "Material_DebugDraw_VertexNormals_FlatColor";
     public static string Material_DebugDrawMaterial = "Material_DebugDrawMaterial";
+    public static string DebugDraw_Wireframe_FlatColor = "DebugDraw_Wireframe_FlatColor";
 
     public static string Mesh_DefaultBox = "Mesh_DefaultBox";
 
     public static string WorldObject_Camera = "WorldObject_Camera";
     public static string WorldObject_Gear = "WorldObject_Gear";
+    public static string WorldObject_Barrel = "WorldObject_Barrel";
   }
 
 
@@ -56,6 +60,8 @@ namespace PirateCraft
     public static ResourceType OpenGLResource = new ResourceType("OpenGLResource", typeof(OpenGLResource), "-glrsc");
     public static ResourceType FramebufferGeneric = new ResourceType("FramebufferGeneric", typeof(FramebufferGeneric), "-fbgen");
     public static ResourceType ContextShader = new ResourceType("ContextShader", typeof(GpuShader), "-shrct");
+    public static ResourceType ShaderDataBlock = new ResourceType("ShaderDataBlock", typeof(ShaderDataBlock), "-sdb");
+    public static ResourceType ShaderUniform = new ResourceType("ShaderUniform", typeof(ShaderUniform), "-su");
     public static ResourceType ShaderUniformBlock = new ResourceType("ShaderUniformBlock", typeof(ShaderUniformBlock), "-shrbo");
     public static ResourceType ShaderMemoryBlock = new ResourceType("ShaderMemoryBlock", typeof(ShaderMemoryBlock), "-shrmb");
     public static ResourceType ShaderStorageBlock = new ResourceType("ShaderStorageBlock", typeof(ShaderStorageBlock), "-shrsb");
@@ -68,7 +74,10 @@ namespace PirateCraft
     public static ResourceType MeshContextManager = new ResourceType("MeshContextManager", typeof(OpenGLContextDataManager<VertexArrayObject>), "-ctmgrm");
     public static ResourceType ShaderContextManager = new ResourceType("ShaderContextManager", typeof(OpenGLContextDataManager<Dictionary<int, GpuShader>>), "-ctmgrs");
     public static ResourceType TextureContextManager = new ResourceType("TextureContextManager", typeof(OpenGLContextDataManager<GpuTexture>), "-ctmgrt");
-   
+    public static ResourceType DynamicFileLoader = new ResourceType("DynamicFileLoader", typeof(DynamicFileLoader), "-dfl");
+
+    public static ResourceType CSharpScript = new ResourceType("CSharpScript", typeof(CSharpScript), "-csscript");
+
     public static ResourceType Image = new ResourceType("Image", typeof(Image), "-image");
     public static ResourceType ImageGenerator = new ResourceType("ImageGenerator", typeof(ImageGen), "-imagegen");
     public static ResourceType ImageFile = new ResourceType("ImageFile", typeof(ImageFile), "-imagefile");
@@ -78,13 +87,14 @@ namespace PirateCraft
     public static ResourceType Shader = new ResourceType("Shader", typeof(Shader), "-shr");
     public static ResourceType GLSLFile = new ResourceType("GLSLFile", typeof(ShaderDataSource), "-glslfile");
 
+    public static ResourceType MeshView = new ResourceType("MeshView", typeof(MeshView), "-mviw");
     public static ResourceType MeshData = new ResourceType("MeshData", typeof(MeshData), "-mesh");
     public static ResourceType MeshDataLoader = new ResourceType("MeshDataLoader", typeof(MeshDataLoader), "-meshld");
     public static ResourceType GLTFFile = new ResourceType("GLTFFile", typeof(GLTFFile), "-gltffile");
 
+    public static ResourceType Drawable = new ResourceType("Drawable", typeof(Drawable), "-dbj");
     public static ResourceType WorldObject = new ResourceType("WorldObject", typeof(WorldObject), "-obj");
     public static ResourceType CameraObject = new ResourceType("CameraObject", typeof(Camera3D), "-cam");
-    public static ResourceType LightObject = new ResourceType("LightObject", typeof(Light), "-light");
 
     public static ResourceType FPSInputComponent = new ResourceType("FPSInputComponent", typeof(FPSInputComponent), "-fpscmp");
     public static ResourceType EventComponent = new ResourceType("EventComponent", typeof(EventComponent), "-eventcmp");
@@ -101,7 +111,6 @@ namespace PirateCraft
 
     public static ResourceType? GetResourceType(Type dbb)
     {
-      
       if (ResourceType.ResourceTypesArray.TryGetValue(dbb, out var rt))
       {
         return rt;
@@ -139,16 +148,15 @@ namespace PirateCraft
       _resourceTypesArray.Add(classType, this);
     }
   }
-  [Serializable]
   [DataContract]
   public class ResourceTable
   {
     #region Members
 
-    [NonSerialized] public static SerializedFileVersion c_fileVersion = new SerializedFileVersion(10000);
+    public static SerializedFileVersion c_fileVersion = new SerializedFileVersion(10000);
 
     [DataMember] private Dictionary<UInt64, DataBlock> _resourcesById = new Dictionary<UInt64, DataBlock>();//mapped to uniqueid
-    [NonSerialized] private Dictionary<ResourceType, Dictionary<string, DataBlock>> _resourcesByTypeAndName = new Dictionary<ResourceType, Dictionary<string, DataBlock>>();
+    private Dictionary<ResourceType, Dictionary<string, DataBlock>> _resourcesByTypeAndName = new Dictionary<ResourceType, Dictionary<string, DataBlock>>();
 
     #endregion
     #region Methods
@@ -188,7 +196,7 @@ namespace PirateCraft
     {
       string m = ResourceMsg(d, msg);
       Gu.Log.Error(m);
-      Gu.BRThrowException(m);
+      //   Gu.BRThrowException(m);
     }
     public static void ResourceWarning(DataBlock? d, string msg)
     {
@@ -388,21 +396,21 @@ namespace PirateCraft
     //Resource Database / asset manager / Library
     #region Constants
 
-    [NonSerialized] public const UInt64 NullID = 0;
-    [NonSerialized] public const string UnsetName = "<unset>";
-    [NonSerialized] public const string CopyName = "-copy";
-    [NonSerialized] public const Int32 c_idTypeMultiplier = 1000000;
-    [NonSerialized] public const UInt64 c_iUntypedUnique = 9999999999999; //untyped
-    [NonSerialized] public const UInt64 c_iIDStart = 200; // prevent low ids for debugging
-    [NonSerialized] public const string ResourceFileNameText = "resources.json";
-    [NonSerialized] public const string ResourceFileNameBinary = "resources.dat";
+    public const UInt64 NullID = 0;
+    public const string UnsetName = "<unset>";
+    public const string CopyName = "-copy";
+    public const Int32 c_idTypeMultiplier = 1000000;
+    public const UInt64 c_iUntypedUnique = 9999999999999; //untyped
+    public const UInt64 c_iIDStart = 200; // prevent low ids for debugging
+    public const string ResourceFileNameText = "resources.json";
+    public const string ResourceFileNameBinary = "resources.dat";
 
     #endregion
     #region Members
 
-    [NonSerialized] private DeltaTimer _shaderChangedTimer = null;
-    [NonSerialized] private float _checkForShaderFileChangeUpdatesTimeSeconds = 0.5f;
-    [NonSerialized] private Dictionary<ulong, Dictionary<object, List<string>>> PointerFixUp = null;
+    private DeltaTimer _shaderChangedTimer = null;
+    private float _checkForShaderFileChangeUpdatesTimeSeconds = 0.5f;
+    private Dictionary<ulong, Dictionary<object, List<string>>> PointerFixUp = null;
 
     #endregion
     #region Methods
@@ -636,17 +644,19 @@ namespace PirateCraft
         }
       }
       else if (internalFmt == PixelInternalFormat.DepthComponent16 ||
-      internalFmt == PixelInternalFormat.DepthComponent24)
+               internalFmt == PixelInternalFormat.DepthComponent24)
       {
         Gu.Log.Error("save 16/24 bit depth texture not supported.");
         Gu.DebugBreak();
       }
-      if (setAlphatoOne && (internalFmt == PixelInternalFormat.Rgba ||
-      internalFmt == PixelInternalFormat.Rgba32f ||
-       internalFmt == PixelInternalFormat.Rgba8 ||
-       internalFmt == PixelInternalFormat.Rgba16 ||
-       internalFmt == PixelInternalFormat.Rgba32f ||
-       internalFmt == PixelInternalFormat.Rgba32i
+      if (setAlphatoOne && (
+        internalFmt == PixelInternalFormat.Rgba ||
+        internalFmt == PixelInternalFormat.Rgba32f ||
+        internalFmt == PixelInternalFormat.Rgba8 ||
+        internalFmt == PixelInternalFormat.Rgba16 ||
+        internalFmt == PixelInternalFormat.Rgba16f ||
+        internalFmt == PixelInternalFormat.Rgba32f ||
+        internalFmt == PixelInternalFormat.Rgba32i
        ))
       {
         for (int iy = 0; iy < img.Height; iy++)
@@ -670,7 +680,11 @@ namespace PirateCraft
             s.CheckSourceChanged();
             return LambdaBool.Continue;
           });
-
+          IterateResource<CSharpScript>((s) =>
+          {
+            s.CheckSourceChanged();
+            return LambdaBool.Continue;
+          });
         });
       // _cleanupTimer.Update(dt, () =>
       //   {
@@ -696,9 +710,9 @@ namespace PirateCraft
     {
       return TryLoad<Image>(name, out image, () => { return LoadImage(name, loc); });
     }
-    public bool TryLoadShader(string name, string generic_name, bool hasgs, FileStorage storage, PrimitiveType? gsprimtype, out Shader? sh)
+    public bool TryLoadShader(string name, string generic_name, FileStorage storage, PrimitiveType? gsprimtype, out Shader? sh)
     {
-      return TryLoad<Shader>(name, out sh, () => { return LoadShader(name, generic_name, hasgs, storage, gsprimtype); });
+      return TryLoad<Shader>(name, out sh, () => { return LoadShader(name, generic_name, storage, gsprimtype); });
     }
     public bool TryLoadMaterial(string name, Shader s, out Material? mat)
     {
@@ -788,7 +802,8 @@ namespace PirateCraft
       if (rn == null)
       {
         ret = new Texture(name, img, mipmaps, filter);
-        ret.PromoteResource(ResourcePromotion.LibraryAdd, new SerializedDataSource(name));
+        RegisterResource(ret);
+        //ret.PromoteResource(ResourcePromotion.LibraryAdd, new SerializedDataSource(name));
       }
       else
       {
@@ -808,7 +823,8 @@ namespace PirateCraft
           var img = LoadImage(name, loc);
           Gu.Assert(img != null);
           ret = new Texture(name, img, mipmaps, filter);
-          ret.PromoteResource(ResourcePromotion.LibraryAdd, new SerializedDataSource(name));
+          RegisterResource(ret);
+          //ret.PromoteResource(ResourcePromotion.LibraryAdd, new SerializedDataSource(name));
         }
         catch (Exception ex)
         {
@@ -831,7 +847,8 @@ namespace PirateCraft
       if (rn == null)
       {
         ret = new Material(name, s);
-        ret.PromoteResource(ResourcePromotion.LibraryAdd, new SerializedDataSource(name));
+        RegisterResource(ret);
+        // ret.PromoteResource(ResourcePromotion.LibraryAdd, new SerializedDataSource(name));
       }
       else
       {
@@ -840,14 +857,32 @@ namespace PirateCraft
       }
       return ret;
     }
-    public Shader? LoadShader(string name, string generic_name, bool hasgs, FileStorage storage, PrimitiveType? gsprimtype = null)
+    public Shader? LoadShader(string name, List<FileLoc> locs, PrimitiveType? gsprimtype = null)
     {
       Shader? ret = null;
       var rn = GetResourceByName(ResourceType.Shader, name);
       if (rn == null)
       {
-        ret = new Shader(name, generic_name, hasgs, storage, gsprimtype);
-        ret.PromoteResource(ResourcePromotion.LibraryAdd, new SerializedDataSource(name));
+        ret = new Shader(name, locs, gsprimtype);
+        RegisterResource(ret);
+        //  ret.PromoteResource(ResourcePromotion.LibraryAdd, new SerializedDataSource(name));
+      }
+      else
+      {
+        Gu.Assert(rn is Shader);
+        ret = rn as Shader;
+      }
+      return ret;
+    }
+    public Shader? LoadShader(string name, string generic_name, FileStorage storage, PrimitiveType? gsprimtype = null)
+    {
+      Shader? ret = null;
+      var rn = GetResourceByName(ResourceType.Shader, name);
+      if (rn == null)
+      {
+        ret = new Shader(name, generic_name, storage, gsprimtype);
+        RegisterResource(ret);
+        //  ret.PromoteResource(ResourcePromotion.LibraryAdd, new SerializedDataSource(name));
       }
       else
       {
@@ -864,7 +899,8 @@ namespace PirateCraft
       {
         MeshGen mg = new MeshGen(name, p);
         ret = mg.Load<MeshData>(name);
-        ret.PromoteResource(ResourcePromotion.LibraryAdd, new SerializedDataSource(name));
+        RegisterResource(ret);
+        // ret.PromoteResource(ResourcePromotion.LibraryAdd, new SerializedDataSource(name));
       }
       else
       {
@@ -881,7 +917,8 @@ namespace PirateCraft
       {
         GLTFFile gf = new GLTFFile(name, loc, fliptris);
         ret = gf.Load<WorldObject>(name);
-        ret.PromoteResource(ResourcePromotion.LibraryAdd, new SerializedDataSource(name));
+        RegisterResource(ret);
+        //  ret.PromoteResource(ResourcePromotion.LibraryAdd, new SerializedDataSource(name));
       }
       else
       {
@@ -890,7 +927,31 @@ namespace PirateCraft
       }
       return ret;
     }
-
+    // public CSharpScript? LoadScript(string name, FileLoc loc)
+    // {
+    //   CSharpScript? ret = null;
+    //   var rn = GetResourceByName(ResourceType.WorldObject, name);
+    //   if (rn == null)
+    //   {
+    //     CSharpScript s = new CSharpScript(loc);
+    //     //GLTFFile gf = new GLTFFile(name, loc, fliptris);
+    //     //ret = gf.Load<WorldObject>(name);
+    //     RegisterResource(ret);
+    //     //  ret.PromoteResource(ResourcePromotion.LibraryAdd, new SerializedDataSource(name));
+    //   }
+    //   else
+    //   {
+    //     Gu.Assert(rn is CSharpScript);
+    //     ret = rn as CSharpScript;
+    //   }
+    //   return ret;
+    // }    
+    private void RegisterResource(DataBlock d)
+    {
+      Gu.AssertDebug(d.UniqueID == Library.NullID);
+      d.UniqueID = GetNewUniqueId();
+      CreateResource(d, d.Name);
+    }
 
     #endregion
 

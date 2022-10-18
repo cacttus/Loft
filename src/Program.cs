@@ -9,7 +9,7 @@ using OpenTK.Windowing.GraphicsLibraryFramework;
 
 namespace PirateCraft
 {
-  class MainClass
+  public class MainClass
   {
     public static void Main(string[] args)
     {

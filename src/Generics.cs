@@ -73,7 +73,7 @@ namespace PirateCraft
       }
       ret.Add(y);
     }
-    public void Add(TKey x, List<TValue> y)
+    public void AddRange(TKey x, List<TValue> y)
     {
       List<TValue> ret = null;
       if (!_dict.TryGetValue(x, out ret))
@@ -92,9 +92,17 @@ namespace PirateCraft
       }
       set
       {
-        Add(k, value);
+        AddRange(k, value);
       }
     }
+    public bool Contains(TKey key, TValue value)
+    {
+      if (_dict.TryGetValue(key, out var ret))
+      {
+        return ret.Contains(value);
+      }
+      return false;
+    }    
     public List<TValue> ItemsAt(TKey key)
     {
       if (_dict.TryGetValue(key, out var ret))
@@ -641,6 +649,10 @@ namespace PirateCraft
     {
       return a.CompareTo(b) == 0;
     }
+    public static bool DoesNotEqual(string a, string b)
+    {
+      return !Equals(a,b);
+    }    
     public static string FormatPrec(float x, int prec)
     {
       return String.Format("{0:0." + new string('0', prec) + "}", x);
@@ -831,6 +843,25 @@ namespace PirateCraft
 
       return ret;
     }
+    public static List<int> StringMatches(string textToQuery, string stringToFind)
+    {
+      //Get list of indexes of a string in another string
+      //https://stackoverflow.com/questions/17892237/occurrences-of-a-liststring-in-a-string-c-sharp
+      int currentIndex = 0;
+      List<int> ret = new List<int>();
+      for (int xi = 0; Gu.WhileTrueGuard(xi, Gu.c_intMaxWhileTrueLoop); xi++)
+      {
+        currentIndex = textToQuery.IndexOf(stringToFind, currentIndex, StringComparison.Ordinal);
+        if (currentIndex == -1)
+        {
+          break;
+        }
+        ret.Add(currentIndex);
+        currentIndex++;
+      }
+
+      return ret;
+    }
   }
 
   public interface IClone
@@ -839,7 +870,7 @@ namespace PirateCraft
   }
   public interface ICopy<T>
   {
-    public void CopyFrom(T? other, bool? shallow = null);
+    public abstract void CopyFrom(T? other, bool? shallow = null);
   }
   public interface IMutableState
   {
@@ -856,354 +887,6 @@ namespace PirateCraft
       _modified = true;
     }
   }
-
-  public enum DataCreateMode
-  {
-    CreateNewOnly,
-    UseExistingOnly,
-    CreateNewOrUseExisting_ByName
-  }
-  public enum DataPersistence
-  {
-    Temporary = 1, // temporary variable (name/id = none)
-    Scene = 2, //attached to the scene (name/id = UT only)
-    Library = 3, //library resrouce (name/id = RT + UT)
-    LibraryDependency = 4, //depends on a library resource (name/id = RT only)
-  }
-  public enum ResourcePromotion
-  {
-    SceneAdd, //create resource
-    SceneRemove,
-    LibraryAdd,
-    LibraryRemove,
-    DataSource, //set the DS
-  }
-  public enum ResourceUpdateFilter
-  {
-    All,
-    TemporaryOnly,//only update temps
-  }
-  [DataContract]
-  [Serializable]
-  public abstract class DataBlock : IMutableState, ISerializeBinary, ICopy<DataBlock>
-  {
-    //Base class for serialization/ saving
-    #region Members
-
-    [DataMember] private DataSource? _dataSource = null;
-    [DataMember] private string _name = Library.UnsetName;
-    [DataMember] private UInt64 _uniqueID = Library.NullID;
-    [DataMember] private DateTime _lastModifyTime = DateTime.MinValue;
-    [DataMember] private ResourceType _resType = ResourceType.Undefined;
-    [NonSerialized] private DataPersistence _persistance = DataPersistence.Temporary;//All resources are temporary unless WorldObject references it or we specify that it must be saved.
-    [NonSerialized] private bool _modified = false;
-    [NonSerialized] private DateTime _lastSaveOrLoadTime = DateTime.MinValue;
-    [NonSerialized] private ResourceLoadResult _loadResult = ResourceLoadResult.NotLoaded;
-    [NonSerialized] private int _loadCount = 0;
-    [NonSerialized] private int _unloadCount = 0;
-
-    public DataSource? DataSource { get { return _dataSource; } }
-    public int LoadCount { get { return _loadCount; } set { _loadCount = value; } }
-    public int UnloadCount { get { return _unloadCount; } set { _unloadCount = value; } }
-    public ResourceLoadResult LoadResult { get { return _loadResult; } set { _loadResult = value; } }
-    public DateTime LastModifyTime { get { return _lastModifyTime; } set { _lastModifyTime = value; } }
-    public UInt64 UniqueID { get { return _uniqueID; } set { _uniqueID = value; } }
-    public string Name { get { return _name; } set { _name = value; } }
-    public DataPersistence Persistence { get { return _persistance; } set { _persistance = value; } }
-    public bool Modified { get { return _modified; } set { if (!_modified && value) _lastModifyTime = DateTime.Now; _modified = value; } }
-
-    public virtual List<DataBlock> GetSubResources()
-    {
-      return new List<DataBlock>();
-    }
-    #endregion
-
-    #region Methods
-
-    protected DataBlock() { } //clone ctor
-    public DataBlock(string name)
-    {
-      _name = name;
-    }
-    public virtual void PromoteResource(ResourcePromotion m, DataSource? source = null)
-    {
-      /*
-        ** resource promotion logic
-          sub = sub-resource (object->material->texture->image)
-          UTable - unique name table for global resources --on GU.lib
-          RTable - resource local table -- on datasource
-
-            Namespaces
-              temp - none 
-              scene - UT only - created in the application/script
-              libroot - root library object - RT and UT - generated/loaded
-              libdep - RT only - generated/loaded
-            Serialization
-            temp - none
-            scene - all nodes
-            libroot - DS
-            libdep - none
-
-            libadd 
-              if sub is lib - no change, do not traverse children
-              if sub is scene - error - must clone resource to add to library
-              if sub is temp -  set DS (for all) - if no DS - then is raw
-                                if is root resource
-                                  set lib - item will exist in UTable
-                                  gets uid/uname (creteresrouce)
-                                else
-                                  set libdep
-                                  rname from DataSource RTable (must be unique within resource context) - usually loaded from file.
-                                  if has no DS - raw serialized
-                                  if has DS - not serialized
-            sceneadd
-              if lib - no change, do not traverse
-              if scene - error - sub-object already added to scene, should not be possible
-              if temp - set to scene, make uid (createresource) for all temp sub-items
-            sceneremove
-              if sub is lib - no change
-              if sub is scene - remove uid/un 
-              if sub is temp - error
-            libremove
-              if sub is lib - remove uid/un
-              if sub is scene - error
-              if sub is temp - error
-      */
-
-      try
-      {
-        PromoteResourceInternal(m, source, null);
-      }
-      catch (Exception ex)
-      {
-        Gu.Log.Error($"Failed to promote resource '{this.Name}' from '{this.Persistence.ToString()}' with '{m.ToString()}'", ex);
-        Gu.DebugBreak();
-      }
-
-    }
-    private void PromoteResourceInternal(ResourcePromotion m, DataSource? source = null, DataBlock? parent = null)
-    {
-      bool traverse = false;
-      if (m == ResourcePromotion.DataSource)
-      {
-        if (_persistance == DataPersistence.Temporary)
-        {
-          _dataSource = source;
-          traverse = true;
-        }
-        else if (_persistance == DataPersistence.Scene)
-        {
-          Library.ResourceError(this, "tried to set datasource on scene node, this is not supported");
-          traverse = false;
-        }
-        else if (_persistance == DataPersistence.Library)
-        {
-          traverse = false;
-        }
-        else if (_persistance == DataPersistence.LibraryDependency)
-        {
-          traverse = false;
-        }
-      }
-      else if (m == ResourcePromotion.LibraryAdd)
-      {
-        if (_persistance == DataPersistence.Temporary)
-        {
-          if (_dataSource == null)
-          {
-            Gu.Assert(source != null);
-            _dataSource = source;
-          }
-          _dataSource = source;
-          if (parent == null)
-          {
-            _persistance = DataPersistence.Library;
-            _uniqueID = Gu.Lib.GetNewUniqueId();
-            Gu.Lib.CreateResource(this, _name);
-            traverse = true;
-          }
-          else
-          {
-            _persistance = DataPersistence.LibraryDependency;
-          }
-        }
-        else if (_persistance == DataPersistence.Scene)
-        {
-          Library.ResourceError(this, "Scene resource found in library resource.");
-          traverse = false;
-        }
-        else if (_persistance == DataPersistence.Library)
-        {
-          //no change, just stop traversing
-          traverse = false;
-        }
-        else if (_persistance == DataPersistence.LibraryDependency)
-        {
-          Library.ResourceError(this, "tried to add library dependency to existing library");
-          traverse = false;
-        }
-        else
-        {
-          Gu.BRThrowNotImplementedException();
-        }
-      }
-      else if (m == ResourcePromotion.LibraryRemove)
-      {
-        if (_persistance == DataPersistence.Temporary)
-        {
-          Library.ResourceError(this, "tried to remove temp from Lib");
-          traverse = false;
-        }
-        else if (_persistance == DataPersistence.Scene)
-        {
-          Library.ResourceError(this, "tried to remove scene node from Lib");
-          traverse = false;
-        }
-        else if (_persistance == DataPersistence.Library)
-        {
-          Gu.Lib.DeleteResource(this);
-          _uniqueID = Library.NullID;
-          _persistance = DataPersistence.Temporary;
-          traverse = false;
-        }
-        else if (_persistance == DataPersistence.LibraryDependency)
-        {
-          _persistance = DataPersistence.Temporary;
-          traverse = true;
-        }
-        else
-        {
-          Gu.BRThrowNotImplementedException();
-        }
-      }
-      else if (m == ResourcePromotion.SceneAdd)
-      {
-        if (_persistance == DataPersistence.Temporary)
-        {
-          _persistance = DataPersistence.Scene;
-          _uniqueID = Gu.Lib.GetNewUniqueId();
-          Gu.Lib.CreateResource(this, _name);
-          traverse = true;
-        }
-        else if (_persistance == DataPersistence.Scene)
-        {
-          Library.ResourceWarning(this, "tried to add existing scene resource to scene");
-          traverse = true;
-        }
-        else if (_persistance == DataPersistence.Library)
-        {
-          //no change
-          traverse = false;
-        }
-        else if (_persistance == DataPersistence.LibraryDependency)
-        {
-          Library.ResourceError(this, "tried to add library dependency to scene");
-          traverse = false;
-        }
-        else
-        {
-          Gu.BRThrowNotImplementedException();
-        }
-      }
-      else if (m == ResourcePromotion.SceneRemove)
-      {
-        if (_persistance == DataPersistence.Temporary)
-        {
-          Library.ResourceWarning(this, "tried to remove temp from scene, should be set to 'scene'");
-          traverse = true;
-        }
-        else if (_persistance == DataPersistence.Scene)
-        {
-          Gu.Lib.DeleteResource(this);
-          _uniqueID = Library.NullID;
-          _persistance = DataPersistence.Temporary;
-          traverse = true;
-        }
-        else if (_persistance == DataPersistence.Library)
-        {
-          //no change
-          traverse = false;
-        }
-        else if (_persistance == DataPersistence.LibraryDependency)
-        {
-          Library.ResourceError(this, "tried to remove library dependency from scene");
-          traverse = false;
-        }
-        else
-        {
-          Gu.BRThrowNotImplementedException();
-        }
-      }
-      else
-      {
-        Gu.BRThrowNotImplementedException();
-      }
-
-      if (traverse)
-      {
-        var deps = this.GetSubResources();
-        foreach (var child in deps)
-        {
-          child?.PromoteResourceInternal(m, source, this);
-        }
-      }
-
-    }
-    public void SetModified()
-    {
-      _modified = true;
-    }
-    public void ClearModified()
-    {
-      _modified = false;
-    }
-    public DataRef<T>? GetRef<T>() where T : DataBlock
-    {
-      //We shouldn't have to create a new reference every time right?
-      return new DataRef<T>(this as T);
-    }
-    public virtual void CopyFrom(DataBlock? other, bool? shallow = null)
-    {
-      Gu.Assert(other != null);
-      SetModified();
-    }
-    public virtual void MakeUnique()
-    {
-      SetModified();
-    }
-    public virtual void Serialize(BinaryWriter br)
-    {
-      // br.Write(_resource.Name);
-      // br.Write(_resource.UniqueID);
-    }
-    public virtual void Deserialize(BinaryReader br, SerializedFileVersion version)
-    {
-      // //We must make sure the uniquid is in the resource manager
-      // Gu.MustTest();
-
-      // var name = br.ReadString();
-      // var id = br.ReadUInt64();
-      // _resource = Gu.Lib.GetResourceById(id);
-      // if (_resource == null)
-      // {
-      //   //Hmm..rt may be invalid..
-      //   var byname = Gu.Lib.GetResourceByName(ResourceType, name);
-      //   if (byname != null)
-      //   {
-      //     Gu.Log.Error($"Resource name='{name}' id='{id}' was not found, but found similar resource '{byname.Name}', id='{byname.UniqueID}'.");
-      //   }
-      //   else
-      //   {
-      //     Gu.Log.Error($"Resource name='{name}' id='{id}' was not found.");
-      //   }
-      //   //Fix up resource JSON changing it to the correct ID
-      //   Gu.DebugBreak();
-      // }
-    }
-
-    #endregion
-  }
-
   public class ModifiedList<T> : List<T>
   {
     public bool Modified { get; set; } = false;
@@ -1385,7 +1068,163 @@ namespace PirateCraft
       this.Repeat = d.Repeat;
     }
   }
+  public class FrameDataTimer
+  {
+    //Manages: Delta, FPS, Uptime, Ticks, FrameStamp
+    private const long c_dblFpsAvgSampleTimeNs = 250 * (1000 * 1000);
+    public Int64 FrameStamp { get; private set; }
+    public double UpTime { get; private set; } = 0; //Time since engine started.
+    public double Fps { get; private set; } = 60;
+    public double FpsAvg { get; private set; } = 60;
+    public double Delta { get; private set; } = 1 / 60;
 
+    private List<double> _fpsSamples = new List<double>();
+
+    private DateTime _startTime = DateTime.Now;
+    private long _lastTime = Gu.Nanoseconds();
+    private long _lastTotal = Gu.Nanoseconds();
+
+    public void Update()
+    {
+      long curTime = Gu.Nanoseconds();
+      if (FrameStamp > 0)
+      {
+        Delta = (double)((decimal)(curTime - _lastTime) / (decimal)(1000000000));
+      }
+      _lastTime = curTime;
+      FrameStamp++;
+
+      Fps = 1 / Delta;
+
+      if ((curTime - _lastTotal) >= c_dblFpsAvgSampleTimeNs)
+      {
+        FpsAvg = _fpsSamples.Count > 0 ? _fpsSamples.Average() : 0;
+        _fpsSamples.Clear();
+        _lastTotal = curTime;
+      }
+      if (_fpsSamples.Count < 1000)
+      {
+        _fpsSamples.Add(Fps);
+      }
+
+      UpTime = (DateTime.Now - _startTime).TotalSeconds;
+    }
+  }
+  public class AdaptiveDelta
+  {
+    //computes FPS, and other deltas using a running average
+    private const long US_To_NS = 1000;
+    private const long MS_To_NS = 1000 * 1000;
+    private const long S_To_NS = 1000 * 1000 * 1000;
+    private const long S_To_MS = 1000;
+    public const long c_lngSampleTimeNs = 1000 * MS_To_NS;//length of time we average samples
+    public const int c_intMaxSamples = 512;
+
+    public Int64 FrameStamp { get; private set; }
+    public double AverageS { get; private set; }//average over sample period, in seconds
+    public double FrameDeltaMS { get; private set; } = 1 / 60 * 1000;//delta for frame, in seconds
+    public double FrameDeltaS { get; private set; } = 1 / 60;//delta for frame, in seconds
+    public double UpTimeS { get; private set; } = 0; //Time since this timer started, seconds
+    public double FpsAvg
+    {
+      get
+      {
+        if (AverageS != 0)
+        {
+          return 1.0 / AverageS;
+        }
+        else
+        {
+          return 1.0 / 60.0;
+        }
+      }
+    }
+    public double FpsFrame
+    {
+      get
+      {
+        if (FrameDeltaS != 0)
+        {
+          return 1.0 / FrameDeltaS;
+        }
+        else
+        {
+          return 1.0 / 60.0;
+        }
+      }
+    }
+
+    protected DateTime _startTime = DateTime.Now;
+    protected List<double> _samples = new List<double>();
+    protected long _lastTime = Gu.Nanoseconds();
+    protected long _lastTotal = Gu.Nanoseconds();
+    private double _runningTotal = 0;
+
+    // public List<string>? Recorded { get; }
+    // public void CaptureDelta(string tag)
+    // {
+    //   Recorded.Add($"{tag}{AverageS}");
+    //   _samples.Clear
+    // }
+
+    public void Update()
+    {
+      //every time we update, we add a sample, and remove old samples.
+      long curTime = Gu.Nanoseconds();
+      if (FrameStamp > 0)
+      {
+        FrameDeltaMS = (double)((decimal)(curTime - _lastTime) / (decimal)MS_To_NS);
+        FrameDeltaS = (double)((decimal)FrameDeltaMS / (decimal)S_To_MS);
+      }
+      _lastTime = curTime;
+      FrameStamp++;
+
+      //2fps = 60fps = 60 samples
+      //fps = 1/avg
+      //60 samples / Monitor Refresh Rate Hz (60, 120, 240, etc)
+      //
+      // this allows for more samples when the frame rate slows down 
+      //Monitor Refresh Rate Hz (60, 120, 240, etc) / fps
+      //Ceil(MRR / fps) * MRR
+
+      //we need an adaptive sample count
+      if ((curTime - _lastTotal) >= c_lngSampleTimeNs)
+      {
+        _samples.Clear();
+        // while (_samples.Count >= c_intMaxSamples)
+        // {
+        //   _runningTotal -= _samples[0];
+        //   _samples.RemoveAt(0);
+        // }
+        _lastTotal = curTime;
+      }
+      //TODO: if we get FP drift we should use average function
+      //AverageS = _samples.Count > 0 ? _samples.Average() : 0;
+
+      // double mrr = 240.0;
+      // double hz = FpsAvg;
+      // if (hz < 1) { hz = 1; }
+      // int maxSamples = (int)(Math.Ceiling(mrr / hz) * mrr);
+      // while (_samples.Count >= maxSamples)
+      // {
+      //   _runningTotal -= _samples[0];
+      //   _samples.RemoveAt(0);
+      // }
+
+      while (_samples.Count >= c_intMaxSamples)
+      {
+        _runningTotal -= _samples[0];
+        _samples.RemoveAt(0);
+      }
+
+      _runningTotal += FrameDeltaS;
+      _samples.Add(FrameDeltaS);
+
+      AverageS = _runningTotal / (double)_samples.Count;
+
+      UpTimeS = (DateTime.Now - _startTime).TotalSeconds;
+    }
+  }
   public static class ByteParser
   {
     //Parse utilities

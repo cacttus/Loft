@@ -7,22 +7,39 @@ using OpenTK.Windowing.Desktop;
 using System.Reflection;
 using System.Diagnostics;
 using System.Linq.Expressions;
+using OpenTK.Windowing.Common;
 
 namespace PirateCraft
 {
-  public static class Gu
+  public class SystemInfo
   {
-    public static bool BreakRenderState = false;
-
-    private static bool SkipRequiredTests = false;
-    public static void MustTest()
+    public static long MemUsedBytes
     {
-      //Must test this method.
-      if (!SkipRequiredTests)
+      get
       {
-        Gu.DebugBreak();
+        return System.Diagnostics.Process.GetCurrentProcess().PrivateMemorySize64;
       }
     }
+    public static long VMemUsedBytes
+    {
+      get
+      {
+        return System.Diagnostics.Process.GetCurrentProcess().VirtualMemorySize64;
+      }
+    }
+    public static float BToMB(long b)
+    {
+      var b_to_mb = 1024 * 1024;
+      var bc = b / b_to_mb;
+      var bm = b % b_to_mb;
+      return (float)(bc + (float)bm / (float)b_to_mb);
+    }
+
+  }
+
+  public static class Gu
+  {
+
     // Global Utils. static Class
     #region Public: Constants
 
@@ -30,12 +47,11 @@ namespace PirateCraft
     public const int c_intMaxWhileTrueLoopSmall = 1000;//dummy infinite loop blocker
     public const int c_intMaxWhileTrueLoop = 100000;//dummy infinite loop blocker
     public const int c_intMaxWhileTrueLoopLONG = 100000000;//dummy infinite loop blocker
-
+    public const string EmbeddedDataPath = "PirateCraft.data.";
 
     #endregion
     #region Public: Static Members
 
-    public static bool AllowOpenTKFaults = false;//OpenTK's GL isn't fully implemented in a lot of places
     public static Dictionary<UiWindowBase, WindowContext> Contexts { get; private set; } = new Dictionary<UiWindowBase, WindowContext>();
     public static CoordinateSystem CoordinateSystem { get; set; } = CoordinateSystem.Rhs;
     public static float CoordinateSystemMultiplier { get { return (Gu.CoordinateSystem == CoordinateSystem.Lhs ? -1 : 1); } }
@@ -44,8 +60,6 @@ namespace PirateCraft
     public static WindowContext Context { get; set; } = null;
     public static World World = null;
     public static WorldLoader WorldLoader = null;
-    public static PCMouse Mouse { get { return Context.PCMouse; } }
-    public static PCKeyboard Keyboard { get { return Context.PCKeyboard; } }
     public static string ExePath { get; private set; } = "";
     public static string LocalCachePath { get; private set; } = "";//megatex..
     public static string LocalTmpPath { get; private set; } = "";//logs..debug..shaderdebug..
@@ -53,13 +67,17 @@ namespace PirateCraft
     public static string WorkspaceDataPath { get; private set; } = "";// the ./Data directory. This is not present on embedded versions.
     public static string SavePath { get; private set; } = "";
     public static string BackupPath { get; private set; } = "";
-    public static readonly string EmbeddedDataPath = "PirateCraft.data.";
-    public static Library?  Lib {get; private set;}=null;
-    public static AudioManager?  Audio { get; private set; } = null;
-    public static Gui2dManager?  Gui2dManager { get; private set; } = null;
-    public static FrameDataTimer?  GlobalTimer { get; private set; } = null;//Global frame timer, for all windows;
-    public static Translator?  Translator { get; private set; } = null;
+    public static Library Lib { get; private set; }
+    public static AudioManager Audio { get; private set; }
+    public static Gui2dManager Gui2dManager { get; private set; }
+    public static FrameDataTimer GlobalTimer { get; private set; }//Global frame timer, for all windows;
+    public static Translator Translator { get; private set; }
     public static UiWindowBase? FocusedWindow { get; set; } = null;
+
+    //Debug
+    public static bool BreakRenderState = false;
+    private static bool SkipRequiredTests = false;
+    public static bool AllowOpenTKFaults = false;
 
     #endregion
     #region Private: Static Members
@@ -88,7 +106,6 @@ namespace PirateCraft
       Gu.Log.Info("Initializing Globals");
       Gu.Log.Info("CurrentDirectory =" + System.IO.Directory.GetCurrentDirectory());
 
-      BListTest_GonnaUseItQuestionMark();
       //Config
       EngineConfig = new EngineConfig(new FileLoc("config.json", FileStorage.Embedded));
 
@@ -142,51 +159,6 @@ namespace PirateCraft
       Audio = new AudioManager();
       Gui2dManager = new Gui2dManager();
     }
-    public static void BListTest_GonnaUseItQuestionMark()
-    {
-      System.Text.StringBuilder sb = new System.Text.StringBuilder();
-
-      // sb.AppendLine("");
-      // sb.AppendLine("");
-      // sb.AppendLine("");
-      var x = new BList<int>() { };
-      // sb.AppendLine(x.ToString());
-      // x.Add(955);
-      // sb.AppendLine(x.ToString());
-      // x.Remove(3);
-      // x.Remove(9);
-      // x.Remove(955);
-      // sb.AppendLine(x.ToString());
-
-      //check non dupe adds
-      // sb.AppendLine("non dupes");
-      x = new BList<int>() { 19, 0, 1, 5, 4, 3, 6, 8, 2, 12, 7, 13, 10, 14, 11, 16, 15, 17, 18, 1853 };
-      for (var i = 0; i < 5000; ++i)
-      {
-        var yy = Random.NextInt(0, 2000);
-        if (!x.Contains(yy)) { x.Add(yy); }
-      }
-      sb.AppendLine(x.ToString());
-
-      //check dupe ads
-      sb.AppendLine("dupes");
-      x = new BList<int>() { 13, 8, 14, 14, 2, 19, 5, 30, 1, 1, 30, 14 };
-      x = new BList<int>() { };
-      for (var i = 0; i < 50; ++i)
-      {
-        x.Add(Random.NextInt(0, 20));
-      }
-      sb.AppendLine(x.ToString());
-
-      for (int ct = x.Count - 1; ct >= 0; ct--)
-      {
-        var ccc = x[ct];
-        x.Remove(ccc);
-      }
-      sb.AppendLine(x.ToString());
-      Gu.Log.Info(sb.ToString());
-
-    }
     public static void Run()
     {
       try
@@ -209,6 +181,7 @@ namespace PirateCraft
 
             GlobalTimer.Update();
 
+            //Update all windows Sync
             foreach (var win in wins)
             {
               Gu.SetContext(win);
@@ -217,15 +190,40 @@ namespace PirateCraft
                 win.Load();
               }
               win.ProcessEvents();
+
               Gu.Context.Update();
+
+              //TODO: we're going to move this to keymap, but also
+              //keymap update should come here (which it isnt)
+              if (win.IsVisible && win.WindowState != WindowState.Minimized)
+              {
+                win.OnUpdateInput();
+              }
 
               if (Gu.World.UpdateContext == Gu.Context)
               {
-                Gu.World.Update(Gu.Context.Delta);
+                Gu.World.UpdateWorld(Gu.Context.FrameDelta);
               }
 
-              win.UpdateAsync();
-              win.RenderAsync();
+              win.CullAndPickAllViews();
+
+              if (Gu.World.UpdateContext == Gu.Context)
+              {
+                Gu.World.UpdateWorldEditor(Gu.Context.FrameDelta);
+              }
+
+              //may end up being a problem.
+              if (win.IsVisible && win.WindowState != WindowState.Minimized)
+              {
+                //Culling happens here.
+                win.RenderAllViews();
+              }
+            }
+
+            //Update the picked object after all windows have used it.
+            foreach (var ct in Contexts)
+            {
+              ct.Value?.Renderer?.Picker?.ResetPickedObject();
             }
 
             CheckExit();
@@ -281,21 +279,38 @@ namespace PirateCraft
         }
       }
     }
-    public static void CreateContext(string name, UiWindowBase uw)
+    public static void CreateContext(string name, UiWindowBase uw, IGLFWGraphicsContext? glshared = null)
     {
-      //***TODO: context names must be unique because we use them to save, and store state.
+      //try get shared context
+      WindowContext? sharedCT = null;
+      if (glshared != null)
+      {
+        foreach (var w in Contexts)
+        {
+          if (w.Key.Context == glshared)
+          {
+            sharedCT = w.Value;
+            break;
+          }
+        }
+        Gu.Assert(sharedCT != null);
+      }
 
-      Gu.Log.Info("Registering Context name='" + name + "', window= " + uw.Name);
-      var ct = Gu.Context;
-      var wd = new WindowContext(name, uw);
+      var last_ct = Gu.Context;
+      var wd = new WindowContext(name, uw, sharedCT);
       Contexts.Add(uw, wd);
       Gu.SetContext(uw);
       wd.Init();
-      if (ct != null)
+      if (last_ct != null)
       {
         //Set back in case we are not main window
-        Gu.SetContext(ct.GameWindow);
+        Gu.SetContext(last_ct.GameWindow);
       }
+    }
+    public static void SetContext(WindowContext wc)
+    {
+      Context = wc;
+      wc.GameWindow.Context.MakeCurrent();
     }
     public static void SetContext(UiWindowBase g)
     {
@@ -347,9 +362,11 @@ namespace PirateCraft
       Gu.DebugBreak();
       throw new NotImplementedException();
     }
-    public static void AssertDebug(bool x, [CallerLineNumber] int lineNumber = 0, [CallerMemberName] string caller = null)
+    public static bool AssertDebug(bool x, [CallerLineNumber] int lineNumber = 0, [CallerMemberName] string caller = null)
     {
       Assert(x, string.Empty, lineNumber, caller, true);
+
+      return x;
     }
     public static void Assert(bool x, [CallerLineNumber] int lineNumber = 0, [CallerMemberName] string caller = null, bool debugOnly = false)
     {
@@ -363,7 +380,7 @@ namespace PirateCraft
         if (emsg.IsNotEmpty())
         {
           emsg = $"'{emsg}'";
-        } 
+        }
         Gu.Log.Error(emsg);
         Gu.DebugBreak();
 
@@ -378,10 +395,20 @@ namespace PirateCraft
     {
       Debugger.Break();
     }
-    public static void Trap()
+    public static void Trap(int n = -1)
     {
-      int n = 0;
-      n++;
+      //Ctrl+Shift+B -> Break Traps
+      if (Gu.Context != null &&
+      Gu.Context.PCKeyboard != null &&
+      Gu.Context.PCKeyboard.IsInitialized &&
+      Gu.Context.PCKeyboard.PressOrDown(OpenTK.Windowing.GraphicsLibraryFramework.Keys.LeftControl) &&
+      Gu.Context.PCKeyboard.PressOrDown(OpenTK.Windowing.GraphicsLibraryFramework.Keys.LeftShift) &&
+      Gu.Context.PCKeyboard.PressOrDown(OpenTK.Windowing.GraphicsLibraryFramework.Keys.B) &&
+      (n == -1 || Gu.Context.PCKeyboard.PressOrDown(PCKeyboard.IntToDigitKey(n)))
+      )
+      {
+        Gu.DebugBreak();
+      }
     }
     public static byte[] Compress(byte[] data)
     {
@@ -519,18 +546,6 @@ namespace PirateCraft
       Gu.Log.Error("while(true) loop out of bounds.");
       Gu.DebugBreak();
       return false;
-    }
-    public static Line3f? CastRayFromScreen(vec2 screen_pt)
-    {
-      Line3f? v = null;
-      if (Gu.Context.GameWindow.ActiveViewCamera != null)
-      {
-        if (Gu.Context.GameWindow.ActiveViewCamera.Frustum != null)
-        {
-          v = Gu.Context.GameWindow.ActiveViewCamera.Frustum.RaycastWorld(screen_pt);
-        }
-      }
-      return v;
     }
     public static void PostCustomDebugBreak()
     {
@@ -700,7 +715,6 @@ namespace PirateCraft
     {
       return ((MemberExpression)memberAccess.Body).Member.Name;
     }
-
     public static bool TryGetSelectedView(out RenderView? view)
     {
       //selected view - the view that the user is interacting with
@@ -727,13 +741,80 @@ namespace PirateCraft
       cam = null;
       if (TryGetSelectedView(out var vv))
       {
-        if (vv.Camera.TryGetTarget(out var cm))
+        if (vv.Camera != null)
         {
-          cam = cm;
+          if (vv.Camera.TryGetTarget(out var cm))
+          {
+            cam = cm;
+          }
         }
       }
       return cam != null;
     }
+    public static bool TryGetSelectedViewGui(out Gui2d? g2)
+    {
+      g2 = null;
+      if (TryGetSelectedView(out var vv))
+      {
+        g2 = vv.Gui;
+      }
+      return g2 != null;
+    }
+    public static Line3f? TryCastRayFromScreen(vec2 screen_pt)
+    {
+      Line3f? v = null;
+      if (Gu.TryGetSelectedViewCamera(out var cm))
+      {
+        if (cm.Frustum != null)
+        {
+          v = cm.Frustum.RaycastWorld(screen_pt);
+        }
+      }
+      return v;
+    }
+    public static bool TryGetMainwWindow(out MainWindow? w)
+    {
+      w = null;
+      foreach (var p in Contexts)
+      {
+        if (p.Key.IsMain)
+        {
+          Gu.Assert(p.Key is MainWindow);
+          w = (MainWindow)p.Key;
+          break;
+        }
+      }
+      return w != null;
+    }
+    public static bool TryGetWindowByName(string name, out UiWindowBase? win)
+    {
+      //Note: Window name is not the window Title
+      win = null;
+      foreach (var p in Contexts)
+      {
+        if (StringUtil.Equals(p.Key.Name, name))
+        {
+          win = p.Key;
+          break;
+        }
+      }
+      return win != null;
+    }
+    public static bool TryGetFocusedWindow(out UiWindowBase? win)
+    {
+      win = null;
+      foreach (var p in Contexts)
+      {
+        if (p.Key.IsFocused)
+        {
+          win = p.Key;
+          break;
+        }
+      }
+      return win != null;
+    }
+
+
     public static bool SaneFloat(float f)
     {
       bool a = Single.IsInfinity(f);
@@ -741,10 +822,118 @@ namespace PirateCraft
 
       return !a && !b;
     }
+    public static void MustTest()
+    {
+      //Must test this method.
+      if (!SkipRequiredTests)
+      {
+        Gu.DebugBreak();
+      }
+    }
+    public static bool LaunchProgram(string filename, string args, bool create_no_window = false, bool use_shellexec = false, bool redirect_output = true)
+    {
+      return LaunchProgram(filename, args, out var output, create_no_window, use_shellexec, redirect_output);
+    }
+    public static bool LaunchProgram(string filename, string args, out List<string>? output, bool create_no_window = false, bool use_shellexec = false, bool redirect_output = true)
+    {
+      string fn_args = $"filename='{filename}',args='{args}'";
+      output = null;
+      bool success = false;
+
+      try
+      {
+        Process proc = new Process
+        {
+          StartInfo = new ProcessStartInfo
+          {
+            FileName = filename,
+            Arguments = args,
+            UseShellExecute = use_shellexec,
+            RedirectStandardOutput = redirect_output,
+            CreateNoWindow = create_no_window
+          }
+        };
+        success = proc.Start();
+
+        output = new List<string>();
+        if (success)
+        {
+          while (!proc.StandardOutput.EndOfStream)
+          {
+            var line = proc.StandardOutput.ReadLine();
+            output.Append(line);
+          }
+        }
+        else
+        {
+          Gu.Log.Error($"Process.Start failed: {fn_args}:");
+        }
+      }
+      catch (Exception ex)
+      {
+        Gu.Log.Error($"Exception: {fn_args}:", ex);
+      }
+
+      return success;
+    }
+    public static void FindRelativeFile(string root, string to_find, ref bool found)
+    {
+      if (found == false)
+      {
+        if (System.IO.Directory.Exists(root))
+        {
+          var files = System.IO.Directory.GetFiles(root);
+          foreach (var file in files)
+          {
+            string fn = System.IO.Path.GetFileName(file);
+            if (fn.Equals(to_find, StringComparison.OrdinalIgnoreCase))
+            {
+              found = true;
+              break;
+            }
+          }
+
+          var dirs = System.IO.Directory.GetDirectories(root);
+          foreach (var dir in dirs)
+          {
+            FindRelativeFile(dir, to_find, ref found);
+          }
+        }
+        else
+        {
+          found = false;
+        }
+      }
+
+    }
+    public static void SafeDeleteLocalFile(string fileloc)
+    {
+      //Make sure that the deleting file is in a subdirectory relative to this appliation
+      if (System.IO.File.Exists(fileloc))
+      {
+        string fn = System.IO.Path.GetFileName(fileloc);
+
+        bool found = false;
+        FindRelativeFile(Gu.ExePath, fn, ref found);
+        if (!found)
+        {
+          Gu.BRThrowException($"'{fileloc}': Could not delete file - specified file was not relative to application path '{Gu.ExePath}'.");
+        }
+        else
+        {
+          System.IO.File.Delete(fileloc);
+        }
+      }
+      else
+      {
+        Gu.BRThrowException($"'{fileloc}': Could not delete file - not found.");
+      }
+    }
+
     #endregion
 
 
 
-  }
+  }//gu
 
 }

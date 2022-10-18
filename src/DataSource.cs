@@ -5,7 +5,6 @@ using System.Runtime.Serialization;
 namespace PirateCraft
 {
   [DataContract]
-  [Serializable]
   public abstract class DataSource : DataBlock
   {
     //Data source of data can be generated or loaded
@@ -23,9 +22,8 @@ namespace PirateCraft
     }
 
     [DataMember] private SourceFormat _format = SourceFormat.File;
-    //[DataMember] private ResourceTable _resources = new ResourceTable(); I am not sure this is needed right now
-    [NonSerialized] private LoadState _state = LoadState.None;
-    [NonSerialized] private int _dbgCreateCount = 0;//just debug
+    private LoadState _state = LoadState.None;
+    private int _dbgCreateCount = 0;//just debug
 
     public LoadState State { get { return _state; } protected set { _state = value; } }
 
@@ -71,7 +69,6 @@ namespace PirateCraft
     }
   }
   [DataContract]
-  [Serializable]
   public class SerializedDataSource : DataSource
   {
     //default DS items get their internal contens serialized into the Library
@@ -86,7 +83,6 @@ namespace PirateCraft
   }
 
   [DataContract]
-  [Serializable]
   public abstract class FileDataSource : DataSource
   {
     [DataMember] private FileLoc? _file = null;
@@ -97,7 +93,6 @@ namespace PirateCraft
     }
   }
   [DataContract]
-  [Serializable]
   public abstract class ImageGenParams
   {
     [DataMember] public int _width = 0;
@@ -113,7 +108,6 @@ namespace PirateCraft
     }
   }
   [DataContract]
-  [Serializable]
   public class ImageGenFlat : ImageGenParams
   {
     [DataMember] public vec4ub? _color = null;
@@ -139,12 +133,11 @@ namespace PirateCraft
     }
   }
   [DataContract]
-  [Serializable]
   public class ImageGen : DataSource
   {
     //image generator
     [DataMember] private ImageGenParams _params = null;
-    [NonSerialized] private byte[]? _data = null;
+    private byte[]? _data = null;
 
     public ImageGen(string name, ImageGenParams p) : base(name, SourceFormat.Generated)
     {
@@ -164,14 +157,9 @@ namespace PirateCraft
     }
   }
   [DataContract]
-  [Serializable]
   public class ImageFile : FileDataSource
   {
     Image? _image = null;
-    //[NonSerialized] public int _width = 0;
-    //[NonSerialized] public int _height = 0;
-    //[NonSerialized] public byte[]? _data = null;
-    //[NonSerialized] public Image.ImagePixelFormat _format = Image.ImagePixelFormat.RGBA32ub;
 
     public static Image? LoadImage(string name, FileLoc loc)
     {
@@ -263,14 +251,13 @@ namespace PirateCraft
   }
   //this class really isn't needed for now.
   [DataContract]
-  [Serializable]
   public class ShaderDataSource : DataSource
   {
     [DataMember] private string _generic_name = null;
     [DataMember] private PrimitiveType? _primType = null;
     [DataMember] private bool _gs = false;
     [DataMember] private FileStorage _storage = FileStorage.Embedded;
-    [NonSerialized] private Shader? _shader = null;
+    private Shader? _shader = null;
 
     public ShaderDataSource(string name, string generic_name, bool gs, FileStorage storage, PrimitiveType? gs_type) : base(name, SourceFormat.File)
     {
@@ -282,7 +269,7 @@ namespace PirateCraft
     protected override DataBlock? Create(string name)
     {
       //Returns an instance of the shader.
-      _shader = new Shader(name, _generic_name, _gs, _storage, _primType);
+      _shader = new Shader(name, _generic_name, _storage, _primType);
       return _shader;
     }
     protected override void Destroy()
@@ -290,12 +277,11 @@ namespace PirateCraft
     }
   }
   [DataContract]
-  [Serializable]
   public class GLTFFile : FileDataSource
   {
-    [NonSerialized] private List<WorldObject> _objects = null;
+    private List<WorldObject> _objects = null;
+    public Dictionary<string, object>? _loadedData = null;
     [DataMember] private bool _flipTris = true;
-    [NonSerialized] public Dictionary<string, object>? _loadedData = null;
 
     public List<WorldObject> Objects { get { return _objects; } }
     public Dictionary<string, object>? LoadedData { get { return _loadedData; } }
@@ -870,22 +856,24 @@ namespace PirateCraft
       {
         var fd = MeshGen.ComputeNormalsAndTangents(verts, null, normals == null, tangents == null);
 
-        root.Mesh = new MeshData(mesh_name, mesh_prim_type,
+        root.MeshView = new MeshView( 
+          new MeshData(mesh_name, mesh_prim_type,
           Gpu.CreateVertexBuffer(mesh_name, verts),
           Gpu.CreateVertexBuffer(mesh_name, fd),
           Gpu.CreateShaderStorageBuffer(mesh_name, fd),
           true
-          );
+          ));
       }
       else
       {
         var fd = MeshGen.ComputeNormalsAndTangents(verts, indices_uint != null ? indices_uint : indices_ushort.AsUIntArray(), normals == null, tangents == null);
-        root.Mesh = new MeshData(Gu.Lib.GetUniqueName(ResourceType.MeshData, mesh_name), mesh_prim_type,
+        root.MeshView =new MeshView( 
+          new MeshData(Gu.Lib.GetUniqueName(ResourceType.MeshData, mesh_name), mesh_prim_type,
           Gpu.CreateVertexBuffer(mesh_name, verts),
           indices_uint != null ? Gpu.CreateIndexBuffer(mesh_name, indices_uint) : Gpu.CreateIndexBuffer(mesh_name, indices_ushort),
           Gpu.CreateShaderStorageBuffer(mesh_name, fd),
           true
-          );
+          ));
       }
     }
     private static void LoadGLTFMaterial(glTFLoader.Schema.Gltf myModel, glTFLoader.Schema.MeshPrimitive prim, byte[] gltf_data, WorldObject root)
@@ -1051,7 +1039,6 @@ namespace PirateCraft
     }
   }
   [DataContract]
-  [Serializable]
   public class AnimationLoader : DataSource
   {
     public AnimationLoader(string name) : base(name, SourceFormat.Generated)
@@ -1069,7 +1056,6 @@ namespace PirateCraft
     }
   }
   [DataContract]
-  [Serializable]
   public class MeshDataLoader : DataSource
   {
     public MeshDataLoader(string name) : base(name, SourceFormat.Generated)
@@ -1087,19 +1073,17 @@ namespace PirateCraft
     }
   }
   [DataContract]
-  [Serializable]
   public abstract class MeshGenParams
   {
     //Default model format.
-    [DataMember] private VertexFormat _vertexFormat = VertexFormat.GetVertexFormat<v_v3n3x2t3u1>();
-    public VertexFormat VertexFormat { get { return _vertexFormat; } }
+    [DataMember] private GPUDataFormat _vertexFormat = GPUDataFormat.GetDataFormat<v_v3n3x2t3u1>();
+    public GPUDataFormat VertexFormat { get { return _vertexFormat; } }
     public abstract MeshData Generate(string name);
     public MeshGenParams()
     {
     }
   }
   [DataContract]
-  [Serializable]
   public class MeshGenPlaneParams : MeshGenParams
   {
     [DataMember] public float _w;
@@ -1111,7 +1095,6 @@ namespace PirateCraft
     }
   }
   [DataContract]
-  [Serializable]
   public class MeshGenEllipsoidParams : MeshGenParams
   {
     //Ellipsoid, or sphere, or ellip--whatever
@@ -1127,7 +1110,6 @@ namespace PirateCraft
     }
   }
   [DataContract]
-  [Serializable]
   public class MeshGenBoxParams : MeshGenParams
   {
     [DataMember] public float _w = 1;
@@ -1143,10 +1125,9 @@ namespace PirateCraft
     }
   }
   [DataContract]
-  [Serializable]
   public class MeshGen : DataSource
   {
-    [NonSerialized] private MeshData? _meshData = null;
+    private MeshData? _meshData = null;
     [DataMember] MeshGenParams _params = null;
 
     public MeshData? MeshData { get { return _meshData; } }
@@ -1529,7 +1510,7 @@ namespace PirateCraft
         }
 
         vec3 out_n, out_t;
-        VertexFormat.ComputeNormalAndTangent(
+        MeshGen.ComputeNormalAndTangent(
           verts[vi0]._v, verts[vi1]._v, verts[vi2]._v,
           verts[vi0]._x, verts[vi1]._x, verts[vi2]._x,
           out out_n, out out_t);
@@ -1588,6 +1569,23 @@ namespace PirateCraft
       }
 
       return faceData;
+    }
+    public static void ComputeNormalAndTangent(vec3 p0, vec3 p1, vec3 p2, vec2 x0, vec2 x1, vec2 x2, out vec3 normal, out vec3 tangent)
+    {
+      //https://learnopengl.com/Advanced-Lighting/Normal-Mapping
+      vec3 dp0 = p1 - p0;
+      vec3 dp1 = p2 - p0;
+      vec2 dx0 = x1 - x0;
+      vec2 dx1 = x2 - x0;
+
+      normal = dp1.cross(dp0).normalize();
+
+      float f = 1.0f / (dx0.x * dx1.y - dx1.x * dx0.y);
+      tangent = new vec3();
+      tangent.x = f * (dx1.y * dp0.x - dx0.y * dp1.x);
+      tangent.y = f * (dx1.y * dp0.y - dx0.y * dp1.y);
+      tangent.z = f * (dx1.y * dp0.z - dx0.y * dp1.z);
+      tangent.normalize();
     }
     public static ushort[] GenerateQuadIndices(int numQuads, bool flip = false)
     {

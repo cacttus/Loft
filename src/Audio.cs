@@ -19,7 +19,6 @@ namespace PirateCraft
     private Thread _thread;
     public AudioManager()
     {
-
       _thread = new Thread(() =>
       {
         _device = ALC.OpenDevice("");

@@ -7,7 +7,7 @@ namespace PirateCraft
 {
   public enum ButtonState
   {
-    Up, Press, Hold, Release
+    Up, Press, Hold, Release, Any
   }
   public class PCButton
   {
@@ -57,13 +57,15 @@ namespace PirateCraft
       }
     }
   }
-  public abstract class ButtonInputDevice<TStateClass, TButtonClass>
+  public abstract class ButtonInputDevice<TStateClass, TButtonClass> where TStateClass : class
   {
     public Dictionary<TButtonClass, PCButton> _keys = new Dictionary<TButtonClass, PCButton>();
-    public TStateClass _deviceState;
+    public TStateClass? _deviceState = null;
 
     protected abstract TStateClass GetDeviceState();
     protected abstract bool GetDeviceButtonDown(TButtonClass button);
+
+    public bool IsInitialized { get { return _deviceState != null; } }
 
     public virtual void Update()
     {
@@ -75,6 +77,8 @@ namespace PirateCraft
     }
     private bool GetButtonDownWindowFocus(TButtonClass key)
     {
+      Gu.Assert(IsInitialized);
+
       //simple hack to release all buttons when the window loses focus.
       bool isButtonDown = false;
       if (!Gu.Context.GameWindow.IsFocused && Gu.EngineConfig.ReleaseAllButtonsWhenWindowLosesFocus)
@@ -109,7 +113,7 @@ namespace PirateCraft
       }
       return false;
     }
-    public bool State(TButtonClass key, ButtonState check)
+    public bool HasState(TButtonClass key, ButtonState check)
     {
       return State(key) == check;
     }
@@ -142,6 +146,15 @@ namespace PirateCraft
 
   public class PCKeyboard : ButtonInputDevice<KeyboardState, Keys>
   {
+    public static Keys IntToDigitKey(int n)
+    {
+      if (n < 0 || n > 9)
+      {
+        Gu.Log.Error($"digit key {n} invalid");
+        Gu.DebugBreak();//Error
+      }
+      return (Keys)((int)Keys.D0 + n);
+    }
     public bool ModIsDown(KeyMod Mod)
     {
       bool mod = true;
@@ -213,7 +226,7 @@ namespace PirateCraft
     private vec2 _last = new vec2(0, 0);
     private vec2 _pos = new vec2(0, 0);
 
-    public vec2 Last { get { return _last; } }
+    public vec2 LastPos { get { return _last; } }
     public vec2 Pos { get { return _pos; } } //Position relative to Top Left corner of window client area (excluding borders and titlebar)
     public vec2 PosAbsolute
     {

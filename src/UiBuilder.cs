@@ -1,0 +1,276 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using OpenTK.Graphics;
+using OpenTK.Graphics.OpenGL4;
+using OpenTK.Windowing.Common;
+using OpenTK.Windowing.Desktop;
+using OpenTK.Windowing.GraphicsLibraryFramework;
+
+namespace PirateCraft
+{
+  public class StyleName
+  {
+    // Helpers .. these will go away when we do a css file.
+    public const string Inline = "Inline";
+    public const string BaseControl = "BaseControl";
+    public const string Label = "Label";
+    public const string DebugLabel = "DebugLabel";
+    public const string Panel = "Panel"; // a full width/height panel
+    public const string Button = "Button";
+    public const string Toolbar = "Toolbar";
+    public const string StatusBar = "StatusBar";
+    public const string ContextMenu = "ContextMenu";
+    public const string EditGuiRoot = "EditGuiRoot";
+    public const string VerticalBar = "VerticalBar";
+    public const string MenuItem = "MenuItem";
+  }
+  //Hard coded User interface stuff.
+  //Gui build
+  public class UiBuilder
+  {
+    public static UiElement Create(string style)
+    {
+      UiElement e = new UiElement(style);
+      return e;
+    }
+    public static List<FileLoc> GetSharedGUIResources()
+    {
+      return new List<FileLoc>(){
+       FontFace.Parisienne
+      ,FontFace.RobotoMono
+      ,FontFace.PressStart2P
+      ,FontFace.EmilysCandy
+      //,FontFace.Entypo// -- stb doesn't do this
+      ,FontFace.Calibri
+      };
+    }
+    public static Gui2d GetOrCreateSharedGuiForView(string name, RenderView rv)
+    {
+      return new Gui2d(Gu.Gui2dManager.GetOrCreateGui2d(name, GetSharedGUIResources()), rv);
+    }
+    public static List<UiStyle> GetGlobalStyles(Gui2d gui)
+    {
+      return new List<UiStyle>()
+      {
+        new UiStyle(StyleName.BaseControl)
+        {
+          FontColor = new vec4(0.21f, 0.24f, 0.24f, 1),
+          Color = new vec4(0.63f, 0.7f, 0.7f, 1),
+          BorderColor = new vec4(0.14f, 0.16f, 0.16f, 1),
+          Padding = 0,
+          Margin = 0,
+          Border = 0,
+          MinWidth = 0,//Min width of zero should be allowed
+          MinHeight = 0,
+          MaxWidth = Gui2d.MaxSize,
+          MaxHeight = Gui2d.MaxSize,
+          FontFace = FontFace.Calibri,
+          FontStyle = UiFontStyle.Normal,
+          FontSize = 22,
+          LineHeight = 1.0f,
+          PositionMode = UiPositionMode.Static,
+          SizeModeHeight = UiSizeMode.Shrink,
+          SizeModeWidth = UiSizeMode.Shrink,
+          DisplayMode = UiDisplayMode.Inline,
+          OverflowMode = UiOverflowMode.Hide,
+        },
+        new UiStyle(StyleName.Button)
+        {
+          PositionMode = UiPositionMode.Static,
+          SizeModeHeight = UiSizeMode.Shrink,
+          SizeModeWidth = UiSizeMode.Shrink,
+          DisplayMode = UiDisplayMode.Inline,
+          OverflowMode = UiOverflowMode.Hide,
+        },
+        new UiStyle(StyleName.Label, StyleName.BaseControl)
+        {
+          Texture = gui.DefaultPixel,
+          SizeModeWidth = UiSizeMode.Shrink,
+          SizeModeHeight = UiSizeMode.Shrink,
+          PositionMode = UiPositionMode.Static,
+          FontSize = 18,
+          MarginLeft = 5,
+          MarginRight = 5,
+          MarginTop = 1,
+          MarginBot = 1,
+          Padding=10,//**** REMOVE
+        },
+        new UiStyle(StyleName.VerticalBar, StyleName.BaseControl)
+        {
+          Texture = gui.DefaultPixel,
+          SizeModeWidth = UiSizeMode.Shrink,
+          SizeModeHeight = UiSizeMode.Expand,
+          PositionMode = UiPositionMode.Static,
+          DisplayMode = UiDisplayMode.Inline,
+          Width = 1,
+          MarginTop= 3,
+          MarginBot= 3,
+          MarginLeft=2,
+          MarginRight=2,
+          Padding = 0,
+          Color = new vec4(0.5f, 0.5f, 0.5f, 0.8f),
+        },
+        new UiStyle(StyleName.DebugLabel, StyleName.Label)
+        {
+          Color = new vec4(.6f,.6f,.6f,.98f)
+          ,MaxWidth = 500
+          ,FontSize = 16
+          ,DisplayMode = UiDisplayMode.Block
+        },
+        new UiStyle(StyleName.Toolbar, StyleName.BaseControl)
+        {
+          Texture = gui.DefaultPixel,
+          MinWidth = 0,
+          MinHeight = 20,
+          MaxWidth = Gui2d.MaxSize,
+          SizeModeWidth = UiSizeMode.Expand,
+          SizeModeHeight = UiSizeMode.Shrink,
+          MaxHeight = 40,
+          Margin=0,
+          Padding=0,
+        },
+        new UiStyle(StyleName.StatusBar, StyleName.BaseControl)
+        {
+          Texture = gui.DefaultPixel,
+          MinWidth = 0,
+          MinHeight = 30,
+          SizeModeWidth = UiSizeMode.Expand,
+          SizeModeHeight = UiSizeMode.Shrink,
+          FontSize = 12,
+          FontFace = FontFace.RobotoMono,
+          Margin=0,
+          Padding=0,
+        },
+        new UiStyle(StyleName.Panel, StyleName.BaseControl)
+        {
+          Texture = gui.DefaultPixel,
+          SizeModeWidth = UiSizeMode.Expand,
+          SizeModeHeight = UiSizeMode.Expand,
+          Padding = 10,
+          Margin = 0,
+          BorderRadius = 0,
+          FontFace = FontFace.PressStart2P,
+          FontSize = 16
+        },
+        new UiStyle(StyleName.EditGuiRoot)
+        {
+          SizeModeWidth = UiSizeMode.Expand,
+          SizeModeHeight = UiSizeMode.Expand,
+          MinWidth = 0,
+          MinHeight = 0,
+          MaxWidth = Gui2d.MaxSize,
+          MaxHeight = Gui2d.MaxSize,
+          DisplayMode = UiDisplayMode.Inline,
+          PositionMode = UiPositionMode.Relative
+        },
+        new UiStyle(StyleName.ContextMenu, StyleName.Label)
+        {
+          PositionMode = UiPositionMode.Floating,
+          MaxWidth = 500,
+          MinWidth = 10,
+          SizeModeWidth = UiSizeMode.Shrink,
+          //OverflowMode = UiOverflowMode.Show,
+          SizeModeHeight = UiSizeMode.Shrink,
+          Padding=0,
+          Border=0,
+          Margin=0,
+        },
+        new UiStyle(StyleName.MenuItem, StyleName.Label)
+        {
+          SizeModeWidth = UiSizeMode.Expand,
+          SizeModeHeight = UiSizeMode.Shrink,
+          PositionMode = UiPositionMode.Static,
+          MaxWidth = 500,
+        },
+
+      };
+    }
+    public static void MakeGui(RenderView rv)
+    {
+      var toolbar = new UiToolbar();
+
+      toolbar.AddItem(new UiToolbarButton(Phrase.File))
+        .AddMenuItems(
+          (new UiMenuItem("Toggle VSync")).Click((e) =>
+          {
+            Gu.World.Editor.DoEvent(WorldEditEvent.Debug_ToggleVSync);
+          }),
+          (new UiMenuItem("quit")).Click((e) =>
+          {
+            Gu.World.Editor.DoEvent(WorldEditEvent.Quit);
+          })
+        );
+      toolbar.AddVBar();
+
+      toolbar.AddItem(new UiToolbarButton(Phrase.Edit))
+        .AddMenuItems(
+          (new UiMenuItem("undo")).Click((e) =>
+        {
+          Gu.World.Editor.DoEvent(WorldEditEvent.Edit_Undo);
+        }),
+        (new UiMenuItem("redo")).Click((e) =>
+        {
+          Gu.World.Editor.DoEvent(WorldEditEvent.Edit_Redo);
+        }),
+        (new UiMenuItem("ddelete")).Click((e) =>
+        {
+          Gu.World.Editor.DoEvent(WorldEditEvent.Edit_Delete);
+        })
+        );
+      toolbar.AddVBar();
+
+      toolbar.AddItem(new UiToolbarButton(Phrase.Help))
+        .AddMenuItems(
+          (new UiMenuItem(Phrase.About)).Click((e) => { }),
+          (new UiMenuItem(Phrase.FolderDoesNotExist)).Click((e) => { }),
+          (new UiMenuItem(Phrase.Atlas)).Click((e) => { })
+          .AddMenuItems(
+            (new UiMenuItem(Phrase.DebugInfoHeader)).Click((e) => { }),
+            (new UiMenuItem(Phrase.Dark)).Click((e) => { })
+            .AddMenuItems(
+              (new UiMenuItem(Phrase.Error)).Click((e) => { }),
+              (new UiMenuItem(Phrase.AtlasParameters)).Click((e) => { }),
+              (new UiMenuItem(Phrase.AtlasParameters)).Click((e) => { }),
+              (new UiMenuItem(Phrase.AtlasParameters)).Click((e) => { }),
+              (new UiMenuItem(Phrase.AtlasParameters)).Click((e) => { }),
+              (new UiMenuItem(Phrase.AtlasParameters)).Click((e) => { }),
+              (new UiMenuItem(Phrase.AtlasParameters)).Click((e) => { }),
+              (new UiMenuItem(Phrase.AtlasParameters)).Click((e) => { }),
+              (new UiMenuItem(Phrase.AtlasParameters)).Click((e) => { }),
+              (new UiMenuItem(Phrase.RemoveItem)).Click((e) => { })
+            )
+          )
+        );
+
+      //*** Debug info panels
+      rv.WorldDebugInfo = UiBuilder.Create(StyleName.DebugLabel);
+      rv.WorldDebugInfo.Visible = true;
+
+      rv.GpuDebugInfo = UiBuilder.Create(StyleName.DebugLabel);
+      rv.GpuDebugInfo.Style.MaxWidth = 600;
+      rv.GpuDebugInfo.Visible = false;
+
+      rv.ControlsInfo = UiBuilder.Create(StyleName.DebugLabel);
+      rv.ControlsInfo.Style.MaxWidth = 999;
+      rv.ControlsInfo.Visible = false;
+
+      //Root the edit GUI so we can hide it.
+      var editgui_root = new UiElement(RenderView.c_EditGUI_Root, StyleName.EditGuiRoot);
+      editgui_root.AddChild(toolbar);//testing all the jacked up chagnes
+      editgui_root.AddChild(rv.WorldDebugInfo);
+      editgui_root.AddChild(rv.GpuDebugInfo);
+      editgui_root.AddChild(rv.ControlsInfo);
+
+      var g = GetOrCreateSharedGuiForView("main-edit-gui", rv);
+      g.StyleSheet.AddStyles(UiBuilder.GetGlobalStyles(g));
+      g.AddChild(editgui_root);
+      rv.Gui = g;
+    }
+  }
+
+
+
+}//ns
+
+

@@ -78,9 +78,9 @@ namespace PirateCraft
       }
       else
       {
-        PixelInternalFormat internalFormat;
-        PixelFormat texFormat;
-        PixelType dataType;
+        PixelInternalFormat internalFormat = PixelInternalFormat.Rgba16f;
+        PixelFormat texFormat = PixelFormat.Rgba;
+        PixelType dataType = PixelType.Float;
         if (eTargetType == RenderTargetType.Pick)
         {
           internalFormat = PixelInternalFormat.R32ui;
@@ -89,7 +89,18 @@ namespace PirateCraft
         }
         else
         {
-          internalFormat = PixelInternalFormat.Rgba32f;
+          if (Gu.EngineConfig.ColorBitDepth == ColorBitDepth.FB_16_BIT)
+          {
+            internalFormat = PixelInternalFormat.Rgba16f;
+          }
+          else if (Gu.EngineConfig.ColorBitDepth == ColorBitDepth.FB_32_BIT)
+          {
+            internalFormat = PixelInternalFormat.Rgba32f;
+          }
+          else
+          {
+            Gu.BRThrowNotImplementedException();
+          }
           texFormat = PixelFormat.Rgba;
           dataType = PixelType.Float;
         }
@@ -195,7 +206,7 @@ namespace PirateCraft
 
       DeleteTargets();
 
-      _glId = GL.GenFramebuffer();
+      _glId = GT.GenFramebuffer();
       Gpu.CheckGpuErrorsRt();
 
       Bind(FramebufferTarget.Framebuffer);
@@ -401,7 +412,7 @@ namespace PirateCraft
 
       if (_glId > 0)
       {
-        GL.DeleteFramebuffer(_glId);
+        GT.DeleteFramebuffer(_glId);
       }
 
       for (int i = 0; i < Bindings.Count; ++i)

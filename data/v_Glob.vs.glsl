@@ -22,8 +22,8 @@ void main(void)
 
   gl_Position =  (_ufGpuCamera._m4Projection * _ufGpuCamera._m4View * model ) * vec4(_v301, 1) ;
   _vsVertex = (model * vec4(_v301,1)).xyz;
-  _vsNormal = normalize(mi * vec4(_n301,1)).xyz;
-  _vsTangent =  normalize(mi * vec4(_t301,1)).xyz ;
+  _vsNormal = normalize((mi * vec4(_n301,1)).xyz);
+  _vsTangent = normalize((mi * vec4(_t301,1)).xyz);
   
   _vsTcoords    = _x201;
   _vsMaterialID = _u101;

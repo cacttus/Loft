@@ -3,6 +3,7 @@
 layout(points) in;
 layout(triangle_strip, max_vertices=4) out;
 
+//Since we are points, it is already flat.
 in vec4 _rectVS[];//min, max
 in vec4 _clipVS[];
 in vec4 _texVS[];
@@ -10,6 +11,7 @@ in vec4 _rtl_rtrVS[];
 in vec4 _rbr_rblVS[];
 in vec2 _texsizVS[];
 flat in uvec2 _pick_colorVS[];
+in vec4 _border_trblVS[];
 
 out vec2 _vert;
 out vec2 _tex;
@@ -20,6 +22,7 @@ flat out vec2 _texPos;//don't interpolate
 flat out vec4 _rtl_rtr;
 flat out vec4 _rbr_rbl;
 flat out vec4 _rect;
+flat out vec4 _border_trbl;
 
 //note:GL: bottom left corner
 float p0x(vec4 f) { return f.x; }
@@ -36,6 +39,7 @@ void setGS(){
   _rtl_rtr     = _rtl_rtrVS[0];
   _rbr_rbl     = _rbr_rblVS[0];
   _rect        = _rectVS[0];
+  _border_trbl = _border_trblVS[0];
 }
 
 void main() {
@@ -47,6 +51,8 @@ void main() {
       1 ----------------3
   P0
   */
+
+  //TODO: _border_trbl - border - somehwo
   
   //We flipped Y for OpenGL, but the texs are still in window coords.
   setGS();

@@ -8,7 +8,7 @@ in vec3 _n3VS[];
 in vec3 _t3VS[];
 flat in uint _primId[];
 out vec4 _colorGS;
-layout(std430, binding = <UBO_BINDING_ID>) buffer _ufGpuFaceData_Block {
+layout(std430, binding = <BUFFER_BINDING_ID>) buffer _ufGpuFaceData_Block {
   GpuFaceData _ufGpuFaceData[];
 };
 

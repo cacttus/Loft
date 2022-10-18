@@ -9,6 +9,7 @@ flat in uvec2 _pick_color;
 flat in vec4 _rtl_rtr;
 flat in vec4 _rbr_rbl;
 flat in vec4 _rect;
+flat in vec4 _border_trbl;
 
 void main(){
   //We flip everything in the VS

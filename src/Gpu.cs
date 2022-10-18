@@ -99,7 +99,6 @@ namespace PirateCraft
     }
   }
 
-  [Serializable]
   [DataContract]
   public class GpuRenderState : IClone, ICopy<GpuRenderState>
   {
@@ -112,10 +111,10 @@ namespace PirateCraft
     [DataMember] private BlendEquationMode _blendFunc = BlendEquationMode.FuncAdd;
     [DataMember] private BlendingFactor _blendFactorLast = BlendingFactor.OneMinusSrcAlpha;
     [DataMember] private BlendingFactor _blendFactor = BlendingFactor.OneMinusSrcAlpha;
-    [NonSerialized] private bool _scissorTestEnabledLast = false;
-    [NonSerialized] private bool _cullFaceEnabledLast = false;
-    [NonSerialized] private bool _depthTestEnabledLast = false;
-    [NonSerialized] private bool _blendEnabledLast = false;
+    private bool _scissorTestEnabledLast = false;
+    private bool _cullFaceEnabledLast = false;
+    private bool _depthTestEnabledLast = false;
+    private bool _blendEnabledLast = false;
 
     public object? Clone(bool? shallow = true)
     {
@@ -568,6 +567,7 @@ namespace PirateCraft
     //Limits
     public int MaxTextureSize { get; private set; } = 0;
     public int MaxTextureImageUnits { get; private set; } = 0;
+    public int[] MaxWorkGroupDims { get; private set; } = new int[3] { 0, 0, 0 };
 
     //  public GpuRenderState GpuRenderState { get; set; } = new GpuRenderState();
     public int RenderThreadID { get; private set; } = -1;
@@ -579,13 +579,8 @@ namespace PirateCraft
       //Initializes gpu info
       RenderThreadID = Thread.CurrentThread.ManagedThreadId;
 
-      int[] maxTextureSize = new int[2];
-      GL.GetInteger(GetPName.MaxTextureSize, maxTextureSize);
-      MaxTextureSize = maxTextureSize[0];
+      ComputeGPULimitsOpenGL();
 
-      int tmp = 0;
-      GL.GetInteger(GetPName.MaxCombinedTextureImageUnits, out tmp);
-      MaxTextureImageUnits = tmp;
 
       VendorString = GL.GetString​(StringName.Vendor);
       if (VendorString.Contains("ATI")) { Vendor = GPUVendor.ATI; }
@@ -596,6 +591,27 @@ namespace PirateCraft
         Gu.BRThrowException("Invalid GPU vendor string: " + VendorString);
       }
     }
+    private void ComputeGPULimitsOpenGL()
+    {
+
+      int[] maxTextureSize = new int[2];
+      GL.GetInteger(GetPName.MaxTextureSize, maxTextureSize);
+      Gpu.CheckGpuErrorsRt();
+      MaxTextureSize = maxTextureSize[0];
+
+      int tmp = 0;
+      GL.GetInteger(GetPName.MaxCombinedTextureImageUnits, out tmp);
+      Gpu.CheckGpuErrorsRt();
+      MaxTextureImageUnits = tmp;
+
+      GL.GetInteger((GetIndexedPName)GLenum.GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0, out MaxWorkGroupDims[0]);
+      GL.GetInteger((GetIndexedPName)GLenum.GL_MAX_COMPUTE_WORK_GROUP_COUNT, 1, out MaxWorkGroupDims[1]);
+      GL.GetInteger((GetIndexedPName)GLenum.GL_MAX_COMPUTE_WORK_GROUP_COUNT, 2, out MaxWorkGroupDims[2]);
+      Gpu.CheckGpuErrorsRt();
+      // GL.GetInteger((GetIndexedPName)GLenum.GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0, MaxWorkGroupDims);
+      // GL.GetInteger((GetIndexedPName)GLenum.GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0, MaxWorkGroupDims);
+    }
+
     public static TextureUnit GetActiveTexture()
     {
       int tex_unit = 0;
@@ -731,6 +747,12 @@ namespace PirateCraft
         calculatedType = PixelType.UnsignedByte;
         bufsiz_bytes = w * h * 4;
       }
+      else if (internalFormat == PixelInternalFormat.Rgba16f)
+      {
+        calculatedFmt = PixelFormat.Rgba;
+        calculatedType = PixelType.UnsignedByte;
+        bufsiz_bytes = w * h * 4;
+      }      
       else if (internalFormat == PixelInternalFormat.Rgba32f)
       {  //All color buffers
         calculatedFmt = PixelFormat.Rgba;
@@ -742,12 +764,6 @@ namespace PirateCraft
         calculatedFmt = PixelFormat.RedInteger;
         calculatedType = PixelType.UnsignedInt;
         bufsiz_bytes = w * h * 4 * 4;
-      }
-      else if (internalFormat == PixelInternalFormat.Rgba16f)
-      {
-        calculatedFmt = PixelFormat.Rgba;
-        calculatedType = PixelType.UnsignedByte;
-        bufsiz_bytes = w * h * 4;
       }
       else if (internalFormat == PixelInternalFormat.R32f)
       {
@@ -922,29 +938,29 @@ namespace PirateCraft
     }
     public static GPUBuffer CreateUniformBuffer<T>(string name, T[] items)
     {
-      return new GPUBuffer(name + "-ubo", null, BufferTarget.UniformBuffer, items.ElementSize(), items.Length, items);
+      return new GPUBuffer(name + "-ubo", null, BufferTarget.UniformBuffer, items.ElementSize(), items.Length, BufferUsageHint.StreamDraw, items);
     }
     public static GPUBuffer CreateUniformBuffer(string name, int item_size_bytes, int item_count)
     {
-      return new GPUBuffer(name + "-ubo", null, BufferTarget.UniformBuffer, item_size_bytes, item_count, null);
+      return new GPUBuffer(name + "-ubo", null, BufferTarget.UniformBuffer, item_size_bytes, item_count, BufferUsageHint.StreamDraw, null);
     }
     public static GPUBuffer CreateShaderStorageBuffer<T>(string name, T[] items)
     {
-      return new GPUBuffer(name + "-ssbo", null, BufferTarget.ShaderStorageBuffer, items.ElementSize(), items.Length, items);
+      return new GPUBuffer(name + "-ssbo", null, BufferTarget.ShaderStorageBuffer, items.ElementSize(), items.Length, BufferUsageHint.StreamDraw, items);
     }
     public static GPUBuffer CreateShaderStorageBuffer(string name, int item_size_bytes, int item_count)
     {
-      return new GPUBuffer(name + "-ssbo", null, BufferTarget.ShaderStorageBuffer, item_size_bytes, item_count, null);
+      return new GPUBuffer(name + "-ssbo", null, BufferTarget.ShaderStorageBuffer, item_size_bytes, item_count, BufferUsageHint.StreamDraw, null);
     }
     public static GPUBuffer CreateVertexBuffer<T>(string name, T[] verts)
     {
       Gu.Assert(verts != null);
-      return new GPUBuffer(name + "-vbo", VertexFormat.GetVertexFormat<T>(), BufferTarget.ArrayBuffer, verts.ElementSize(), verts.Length, verts);
+      return new GPUBuffer(name + "-vbo", GPUDataFormat.GetDataFormat<T>(), BufferTarget.ArrayBuffer, verts.ElementSize(), verts.Length, BufferUsageHint.StreamDraw, verts);
     }
     public static GPUBuffer CreateIndexBuffer<T>(string name, T[] inds)
     {
       Gu.Assert(inds != null);
-      return new GPUBuffer(name + "-ibo", VertexFormat.GetVertexFormat<T>(), BufferTarget.ElementArrayBuffer, inds.ElementSize(), inds.Length, inds);
+      return new GPUBuffer(name + "-ibo", GPUDataFormat.GetDataFormat<T>(), BufferTarget.ElementArrayBuffer, inds.ElementSize(), inds.Length, BufferUsageHint.StreamDraw, inds);
     }
 
     public class GPUMemInfo
@@ -959,19 +975,22 @@ namespace PirateCraft
       public int? VBO_FREE_MEMORY_ATI = null;
       public int? TEXTURE_FREE_MEMORY_ATI = null;
       public int? RENDERBUFFER_FREE_MEMORY_ATI = null;
-
       public override string ToString()
       {
         StringBuilder s = new StringBuilder();
-        if (this.Free != null) { s.AppendLine($"Free :{this.Free}kB"); }
-        if (this.Total != null) { s.AppendLine($"Total:{this.Total}kB"); }
-        if (this.GPU_MEMORY_INFO_DEDICATED_VIDMEM_NVX != null) { s.AppendLine($"GPU_MEMORY_INFO_DEDICATED_VIDMEM_NVX :{this.GPU_MEMORY_INFO_DEDICATED_VIDMEM_NVX}kB"); }
-        if (this.GPU_MEMORY_INFO_EVICTION_COUNT_NVX != null) { s.AppendLine($"GPU_MEMORY_INFO_EVICTION_COUNT_NVX :{this.GPU_MEMORY_INFO_EVICTION_COUNT_NVX}"); }
-        if (this.GPU_MEMORY_INFO_EVICTED_MEMORY_NVX != null) { s.AppendLine($"GPU_MEMORY_INFO_EVICTED_MEMORY_NVX :{this.GPU_MEMORY_INFO_EVICTED_MEMORY_NVX}"); }
-        if (this.VBO_FREE_MEMORY_ATI != null) { s.AppendLine($"VBO_FREE_MEMORY_ATI :{this.VBO_FREE_MEMORY_ATI}kB"); }
-        if (this.TEXTURE_FREE_MEMORY_ATI != null) { s.AppendLine($"TEXTURE_FREE_MEMORY_ATI :{this.TEXTURE_FREE_MEMORY_ATI}kB"); }
-        if (this.RENDERBUFFER_FREE_MEMORY_ATI != null) { s.AppendLine($"RENDERBUFFER_FREE_MEMORY_ATI :{this.RENDERBUFFER_FREE_MEMORY_ATI}kB"); }
+        ToString(s);
         return s.ToString();
+      }
+      public void ToString(StringBuilder s, string tab = "")
+      {
+        if (this.Free != null) { s.AppendLine($"{tab}Free :{this.Free}kB"); }
+        if (this.Total != null) { s.AppendLine($"{tab}Total:{this.Total}kB"); }
+        if (this.GPU_MEMORY_INFO_DEDICATED_VIDMEM_NVX != null) { s.AppendLine($"{tab}GPU_MEMORY_INFO_DEDICATED_VIDMEM_NVX :{this.GPU_MEMORY_INFO_DEDICATED_VIDMEM_NVX}kB"); }
+        if (this.GPU_MEMORY_INFO_EVICTION_COUNT_NVX != null) { s.AppendLine($"{tab}GPU_MEMORY_INFO_EVICTION_COUNT_NVX :{this.GPU_MEMORY_INFO_EVICTION_COUNT_NVX}"); }
+        if (this.GPU_MEMORY_INFO_EVICTED_MEMORY_NVX != null) { s.AppendLine($"{tab}GPU_MEMORY_INFO_EVICTED_MEMORY_NVX :{this.GPU_MEMORY_INFO_EVICTED_MEMORY_NVX}"); }
+        if (this.VBO_FREE_MEMORY_ATI != null) { s.AppendLine($"{tab}VBO_FREE_MEMORY_ATI :{this.VBO_FREE_MEMORY_ATI}kB"); }
+        if (this.TEXTURE_FREE_MEMORY_ATI != null) { s.AppendLine($"{tab}TEXTURE_FREE_MEMORY_ATI :{this.TEXTURE_FREE_MEMORY_ATI}kB"); }
+        if (this.RENDERBUFFER_FREE_MEMORY_ATI != null) { s.AppendLine($"{tab}RENDERBUFFER_FREE_MEMORY_ATI :{this.RENDERBUFFER_FREE_MEMORY_ATI}kB"); }
       }
     }
 
@@ -1333,8 +1352,8 @@ namespace PirateCraft
       // Get the max id (possibly)
       Gpu.CheckGpuErrorsRt();
       int maxId = 0;
-      GL.GenTextures(1, out maxId);
-      GL.DeleteTexture(maxId);
+      GT.GenTextures(1, out maxId);
+      GT.DeleteTexture(maxId);
       Gpu.CheckGpuErrorsRt();
       int ntexs = 0;
       for (var iTexId = 0; iTexId < maxId; ++iTexId)
@@ -1946,4 +1965,99 @@ namespace PirateCraft
     #endregion
 
   }//GpuRenderSTate
+
+  public class GpuComputeSync : HasGpuResources
+  {
+    /*
+     Stores information pertaining to the dispatching of computes to the compute shader system
+    Usage
+    For Gpu
+        call createFence()
+        check isComputeComplete()==true
+
+    for Cpu
+        call createCpuFence();
+        when done call signalCpu()
+        check isComputeComplete()==true
+    */
+    private IntPtr _glSyncObject = IntPtr.Zero;
+    private bool _bCpuDispatched = false;
+    private bool _bGpuDispatched = false;
+    private bool _bCpuSignaled = false;
+    private bool isDispatched() { return (_bCpuDispatched || _bGpuDispatched); }
+    private bool isCpuDispatched() { return _bCpuDispatched; }
+
+    public GpuComputeSync() { }
+    public override void Dispose_OpenGL_RenderThread()
+    {
+      if (GL.IsSync(_glSyncObject))
+      {
+        GT.DeleteSync(_glSyncObject);
+      }
+    }
+    public void CreateCpuFence()
+    {
+      if (_bGpuDispatched)
+      {
+        Gu.BRThrowException("Signal object tried to create fence on cpu when gpu was signaled.");
+      }
+      _bGpuDispatched = false;
+      _bCpuDispatched = true;
+      _bCpuSignaled = false;
+    }
+    public void SignalCpu()
+    {
+      _bCpuSignaled = true;
+    }
+    public void CreateFence()
+    {
+      if (_bCpuDispatched)
+      {
+        Gu.BRThrowException("Signal object tried to create fence on gpu when cpu was signaled.");
+      }
+      _bGpuDispatched = true;
+      _bCpuDispatched = false;
+      _glSyncObject = GL.FenceSync(SyncCondition.SyncGpuCommandsComplete, 0);
+    }
+    public bool IsComputeComplete()
+    {
+      /**
+      *    @fn isComputeComplete
+      *    @brief Returns true if the given operation is complete.
+      */
+      GLenum result = GLenum.GL_UNSIGNALED;
+      if (_bCpuDispatched)
+      {
+        if (_bCpuSignaled)
+        {
+          result = GLenum.GL_SIGNALED;
+        }
+      }
+      else
+      {
+        if (GL.IsSync(_glSyncObject))
+        {
+          int length = 0;
+          int res_int = 0;
+          result = (GLenum)res_int;
+          GL.GetSync(_glSyncObject, SyncParameterName.SyncStatus, sizeof(int), out length, out res_int);
+          //This was causing memory leak
+          if (result == GLenum.GL_SIGNALED)
+          {
+            GT.DeleteSync(_glSyncObject);
+          }
+        }
+        else
+        {
+          result = GLenum.GL_SIGNALED;
+        }
+      }
+      if (result == GLenum.GL_SIGNALED)
+      {
+        _bCpuDispatched = false;
+        _bGpuDispatched = false;
+      }
+      return result == GLenum.GL_SIGNALED;
+    }
+  }
 }

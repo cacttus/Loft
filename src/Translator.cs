@@ -302,6 +302,7 @@ namespace PirateCraft
     LoadLastProjectFile,
     [InlineTranslation(new string[] { "en", "Debug Information", "es", "Información de Depuración", "ru", "Отладочная информация" })] DebugInfoHeader,
     [InlineTranslation(new string[] { "en", "Hover Object To See Information ", "es", "Pase El Cursor Sobre El Objeto Para Ver La Información", "ru", "Наведите Указатель Мыши На Объект, Чтобы Увидеть Информацию" })] DebugInfoMustSelect,
+    Information,
   }
   #endregion
 
@@ -460,7 +461,11 @@ namespace PirateCraft
         FileLoc f = new FileLoc("phrases.csv", FileStorage.Embedded);
         var csvData = new BoJankEnumCSV<LanguageCode, Phrase, String>(f, (x) => { return x; });
 
-        Gu.Log.Debug(csvData.DebugPrintTable().ToString());
+        if (Gu.EngineConfig.Debug_PrintTranslationTable)
+        {
+          Gu.Log.Debug(csvData.DebugPrintTable().ToString());
+        }
+
         _translateDataTable = csvData.DataTable;
       }
       catch (Exception ex)

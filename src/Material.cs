@@ -22,7 +22,6 @@ namespace PirateCraft
     [Description("_ufGpuMaterial_s2Other")] Other
   }
   [DataContract]
-  [Serializable]
   public class TextureSlot
   {
     [DataMember] private Texture? _texture = null;
@@ -143,7 +142,6 @@ namespace PirateCraft
   }
 
   [DataContract]
-  [Serializable]
   public class Material : DataBlock, IClone, ICopy<Material>
   {
     //Material, input to a shader & gpu state for material FBO (blending, etc)
@@ -190,8 +188,8 @@ namespace PirateCraft
     [DataMember] private float _specular = 0.5f;
     [DataMember] private float _indexOfRefraction = 1;//1.45
     [DataMember] private bool _flat = false;
-    [NonSerialized] private GpuMaterial _gpuMaterial = default(GpuMaterial);
-    [NonSerialized] public glTFLoader.Schema.Material.AlphaModeEnum AlphaMode = glTFLoader.Schema.Material.AlphaModeEnum.BLEND;
+    private GpuMaterial _gpuMaterial = default(GpuMaterial);
+    public glTFLoader.Schema.Material.AlphaModeEnum AlphaMode = glTFLoader.Schema.Material.AlphaModeEnum.BLEND;
     //**TODO: alpha is actually in the GpuRenderState
 
     public void SetTexture(Texture tex, int index)
@@ -211,19 +209,18 @@ namespace PirateCraft
 
     #region Public: Methods
 
-    public override List<DataBlock?> GetSubResources()
+    public override void GetSubResources(List<DataBlock?>deps )
     {
-      var d = new List<DataBlock?>(){
-          _shader
-       };
+      Gu.Assert(deps!=null);
+      base.GetSubResources(deps);
+      deps.Add(_shader);
       foreach (var x in this._textures)
       {
         if (x.Texture != null)
         {
-          d.Add(x.Texture);
+          deps.Add(x.Texture);
         }
       }
-      return d;
     }
     public void CompileGpuData()
     {

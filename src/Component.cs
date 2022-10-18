@@ -2,6 +2,10 @@ using OpenTK.Windowing.GraphicsLibraryFramework;
 using System.Runtime.Serialization;
 namespace PirateCraft
 {
+  public enum LightType
+  {
+    Point, Direction
+  }
   public enum ComponentState
   {
     Added,
@@ -9,7 +13,6 @@ namespace PirateCraft
     Destroyed
   }
   [DataContract]
-  [Serializable]
   public abstract class Component : DataBlock, IClone, ICopy<Component>, ISerializeBinary
   {
     private ComponentState _componentState = ComponentState.Added;
@@ -23,7 +26,6 @@ namespace PirateCraft
     public abstract void OnUpdate(double dt, WorldObject myObj); //update
     public abstract void OnDestroy(WorldObject myObj); //called before the object is destroyed.
     public virtual void OnPick() { }
-    public virtual void OnView(WorldObject ob, RenderView rv) { }
     public abstract object? Clone(bool? shallow = null);
     public virtual void CopyFrom(Component? other, bool? shallow = null)
     {
@@ -42,7 +44,6 @@ namespace PirateCraft
     }
   }
   [DataContract]
-  [Serializable]
   public class EventComponent : Component, IClone, ICopy<EventComponent>
   {
     //Executes an action on an object for a given interval
@@ -129,8 +130,7 @@ namespace PirateCraft
   //   }
   // }
   [DataContract]
-  [Serializable]
-  public class AnimationComponent : Component, IClone, ICopy<AnimationComponent>
+  public class AnimationComponent : Component, IClone, ICopy<AnimationComponent>, ISerializeBinary
   {
     [DataMember] public double Time { get; private set; } = 0;
     [DataMember] public ActionState AnimationState { get; private set; } = ActionState.Stop;
@@ -461,7 +461,6 @@ namespace PirateCraft
     }
   }
   [DataContract]
-  [Serializable]
   public class FPSInputComponent : InputComponent, ICopy<FPSInputComponent>, ISerializeBinary
   {
     public enum FPSCamMode
@@ -517,9 +516,9 @@ namespace PirateCraft
       //removing cammode for now
       // if (CamMode == FPSCamMode.Flying)
       // {
-      basis.x = cam.BasisX;
-      basis.y = cam.BasisY;
-      basis.z = cam.BasisZ;
+      basis.x = cam.BasisX_World;
+      basis.y = cam.BasisY_World;
+      basis.z = cam.BasisZ_World;
       // }
       // else if (CamMode == FPSCamMode.Playing)
       // {
@@ -539,31 +538,31 @@ namespace PirateCraft
         //Rotate Camera
         float width = view.Viewport.Width;
         float height = view.Viewport.Height;
-        float mpx_rel = Gu.Mouse.Pos.x - view.Viewport.X;
-        float mpy_rel = Gu.Mouse.Pos.y - view.Viewport.Y;
-        vec2 mouse_delta_wh = new vec2(Gu.Mouse.PosDelta.x / view.Viewport.Width, Gu.Mouse.PosDelta.y / view.Viewport.Height);
+        float mpx_rel = Gu.Context.PCMouse.Pos.x - view.Viewport.X;
+        float mpy_rel = Gu.Context.PCMouse.Pos.y - view.Viewport.Y;
+        vec2 mouse_delta_wh = new vec2(Gu.Context.PCMouse.PosDelta.x / view.Viewport.Width, Gu.Context.PCMouse.PosDelta.y / view.Viewport.Height);
 
         bool ms_move_editing_must_warp = false;
 
         //** Mimicking Blender Defaults ** 
-        if (Gu.Mouse.ScrollDelta.y != 0)
+        if (Gu.Context.PCMouse.ScrollDelta.y != 0)
         {
-          obj.Position_Local += basis.z * Gu.Mouse.ScrollDelta.y * _scroll_zoom_meters_per_pixel;
+          obj.Position_Local += basis.z * Gu.Context.PCMouse.ScrollDelta.y * _scroll_zoom_meters_per_pixel;
           ms_move_editing_must_warp = true;
         }
-        if (Gu.Mouse.PressOrDown(MouseButton.Middle))
+        if (Gu.Context.PCMouse.PressOrDown(MouseButton.Middle))
         {
           //Allow shift or control to affect speed instead, if WSAD is down.
-          bool bMoving = Gu.Keyboard.PressOrDown(Keys.W) || Gu.Keyboard.PressOrDown(Keys.S) || Gu.Keyboard.PressOrDown(Keys.A) || Gu.Keyboard.PressOrDown(Keys.D);
+          bool bMoving = Gu.Context.PCKeyboard.PressOrDown(Keys.W) || Gu.Context.PCKeyboard.PressOrDown(Keys.S) || Gu.Context.PCKeyboard.PressOrDown(Keys.A) || Gu.Context.PCKeyboard.PressOrDown(Keys.D);
 
-          if (!bMoving && (Gu.Keyboard.PressOrDown(Keys.LeftShift) || Gu.Keyboard.PressOrDown(Keys.RightShift)))
+          if (!bMoving && (Gu.Context.PCKeyboard.PressOrDown(Keys.LeftShift) || Gu.Context.PCKeyboard.PressOrDown(Keys.RightShift)))
           {
             //Pan
             obj.Position_Local += basis.x * -mouse_delta_wh.x * _pan_meters_per_pixel;
             obj.Position_Local += basis.y * mouse_delta_wh.y * _pan_meters_per_pixel;
             ms_move_editing_must_warp = true;
           }
-          else if (!bMoving && (Gu.Keyboard.PressOrDown(Keys.LeftControl) || Gu.Keyboard.PressOrDown(Keys.RightControl)))
+          else if (!bMoving && (Gu.Context.PCKeyboard.PressOrDown(Keys.LeftControl) || Gu.Context.PCKeyboard.PressOrDown(Keys.RightControl)))
           {
             //Zoom
             obj.Position_Local += basis.z * -mouse_delta_wh.y * _zoom_meters_per_pixel;
@@ -606,7 +605,7 @@ namespace PirateCraft
           }
           if (ms_move_editing_must_warp)
           {
-            Gu.Mouse.WarpMouse(View, WarpMode.Wrap, 0.001f);
+            Gu.Context.PCMouse.WarpMouse(View, WarpMode.Wrap, 0.001f);
           }
         }
       }
@@ -617,7 +616,7 @@ namespace PirateCraft
 
       //Modify speed multiplier based on state
       float speedMul = 1; //normal speed
-      if (Gu.Keyboard.PressOrDown(Keys.LeftControl) || Gu.Keyboard.PressOrDown(Keys.RightControl))
+      if (Gu.Context.PCKeyboard.PressOrDown(Keys.LeftControl) || Gu.Context.PCKeyboard.PressOrDown(Keys.RightControl))
       {
         speedMul = Run_Mul; // run speed
       }
@@ -627,34 +626,34 @@ namespace PirateCraft
       // }
 
       float final_run_speed = Base_Speed * speedMul;
-      if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.Q }))
+      if (Gu.Context.PCKeyboard.PressOrDown(new List<Keys>() { Keys.Q }))
       {
         myObj.Velocity += basis.y * final_run_speed;
       }
-      if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.E }))
+      if (Gu.Context.PCKeyboard.PressOrDown(new List<Keys>() { Keys.E }))
       {
         myObj.Velocity -= basis.y * final_run_speed;
       }
-      if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.Up, Keys.W }))
+      if (Gu.Context.PCKeyboard.PressOrDown(new List<Keys>() { Keys.Up, Keys.W }))
       {
         myObj.Velocity += basis.z * final_run_speed;
       }
-      if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.Down, Keys.S }))
+      if (Gu.Context.PCKeyboard.PressOrDown(new List<Keys>() { Keys.Down, Keys.S }))
       {
         myObj.Velocity -= basis.z * final_run_speed;
       }
-      if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.Right, Keys.D }))
+      if (Gu.Context.PCKeyboard.PressOrDown(new List<Keys>() { Keys.Right, Keys.D }))
       {
         myObj.Velocity += basis.x * final_run_speed;
       }
-      if (Gu.Keyboard.PressOrDown(new List<Keys>() { Keys.Left, Keys.A }))
+      if (Gu.Context.PCKeyboard.PressOrDown(new List<Keys>() { Keys.Left, Keys.A }))
       {
         myObj.Velocity -= basis.x * final_run_speed;
       }
 
       // if (myObj.OnGround && this.CamMode != FPSCamMode.Flying)
       // {
-      //   if (Gu.Keyboard.PressOrDown(Keys.Space))
+      //   if (Gu.Context.PCKeyboard.PressOrDown(Keys.Space))
       //   {
       //     myObj.Velocity += new vec3(0, Base_Jump_Speed, 0);
       //   }
@@ -685,6 +684,4 @@ namespace PirateCraft
     }
 
   }//FpsInputComponent
-
-
 }

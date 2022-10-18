@@ -1,9 +1,86 @@
-﻿
+﻿Working On:
+10/18
+remove the layer indexes this is dumb
+instead - all statics are on 1 line and have z-index
+all floats & rels are above it or below it based on their personal z index
+
+10/17
 
 
-Working On:
+  We have to sort ui elements
+  
+  inherited events - subchildren need to fire events - but we should be able to
+    override them instead of calling all subclass events
+
+  TODO: if an element is fixed width since max/min wh are used as static WH for fixed elements, the element should set the max/min wh to this value. or something.
+
+  TODO: If a parent element shrinks and a child element expands, 
+        then the width of the parent is equal to the content width of all the children
+
+10/16
+  added tone mapping 
+  fixed more shader hot reload
+
+  todo:
+    * gui2d fix
+        menu is in wrong place.
+        fix sort order - causing overlay to break
+          glyphs being on separatre layer is a problem - they dont properly layout. with other elements (ist his a problem?)
+            separate array is problem - we then duplicate all algorithms
+              `solutin: remove all sorting, put glyphs at the beginning of children and keep count
+        word wrap
+        put back borders
+        generic static layout directions
+        fix _layoutchanged being disabled / optimization
+
+    * world actions - xform fix
+
+10/14
+  ** fix the sky rendering out of order .. ok
+
+  ** working on fixing rendering system and removing the sloppy lambdas from pipe stages
+    created VisibleStuff
+      ***REALLY the only blended would be the materials - so if GPU state has blend enabled, then we depth peel them
+          otherwise we can just use depth buffer for opaque materials and render any order we want.
+          sans culling.
+
+  **UI is messed up - looks bad, cant read text
+    LayoutChanged is disabled (performance problem)
+    Also no longer works ..
+      borders are no longer working.
+
+  **got info window to work (again)
+  **added UI-only mode to RenderView to allow us to render just UI
+      ** HUGE TODO - prevent re-rendering if UI does not change 
+        *(or even tiled rendering)
+
+10/13
+  For menus adding RegionMode
+  RegionMode -> Contained | Floating 
+
+  Removing Border Quads (too confusing) this will break borders.
+    ** border area - I think instead we'll just pass border params into the shader and make 2 quads in there
+  Removing Raster Quad (unneeded now)
+  We can now remove "Offset Quad" from the glyphs since that was the purpose for floating now controls..
+
+  **Technically we need to replace mesh view everywhere from meshdata
+    meshview is required for the Gui to draw a subset of its quads.
+    do not create new mesh views when setting Mesh()
+    
+10/12
+  moving gui events to world editor (click)
+    gui menus / dropdowns
+      gui objects must be able to overlap
+      i might want a child element to go above a parent or sibling element
+
+10/11
+  gui horizontal/vertical build & statusbar (at bottom)
+  fix M/R/S action
+  save/load/lib
 
 Bugs:
+  * Library Dependencies must share pick ID with root node Gear -> root
+  * Hide root node default box.
   * CRITICAL: slowdown issue - fps slows down .. some kind of serious issue
   * Gear / objects dont rotate correctly
   * Fix current active view for moving objects (mouse movement and editing)
@@ -13,110 +90,150 @@ Bugs:
     I like the first one.  (fixed?)
 
 Roadmap:
-* World Model phase 1 - columns
-    globs are not auto generated instead we load them from file
-    x generate flat glob
-    x generate boring columns from data
-    save / load world
-* Edit world phase 1  
-    Edit Mode -> World  (global edit mode, world, vs object)
-      1, 2, 3 = edge, vert, face (blender) <Change viewport overlay based on modeee
-    Pick glob at y = 0
-    Fix menu
-    Click to generate Flat Glob
-    Edit Overlay
-      Highlight for glob / clicking / picking
-    Edit Actions
-      Click to select vertex, edge, or face < requires Edit Overlay
-      Show selected v,e,f (object halos)
-      If edge 
-        Elick + drag to move v,e,f
-        Edge snapping button  < Edit Overlay>
-          Edge snapping icon
-    weld edge
-      World Edit Mode, select 2 edges with Shift, -> w 
-
+* World Model 1 
+  X Columns, menus, basic gen, gen flat, save world
+  * Save / load assets (serialize) objects + world (phase 1)
+  * Library
+* Edit World 1  
+    * Pick glob at y = 0
+    * Edit Overlay 
+      -> Highlight for glob / clicking / picking    
+      -> Click to generate Flat Glob in selected area
+      -> select vertex, edge, or face ->  #1, 2, 3 = edge, vert, face (blender)
+      -> Show selected vef (object halos)
+        -> Turn on Edge snapping button  
+        -> Edge snapping icon
+    * Weld edge
+        -> select 2 edges with Shift+w 
 * Character model
-    Test load full character (possibly, one we made, like electro)
-    Skin GPU BUffer
-    Weights GPU Buffer
-    FIgure out how to make Characters Instances
-* In-Game / Real-Time Cinematic system (IGC), or Acting System, or Play system (not pre-rendered)
-    Paths
-      Either
-        Edit mode -> Path, or
-        select object -> Path Dialog -> Edit Path, Add Path < requires Combo Box, Window
-      click to edit path. Add path point.
-    Cinematic Script System
-      -- Basically take the other systems and kind of drag and drop what they can do.
-      Actions needed:
-      1 go to new world
-      1 click character -> click to make path -> save path (in order) < Path System
-      2 play object / character animation / open door animation, etc
-      3 set character to hold object < Requires Character Hot Spots
-      5 character "look at someone's face" (for dialog / interaction)
-      6 Show game dialog box
-* Edit World - 2
-    Top Texture
-    Side Textures 
-    bot texture
-    Door Hole (maybe, check the design)
-* World model - 2
-    stitch neighbor globs
-    load different world (go to world)
-    Culling
-    async topology
-    catmull clark
-      edge weights (click edge, drag for weight)
-    top style -> 
-      overhang / bevel / flat
+    * Create test character (electro /blender)
+    * Load full character GLTF With anims
+      -> Process animations
+      -> Skin GPU BUffer
+      -> Weights GPU Buffer
+    * Character Instances for NPC
+* World Controls 
+    * NPC Paths
+        * Edit mode -> Path
+        * Select object -> Path Dialog -> "Edit Path", "Add Path"
+          <- Combo Box, Window
+        -> Click to edit path. 
+        -> Add path point.
+    * Cinematic System / World Activity 
+      * Go To World (World Model 2)
+      * click character -> click to make path -> save path (in order) < Path System
+      * play object / character animation / open door animation, etc
+      * set character to hold object < Requires Character Hot Spots
+      * character "look at someone's face" (for dialog / interaction)
+      * Show game dialog box
+* World Model 2
+    * Top Texture
+    * Side Textures 
+    * Bot texture
+    * Door Hole (maybe, check the design)
+    * Stitch neighbor globs
+    * Go To World
+    X Culling
+    * BACKLOG: Async topology
+    * Catmull clark
+      -> Editable Edge weights (click edge, drag for weight)
+    * Select Top style (overhang / bevel / flat)
 * World model - 3
-    wall grid
-    click on ground to place wall
-      ground must highlight < requires Edit Overlay 
-    click top of wall to build wall on top of another wall.
-    separate mesh for walls (terrain_op, terrain_tp, wall_op)
-* Object placer
-    object selection window
-    object screenshot
-    click to place object in world
-    save object on world data file
-* Particles object < requires Object Placer
-    < window 
-    save particle effect to file
+    * Wall grid Topology.
+    * Separate mesh for walls (terrain_op, terrain_tp, wall_op)
+* Edit World 2
+  * Click on ground to place wall
+      Highlight Ground 
+        <- Edit Overlay 
+  * Click top of wall to build wall on top of another wall
+  * Dropper
+      * Object dropper window
+      * Model screenshot
+      * Drag & drop
+      * Save objects
+        <- Serialization
+* Particles   
+    <- Object Placer
+    * Save particles 
+    <- Serialization
 * Collisions / Physics
-    Get this down
-* Birds & Bugs < depends on particles / path
-* Dagland Slums City
-    Electro Character
-    Katrina Character
-    Ozman Character
-    Don  Character
-    MNTeck Warrior Enemy
-    Turtbot Enemy
-    Dozan Thug Enemy
-    Dozan Archer Enemy
-    Cockroaches (effect)
-    Ooze barrel (chest)
-    Shanty houses
-    Huge wall
-    "The substance"
-    The Don's house Area
-    Electro's house Area
-    Benedict Manor Mainway Area
-    The Benedict Manor Safe Area
-    Dagland Slums Area
-    Ozan River Bay Area
-    Black Leech Mines Area
-* Outer Moraine Country
-    Outer Dozan Forest Area
-    Halfway House Area
-    Old Knight Character
-
+    <- Pixvoxel, GJK
+* Props 1
+  * Electro Character Rough
+  * Dagland Slums - Turtbot Enemy
+  * Dagland Slums - Dozan Thug Enemy
+  * Dagland Slums - Dozan Archer Enemy
+  * Katrina Character
+* Mechanics 1
+  * Building Entrances
+    * Sidescroller Camera
+  * Character Movement
+  * Battle
+* Environment 1  
+  * Birds & Bugs 
+* Props 2
+  * Don Character
+  * MNTeck Warrior Enemy
+* Props 3
+  * Cockroaches (effect)
+  * Ooze barrel (chest)
+  * Shantys
+  * Huge wall
+* Environment 2
+  * Don's house Area
+  * Electro house Area
+  * Benedict Manor Mainway Area
+  * The Benedict Manor Safe Area
+* Environment 3
+  * Dagland Slums Area
+  * Ozan River Bay Area
+  * Black Leech Mines Area
+* Environment 4
+  * Moraine Forest
+  * Knight Character
+* Prototype Complete
 
 TODO list
-* Timed reference deletion << ?
-* CS Scripts (use msbulid to build external script to DLL) (fun!)
+* Hot Reload + Edit - (LaunchFileWithSelectedShaderErrorLine)
+    For shaders & Scripts
+      when an error occurs - launch the file in the editor.
+* Do away with generic shader names - files must exist, if they dont exist then it wont be reported if the shader still compiles.
+* Put line width / point size on Material (perhaps GPU state, or just a material param)
+  of course put functionality in to render these without compatibility profile
+    Ok so - we would put it on the material and have separate debug draw materials for line / point
+    Actually it would be a shader parameter
+      So we would need some kind of shader parameter interface.
+    Material{
+      LineWidth
+      PointSize
+    }
+    LineShader
+      _ufLineWidth
+    PointShader
+      _ufPointSize
+        ^^ point shader can be a more generic quad shader of some kind.
+
+    We may also be able to make this generic ..
+      One shader for lines/points with flat color (GL_POINTS, GL_LINES)
+        Not sure if this is possible.
+
+      Note it is all v_v3c4 for debug. - debug vert.
+
+
+
+* KeyMap - Read from file.
+* Optimized UI-ONLY Window Updates - 
+    Prevent rendering to UI-only windows if the UI does not change, do not clear the buffer.
+* Move World Initialization to scripts.
+  Sun/Moon and default object creation
+* Generic Texture - 
+    Refactor the RenderTExture and Depth texture constructors in Texture - make generic, and fit with 2d, 3d, or make a 3d class
+* Memory growth bug, FPS drop bug
+* Mesh Pools.
+* GLYPHS - replace UiElement with Glyphs for chars
+* WORD WRAP - make word wrap work for labels.
+* Move the window debug keys (F1..) to KeyMaP
+* FIX CS Scripts 
 * Dir lights
 * BR_DYNAMIC_GLOB_LOADING Dynamic Glob loading from world file
 * Beam / BeamEdge /BeamVert as structs
@@ -124,9 +241,6 @@ TODO list
   remove the ptr's on each class 
 * MegaTex Margins for prevent bleed
   Linear filtering does not work without some kind of margins.
-
-
-
 * Fix vertex types**
     Dont use class name ,instead use reflection and generate the vertex type based on teh sequential order of the eles
       vec3 _v
@@ -136,8 +250,6 @@ TODO list
 * Menus
 * Scrollbar for props window
 * Character model
-
-
 
 
 
@@ -574,3 +686,39 @@ then
     We need to put the contextmenu on the Gui2d, there is no other way, other than 
     destroying the current order of the UI
     automatic PickRoot 
+
+
+
+ //Removing grow/shrink - it makes layout harder and html does not do it, instead width=100%
+ //position:absolute/relative
+ //bottom: set this - top r l - shrink
+ //
+ // NO i think rels should be fixed size. NO variable size for rels. too complex.
+ //    remove grow, w/h= 100%
+ // by default width = 100%, no grow
+ //    width not specified - width = 100%
+ //
+ //We can actually do this in one sweep.
+ //2 basic ideas:
+ //  fixed parent: (root = screen) - determines max size of auto sized children
+ //  fixed child: text element - determine MIN size of container (added up)
+ //
+ //input: screen boundary (superclip)
+ //1 calc superclip
+ //  sizemode   shrink: if parent clip mode is shrink, then max wh would be it's parent max wh, up to the "fixed root"
+ //             grow: maxwh is parent max wh however 
+ //             fixed: fixed
+ //
+ //2 plop rels (expand clip/render quads)
+ //3 iterate rels recursive
+ //  default w/h is 100% of parent, can be "auto"
+ //3.2 clamp by min/max wh of rel, and max wh of superclip
+ //3.3 expand clipquad & renderquad max = superclip
+ //4 iterate stats recursive
+ //4.1 expand stats (calc min w/h of stats based on Max(sum of stat+rel element Min W/Hs, Min w/h))
+ //    default width: 100% defalt height: shrink
+ //5 Add min w/h for stats
+ //6 Layout stats (position them)
+ //6.1 Expand clipquad and renderquad while laying out - max = superclip
+ //7 Layout floats
+ //7.1 expand clipquad only    

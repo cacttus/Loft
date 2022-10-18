@@ -7,51 +7,8 @@ namespace PirateCraft
     Created,
     Active,
     Removed, //pending removal from the scene, or removed
-    //Destroyed//pending removal from scene, and unlinking
-  }
-  public interface IDrawable
-  {
-    public MeshData? Mesh { get; set; }
-    public Material? Material { get; set; }
-    public mat4 WorldMatrix { get; set; }
-    public uint PickId { get; set; }
-    public bool Selected { get; set; }
-    public bool Picked { get; set; }
-    public bool Pickable { get; set; }
-  }
-  public class SoloMesh : IDrawable
-  {
-    //lightweight version of WorldObject (matrix+mesh)
-    //for rendering transformed geometry without the extra data
-
-    mat4 _worldMatrix = mat4.Identity;
-
-    public MeshData? Mesh { get; set; } = null;
-    public Material? Material { get; set; } = null;
-    public mat4 WorldMatrix
-    {
-      get { return _worldMatrix; }
-      set
-      {
-        _worldMatrix = value;
-      }
-    }
-    public uint PickId { get; set; } = 0;
-    public UInt64 UniqueID { get { return Library.c_iUntypedUnique; } }
-    public bool Selected { get; set; } = false;
-    public bool Picked { get; set; } = false;
-    public bool Pickable { get; set; } = false;
-
-    public SoloMesh(MeshData? mesh, Material? mat, mat4 mworld, uint pickId)
-    {
-      Mesh = mesh;
-      Material = mat;
-      _worldMatrix = mworld;
-      PickId = pickId;
-    }
   }
 
-  [Serializable]
   [DataContract]
   public class PRS
   {
@@ -71,22 +28,193 @@ namespace PirateCraft
       return m;
     }
   }
-
-  [Serializable]
   [DataContract]
-  public class WorldObject : DataBlock, IDrawable, ISerializeBinary, ICopy<WorldObject>, IClone
+  public class Drawable : DataBlock, ISerializeBinary, ICopy<Drawable>, IClone
+  {
+    //@class Drawable
+    //@desc  Lightweight version of WorldObject (matrix+mesh+material)
+    //       for rendering transformed geometry without the extra data.
+    #region Public: Members
+
+    public mat4 WorldMatrix { get { return _world; } }
+    public MeshData? Mesh { get { return _meshView == null ? null : _meshView.MeshData; } set { SetMeshView(value); } }
+    public MeshView? MeshView { get { return _meshView; } set { _meshView = value; } }
+    public Material? Material { get { return _material; } set { _material = value; } }
+    public bool Hidden { get { return _hidden; } private set { _hidden = value; } }
+    public bool Selectable { get { return _selectable; } set { _selectable = value; } }
+    public bool IsSelected { get { return _selected; } set { _selected = value; } }//May not be necessary adds extra data, we can use flags or just use WorldEditor.SelectedObjects
+    public bool IsPicked { get { return _picked; } set { _picked = value; } }//object is under the mouse cursor
+    public bool IsActive { get { return _active; } set { _active = value; } }//object is active selected object.
+    public uint PickId { get { return _pickId; } set { Gu.BRThrowException("PickId cannot be set on WorldObject."); } }
+    public bool Pickable
+    {
+      get
+      {
+        return _pickable;
+      }
+      set
+      {
+        if ((_pickable == false && value == true) || _pickId == 0)
+        {
+          GenPickID();
+        }
+        else if (value == false)
+        {
+          _pickId = 0;
+        }
+        _pickable = value;
+      }
+    }
+    public Box3f BoundBoxMeshBind
+    {
+      get
+      {
+        if (Mesh != null)
+        {
+          //TODO: - apply animation bind matrix
+          return Mesh.BoundBox_Extent;
+        }
+        else
+        {
+          return Box3f.Default; // No mesh, return 1,1,1
+        }
+      }
+    }
+
+    #endregion
+    #region Protected: Members
+
+    [DataMember] protected bool _hidden = false;
+    [DataMember] protected bool _selectable = true;//TODO: these can be flags
+    [DataMember] protected bool _selected = false;
+    [DataMember] protected bool _pickable = true;
+    [DataMember] protected bool _picked = false;
+    [DataMember] protected bool _active = false;
+    [DataMember] protected mat4 _world = mat4.Identity;
+    private uint _pickId = 0;//generated
+    [DataMember] protected Material? _material = null;
+    [DataMember] protected MeshView? _meshView = null;
+
+    #endregion
+    #region Public: Methods
+
+    protected Drawable() { }//clone/copy
+    public Drawable(string name) : base(name)
+    {
+      //For now, everything gets a pick color for debug reasons.
+      GenPickID();
+    }
+    public Drawable(string name, MeshView? mesh, Material? mat, mat4 mworld) : base(name)
+    {
+      _meshView = mesh;
+      _material = mat;
+      _world = mworld;
+    }
+    public override void GetSubResources(List<DataBlock?>? deps)
+    {
+      Gu.Assert(deps != null);
+      base.GetSubResources(deps);
+      deps.Add(_meshView);
+      deps.Add(_material);
+    }
+    public object? Clone(bool? shallow = null)
+    {
+      Drawable w = new Drawable();
+      w.CopyFrom(this, shallow);
+      return w;
+    }
+    public void CopyFrom(Drawable? other, bool? shallow = null)
+    {
+      Gu.Assert(other != null);
+      base.CopyFrom(other, shallow);
+      this._hidden = other._hidden;
+      this._selectable = other._selectable;
+      this._selected = other._selected;
+      this._pickable = other._pickable;
+      this._picked = other._picked;
+      this._active = other._active;
+      this._pickId = Gu.Context.Renderer.Picker.GenPickId();
+      this._world = other._world;
+      if (shallow == null || (shallow != null && shallow == true))
+      {
+        this._meshView = other._meshView;
+        this._material = other._material;
+      }
+      else
+      {
+        if (other._meshView != null) { this._meshView = (MeshView)other._meshView.Clone(false); }
+        if (other._material != null) { this._material = (Material)other._material.Clone(false); }
+      }
+    }
+    public virtual void Pick()
+    {
+      if (!Pickable)
+      {
+        return;
+      }
+      if (Gu.Context.Renderer.Picker.PickedObjectFrame != null)
+      {
+        //Picking is pixel perfect, so the first picked object is the exact object.
+        //However objects may have children, and components which can also be picked, and may not be in the global list.
+        //Obviously, a list of pickid->obj would be the fastest.
+        return;
+      }
+      if (_pickId != Picker.c_iInvalidPickId)
+      {
+        var pixid = Gu.Context.Renderer.Picker.SelectedPixelId;
+        if (pixid != 0)
+        {
+          if (pixid == this._pickId)
+          {
+            Gu.Context.Renderer.Picker.PickedObjectFrame = this;
+          }
+        }
+      }
+    }
+    public void SetMeshView(MeshData? mesh, int? start = null, int? count = null)
+    {
+      if (mesh == null)
+      {
+        if (_meshView != null)
+        {
+          _meshView.MeshData = null;
+        }
+      }
+      else if (_meshView == null)
+      {
+        _meshView = new MeshView(mesh, start, count);
+      }
+      else
+      {
+        _meshView.MeshData = mesh;
+        _meshView.SetLimits(start, count);
+      }
+    }
+    private void GenPickID()
+    {
+      if (_pickable && Gu.Context != null && Gu.Context.Renderer != null && Gu.Context.Renderer.Picker != null)
+      {
+        //NOTE: the pick IDs are from the context.. and they should be basd on eadch context.
+        // This is INVALID
+        _pickId = Gu.Context.Renderer.Picker.GenPickId();
+      }
+    }
+
+    #endregion
+
+  }//cls
+  [DataContract]
+  public class WorldObject : Drawable, ISerializeBinary, ICopy<WorldObject>, IClone
   {
     // main object that stores matrix for pos/rot/scale, and components for mesh, sound, script .. GameObject ..
-    #region Public:Members
+    #region Public: Members
 
     public WorldObjectState State { get { return _state; } set { _state = value; } }
     public bool TransformChanged { get { return _transformChanged; } private set { _transformChanged = value; } }
-    public bool Hidden { get { return _hidden; } private set { _hidden = value; } }
 
-    public OOBox3f BoundBoxMeshTransform { get { return _boundBoxTransform; } } //Transformed bound box
-    public Box3f BoundBox { get { return _boundBox; } } //Entire AABB with all meshes and children inside
-
-    //public RefList<WorldObject> Children { get { return _children; } private set { _children = value; } }
+    public OOBox3f BoundBoxMeshTransform { get { return _boundBoxMeshTransform; } } //Transformed local mesh bound box
+    public Box3f BoundBoxMesh { get { return _boundBoxMesh; } } //Local Mesh only AABB.
+    public Box3f BoundBox { get { return _boundBoxAll; } } //Entire AABB, force fields, light area, with all meshes and children inside
 
     public vec3 Position_Local { get { return _position; } set { _position = value; SetTransformChanged(); } }
     public quat Rotation_Local { get { return _rotation; } set { _rotation = value; SetTransformChanged(); } }//xyz,angle
@@ -102,23 +230,16 @@ namespace PirateCraft
 
     public mat4 BindMatrix { get { return _bind; } } // Skinned Bind matrix
     public mat4 InverseBindMatrix { get { return _inverse_bind; } } // Skinned Inverse Bind
-    public mat4 LocalMatrix { get { return _local; } }
-    public mat4 WorldMatrix { get { return _world; } set { Gu.BRThrowException("WorldMatrix cannot be set on WorldObject."); } }
-    //public RefList<Component> Components { get { return _components; } private set { _components = value; } }
-    //public List<DataReference<Constraint>> Constraints { get { return _constraints; } private set { _constraints = value; } }// *This is an ordered list they come in order
+    public mat4 LocalMatrix { get { return _local; } set { _local = value; DecomposeLocalMatrix(); } }
 
-    public vec3 BasisX { get { return _basisX; } }
-    public vec3 BasisY { get { return _basisY; } }
-    public vec3 BasisZ { get { return _basisZ; } }
+    public vec3 BasisX_World { get { return _basisX; } }
+    public vec3 BasisY_World { get { return _basisY; } }
+    public vec3 BasisZ_World { get { return _basisZ; } }
     public vec3 ForwardNormalVector { get { return _basisZ; } }
     public vec3 Heading { get { return _basisZ; } }
 
-    public MeshData? Mesh { get { return _meshData; } set { _meshData = value; } }
-    public Material? Material { get { return _material; } set { _material = value; } }
-
     //Script system should be for this
     public Action<WorldObject>? OnUpdate { get; set; } = null;
-    public Action<WorldObject, RenderView>? OnView { get; set; } = null;
     public Action<WorldObject>? OnAddedToScene { get; set; } = null;
     public Action<WorldObject>? OnDestroyed { get; set; } = null;
 
@@ -129,49 +250,11 @@ namespace PirateCraft
     public bool Collides { get { return _collides; } set { _collides = value; } }
     public float AirFriction { get { return _airFriction; } set { _airFriction = value; } }
 
-    public bool Selectable { get { return _selectable; } set { _selectable = value; } }
-    public bool Selected { get { return _selected; } set { _selected = value; } }//May not be necessary adds extra data, we can use flags or just use WorldEditor.SelectedObjects
-    public bool Picked { get { return _picked; } set { _picked = value; } }//Same
-    //Active - eventually
-    public uint PickId { get { return _pickId; } set { Gu.BRThrowException("PickId cannot be set on WorldObject."); } }
-
-    //public WindowContext ExclusiveRenderContext { get; set; } = null; //ONLY render this object in THIS context, regardless of whether it is visible. This is for multiple-windows. If null: render in any context.
-    //public WindowContext ExcludeFromRenderContext { get; set; } = null; //DO NOT render in THIS context. Used for an FPS seeing other characters.
-    public WeakReference<RenderView>? ExcludeFromRenderView//DO NOT render in THIS context. Used for an FPS seeing other characters.
-    {
-      get { return _excludeFromRenderView; }
-      set { _excludeFromRenderView = value; }
-    }
-
-    //public List<WorldObject> Instances = null;// To make an Instance's object data  unique call MakeUnique
-
-    #endregion
-    #region Public:Propfuncs
-
-    public PRS GetPRS_Local()
-    {
-      return new PRS()
-      {
-        Position = this.Position_Local,
-        Rotation = this.Rotation_Local,
-        Scale = this.Scale_Local,
-      };
-    }
-    public void SetPRS_Local(PRS p)
-    {
-      if (p.Position != null)
-      {
-        this.Position_Local = p.Position.Value;
-      }
-      if (p.Rotation != null)
-      {
-        this.Rotation_Local = p.Rotation.Value;
-      }
-      if (p.Scale != null)
-      {
-        this.Scale_Local = p.Scale.Value;
-      }
-    }
+    public bool HasLight { get { return _hasLight; } set { _hasLight = value; } }
+    public float LightRadius { get { return _lightRadius; } set { _lightRadius = value; } }
+    public vec3 LightColor { get { return _lightColor; } set { _lightColor = value; } }
+    public float LightPower { get { return _lightPower; } set { _lightPower = value; } }
+    public LightType LightType { get { return _lightType; } set { _lightType = value; } }
 
     public static WorldObject Default
     {
@@ -207,42 +290,6 @@ namespace PirateCraft
         return thep;
       }
     }
-    public bool Pickable
-    {
-      get
-      {
-        return _pickable;
-      }
-      set
-      {
-        if ((_pickable == false && value == true) || _pickId == 0)
-        {
-          //NOTE: the pick IDs are from the context.. and they should be basd on eadch context.
-          // This is INVALID
-          _pickId = Gu.Context.Renderer.Picker.GenPickId();
-        }
-        else if (value == false)
-        {
-          _pickId = 0;
-        }
-        _pickable = value;
-      }
-    }
-    public Box3f BoundBoxMeshBind
-    {
-      get
-      {
-        if (Mesh != null)
-        {
-          //TODO: - apply animation bind matrix
-          return Mesh.BoundBox_Extent;
-        }
-        else
-        {
-          return Box3f.Default; // No mesh, return 1,1,1
-        }
-      }
-    }
     public WorldObject? Parent
     {
       get
@@ -259,18 +306,18 @@ namespace PirateCraft
         SetTransformChanged();
       }
     }
+    public WeakReference<RenderView>? ExcludeFromRenderView { get { return _excludeFromRenderView; } set { _excludeFromRenderView = value; } }//DO NOT render in THIS context. Used for an FPS seeing other characters.
 
     #endregion
-    #region Private:Members
+    #region Private: Members
 
-    //Serializable
+    //Values
     [DataMember] private quat _rotation = new quat(0, 0, 0, 1); //Axis-Angle xyz,ang
     [DataMember] private vec3 _scale = new vec3(1, 1, 1);
     [DataMember] private vec3 _position = new vec3(0, 0, 0);
     [DataMember] private quat _animatedRotation = quat.identity();
     [DataMember] private vec3 _animatedScale = new vec3(1, 1, 1);
     [DataMember] private vec3 _animatedPosition = new vec3(0, 0, 0);
-    [DataMember] private mat4 _world = mat4.Identity;
     [DataMember] private mat4 _local = mat4.Identity;
     [DataMember] private mat4 _bind = mat4.Identity;
     [DataMember] private mat4 _inverse_bind = mat4.Identity;
@@ -281,58 +328,47 @@ namespace PirateCraft
     [DataMember] private quat _rotationWorld = quat.Identity;
     [DataMember] private vec3 _scaleWorld = vec3.Zero;
     [DataMember] private vec4 _color = new vec4(1, 1, 1, 1);
-    [DataMember] private OOBox3f _boundBoxTransform = new OOBox3f(new vec3(0, 0, 0), new vec3(1, 1, 1));
-    [DataMember] protected Box3f _boundBox = new Box3f(new vec3(0, 0, 0), new vec3(1, 1, 1));
-    [DataMember] private bool _pickable = true;
-    [DataMember] private bool _selectable = true;
-    [DataMember] private bool _hidden = false;
+    [DataMember] private OOBox3f _boundBoxMeshTransform = new OOBox3f(new vec3(0, 0, 0), new vec3(1, 1, 1));//Transformed mesh
+    [DataMember] protected Box3f _boundBoxMesh = new Box3f(new vec3(0, 0, 0), new vec3(1, 1, 1));//(Transformed) Mesh only
+    [DataMember] protected Box3f _boundBoxAll = new Box3f(new vec3(0, 0, 0), new vec3(1, 1, 1));//Force field, Light Area, Sub-Meshes
     [DataMember] private int _treeDepth = 0; //used to check for DAG cycles
+    [DataMember] private bool _hasPhysics = false;
     [DataMember] private vec3 _velocity = new vec3(0, 0, 0);
     [DataMember] private bool _resting = false;
     [DataMember] private bool _hasGravity = true;
     [DataMember] private bool _collides = false;
     [DataMember] private float _airFriction = 0.0f;//friction with the air i.e. movement damping in m/s
-    [DataMember] private bool _hasPhysics = false;
-    [DataMember] private bool _selected = false;
-    [DataMember] private bool _picked = false;
-
-    //Temps/generated
-    [NonSerialized] private WorldObjectState _state = WorldObjectState.Created;
-    [NonSerialized] private bool _transformChanged = false;
-    [NonSerialized] private uint _pickId = 0;
-    [NonSerialized] private WeakReference<RenderView>? _excludeFromRenderView = null; //DO NOT render in THIS context. Used for an FPS seeing other characters.
-
-    //Junk
-    [NonSerialized] public object LoaderTempData = null;
-    [NonSerialized] public int LoaderTempDataNodeId = -1;
-    [NonSerialized] public bool DebugBreakRender = false;
+    [DataMember] private bool _hasLight = false;
+    [DataMember] private float _lightRadius = 100;//Distance in the case of directional light
+    [DataMember] private vec3 _lightColor = vec3.One;
+    [DataMember] private float _lightPower = 10;
+    [DataMember] private LightType _lightType = LightType.Point;
 
     //Refs
-    /*[DataMember]*/
     [DataMember] private WorldObject? _parent = null;
     [DataMember] private List<WorldObject>? _children = null;//new List<DataReference<WorldObject>>();
     [DataMember] private List<Component>? _components = null;//new List<DataReference<Component>>();
     [DataMember] private List<Constraint>? _constraints = null;//new List<DataReference<Constraint>>();
-    [DataMember] private MeshData? _meshData = null;
-    [DataMember] private Material? _material = null;
+
+    //Temps/generated
+    private WorldObjectState _state = WorldObjectState.Created;
+    private bool _transformChanged = false;
+    private WeakReference<RenderView>? _excludeFromRenderView = null; //DO NOT render in THIS context. Used for an FPS seeing other characters.
+
+    //Junk
+    public object LoaderTempData = null;
+    public int LoaderTempDataNodeId = -1;
+    public bool DebugBreakRender = false;
+    private static bool skip_transform_validation_check = false;
 
     #endregion
-    #region Public:Methods
+    #region Public: Methods
 
     protected WorldObject() { }//Clone ctor
     public WorldObject(string name) : base(name)
     {
       //by default all world objects persist if attached to the scene, this makes all their data references persist as well
-      //For optimization, nothing shoudl be here. WorldObject is new'd a lot each frame.
-      Gu.Assert(Gu.Context != null);
-      Gu.Assert(Gu.Context.Renderer != null);
-      //For now, everything gets a pick color. Debug reasons.
-      //NOTE: the pick IDs are from the context.. and they should be basd on eadch context.
-      // This is INVALID
-      if (_pickable)
-      {
-        _pickId = Gu.Context.Renderer.Picker.GenPickId();
-      }
+      //For optimization, nothing shoudl be here. WorldObject is new'd a lot each frame      
       _color = Random.NextVec4(new vec4(0.2f, 0.2f, 0.2f, 1), new vec4(1, 1, 1, 1));
     }
     public virtual void Update(World world, double dt, ref Box3f parentBoundBox)
@@ -353,27 +389,19 @@ namespace PirateCraft
       _basisY = (WorldMatrix * new vec4(0, 1, 0, 0)).xyz().normalized();
       _basisZ = (WorldMatrix * new vec4(0, 0, 1, 0)).xyz().normalized();
 
-      // bleh. We should just compute these if we need them. _bComputedWorldDecompose
-      mat4 tmprot;
-      vec4 pw;
-      vec4 sw;
-      WorldMatrix.decompose(out pw, out tmprot, out sw);
-      _positionWorld = pw.xyz();
-      _scaleWorld = sw.xyz();
-      _rotationWorld = tmprot.toQuat();
+      DecomposeWorldMatrix();
 
-      _boundBox.genResetLimits();
+      _boundBoxAll.genResetLimits();
       IterateChildrenSafe((child) =>
       {
         Gu.Assert(child != null);
-        child.Update(world, dt, ref _boundBox);
+        child.Update(world, dt, ref _boundBoxAll);
         return LambdaBool.Continue;
       });
       CalcBoundBox(ref parentBoundBox);
 
       SanitizeTransform();
     }
-    private static bool skip_transform_validation_check = false;
     public void SanitizeTransform()
     {
       if (!skip_transform_validation_check)
@@ -405,54 +433,22 @@ namespace PirateCraft
           _world = mat4.Identity;
         }
 
-        if (!_boundBox._max.IsSane() || !_boundBox._min.IsSane())
+        if (!_boundBoxAll._max.IsSane() || !_boundBoxAll._min.IsSane())
         {
           Gu.DebugBreak();
-          _boundBox._max = new vec3(1, 1, 1);
-          _boundBox._min = new vec3(0, 0, 0);
+          _boundBoxAll._max = new vec3(1, 1, 1);
+          _boundBoxAll._min = new vec3(0, 0, 0);
         }
       }
     }
-    private void UpdateComponents(double dt)
-    {
-      IterateComponentsSafe((cmp) =>
-      {
-        if (cmp.ComponentState == ComponentState.Added)
-        {
-          cmp.OnCreate(this);
-          cmp.ComponentState = ComponentState.Initialized;
-        }
-        if (cmp.Enabled)
-        {
-          cmp.OnUpdate(dt, this);
-        }
-        return LambdaBool.Continue;
-      });
-    }
-    public void Pick()
+    public override void Pick()
     {
       if (!Pickable)
       {
         return;
       }
-      if (Gu.Context.Renderer.Picker.PickedObjectFrame != null)
-      {
-        //Picking is pixel perfect, so the first picked object is the exact object.
-        //However objects may have children, and components which can also be picked, and may not be in the global list.
-        //Obviously, a list of pickid->obj would be the fastest.
-        return;
-      }
-      if (_pickId != Picker.c_iInvalidPickId)
-      {
-        var pixid = Gu.Context.Renderer.Picker.SelectedPixelId;
-        if (pixid != 0)
-        {
-          if (pixid == this._pickId)
-          {
-            Gu.Context.Renderer.Picker.PickedObjectFrame = this;
-          }
-        }
-      }
+      base.Pick();
+
       IterateComponentsSafe((cmp) =>
       {
         if (Gu.Context.Renderer.Picker.PickedObjectFrame != null)
@@ -482,7 +478,6 @@ namespace PirateCraft
       });
 
     }
-
     public override void MakeUnique()
     {
       Gu.BRThrowNotImplementedException();
@@ -492,27 +487,24 @@ namespace PirateCraft
       // _components = this._components.Clone(false);
       // _constraints = this._constraints.Clone(false);
     }
+    public override void GetSubResources(List<DataBlock?> deps)
+    {
+      base.GetSubResources(deps);
+
+      if (_children != null) deps.AddRange(_children);
+      if (_components != null) deps.AddRange(_components);
+      if (_constraints != null) deps.AddRange(_constraints);
+    }
     public object? Clone(bool? shallow = null)
     {
       WorldObject w = new WorldObject();
       w.CopyFrom(this, shallow);
       return w;
     }
-    public override List<DataBlock?> GetSubResources()
-    {
-      var subs = new List<DataBlock?>(){
-         _meshData
-        ,_material
-       };
-      if (_children != null) subs.AddRange(_children);
-      if (_components != null) subs.AddRange(_components);
-      if (_constraints != null) subs.AddRange(_constraints);
-      return subs;
-    }
     public void CopyFrom(WorldObject? other, bool? shallow = null)
     {
       Gu.Assert(other != null);
-      base.CopyFrom(other);
+      base.CopyFrom(other, shallow);
 
       this._rotation = other._rotation;
       this._scale = other._scale;
@@ -528,38 +520,36 @@ namespace PirateCraft
       this._basisX = other._basisX;
       this._basisY = other._basisY;
       this._basisZ = other._basisZ;
-      this._boundBoxTransform = other._boundBoxTransform;
-      this._boundBox = other._boundBox;
+      this._boundBoxMeshTransform = other._boundBoxMeshTransform;
+      this._boundBoxAll = other._boundBoxAll;
+      this._boundBoxMesh = other._boundBoxMesh;
       this._color = other._color;
       this._transformChanged = other._transformChanged;
-      this._hidden = other._hidden;
       this._state = other._state;
       //this._treeDepth = other._treeDepth; //Do not clone
       this.OnUpdate = other.OnUpdate;
       this.OnAddedToScene = other.OnAddedToScene;
       this.OnDestroyed = other.OnDestroyed;
+      this._hasPhysics = other._hasPhysics;
       this._velocity = other._velocity;
       this._resting = other._resting;
       this._hasGravity = other._hasGravity;
       this._collides = other._collides;
       this._airFriction = other._airFriction;
-      this._hasPhysics = other._hasPhysics;
-      this._pickable = other._pickable;
-      this._pickId = Gu.Context.Renderer.Picker.GenPickId();
-      this._selectable = other._selectable;
+      this._hasLight = other._hasLight;
+      this._lightRadius = other._lightRadius;
+      this._lightColor = other._lightColor;
+      this._lightPower = other._lightPower;
+      this._lightType = other._lightType;
 
       //Create an instance copy of the data blocks.
       if (shallow == null || (shallow != null && shallow == true))
       {
-        this._meshData = other._meshData;
-        this._material = other._material;
         this._components = other._components;
         this._constraints = other._constraints;
       }
       else
       {
-        if (other._meshData != null) { this._meshData = (MeshData)other._meshData.Clone(false); }
-        if (other._material != null) { this._material = (Material)other._material.Clone(false); }
         if (other._components != null)
         {
           this._components = new List<Component>();
@@ -585,22 +575,6 @@ namespace PirateCraft
       {
         var wo = (WorldObject)ch.Clone();
         this.AddChild(wo);
-        return LambdaBool.Continue;
-      });
-    }
-    public void View(RenderView rv)
-    {
-      OnView?.Invoke(this, rv);
-      var that = this;
-      IterateComponentsSafe((cmp) =>
-      {
-        cmp.OnView(that, rv);
-        return LambdaBool.Continue;
-      });
-
-      IterateChildrenSafe((child) =>
-      {
-        child.View(rv);
         return LambdaBool.Continue;
       });
     }
@@ -634,13 +608,6 @@ namespace PirateCraft
 
       TransformChanged = true;
     }
-    public void ApplyConstraints()
-    {
-      // foreach (var c in Constraints)
-      // {
-      //   c.Apply(this);
-      // }
-    }
     public void AddComponent(Component c)
     {
       Gu.Assert(c != null);
@@ -659,8 +626,10 @@ namespace PirateCraft
     }
     public WorldObject AddChild(WorldObject child)
     {
+      //yes technically we should check for cycles we dont do that yet
       Gu.Assert(child != Gu.World.SceneRoot);
       Gu.Assert(child != this);
+      //cant add libreary deps to anything. Clone if need.
       Gu.Assert(child.Persistence != DataPersistence.LibraryDependency);
 
       if (child.Parent != null)
@@ -672,6 +641,9 @@ namespace PirateCraft
       child.Parent = this;
 
       child.UpdateTreeDepth();
+
+
+      //child.PromoteResource(ResourcePromotion.SceneAdd);
 
       return this;
     }
@@ -687,6 +659,9 @@ namespace PirateCraft
         Gu.Log.Error("Child '" + child.Name + "' not found in '" + Name + "'");
         Gu.DebugBreak();
       }
+
+      //child.PromoteResource(ResourcePromotion.SceneRemove);
+
       child._parent = null;
       child.UpdateTreeDepth();
       if (_children.Count == 0)
@@ -696,49 +671,50 @@ namespace PirateCraft
     }
     public void CalcBoundBox(ref Box3f parent)
     {
+      _boundBoxMesh.genResetLimits();
       if (Mesh != null)
       {
-        _boundBoxTransform = new OOBox3f(BoundBoxMeshBind._min, BoundBoxMeshBind._max);
+        _boundBoxMeshTransform = new OOBox3f(BoundBoxMeshBind._min, BoundBoxMeshBind._max);
         for (int vi = 0; vi < OOBox3f.VertexCount; ++vi)
         {
-          vec4 v = WorldMatrix * _boundBoxTransform.Verts[vi].toVec4(1);
-          _boundBoxTransform.Verts[vi] = v.xyz();
-          _boundBox.genExpandByPoint(_boundBoxTransform.Verts[vi]);
+          vec4 v = WorldMatrix * _boundBoxMeshTransform.Verts[vi].toVec4(1);
+          _boundBoxMeshTransform.Verts[vi] = v.xyz();
+          _boundBoxAll.genExpandByPoint(_boundBoxMeshTransform.Verts[vi]);
+          _boundBoxMesh.genExpandByPoint(_boundBoxMeshTransform.Verts[vi]);
         }
       }
       else
       {
-        _boundBox.genExpandByPoint(this.Position_World);
+        _boundBoxAll.genExpandByPoint(Position_World);
+        _boundBoxMesh.genExpandByPoint(Position_World);
       }
+
+      if (HasLight)
+      {
+        _boundBoxAll.genExpandByPoint(Position_Local - LightRadius);
+        _boundBoxAll.genExpandByPoint(Position_Local + LightRadius);
+      }
+
+
+      VolumizeBoundBox(ref _boundBoxMesh);
+      VolumizeBoundBox(ref _boundBoxAll);
 
       //So for now, I'm saying every object has a mesh of some kind. This makes things simpler.
       //If you don't want to draw it set Visible=false.
       //Bound boxes can be no voluem.. if a plane..
-      if (!_boundBox.Validate(false, false))
+      if (!_boundBoxAll.Validate(false, false))
+      {
+        Gu.Log.ErrorCycle($"'{this.Name}' BoundBox was invalid.");
+        Gu.DebugBreak();
+      }
+      if (!_boundBoxMesh.Validate(false, false))
       {
         Gu.Log.ErrorCycle($"'{this.Name}' BoundBox was invalid.");
         Gu.DebugBreak();
       }
 
-      parent.genExpandByPoint(_boundBox._min);
-      parent.genExpandByPoint(_boundBox._max);
-    }
-    public void CompileLocalMatrix()
-    {
-      if (TransformChanged == false)
-      {
-        return;
-      }
-
-      mat4 mSclA = mat4.getScale(AnimatedScale);
-      mat4 mRotA = mat4.getRotation(AnimatedRotation);
-      mat4 mPosA = mat4.getTranslation(AnimatedPosition);
-
-      mat4 mScl = mat4.getScale(Scale_Local);
-      mat4 mRot = mat4.getRotation(Rotation_Local);
-      mat4 mPos = mat4.getTranslation(Position_Local);
-      _local = (mScl * mSclA) * (mRot * mRotA) * (mPos * mPosA);
-
+      parent.genExpandByPoint(_boundBoxAll._min);
+      parent.genExpandByPoint(_boundBoxAll._max);
     }
     public void ApplyParentMatrix()
     {
@@ -819,28 +795,6 @@ namespace PirateCraft
       }
       return null;
     }
-    #endregion
-    #region Private:Methods
-
-    private void UpdateTreeDepth()
-    {
-      if (Parent == null)
-      {
-        _treeDepth = 0;
-      }
-      else
-      {
-        _treeDepth = Parent._treeDepth + 1;
-        IterateChildrenSafe((cc) =>
-        {
-          cc.UpdateTreeDepth();
-          return LambdaBool.Continue;
-        });
-      }
-    }
-
-    #endregion
-
     public void Serialize(BinaryWriter bw)
     {
       base.Serialize(bw);
@@ -928,46 +882,137 @@ namespace PirateCraft
       // _children = SerializeTools.DeserializeRefList<WorldObject>(br, version);
 
     }//deserialze
-  }
-
-  //So another idea is to jsut have a component instead of htis, so we can serialize just component types and not WO types
-  // LightComponent
-  //*Note this is a test of billboarded quads.
-  //for optimiz, We need to use
-  // 1 single model matrix
-  // 2 instancing
-  // 3 megatex
-  public enum LightType
-  {
-    Point, Direction
-  }
-  public class Light : WorldObject
-  {
-    private float _radius = 100;//Distance in the case of directional light
-    private vec3 _color = vec3.One;
-    private float _power = 10;
-    private LightType _type = LightType.Point;
-
-    public float Radius { get { return _radius; } set { _radius = value; } }
-    public vec3 Color { get { return _color; } set { _color = value; } }
-    public float Power { get { return _power; } set { _power = value; } }
-    public LightType Type { get { return _type; } set { _type = value; } }
-
-    public Light(string name) : base(name)
+    public PRS GetPRS_Local()
     {
-      Texture light = Gu.Lib.LoadTexture(
-        Gu.Lib.GetUniqueName(ResourceType.Texture, "light"),
-      Gu.Lib.LoadImage(Gu.Lib.GetUniqueName(ResourceType.Image, "light"), new FileLoc("bulb.png", FileStorage.Embedded)), true, TexFilter.Bilinear);
-      Pickable = true;
+      return new PRS()
+      {
+        Position = this.Position_Local,
+        Rotation = this.Rotation_Local,
+        Scale = this.Scale_Local,
+      };
+    }
+    public void SetPRS_Local(PRS p)
+    {
+      if (p.Position != null)
+      {
+        this.Position_Local = p.Position.Value;
+      }
+      if (p.Rotation != null)
+      {
+        this.Rotation_Local = p.Rotation.Value;
+      }
+      if (p.Scale != null)
+      {
+        this.Scale_Local = p.Scale.Value;
+      }
     }
 
-    public override void Update(World world, double dt, ref Box3f parentBoundBox)
+    #endregion
+    #region Private: Methods
+
+    private void UpdateComponents(double dt)
     {
-      base.Update(world, dt, ref parentBoundBox);
-      this._boundBox.genExpandByPoint(Position_Local - Radius);
-      this._boundBox.genExpandByPoint(Position_Local + Radius);
+      IterateComponentsSafe((cmp) =>
+      {
+        if (cmp.ComponentState == ComponentState.Added)
+        {
+          cmp.OnCreate(this);
+          cmp.ComponentState = ComponentState.Initialized;
+        }
+        if (cmp.Enabled)
+        {
+          cmp.OnUpdate(dt, this);
+        }
+        return LambdaBool.Continue;
+      });
     }
+    private void UpdateTreeDepth()
+    {
+      if (Parent == null)
+      {
+        _treeDepth = 0;
+      }
+      else
+      {
+        _treeDepth = Parent._treeDepth + 1;
+        IterateChildrenSafe((cc) =>
+        {
+          cc.UpdateTreeDepth();
+          return LambdaBool.Continue;
+        });
+      }
+    }
+    private void ApplyConstraints()
+    {
+      // foreach (var c in Constraints)
+      // {
+      //   c.Apply(this);
+      // }
+    }
+    private void VolumizeBoundBox(ref Box3f b)
+    {
+      float epsilon = 0.01f;//float.Epsilon
+      if (b._max.y - b._min.y == 0)
+      {
+        b._max.y += epsilon;
+        b._min.y -= epsilon;
+      }
+      if (b._max.x - b._min.x == 0)
+      {
+        b._max.x += epsilon;
+        b._min.x -= epsilon;
+      }
+      if (b._max.z - b._min.z == 0)
+      {
+        b._max.z += epsilon;
+        b._min.z -= epsilon;
+      }
+
+    }
+    private void CompileLocalMatrix()
+    {
+      if (TransformChanged == false)
+      {
+        return;
+      }
+
+      mat4 mSclA = mat4.getScale(AnimatedScale);
+      mat4 mRotA = mat4.getRotation(AnimatedRotation);
+      mat4 mPosA = mat4.getTranslation(AnimatedPosition);
+
+      mat4 mScl = mat4.getScale(Scale_Local);
+      mat4 mRot = mat4.getRotation(Rotation_Local);
+      mat4 mPos = mat4.getTranslation(Position_Local);
+      _local = (mScl * mSclA) * (mRot * mRotA) * (mPos * mPosA);
+    }
+    private void DecomposeLocalMatrix()
+    {
+      mat4 tmprot;
+      vec4 pw;
+      vec4 sw;
+      LocalMatrix.decompose(out pw, out tmprot, out sw);
+      _position = pw.xyz();
+      _scale = sw.xyz();
+      _rotation = tmprot.toQuat();
+      SetTransformChanged();
+    }
+    private void DecomposeWorldMatrix()
+    {
+      //We should just compute these if we need them.
+      // positionworld get{if(!decomposed) decompose.. }
+      mat4 tmprot;
+      vec4 pw;
+      vec4 sw;
+      WorldMatrix.decompose(out pw, out tmprot, out sw);
+      _positionWorld = pw.xyz();
+      _scaleWorld = sw.xyz();
+      _rotationWorld = tmprot.toQuat();
+    }
+
+    #endregion
+
   }
+
 
 
 }//ns 

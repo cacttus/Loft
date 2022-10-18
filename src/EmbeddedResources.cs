@@ -20,10 +20,25 @@ namespace PirateCraft
       t = Gu.Lib.LoadTexture(RName.Tex2D_DefaultBlackPixelNoAlpha, Image.Default1x1_RGBA32ub(RName.Image_DefaultWhitePixel, 0, 0, 0, 0), false, TexFilter.Nearest);
       CreateNormalPixel();
 
-      s = Gu.Lib.LoadShader(RName.Shader_GuiShader, "v_gui", true, FileStorage.Embedded, OpenTK.Graphics.OpenGL4.PrimitiveType.Points);
-      s = Gu.Lib.LoadShader(RName.Shader_DefaultFlatColorShader, "v_v3", false, FileStorage.Embedded);
-      s = Gu.Lib.LoadShader(RName.Shader_DefaultObjectShader, "v_DefaultObjectShader", false, FileStorage.Embedded);
-      s = Gu.Lib.LoadShader(RName.Shader_DefaultBillboardPoints, "v_billboard_points", true, FileStorage.Embedded, OpenTK.Graphics.OpenGL4.PrimitiveType.Points);
+      s = Gu.Lib.LoadShader(RName.Shader_GuiShader, "v_gui", FileStorage.Embedded, OpenTK.Graphics.OpenGL4.PrimitiveType.Points);
+      s = Gu.Lib.LoadShader(RName.Shader_DefaultFlatColorShader, "v_v3", FileStorage.Embedded);
+      s = Gu.Lib.LoadShader(RName.Shader_DefaultObjectShader, "v_DefaultObjectShader", FileStorage.Embedded);
+      s = Gu.Lib.LoadShader(RName.Shader_DefaultBillboardPoints, "v_billboard_points", FileStorage.Embedded, OpenTK.Graphics.OpenGL4.PrimitiveType.Points);
+      s = Gu.Lib.LoadShader(RName.Shader_DebugDraw, "v_v3c4_debugdraw", FileStorage.Embedded);//Dont override primtype
+
+      s = Gu.Lib.LoadShader(RName.Shader_VertexFaceNormals,
+      new List<FileLoc>(){
+          new FileLoc("v_obj_dbg_shared.vs.glsl", FileStorage.Embedded),
+          new FileLoc("v_normals.gs.glsl", FileStorage.Embedded),
+          new FileLoc("v_obj_dbg_shared.fs.glsl", FileStorage.Embedded),
+        }, OpenTK.Graphics.OpenGL4.PrimitiveType.Triangles);
+
+      s = Gu.Lib.LoadShader(RName.Shader_Wireframe,
+      new List<FileLoc>(){
+          new FileLoc("v_obj_dbg_shared.vs.glsl", FileStorage.Embedded),
+          new FileLoc("v_wire.gs.glsl", FileStorage.Embedded),
+          new FileLoc("v_obj_dbg_shared.fs.glsl", FileStorage.Embedded),
+        }, OpenTK.Graphics.OpenGL4.PrimitiveType.Triangles);
 
       m = Gu.Lib.LoadMaterial(RName.Material_DefaultFlatColorMaterial, Gu.Lib.LoadShader(RName.Shader_DefaultFlatColorShader));
       m.AlbedoSlot.Texture = Gu.Lib.LoadTexture(RName.Tex2D_DefaultWhitePixel);
@@ -31,16 +46,24 @@ namespace PirateCraft
       m = Gu.Lib.LoadMaterial(RName.Material_DefaultObjectMaterial, Gu.Lib.LoadShader(RName.Shader_DefaultObjectShader));
       m.AlbedoSlot.Texture = Gu.Lib.LoadTexture(RName.Tex2D_DefaultFailedTexture);
 
-      m = Gu.Lib.LoadMaterial(RName.Material_DebugDraw_VertexNormals_FlatColor, new Shader("v_normals", "v_normals", true, FileStorage.Embedded, OpenTK.Graphics.OpenGL4.PrimitiveType.Triangles));
+      m = Gu.Lib.LoadMaterial(RName.DebugDraw_Wireframe_FlatColor, Gu.Lib.LoadShader(RName.Shader_Wireframe));
       m.GpuRenderState.Blend = false;
-      m.BaseColor = new vec4(0.827f, 0.933f, 0.113f, 1);
+      m.GpuRenderState.CullFace = false;
+      m.GpuRenderState.DepthTest = true;
+      m.Flat = true;
 
-      m = Gu.Lib.LoadMaterial(RName.Material_DebugDrawMaterial, new Shader(RName.Shader_DebugDraw, "v_v3c4_debugdraw", false, FileStorage.Embedded));
+      m = Gu.Lib.LoadMaterial(RName.Material_DebugDraw_VertexNormals_FlatColor, Gu.Lib.LoadShader(RName.Shader_VertexFaceNormals));
+      m.GpuRenderState.Blend = false;
+      m.Flat = true;
+
+      m = Gu.Lib.LoadMaterial(RName.Material_DebugDrawMaterial, Gu.Lib.LoadShader(RName.Shader_DebugDraw));
       m.GpuRenderState.Blend = true;
       m.GpuRenderState.CullFace = false;
+      m.Flat = true;
 
       o = Gu.Lib.LoadModel(RName.WorldObject_Camera, new FileLoc("camera.glb", FileStorage.Embedded), true);
       o = Gu.Lib.LoadModel(RName.WorldObject_Gear, new FileLoc("gear.glb", FileStorage.Embedded), true);
+      o = Gu.Lib.LoadModel(RName.WorldObject_Barrel, new FileLoc("barrel.glb", FileStorage.Embedded), true);
 
     }
     private static void CreateNormalPixel()

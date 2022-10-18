@@ -1,6 +1,10 @@
 ﻿using System;
 namespace PirateCraft
 {
+  public enum ColorBitDepth { 
+    FB_16_BIT=0,
+    FB_32_BIT=1
+  }
   public class EngineConfig
   {
 
@@ -9,25 +13,27 @@ namespace PirateCraft
     [JSONXIgnore()] public bool ClearTmpOnStart = true;//logs..debug..
     [JSONXIgnore()] public bool BreakOnOpenGLError = true;
     [JSONXIgnore()] public bool Debug_AlwaysCompileAndReloadGpuUniformData = true; //Don't try to optimize out modification, and always compile the structs (for debugging)
-    [JSONXIgnore()] public bool Debug_Print_Shader_Uniform_Details_Verbose_NotFound = true; //So this is to be turned on for debug
+    [JSONXIgnore()] public bool Debug_Print_Shader_Uniform_Details_Verbose_NotFound = false; //So this is to be turned on for debug
     [JSONXIgnore()] public bool Debug_Print_Shader_Uniform_Details_Verbose_AlreadySet = false; //So this is to be turned on for debug
-    [JSONXIgnore()] public bool Debug_ShowPipelineClearMessage = false;
     [JSONXIgnore()] public bool Debug_EnableCompatibilityProfile = true;
-    [JSONXIgnore()] public bool SaveFBOsEveryFrame = false;
-    [JSONXIgnore()] public bool SaveAllFBOsEveryStageOfPipeline = false;
-
+    [JSONXIgnore()] public bool Debug_PrintTranslationTable = false;  //print the translator table
+    [JSONXIgnore()] public bool Debug_SaveFBOsEveryFrame = false;
+    [JSONXIgnore()] public bool Debug_SaveAllFBOsEveryStageOfPipeline = false;
+    [JSONXIgnore()] public bool Debug_SaveDebuggShaderSource = true;
+    [JSONXIgnore()] public bool Debug_ShowFailedShaderSourceInVSCOode = true;
+    
     //Debug Configs
     [JSONXIgnore()] public bool UseLang_RU = true;//russian
     [JSONXIgnore()] public bool UseLang_ZH = true;//Mandarin
     [JSONXIgnore()] public bool RenderDebug_ShowNormals = true;
     [JSONXIgnore()] public bool RenderDebug_ShowTangents = true;
     [JSONXIgnore()] public bool RenderDebug_ShowOrigins = true;
-
+    
     //Basic configs
     public string UserSavePath = "";
     public int AutoSaveTimeoutSeconds = 5;
     public bool LogErrors = true;
-    public bool ShaderCaching = true; //cache shader binaries on disk.
+    [JSONXIgnore()] public bool EnableShaderCaching = true; //cache shader binaries on disk.
     public int MaxCharactersPerBitmap = 2048;//may not need this, MaxFontBitmapSize seems better
     public int MaxBakedCharSize = 64;
     public int MaxFontBitmapSize = 4096;
@@ -46,13 +52,14 @@ namespace PirateCraft
     public int WindowInitH = 1080;
     public float WindowInitScaleW = 0.75f;
     public float WindowInitScaleH = 0.75f;
+    [JSONXIgnore()] public ColorBitDepth ColorBitDepth = ColorBitDepth.FB_16_BIT;//16 or 32
     [JSONXIgnore()] public int MaxUndoHistoryItems = 256;
     [JSONXIgnore()] public bool GraphicsErrorLogging_High = true;
     [JSONXIgnore()] public bool GraphicsErrorLogging_Medium = true;
     [JSONXIgnore()] public bool GraphicsErrorLogging_Low = true;
     [JSONXIgnore()] public bool GraphicsErrorLogging_Info = true;
     [JSONXIgnore()] public bool Renderer_UseAlias = true;//-1;//320;//-1=Disable, 640, 320
-    [JSONXIgnore()] public int AliasScreenWidthPixels = 320;//-1;//320;//-1=Disable, 640, 320
+    [JSONXIgnore()] public int AliasScreenWidthPixels = 430;//-1;//320;//-1=Disable, 640, 320
     [JSONXIgnore()] public bool ReleaseAllButtonsWhenWindowLosesFocus = true;
 
     public EngineConfig(FileLoc loc)

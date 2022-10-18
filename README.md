@@ -20,6 +20,8 @@
 	* Windows google the openAL installer and run the installer
 	* Linux install via package manager
 		* TODO: add the DLL here for windows 
+* mono-devel (scripts)
+  https://www.mono-project.com/download/stable/#download-lin
 
 ### How to Run
 

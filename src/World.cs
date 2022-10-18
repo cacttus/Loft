@@ -550,8 +550,8 @@ namespace PirateCraft
       //deleted
     }
     public Int64 GeneratedFrameStamp { get; private set; } = 0;
-    public SoloMesh Transparent = null;
-    public SoloMesh Opaque = null;
+    public Drawable Transparent = null;
+    public Drawable Opaque = null;
     public ivec3 Pos = new ivec3(0, 0, 0);
     private World _world = null;
     public Grid2D<BeamList> BeamGrid = null;
@@ -592,7 +592,6 @@ namespace PirateCraft
     {
       _world = null;
     }
-    // public Beam GetBeamForPoint_BottomLeftInclusive_WithCaps(vec3 pt)
     public void Iterate(Func<Grid2D<BeamList>, int, int, LambdaBool> f, bool inclusive = false)
     {
       BeamGrid.Iterate(f, inclusive);
@@ -783,7 +782,6 @@ namespace PirateCraft
   }
 
   [DataContract]
-  [Serializable]
   public class WorldInfo : ISerializeBinary
   {
     //Contains base metrics for creating a world, size, voxels .. 
@@ -802,7 +800,7 @@ namespace PirateCraft
                                                           //public const float PlayerDepth  = 0.1f;
 
     //Temp variables
-    [NonSerialized] public bool DeleteStartFresh = false;
+    public bool DeleteStartFresh = false;
     [DataMember] public int LimitYAxisGeneration = 0;//0 = off, >0 - limit globs generated along Y axis (faster generation)
 
     //Serialized
@@ -823,8 +821,8 @@ namespace PirateCraft
     [DataMember] public float Gravity { get; private set; } = c_EarthGravity * 0.5f; //m/s
 
     //Generation shell
-    [NonSerialized] private int _currentShell = 1;
-    [NonSerialized] private const int _maxShells = 4;//keep this < Min(DromeGlobs) to prevent generating more dromes
+    private int _currentShell = 1;
+    private const int _maxShells = 4;//keep this < Min(DromeGlobs) to prevent generating more dromes
     public float GenRadiusShell { get { return GlobWidthX; } }
     public float DeleteMaxDistance { get { return (GenRadiusShell * (float)(_maxShells + 1)); } }//distance beyond which things are deleted, this must be greater than max gen distance to prevent ping pong loading
     public float GenerateDistance { get { return (GenRadiusShell * (float)_currentShell); } } //distance under which things are generated
@@ -1144,11 +1142,87 @@ namespace PirateCraft
       GlobWidthY = br.ReadSingle();
       GlobWidthZ = br.ReadSingle();
     }
-
   }
 
+  public class VisibleStuff
+  {
+    private int _dbg_added_objects = 0;
+    private int _dbg_drawcall_count = 0;
+    // massive friggin dict of dict of dict..Dictionary<RenderView, Dictionary<DrawMode, Dictionary<DrawOrder, Dictionary<Material, Dictionary<MeshView, List<Drawable>>>>>>
+    private Dictionary<RenderView, Dictionary<DrawMode, SortedDictionary<DrawOrder, DrawCall>>> _dict =
+     new Dictionary<RenderView, Dictionary<DrawMode, SortedDictionary<DrawOrder, DrawCall>>>();//View -> stage -> distance/draw order -> instances sorted by material/mesh
+
+    public void Clear(RenderView rv)
+    {
+      //Clear all collected for JUST the given view
+      _dict = _dict.ConstructIfNeeded();
+      if (_dict.TryGetValue(rv, out var stageDist))
+      {
+        stageDist.Clear();
+      }
+
+      _dbg_drawcall_count = 0;
+      _dbg_added_objects = 0;
+    }
+    public void AddObject(RenderView rv, Drawable ob, Material? customMaterial = null)
+    {
+      Gu.Assert(ob != null);
+      if (ob.Mesh == null)
+      {
+        return;
+      }
+
+      _dict = _dict.ConstructIfNeeded();
+
+      Dictionary<DrawMode, SortedDictionary<DrawOrder, DrawCall>>? stageDist = null;
+      if (!_dict.TryGetValue(rv, out stageDist))
+      {
+        stageDist = new Dictionary<DrawMode, SortedDictionary<DrawOrder, DrawCall>>();
+        _dict.Add(rv, stageDist);
+      }
+
+      SortedDictionary<DrawOrder, DrawCall>? distCall = null;
+      if (!stageDist.TryGetValue(ob.Mesh.DrawMode, out distCall))
+      {
+        distCall = new SortedDictionary<DrawOrder, DrawCall>();
+        stageDist.Add(ob.Mesh.DrawMode, distCall);
+      }
+
+      DrawCall? call = null;
+      if (!distCall.TryGetValue(ob.Mesh.DrawOrder, out call))
+      {
+        call = new DrawCall();
+        distCall.Add(ob.Mesh.DrawOrder, call);
+      }
+
+      call.AddVisibleObject(ob, customMaterial);
+      _dbg_added_objects++;
+    }
+    public void Draw(RenderView rv, DrawMode dm, WorldProps wp)
+    {
+      Gu.Assert(rv != null);
+      Gu.Assert(dm != null);
+      Gu.Assert(wp != null);
+
+      if (_dict.TryGetValue(rv, out var modes))
+      {
+        if (modes.TryGetValue(dm, out var orders))
+        {
+          foreach (var order_call in orders)
+          {
+            var call = order_call.Value;
+
+            call.Draw(wp, rv);
+
+            _dbg_drawcall_count++;
+          }
+        }
+      }
+    }
+
+  }//stuff
+
   [DataContract]
-  [Serializable]
   public class World
   {
     #region Private:Constants
@@ -1183,37 +1257,35 @@ namespace PirateCraft
 
     #endregion
     #region Private:Members
+
     [DataMember] private GameMode _eGameMode = GameMode.Edit;
-    [NonSerialized] private WorldEditor? _worldEditor = null;
+    private WorldEditor? _worldEditor = null;
     [DataMember] private WorldInfo? _worldInfo = null;
     [DataMember] private WorldObject _sceneRoot = new WorldObject("Scene_Root");
-    [NonSerialized] private long _lastShellIncrementTimer_ms = 0;
-    [NonSerialized] private long _lastShellIncrementTimer_ms_Max = 500;
-    [NonSerialized] private WorldObject dummy = new WorldObject("dummy_beginrender");
-    [NonSerialized] private WorldObject? _debugDrawLines = null;
-    [NonSerialized] private WorldObject? _debugDrawPoints = null;
-    [NonSerialized] private WorldObject? _debugDrawTris = null;
-    [NonSerialized] private DrawCall _visibleObsAll = new DrawCall();
-    [NonSerialized] private DrawCall _visibleObsFirst_FW = new DrawCall();
-    [NonSerialized] private DrawCall _visibleObsMid_FW = new DrawCall();
-    [NonSerialized] private DrawCall _visibleObsLast_FW = new DrawCall();
-    [NonSerialized] private DrawCall _visibleObsFirst_DF = new DrawCall();
-    [NonSerialized] private DrawCall _visibleObsMid_DF = new DrawCall();
-    [NonSerialized] private DrawCall _visibleObsLast_DF = new DrawCall();
-    [NonSerialized] private Dictionary<ivec3, Glob> _globs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //All globs, which may be null if the glob region has been visible, but does not exist
-    [NonSerialized] private Dictionary<ivec3, Glob> _existingGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //globs that are loaded, and exist
-    [NonSerialized] private MultiMap<float, GlobArray> _queuedGlobs = new MultiMap<float, GlobArray>();// queued for topology
-    [NonSerialized] private Dictionary<ivec3, Glob> _renderGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //globs that can be drawn this frame. 
-    [NonSerialized] private Dictionary<ivec3, Glob> _visibleRenderGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //globs that must be drawn this frame
-    //[NonSerialized] private Dictionary<string, WorldObject> _objects = new Dictionary<string, WorldObject>();//Flat list of all objects
-    [NonSerialized] private Dictionary<ushort, WorldTile>? _blockTiles = null;
-    [NonSerialized] private WorldProps? _worldProps = null; //Environment props.
-    [NonSerialized] private Material? _worldMaterial_Op = null;
-    [NonSerialized] private Material? _worldMaterial_Tp = null;
-    [NonSerialized] private MegaTex? _worldMegatex = null;
-    [NonSerialized] private Material? _blockObjectMaterial = null;
-    [NonSerialized] private double _autoSaveTimeoutSeconds = 5;
-    [NonSerialized] private double _autoSaveTimeout = 0;
+    private long _lastShellIncrementTimer_ms = 0;
+    private long _lastShellIncrementTimer_ms_Max = 500;
+    private WorldObject dummy = new WorldObject("dummy_beginrender");
+    private WorldObject? _debugDrawLines = null;
+    private WorldObject? _debugDrawPoints = null;
+    private WorldObject? _debugDrawTris = null;
+
+    //There is no need for ivec3 here.
+    //we should sort all objects by distance.
+    private VisibleStuff _visibleStuff;
+    private Dictionary<ivec3, Glob> _visibleRenderGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //globs that must be drawn this frame
+
+    private Dictionary<ivec3, Glob> _globs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //All globs, which may be null if the glob region has been visible, but does not exist
+    private Dictionary<ivec3, Glob> _existingGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //globs that are loaded, and exist
+    private MultiMap<float, GlobArray> _queuedGlobs = new MultiMap<float, GlobArray>();// queued for topology
+    private Dictionary<ivec3, Glob> _renderGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //globs that can be drawn this frame. 
+    private Dictionary<ushort, WorldTile>? _blockTiles = null;
+    private WorldProps? _worldProps = null; //Environment props.
+    private Material? _worldMaterial_Op = null;
+    private Material? _worldMaterial_Tp = null;
+    private MegaTex? _worldMegatex = null;
+    private Material? _blockObjectMaterial = null;
+    private double _autoSaveTimeoutSeconds = 5;
+    private double _autoSaveTimeout = 0;
 
     #endregion
 
@@ -1223,7 +1295,6 @@ namespace PirateCraft
     }
     public void Initialize(WorldInfo info)
     {
-
       EmbeddedResources.BuildResources();
 
       _worldInfo = info;
@@ -1253,15 +1324,7 @@ namespace PirateCraft
     {
       SceneRoot.IterateChildrenSafe(f, iterateDeleted);
     }
-    public void View(RenderView rv)
-    {
-      IterateObjectsSafe((obj) =>
-      {
-        obj.View(rv);
-        return LambdaBool.Continue;
-      });
-    }
-    public void Update(double dt)
+    public void UpdateWorld(double dt)
     {
       if (UpdateContext != Gu.Context)
       {
@@ -1271,75 +1334,50 @@ namespace PirateCraft
 
       Gu.Lib.Update(dt);
 
-
       UpdateObjects(dt);
-      //UpdateLiterallyEverything_Blockish(cam);
-      //LaunchGlobAndDromeQueues();
       CheckSaveWorld(dt);
-      PickGLobs();
-
-      Gu.Assert(_worldEditor != null);
-      Gu.TryGetSelectedView(out var selview);
-      //update after picking, view can be null
-      _worldEditor.Update(selview);
-
 
       TopologizeGlobs();
 
       _worldProps.DayNightCycle.Update(dt);
     }
-    private void PickGLobs()
+    public void UpdateWorldEditor(double dt)
     {
-      //TODO: picking code is copied from worldobject  we can share this..sloppy fn
-      foreach (var g in _visibleRenderGlobs)
+      //Update editor after picking
+      if (UpdateContext != Gu.Context)
       {
-        if (Gu.Context.Renderer.Picker.PickedObjectFrame != null)
-        {
-          //Picking is pixel perfect, so the first picked object is the exact object.
-          //However objects may have children, and components which can also be picked, and may not be in the global list.
-          //Obviously, a list of pickid->obj would be the fastest.
-          break;
-        }
-        if (g.Value.Opaque != null)
-        {
-          if (g.Value.Opaque.PickId != Picker.c_iInvalidPickId)
-          {
-            var pixid = Gu.Context.Renderer.Picker.SelectedPixelId;
-            if (pixid != 0)
-            {
-              if (pixid == g.Value.Opaque.PickId)
-              {
-                Gu.Context.Renderer.Picker.PickedObjectFrame = g.Value.Opaque;
-              }
-            }
-          }
-        }
-        if (g.Value.Transparent != null)
-        {
-          if (g.Value.Transparent.PickId != Picker.c_iInvalidPickId)
-          {
-            var pixid = Gu.Context.Renderer.Picker.SelectedPixelId;
-            if (pixid != 0)
-            {
-              if (pixid == g.Value.Transparent.PickId)
-              {
-                Gu.Context.Renderer.Picker.PickedObjectFrame = g.Value.Transparent;
-              }
-            }
-          }
-        }
+        Gu.Log.Error("Tried to call update twice between two windows. Update must be called once on a single window (or, we could put it on its own thread, unless we do end up with OpenGL stuff.)");
+        Gu.DebugBreak();
       }
+
+      Gu.Assert(_worldEditor != null);
+      Gu.TryGetSelectedView(out var selview);
+      //update after picking, view can be null
+      _worldEditor.Update(selview);
     }
+
     public void BuildAndCull(RenderView rv)
     {
-      if (rv.Camera != null && rv.Camera.TryGetTarget(out var cm))
+      if (rv.ViewMode != RenderViewMode.UIOnly)
       {
-        cm.SanitizeTransform();
+        if (rv.Camera != null && rv.Camera.TryGetTarget(out var cm))
+        {
+          cm.SanitizeTransform();
 
-        BuildGrid(cm.Position_World, Info.GenerateDistance);
-        View(rv);
-        CollectVisibleGlobs(cm);
-        CollectVisibleObjects(rv, cm);
+          BuildGrid(cm.Position_World, Info.GenerateDistance);
+
+          //Collect visible
+          _visibleStuff = _visibleStuff.ConstructIfNeeded();
+          _visibleStuff.Clear(rv);
+          _worldProps.ClearLights();
+
+          CollectVisibleGlobs(rv, cm);
+          CollectVisibleObjects(rv, cm);
+        }
+      }
+      if (rv.ViewMode != RenderViewMode.WorldOnly && rv.Gui != null)
+      {
+        _visibleStuff.AddObject(rv, rv.Gui.GetDrawable());
       }
     }
     private void TopologizeGlobs()
@@ -1504,10 +1542,7 @@ namespace PirateCraft
         string name = g.Name;
         if (g.Opaque == null)
         {
-          var pickid = Gu.Context.Renderer.Picker.GenPickId();
-          var mat = _worldMaterial_Op;
-          mat4 mworld = mat4.Identity;// mat4.getTranslation(Info.GlobI3PosToGlobR3Pos(g.Pos));
-          g.Opaque = new SoloMesh(null, mat, mworld, pickid);
+          g.Opaque = new Drawable("glob-" + g.Pos.ToString(), null, _worldMaterial_Op, mat4.Identity);
         }
         var vertsarr = verts.ToArray();
         var indsarr = inds.ToArray();
@@ -1520,6 +1555,8 @@ namespace PirateCraft
                 Gpu.CreateShaderStorageBuffer(name, faces.ToArray()),
                 true
               );
+        g.Opaque.Mesh.DrawOrder = DrawOrder.Mid;
+        g.Opaque.Mesh.DrawMode = DrawMode.Deferred;
 
         _renderGlobs.Add(g.Pos, g);
       }
@@ -1697,6 +1734,7 @@ namespace PirateCraft
     }
 
     #region Objects
+
     public Glob GetGlobForPoint(vec3 pt, GlobArray? ga = null)
     {
       if (ga != null)
@@ -1720,18 +1758,6 @@ namespace PirateCraft
           return outg;
         }
       }
-      return null;
-    }
-
-    public Beam? GetBeamForPoint(vec3 pt, GlobArray? ga = null)
-    {
-      //not needed righ tnow
-      // var eg = GetGlobForPoint(pt, ga);
-      // if (eg != null)
-      // {
-      //   Gu.Assert(eg.BeamGrid != null);//Busines rule - bar grid must be not null if glob exists
-      //   return eg.GetBeamForPoint_BottomLeftInclusive_WithCaps(pt);
-      // }
       return null;
     }
     public WorldObject? FindObject(string name)
@@ -1770,13 +1796,10 @@ namespace PirateCraft
     }
     public void RemoveObject(WorldObject ob)
     {
-      //wo.State = WorldObjectState.Removed;
-      //
       RemoveObjectInternal(ob);
     }
     private void RemoveObjectInternal(WorldObject wo)
     {
-      wo.PromoteResource(ResourcePromotion.SceneRemove);
       wo.UnlinkFromParent();
       wo.State = WorldObjectState.Removed;
       _worldEditor.Edited = true;
@@ -1799,8 +1822,6 @@ namespace PirateCraft
       {
         ob.Material = Material.DefaultObjectMaterial;
       }
-
-      ob.PromoteResource(ResourcePromotion.SceneAdd);
 
       SceneRoot.AddChild(ob);
       ob.OnAddedToScene?.Invoke(ob);
@@ -1826,10 +1847,6 @@ namespace PirateCraft
           {
             UpdateObjectPhysics(ob, (float)dt);
           }
-          if (Gu.Context.Renderer.Picker.PickedObjectFrame == null)
-          {
-            ob.Pick();
-          }
         }
         else
         {
@@ -1843,23 +1860,7 @@ namespace PirateCraft
       }
       toRemove.Clear();
 
-      if (Gu.Context.Renderer.Picker.PickedObjectFrame == null || !(Gu.Context.Renderer.Picker.PickedObjectFrame is WorldObject))
-      {
-        if (Gu.Keyboard.PressOrDown(Keys.B))
-        {
-          Gu.Trap();
-          if (Gu.Context.Renderer.Picker.PickedObjectFrameLast != null)
-          {
-            var ob = (Gu.Context.Renderer.Picker.PickedObjectFrameLast as WorldObject);
-            ob.Pick();
-            int n = 0; n++;
-            //(Gu.Context.Renderer.Picker.PickedObjectFrameLast as WorldObject).Update(this,0,ref dummy);
-          }
-
-        }
-      }
     }
-
     private void UpdateObjectPhysics(WorldObject ob, float dt)
     {
       if (dt < WorldInfo.MinTimeStep)
@@ -2079,64 +2080,133 @@ namespace PirateCraft
     }
     private void CollectVisibleObjects(RenderView rv, Camera3D cm)
     {
-      //TODO: objects will coincide with collected globs.
-      // foreach (var layer in _visible_objects_ordered)
-      // {
-      //   layer.Value.Clear();
-      // }
-      _visibleObsFirst_FW.BeginCollectVisibleObjects();
-      _visibleObsMid_FW.BeginCollectVisibleObjects();
-      _visibleObsLast_FW.BeginCollectVisibleObjects();
-      _visibleObsFirst_DF.BeginCollectVisibleObjects();
-      _visibleObsMid_DF.BeginCollectVisibleObjects();
-      _visibleObsLast_DF.BeginCollectVisibleObjects();
-      _visibleObsAll.BeginCollectVisibleObjects();
-
       NumCulledObjects = 0;
-
-      _worldProps.Reset();
-
-      CollectObjects(rv, cm, SceneRoot);
-
-      //Collect globs
-      foreach (var kp in this._visibleRenderGlobs)
-      {
-        var g = kp.Value;
-        if (g.Opaque != null)
-        {
-          _visibleObsMid_DF.AddVisibleObject(g.Opaque);
-          _visibleObsAll.AddVisibleObject(g.Opaque);
-        }
-        if (g.Transparent != null)
-        {
-          _visibleObsMid_DF.AddVisibleObject(g.Transparent);
-          _visibleObsAll.AddVisibleObject(g.Transparent);
-        }
-      }
+      CollectVisibleObjects(rv, cm, SceneRoot);
+      AddDebugDrawObjects(rv);
     }
-    private void CollectVisibleGlobs(Camera3D cam)
+    private void CollectVisibleGlobs(RenderView rv, Camera3D cam)
     {
       Gu.Assert(cam != null);
       _visibleRenderGlobs.Clear();
-      foreach (var g in _existingGlobs)
+
+      //TODO: Optimize: there can be thousands of these
+      //We could walk the globs (as usual) if we assert they are interconnected (problem last time, unlinked glob neighbors)
+      foreach (var kvp in _existingGlobs)
       {
+        var g = kvp.Value;
         //i think ir emoved glob box due to too much data. probably isn't necessary to do that with new system.
-        var b = Info.GetGlobBoxGlobalI3(g.Key);
+        var b = Info.GetGlobBoxGlobalI3(kvp.Key);
         if (cam.Frustum.HasBox(b))
         {
-          if (g.Value.State == Glob.GlobState.Topologized)
+          if (g.State == Glob.GlobState.Topologized)
           {
-            if (g.Value.HasMeshData())
+            if (g.HasMeshData())
             {
-              _visibleRenderGlobs.Add(g.Key, g.Value);
+              PickVisibleGlob(g);
+              _visibleRenderGlobs.Add(kvp.Key, g);
+              if (g.Opaque != null)
+              {
+                _visibleStuff.AddObject(rv, g.Opaque);
+                DebugDrawObject(rv, g.Opaque);
+              }
+              if (g.Transparent != null)
+              {
+                _visibleStuff.AddObject(rv, g.Transparent);
+                DebugDrawObject(rv, g.Transparent);
+              }
             }
           }
-          else if (g.Value.State == Glob.GlobState.CreatedOrLoaded)
+          else if (g.State == Glob.GlobState.CreatedOrLoaded)
           {
-            QueueGlob(g.Value, cam.Position_World);
+            QueueGlob(g, cam.Position_World);
           }
         }
       }
+    }
+    private void CollectVisibleObjects(RenderView rv, Camera3D cam, WorldObject ob)
+    {
+      Gu.Assert(ob != null);
+
+      //TODO: fix this.
+      if (ob.ExcludeFromRenderView != null && ob.ExcludeFromRenderView.TryGetTarget(out var obrv))
+      {
+        if (obrv == rv)
+        {
+          return;
+        }
+      }
+
+      if (cam.Frustum.HasBox(ob.BoundBox))
+      {
+        if (ob.HasLight)
+        {
+          _worldProps.Lights.Add(ob);
+        }
+        if (ob.Mesh != null)
+        {
+          _visibleStuff.AddObject(rv, ob);
+          DebugDrawObject(rv, ob);
+          PickVisibleObject(ob);
+        }
+        else
+        {
+          NumCulledObjects++;
+        }
+      }
+
+      ob.IterateChildrenSafe((c) =>
+      {
+        CollectVisibleObjects(rv, cam, c);
+        return LambdaBool.Continue;
+      });
+    }
+    private void PickVisibleObject(WorldObject ob)
+    {
+      if (Gu.Context.Renderer.Picker.PickedObjectFrame == null)
+      {
+        ob.Pick();
+      }
+    }
+    private void PickVisibleGlob(Glob g)
+    {
+      //TODO: picking code is copied from worldobject  we can share this..sloppy fn
+
+      if (Gu.Context.Renderer.Picker.PickedObjectFrame != null)
+      {
+        //Picking is pixel perfect, so the first picked object is the exact object.
+        //However objects may have children, and components which can also be picked, and may not be in the global list.
+        //Obviously, a list of pickid->obj would be the fastest.
+        return;
+      }
+      if (g.Opaque != null)
+      {
+        if (g.Opaque.PickId != Picker.c_iInvalidPickId)
+        {
+          var pixid = Gu.Context.Renderer.Picker.SelectedPixelId;
+          if (pixid != 0)
+          {
+            if (pixid == g.Opaque.PickId)
+            {
+              Gu.Context.Renderer.Picker.PickedObjectFrame = g.Opaque;
+            }
+          }
+        }
+      }
+      if (g.Transparent != null)
+      {
+        if (g.Transparent.PickId != Picker.c_iInvalidPickId)
+        {
+          var pixid = Gu.Context.Renderer.Picker.SelectedPixelId;
+          if (pixid != 0)
+          {
+            if (pixid == g.Transparent.PickId)
+            {
+              Gu.Context.Renderer.Picker.PickedObjectFrame = g.Transparent;
+            }
+          }
+        }
+      }
+
     }
     private void CheckSaveWorld(double dt)
     {
@@ -2157,171 +2227,136 @@ namespace PirateCraft
 
     #region Rendering
 
-    public void RenderDeferred(double Delta, RenderView rv)
+    public void RenderPipeStage(RenderView rv, PipelineStageEnum stage)
     {
-      _visibleObsFirst_DF.Draw(_worldProps, rv);
-      _visibleObsMid_DF.Draw(_worldProps, rv);
-      _visibleObsLast_DF.Draw(_worldProps, rv);
-    }
-    public void RenderForward(double Delta, RenderView rv)
-    {
-      _visibleObsFirst_FW.Draw(_worldProps, rv);
-      _visibleObsMid_FW.Draw(_worldProps, rv);
-      _visibleObsLast_FW.Draw(_worldProps, rv);
-    }
-    public void RenderDebugForward(double Delta, RenderView rv)
-    {
-      var frame = Gu.Context.FrameStamp;
-
-      //Debug object attribs
-      if (_visibleObsAll != null)
+      if (stage == PipelineStageEnum.Deferred)
       {
-        //Bound box
-        if (Gu.Context.DebugDraw.DrawBoundBoxes)
+        _visibleStuff.Draw(rv, DrawMode.Deferred, _worldProps);
+      }
+      else if (stage == PipelineStageEnum.Forward)
+      {
+        _visibleStuff.Draw(rv, DrawMode.Forward, _worldProps);
+      }
+    }
+    private void DebugDrawObject(RenderView rv, Drawable ob)
+    {
+      var wo = (ob as WorldObject);
+      if (Gu.Context.DebugDraw.DrawBoundBoxes)
+      {
+        if (wo != null)
         {
-          vec4 bbcolor = new vec4(1, 0, 0, 1);
-          foreach (var obm in _visibleObsAll.VisibleObjects.MatMeshInstances)
-          {
-            foreach (var obi in obm.Value)
-            {
-              foreach (var ob in obi.Value.Objects)
-              {
-                Gu.Assert(ob != null);
-                Gu.Assert(ob.Material != null);
-                if (ob is WorldObject)
-                {
-                  Gu.Context.DebugDraw.Box((ob as WorldObject).BoundBoxMeshTransform, ob.Material.BaseColor);
-                  Gu.Context.DebugDraw.Box((ob as WorldObject).BoundBox, bbcolor);
-                }
-              }
-            }
-          }
-        }
+          Gu.Assert(ob != null);
+          vec4 aabb_color = new vec4(.8194f, .0134f, .2401f, 1);
+          vec4 obb_color = new vec4(.9192f, .8793f, .9131f, 1);
 
-        //Normals
-        if (Gu.Context.DebugDraw.DrawVertexNormals || Gu.Context.DebugDraw.DrawFaceNormals)
-        {
-          _visibleObsAll.Draw(_worldProps, rv, Material.DebugDraw_VertexNormals_FlatColor);
+          Gu.Context.DebugDraw.Box(wo.BoundBoxMeshTransform, obb_color);
+          Gu.Context.DebugDraw.Box(wo.BoundBox, aabb_color);
         }
       }
-      // Debug helpers
+      if (Gu.Context.DebugDraw.DrawObjectBasis)
+      {
+        vec3 ob_pos;
+        vec3 basisX, basisY, basisZ;
+        if (wo == null)
+        {
+          ob_pos = ob.WorldMatrix.ExtractTranslation();
+          basisX = (ob.WorldMatrix * new vec4(1, 0, 0, 0)).xyz().normalized();
+          basisY = (ob.WorldMatrix * new vec4(0, 1, 0, 0)).xyz().normalized();
+          basisZ = (ob.WorldMatrix * new vec4(0, 0, 1, 0)).xyz().normalized();
+        }
+        else
+        {
+          ob_pos = wo.Position_World;
+          basisX = wo.BasisX_World;
+          basisY = wo.BasisY_World;
+          basisZ = wo.BasisZ_World;
+        }
+
+        //Basis lines / basis matrix WORLD
+        Gu.Context.DebugDraw.Line(ob_pos, ob_pos + basisX, new vec4(1, 0, 0, 1));
+        Gu.Context.DebugDraw.Line(ob_pos, ob_pos + basisY, new vec4(0, 1, 0, 1));
+        Gu.Context.DebugDraw.Line(ob_pos, ob_pos + basisZ, new vec4(0, 0, 1, 1));
+      }
+      if (Gu.Context.DebugDraw.DrawVertexAndFaceNormalsAndTangents)
+      {
+        _visibleStuff.AddObject(rv, ob, Gu.Lib.LoadMaterial(RName.Material_DebugDraw_VertexNormals_FlatColor));
+      }
+      if (Gu.Context.DebugDraw.DrawWireframeOverlay)
+      {
+        _visibleStuff.AddObject(rv, ob, Gu.Lib.LoadMaterial(RName.DebugDraw_Wireframe_FlatColor));
+      }
+    }
+    private void AddDebugDrawObjects(RenderView rv)
+    {
       if (Gu.Context.DebugDraw.LinePoints.Count > 0)
       {
-        GL.LineWidth(1.0f);
+        //  GL.LineWidth(1.0f);//TODO: - this is now invalid
         Gpu.CheckGpuErrorsDbg();
         if (_debugDrawLines == null)
         {
           _debugDrawLines = CreateObject("debug_lines", null, Gu.Lib.LoadMaterial(RName.Material_DebugDrawMaterial));
+
+          _debugDrawLines.Mesh = new MeshData("debug_lines", PrimitiveType.Lines,
+            Gpu.CreateVertexBuffer("debug_lines", Gu.Context.DebugDraw.LinePoints.ToArray()),
+            Gpu.CreateIndexBuffer("debug_lines", Gu.Context.DebugDraw.LineInds.ToArray()),
+            null, false);
         }
-        _debugDrawLines.Mesh = new MeshData("debug_lines", PrimitiveType.Lines,
-          Gpu.CreateVertexBuffer("debug_lines", Gu.Context.DebugDraw.LinePoints.ToArray()),
-          Gpu.CreateIndexBuffer("debug_lines", Gu.Context.DebugDraw.LineInds.ToArray()),
-          null,
-          false
-          );
-        DrawCall.Draw(_worldProps, rv, _debugDrawLines);
+        else
+        {
+          _debugDrawLines.Mesh.VertexBuffers[0].ExpandBuffer(Gu.Context.DebugDraw.LinePoints.Count);
+          _debugDrawLines.Mesh.VertexBuffers[0].CopyToGPU(GpuDataPtr.GetGpuDataPtr(Gu.Context.DebugDraw.LinePoints.ToArray()));
+          _debugDrawLines.Mesh.IndexBuffer.ExpandBuffer(Gu.Context.DebugDraw.LineInds.Count);
+          _debugDrawLines.Mesh.IndexBuffer.CopyToGPU(GpuDataPtr.GetGpuDataPtr(Gu.Context.DebugDraw.LineInds.ToArray()));
+          _debugDrawLines.MeshView.Start = 0;
+          _debugDrawLines.MeshView.Count = Gu.Context.DebugDraw.LineInds.Count;
+        }
+        _visibleStuff.AddObject(rv, _debugDrawLines);
       }
       if (Gu.Context.DebugDraw.Points.Count > 0)
       {
-        GL.PointSize(5);
+        // GL.PointSize(5);//TODO: - this is now invalid
         Gpu.CheckGpuErrorsDbg();
         if (_debugDrawPoints == null)
         {
           _debugDrawPoints = CreateObject("debug_points", null, Gu.Lib.LoadMaterial(RName.Material_DebugDrawMaterial));
+          _debugDrawPoints.Mesh = new MeshData("debug_points", PrimitiveType.Points,
+            Gpu.CreateVertexBuffer("debug_points", Gu.Context.DebugDraw.Points.ToArray()),
+            null, false);
         }
-        _debugDrawPoints.Mesh = new MeshData("debug_points", PrimitiveType.Points,
-          Gpu.CreateVertexBuffer("debug_points", Gu.Context.DebugDraw.Points.ToArray()),
-          null,
-          false
-          );
-        DrawCall.Draw(_worldProps, rv, _debugDrawPoints);
+        else
+        {
+          _debugDrawPoints.Mesh.VertexBuffers[0].ExpandBuffer(Gu.Context.DebugDraw.Points.Count);
+          _debugDrawPoints.Mesh.VertexBuffers[0].CopyToGPU(GpuDataPtr.GetGpuDataPtr(Gu.Context.DebugDraw.Points.ToArray()));
+          _debugDrawPoints.MeshView.Start = 0;
+          _debugDrawPoints.MeshView.Count = Gu.Context.DebugDraw.Points.Count;
+        }
+        _visibleStuff.AddObject(rv, _debugDrawPoints);
       }
       if (Gu.Context.DebugDraw.TriPoints.Count > 0)
       {
-        GL.PointSize(1);
-        GL.LineWidth(1);
+        //   GL.PointSize(1);//TODO: - this is now invalid
+        //  GL.LineWidth(1);
         Gpu.CheckGpuErrorsDbg();
         if (_debugDrawTris == null)
         {
           _debugDrawTris = CreateObject("debug_tris", null, Gu.Lib.LoadMaterial(RName.Material_DebugDrawMaterial));
-        }
-        _debugDrawTris.Mesh = new MeshData("debug_tris", PrimitiveType.Triangles,
-          Gpu.CreateVertexBuffer("debug_tris", Gu.Context.DebugDraw.TriPoints.ToArray()),
-          null,
-          false
-          );
-        DrawCall.Draw(_worldProps, rv, _debugDrawTris);
-      }
-
-    }
-    private void CollectObjects(RenderView rv, Camera3D cam, WorldObject ob)
-    {
-      Gu.Assert(ob != null);
-
-      //TODO: fix this.
-      if (ob.ExcludeFromRenderView != null && ob.ExcludeFromRenderView.TryGetTarget(out var obrv))
-      {
-        if (obrv == rv)
-        {
-          return;
-        }
-      }
-
-      if (cam.Frustum.HasBox(ob.BoundBox))
-      {
-        if (ob is Light)
-        {
-          this._worldProps.Lights.Add(ob as Light);
-        }
-        if (ob.Mesh != null)
-        {
-          if (ob.Mesh.DrawMode == DrawMode.Deferred)
-          {
-            //light objects CAn have meshes too. Cameras too.
-            if (ob.Mesh.DrawOrder == DrawOrder.First)
-            {
-              _visibleObsFirst_DF.AddVisibleObject(ob);
-            }
-            else if (ob.Mesh.DrawOrder == DrawOrder.Mid)
-            {
-              _visibleObsMid_DF.AddVisibleObject(ob);
-            }
-            else if (ob.Mesh.DrawOrder == DrawOrder.Last)
-            {
-              _visibleObsLast_DF.AddVisibleObject(ob);
-            }
-          }
-          else if (ob.Mesh.DrawMode == DrawMode.Forward)
-          {
-            if (ob.Mesh.DrawOrder == DrawOrder.First)
-            {
-              _visibleObsFirst_FW.AddVisibleObject(ob);
-            }
-            else if (ob.Mesh.DrawOrder == DrawOrder.Mid)
-            {
-              _visibleObsMid_FW.AddVisibleObject(ob);
-            }
-            else if (ob.Mesh.DrawOrder == DrawOrder.Last)
-            {
-              _visibleObsLast_FW.AddVisibleObject(ob);
-            }
-          }
-          _visibleObsAll.AddVisibleObject(ob);
+          _debugDrawTris.Mesh = new MeshData("debug_tris", PrimitiveType.Triangles,
+            Gpu.CreateVertexBuffer("debug_tris", Gu.Context.DebugDraw.TriPoints.ToArray()),
+            null, false);
         }
         else
         {
-          NumCulledObjects++;
+          _debugDrawTris.Mesh.VertexBuffers[0].ExpandBuffer(Gu.Context.DebugDraw.TriPoints.Count);
+          _debugDrawTris.Mesh.VertexBuffers[0].CopyToGPU(GpuDataPtr.GetGpuDataPtr(Gu.Context.DebugDraw.TriPoints.ToArray()));
+          _debugDrawTris.MeshView.Start = 0;
+          _debugDrawTris.MeshView.Count = Gu.Context.DebugDraw.TriPoints.Count;          
         }
+        _visibleStuff.AddObject(rv, _debugDrawTris);
       }
-
-      ob.IterateChildrenSafe((c) =>
-      {
-        CollectObjects(rv, cam, c);
-        return LambdaBool.Continue;
-      });
     }
-    public List<WorldObject> GetAllRootObjects()
+    public List<WorldObject> GetAllVisibleRootObjects()
     {
+
       var r = new List<WorldObject>();
       this.SceneRoot.IterateChildrenSafe((o) =>
       {
@@ -2353,7 +2388,7 @@ namespace PirateCraft
       _worldMaterial_Tp.GpuRenderState.CullFace = false;
 
       //Block Material
-      _blockObjectMaterial = Gu.Lib.LoadMaterial("BlockObjectMaterial", Gu.Lib.LoadShader("v_v3n3x2_BlockObject_Instanced", "v_v3n3x2_BlockObject_Instanced", false, FileStorage.Embedded));
+      _blockObjectMaterial = Gu.Lib.LoadMaterial("BlockObjectMaterial", Gu.Lib.LoadShader("v_v3n3x2_BlockObject_Instanced", "v_v3n3x2_BlockObject_Instanced", FileStorage.Embedded));
     }
     private void DefineWorldTiles()
     {

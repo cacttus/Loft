@@ -30,51 +30,19 @@ namespace PirateCraft
 
   public class Picker
   {
+    #region Members
     //**Note do not set this to be anything but full alpha, if blending is enabled teh blend will screw up this value.
-    public const uint c_iInvalidPickId = 0;//0xFFFFFFFF;
+    public const uint c_iInvalidPickId = 0;
     public const uint c_iSelectedFlag = (1 << 30);//object is selected
     public const uint c_iPickedFlag = (1 << 29);//object is picked
+    public const uint c_iActiveFlag = (1 << 28);//object is picked
 
     private uint _iid = 0;
     private WeakReference<Renderer> _pRenderer;
-    private uint _uiLastSelectedPixelId = 0;//Note: This is relative to the last UserSelectionSet - the Id here is not fixed.
+    private uint _uiLastSelectedPixelId = c_iInvalidPickId;//Note: This is relative to the last UserSelectionSet - the Id here is not fixed.
     private object _pickedObjectFrame = null;
     private object _pickedObjectFrameLast = null;
 
-    public static uint RemoveFlagsFromPickID(uint pickid)
-    {
-      pickid = pickid & (~Picker.c_iSelectedFlag);
-      pickid = pickid & (~Picker.c_iPickedFlag);
-      return pickid;
-    }
-    public static uint AddFlagsToPickID(uint pickid, bool pickable, bool selected, bool picked)
-    {
-      if (pickable == false)
-      {
-        pickid = RemoveFlagsFromPickID(pickid);
-      }
-      else if (pickable == true)
-      {
-        if (selected)
-        {
-          pickid |= Picker.c_iSelectedFlag;
-        }
-        else
-        {
-          pickid = pickid & (~Picker.c_iSelectedFlag);
-        }
-        if (picked)
-        {
-          pickid |= Picker.c_iPickedFlag;
-        }
-        else
-        {
-          pickid = pickid & (~Picker.c_iPickedFlag);
-        }
-      }
-
-      return pickid;
-    }
     public uint SelectedPixelId { get { return _uiLastSelectedPixelId; } }
     public object PickedObjectFrameLast
     {
@@ -112,51 +80,108 @@ namespace PirateCraft
         {
           return "<None>";
         }
-        else if (PickedObjectFrame is WorldObject)
-        {
-          return (PickedObjectFrame as WorldObject).Name;
-        }
         else if (PickedObjectFrame is UiElement)
         {
           return (PickedObjectFrame as UiElement).Name;
         }
-        else if (PickedObjectFrame is SoloMesh)
+        else if (PickedObjectFrame is Drawable)
         {
-          if ((PickedObjectFrame as SoloMesh).Mesh != null)
+          if ((PickedObjectFrame as Drawable).MeshView != null)
           {
-            return (PickedObjectFrame as SoloMesh).Mesh.Name;
+            return (PickedObjectFrame as Drawable).MeshView.Name;
           }
           else
           {
-            return "SoloMesh (no mesh)";
+            return "Drawable (no mesh)";
           }
         }
         return "<Unhandled object type>" + PickedObjectFrame.GetType().Name;
       }
     }
 
+    #endregion
+    #region Public:Static Methods
+
+    public static uint RemoveFlagsFromPickID(uint pickid)
+    {
+      pickid = pickid & (~Picker.c_iSelectedFlag);
+      pickid = pickid & (~Picker.c_iPickedFlag);
+      pickid = pickid & (~Picker.c_iActiveFlag);
+      return pickid;
+    }
+    public static uint AddFlagsToPickID(uint pickid, bool pickable, bool selected, bool picked, bool active)
+    {
+      if (pickable == false)
+      {
+        pickid = RemoveFlagsFromPickID(pickid);
+      }
+      else if (pickable == true)
+      {
+        if (selected)
+        {
+          pickid |= Picker.c_iSelectedFlag;
+        }
+        else
+        {
+          pickid = pickid & (~Picker.c_iSelectedFlag);
+        }
+        if (picked)
+        {
+          pickid |= Picker.c_iPickedFlag;
+        }
+        else
+        {
+          pickid = pickid & (~Picker.c_iPickedFlag);
+        }
+        if (active)
+        {
+          pickid |= Picker.c_iActiveFlag;
+        }
+        else
+        {
+          pickid = pickid & (~Picker.c_iActiveFlag);
+        }
+      }
+
+      return pickid;
+    }
+
+    #endregion
+    #region Public:Methods
+
     public Picker(Renderer rp)
     {
       _pRenderer = new WeakReference<Renderer>(rp);
     }
-    public void UpdatePick()
+    public void ResetPickedObject()
     {
+      //call after all windows update, other windows will rely on this
       if (_pickedObjectFrameLast != _pickedObjectFrame)
       {
         if (_pickedObjectFrameLast != null && _pickedObjectFrameLast is WorldObject)
         {
-          (_pickedObjectFrameLast as WorldObject).Picked = false;
+          (_pickedObjectFrameLast as WorldObject).IsPicked = false;
         }
         if (_pickedObjectFrame != null && _pickedObjectFrame is WorldObject)
         {
-          (_pickedObjectFrame as WorldObject).Picked = true;
+          (_pickedObjectFrame as WorldObject).IsPicked = true;
         }
       }
 
       PickedObjectFrameLast = PickedObjectFrame;
       PickedObjectFrame = null;
-
-      UpdatePickedPixel((int)Gu.Mouse.Pos.x, (int)Gu.Mouse.Pos.y);
+    }
+    public void UpdatePickedPixel()
+    {
+      //Call before all windows update
+      if (Gu.Context.GameWindow.IsFocused)
+      {
+        UpdatePickedPixel((int)Gu.Context.PCMouse.Pos.x, (int)Gu.Context.PCMouse.Pos.y);
+      }
+      else
+      {
+        _uiLastSelectedPixelId = c_iInvalidPickId;
+      }
     }
     public uint GenPickId()
     {
@@ -176,14 +201,15 @@ namespace PirateCraft
 
       return pickColorId;
     }
+
+    #endregion
+    #region Private:Methods
+
     private void UpdatePickedPixel(int window_x, int window_y)
     {
       if (_pRenderer != null && _pRenderer.TryGetTarget(out var renderer))
       {
         Gu.Assert(renderer.PickStage != null);
-
-        renderer.PickStage.Bind(FramebufferTarget.ReadFramebuffer);
-        renderer.PickStage.BindReadBuffer(RenderTargetType.Pick);
 
         float xRatio = (float)renderer.PickStage.Size.x / (float)renderer.DefaultFBOSize.x;
         float yRatio = (float)renderer.PickStage.Size.y / (float)renderer.DefaultFBOSize.y;
@@ -191,12 +217,20 @@ namespace PirateCraft
         int dx = (int)Math.Round((float)window_x * xRatio);
         int dy = (int)Math.Round((float)window_y * yRatio);
 
-        _uiLastSelectedPixelId = SamplePixelId(dx, dy, renderer.PickStage.Size.height);
-
-        _uiLastSelectedPixelId = RemoveFlagsFromPickID(_uiLastSelectedPixelId);
-
-        renderer.PickStage.UnbindReadBuffer();
-        renderer.PickStage.Unbind(FramebufferTarget.ReadFramebuffer);
+        if (dx < 0 || dx >= renderer.PickStage.Size.width || dy < 0 || dy >= renderer.PickStage.Size.height)
+        {
+          //Mouse is outside window.
+          _uiLastSelectedPixelId = c_iInvalidPickId;
+        }
+        else
+        {
+          renderer.PickStage.Bind(FramebufferTarget.ReadFramebuffer);
+          renderer.PickStage.BindReadBuffer(RenderTargetType.Pick);
+          _uiLastSelectedPixelId = SamplePixelId(dx, dy, renderer.PickStage.Size.height);
+          _uiLastSelectedPixelId = RemoveFlagsFromPickID(_uiLastSelectedPixelId);
+          renderer.PickStage.UnbindReadBuffer();
+          renderer.PickStage.Unbind(FramebufferTarget.ReadFramebuffer);
+        }
       }
     }
     private uint SamplePixelId(int fbo_x, int fbo_y, int fbo_height)
@@ -208,7 +242,7 @@ namespace PirateCraft
       // are read from the color image attached to the GL_COLOR_ATTACHMENT0 attachment point.
 
       GL.ReadPixels(fbo_x - 1,
-                   fbo_height - fbo_y + 1,
+                   fbo_height - (fbo_y - 1),
                    1, 1,
                    PixelFormat.RedInteger,
                    PixelType.UnsignedInt,
@@ -218,6 +252,7 @@ namespace PirateCraft
       return pixel;
     }
 
+    #endregion
 
   }
 
@@ -279,16 +314,16 @@ namespace PirateCraft
     [DataMember] public List<PipelineAttachment> _outputs;
     [DataMember] public mat4? _blitMat;
     [DataMember] public PipelineStageEnum _pipelineStageEnum;
-    public Action<RenderView> BeginRenderAction = null;
-    public Action<RenderView> EndRenderAction = null;
-    public WorldObject BlitObj = null;
+    public Action<RenderView>? BeginRenderAction = null;
+    public Action<RenderView>? EndRenderAction = null;
+    public WorldObject? BlitObj = null;
     private ivec2 _size;
 
     //So, cull, winding .. Gpu state is on material currently
     public PipelineStage(PipelineStageEnum stage, ClearBufferMask mask, vec4 clear,
                           int defaultWidth, int defaultHeight,
                          List<PipelineAttachment> inputs, List<PipelineAttachment> outputs,
-                         Action<RenderView> beginRenderAction = null, Action<RenderView> endRenderAction = null,
+                         Action<RenderView>? beginRenderAction = null, Action<RenderView>? endRenderAction = null,
                          string? blit_shader = null, bool blend = false)
     {
       _clearMask = mask;
@@ -349,7 +384,7 @@ namespace PirateCraft
         Gu.BRThrowException(s);
       }
     }
-    public void BeginRender(bool forceClear)
+    public bool BeginRender(bool forceClear)
     {
       GL.UseProgram(0);//just for sanity i guess
 
@@ -387,7 +422,7 @@ namespace PirateCraft
         GL.ClearColor(ClearColor.r, ClearColor.g, ClearColor.b, ClearColor.a);
         GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
       }
-
+      return true;
     }
     public void EndRender()
     {
@@ -407,11 +442,11 @@ namespace PirateCraft
 
       //Blitter: Instead of drawing objects this stage will draw a full screen quad with a custom shader (deferred/forward/effect)
       Gu.Assert(Inputs.Count > 0);
-      string names = $"blitter-{generic_name}";
+      string names = $"Shader_{generic_name}";
       BlitObj = new WorldObject(Library.MakeDatapathName(names, typeof(WorldObject)));
-      BlitObj.Mesh = MeshGen.CreateScreenQuadMesh(Library.MakeDatapathName(names, typeof(MeshData)), width, height);
+      BlitObj.MeshView = new MeshView(MeshGen.CreateScreenQuadMesh(Library.MakeDatapathName(names, typeof(MeshData)), width, height));
       BlitObj.Material = new Material(Library.MakeDatapathName(names, typeof(Material)),
-      Gu.Lib.LoadShader(Library.MakeDatapathName(names, typeof(Shader)), generic_name, false, FileStorage.Embedded));
+      Gu.Lib.LoadShader(Library.MakeDatapathName(names, typeof(Shader)), generic_name, FileStorage.Embedded));
       BlitObj.Material.GpuRenderState.CullFace = false;
       BlitObj.Material.GpuRenderState.DepthTest = false;
       BlitObj.Material.GpuRenderState.Blend = blend;
@@ -540,6 +575,8 @@ namespace PirateCraft
 
       Picker = new Picker(this);
 
+      //possibly makes sense to make there be 3 fbo sizes, since the menus being the exact screen resolution look kind of ugly, maybe a little less than the actual world.
+
       Gu.Log.Debug("[Renderer] Creating Attachments");
       FramebufferAttachment color_df = new FramebufferAttachment("Color1", RenderTargetType.Color, _deferredFBOWidth, _deferredFBOHeight, samples);
       FramebufferAttachment color_fw = new FramebufferAttachment("Color2", RenderTargetType.Color, _deferredFBOWidth, _deferredFBOHeight, samples);
@@ -561,32 +598,16 @@ namespace PirateCraft
           new PipelineAttachment(ShaderOutput.Normal, normal),
           new PipelineAttachment(ShaderOutput.Position, position),
           new PipelineAttachment(ShaderOutput.Depth, depth)
-        },
-        (rv) =>
-        {
-          Gu.World.RenderDeferred(Gu.Context.Delta, rv);
-        },
-        (rv) =>
-        {
-          if (_requestSaveFBOs || Gu.EngineConfig.SaveFBOsEveryFrame)
-          {
-            SaveCurrentStageFBOsImmediately(CurrentStage.OutputFramebuffer);
-          }
-        }
-      );
+        }, (rv) => { }, (rv) => { });
 
       var outline = new PipelineStage(PipelineStageEnum.Effect,
         ClearBufferMask.None, new vec4(0, 0, 0, 0),
         _deferredFBOWidth, _deferredFBOHeight,
-        new List<PipelineAttachment>() { new PipelineAttachment(ShaderInput.Pick, pick) },
-        new List<PipelineAttachment>() { new PipelineAttachment(ShaderOutput.Color, color_df) },
-        (rv) => { }, (rv) =>
-        {
-          if (_requestSaveFBOs || Gu.EngineConfig.SaveFBOsEveryFrame)
-          {
-            SaveCurrentStageFBOsImmediately(CurrentStage.OutputFramebuffer);
-          }
-        },
+        new List<PipelineAttachment>() {
+          new PipelineAttachment(ShaderInput.Pick, pick) },
+        new List<PipelineAttachment>() {
+          new PipelineAttachment(ShaderOutput.Color, color_df) },
+        (rv) => { }, (rv) => { },
         "v_v3x2_outline", true
       );
 
@@ -599,16 +620,7 @@ namespace PirateCraft
           new PipelineAttachment(ShaderInput.Position, position),
           new PipelineAttachment(ShaderInput.Depth, depth) },
         new List<PipelineAttachment>() { new PipelineAttachment(ShaderOutput.Color, color_fw), }
-        , (rv) =>
-        {
-        },
-        (rv) =>
-        {
-          if (_requestSaveFBOs || Gu.EngineConfig.SaveFBOsEveryFrame)
-          {
-            SaveCurrentStageFBOsImmediately(CurrentStage.OutputFramebuffer);
-          }
-        },
+        , (rv) => { }, (rv) => { },
         "v_v3x2_deferred"
        );
 
@@ -620,21 +632,7 @@ namespace PirateCraft
           new PipelineAttachment(ShaderOutput.Color, color_fw),
           new PipelineAttachment(ShaderOutput.Pick, pick),
           new PipelineAttachment(ShaderOutput.Depth, depth),
-        },
-        (rv) =>
-        {
-          Gu.World.RenderForward(Gu.Context.Delta, rv);
-          Gu.World.RenderDebugForward(Gu.Context.Delta, rv);
-          rv.ActiveGui?.Render(rv);
-        },
-        (rv) =>
-        {
-          if (_requestSaveFBOs || Gu.EngineConfig.SaveFBOsEveryFrame)
-          {
-            SaveCurrentStageFBOsImmediately(CurrentStage.OutputFramebuffer);
-          }
-        }
-       );
+        }, (rv) => { }, (rv) => { });
 
       PickStage = forward.OutputFramebuffer;
 
@@ -643,16 +641,7 @@ namespace PirateCraft
         _windowWidth, _windowHeight,
         new List<PipelineAttachment>() { new PipelineAttachment(ShaderInput.Color, color_fw) },
         PipelineAttachment.NoFramebuffer
-        , (rv) =>
-        {
-        },
-        (rv) =>
-        {
-          if (_requestSaveFBOs || Gu.EngineConfig.SaveFBOsEveryFrame)
-          {
-            SaveCurrentStageFBOsImmediately(CurrentStage.OutputFramebuffer);
-          }
-        },
+        , (rv) => { }, (rv) => { },
         "v_v3x2_forward"
       );
 
@@ -692,16 +681,11 @@ namespace PirateCraft
     }
     public void SaveFBOs()
     {
-      //The reason we do it this way is so that we can save the screenshot right before we blit the final render to the screen.
+      //Request to save FBOs after rendering is complete.
       _requestSaveFBOs = true;
     }
     public void BeginRenderToWindow()
     {
-      if (Gu.EngineConfig.Debug_ShowPipelineClearMessage)
-      {
-        Gu.Log.WarnCycle("Clearing all pipelines, when it is not necessary (debug)");
-      }
-
       //**FULL CLEAR
       GL.Viewport(0, 0, Gu.Context.GameWindow.Width, Gu.Context.GameWindow.Height);
       GL.Scissor(0, 0, Gu.Context.GameWindow.Width, Gu.Context.GameWindow.Height);
@@ -710,56 +694,79 @@ namespace PirateCraft
         ps.BeginRender(true);
         ps.EndRender();
       }
+      if (_requestSaveFBOs == true)
+      {
+        Gu.Trap();
+      }
     }
     public void EndRenderToWindow()
     {
-      Picker.UpdatePick();
-      _requestSaveFBOs = false;
+      Picker.UpdatePickedPixel();
+      if (_requestSaveFBOs == true)
+      {
+        _requestSaveFBOs = false;
+      }
     }
-    public void RenderViewToWindow(RenderView rv, List<PipelineStageEnum> stages = null)
+    private bool IsActiveStage(RenderView rv, PipelineStage ps)
+    {
+      //Skip non-ui stuff if we are not rendering UI
+      //A more generic way to do this is to set the allowed pipeline stages on the UI mesh
+      if (rv.ViewMode == RenderViewMode.UIOnly &&
+          ps.PipelineStageEnum != PipelineStageEnum.Forward &&
+          ps.PipelineStageEnum != PipelineStageEnum.ForwardBlit)
+      {
+        return false;
+      }
+      return true;
+    }
+    public void RenderViewToWindow(RenderView rv)
     {
       //Make sure the given view has a camera attached.
       if (BeginRenderToView(rv))
       {
         foreach (PipelineStage ps in _pipelineStages)
         {
-          if (stages != null && !stages.Contains(ps.PipelineStageEnum))
+          if (!IsActiveStage(rv, ps))
           {
             continue;
           }
 
-          CurrentStage = ps;
-
-          rv.BeginPipelineStage(ps);
-
-          //Bind the output FBO
-          ps.BeginRender(false);
+          if (rv.BeginPipelineStage(ps))//Set P/V matrix
           {
-            //Do some pre-render stuff
-            ps.BeginRenderAction?.Invoke(rv);
-
-            //If we are a blit stage, execute a blit.
-            if (ps.BlitObj != null && ps.BlitMat != null)
+            if (ps.BeginRender(false))//Bind FBO
             {
-              //blit
-              rv.BeginRender2D(ps.BlitMat);
-              {
-                //Set the viewport to the whole window to blit the fullscreen quad however set the 
-                //scissor to be just the viewport area.
-                //TODO: it would make more sense to have the quad blit just to the given area, and not have to re-set the viewport.
-                //https://stackoverflow.com/questions/33718237/do-you-have-to-call-glviewport-every-time-you-bind-a-frame-buffer-with-a-differe
+              CurrentStage = ps;
 
-                //This w/h should automatically be set to the size of the current output framebuffer
-                GL.Viewport(0, 0, ps.Size.width, ps.Size.height);
-                DrawCall.Draw(Gu.World.WorldProps, rv, ps.BlitObj);
+              //Do some pre-render stuff
+              ps.BeginRenderAction?.Invoke(rv);
+
+              Gu.World.RenderPipeStage(rv, CurrentStage.PipelineStageEnum);
+
+              //If we are a blit stage, execute a blit.
+              if (ps.BlitObj != null && ps.BlitMat != null)
+              {
+                //blit
+                rv.BeginRender2D(ps.BlitMat);
+                {
+                  //Set the viewport to the whole window to blit the fullscreen quad however set the 
+                  //scissor to be just the viewport area.
+                  //TODO: it would make more sense to have the quad blit just to the given area, and not have to re-set the viewport.
+                  //https://stackoverflow.com/questions/33718237/do-you-have-to-call-glviewport-every-time-you-bind-a-frame-buffer-with-a-differe
+
+                  //This w/h should automatically be set to the size of the current output framebuffer
+                  GL.Viewport(0, 0, ps.Size.width, ps.Size.height);
+                  DrawCall.Draw(Gu.World.WorldProps, rv, ps.BlitObj);
+                }
+                rv.EndRender2D();
               }
-              rv.EndRender2D();
+              SaveFBOsPostRender();
+
+              ps.EndRenderAction?.Invoke(rv);
+              ps.EndRender();
+              CurrentStage = null;
             }
-            ps.EndRenderAction?.Invoke(rv);
           }
-          ps.EndRender();
         }
-        CurrentStage = null;
       }
       EndRenderToView(rv);
     }
@@ -890,6 +897,13 @@ namespace PirateCraft
         }
       }
       return x;
+    }
+    private void SaveFBOsPostRender()
+    {
+      if (_requestSaveFBOs || Gu.EngineConfig.Debug_SaveFBOsEveryFrame)
+      {
+        SaveCurrentStageFBOsImmediately(CurrentStage.OutputFramebuffer);
+      }
     }
     private void SaveCurrentStageFBOsImmediately(FramebufferGeneric fbo, string tag = "")
     {

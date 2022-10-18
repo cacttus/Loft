@@ -3,6 +3,12 @@ using System.Runtime.Serialization;
 
 namespace PirateCraft
 {
+  public enum RenderViewMode
+  {
+    UIOnly,
+    WorldOnly,
+    UIAndWorld,
+  }
   public enum ViewInputMode
   {
     Play,
@@ -86,12 +92,12 @@ namespace PirateCraft
           _widthFar = tanfov2 * cam.Far * 2.0f;
           _heightFar = _widthFar / ar;
 
-          NearCenter = cam.Position_World + cam.BasisZ * cam.Near;
-          FarCenter = cam.Position_World + cam.BasisZ * cam.Far;
-          NearTopLeft = NearCenter - cam.BasisX * _widthNear * 0.5f + cam.BasisY * _heightNear * 0.5f;
-          FarTopLeft = FarCenter - cam.BasisX * _widthFar * 0.5f + cam.BasisY * _heightFar * 0.5f;
+          NearCenter = cam.Position_World + cam.BasisZ_World * cam.Near;
+          FarCenter = cam.Position_World + cam.BasisZ_World * cam.Far;
+          NearTopLeft = NearCenter - cam.BasisX_World * _widthNear * 0.5f + cam.BasisY_World * _heightNear * 0.5f;
+          FarTopLeft = FarCenter - cam.BasisX_World * _widthFar * 0.5f + cam.BasisY_World * _heightFar * 0.5f;
 
-          ConstructPointsAndPlanes(FarCenter, NearCenter, cam.BasisY, cam.BasisX, _widthNear * 0.5f, _widthFar * 0.5f, _heightNear * 0.5f, _heightFar * 0.5f);
+          ConstructPointsAndPlanes(FarCenter, NearCenter, cam.BasisY_World, cam.BasisX_World, _widthNear * 0.5f, _widthFar * 0.5f, _heightNear * 0.5f, _heightFar * 0.5f);
         }
       }
     }
@@ -115,12 +121,12 @@ namespace PirateCraft
           vec2 farwh = WidthHeightForDepth(end);
           vec2 nearwh = WidthHeightForDepth(cam.Near);
 
-          var nbl = cam.Position_World + cam.BasisZ * begin - cam.BasisX * nearwh.x * 0.5f - cam.BasisY * nearwh.y * 0.5f;
-          var fbl = cam.Position_World + cam.BasisZ * end - cam.BasisX * farwh.x * 0.5f - cam.BasisY * farwh.y * 0.5f;
-          var nx = cam.BasisX * _widthNear;
-          var ny = cam.BasisY * _heightNear;
-          var fx = cam.BasisX * farwh.x;
-          var fy = cam.BasisY * farwh.y;
+          var nbl = cam.Position_World + cam.BasisZ_World * begin - cam.BasisX_World * nearwh.x * 0.5f - cam.BasisY_World * nearwh.y * 0.5f;
+          var fbl = cam.Position_World + cam.BasisZ_World * end - cam.BasisX_World * farwh.x * 0.5f - cam.BasisY_World * farwh.y * 0.5f;
+          var nx = cam.BasisX_World * _widthNear;
+          var ny = cam.BasisY_World * _heightNear;
+          var fx = cam.BasisX_World * farwh.x;
+          var fy = cam.BasisY_World * farwh.y;
 
           //everyting origin to bot left
           if (p0x > p1x)
@@ -155,7 +161,7 @@ namespace PirateCraft
       }
       return ret;
     }
-    public Line3f? RaycastWorld(vec2 point_on_screen_topleftorigin, TransformSpace space = TransformSpace.World, float additionalZDepthNear = 0, float maxDistance = -1)
+    public Line3f? RaycastWorld(vec2 point_on_screen_topleftorigin, TransformSpace space = TransformSpace.World, float maxDistance = -1)
     {
       //Raycastscreentoworld screen to world
       //returns a line from the camera lens to the end of the view frustum
@@ -169,13 +175,15 @@ namespace PirateCraft
           float left_pct = (float)point_on_screen_topleftorigin.x / (float)view.Viewport.Width;
           float top_pct = (float)point_on_screen_topleftorigin.y / (float)view.Viewport.Height;
 
-          pt.p0 = NearTopLeft + cam.BasisX * _widthNear * left_pct - cam.BasisY * _heightNear * top_pct;//***2 -- the times ttwo is a huge error FIX
-          pt.p1 = FarTopLeft + cam.BasisX * _widthFar * left_pct - cam.BasisY * _heightFar * top_pct;
-          pt.p0 += cam.BasisZ * additionalZDepthNear;
+          pt.p0 = NearTopLeft + cam.BasisX_World * _widthNear * left_pct - cam.BasisY_World * _heightNear * top_pct;//***2 -- the times ttwo is a huge error FIX
+          pt.p1 = FarTopLeft + cam.BasisX_World * _widthFar * left_pct - cam.BasisY_World * _heightFar * top_pct;
+
+          //**additional depth is wrong, it pushes the ray into the scren, must add to normalize ray length
+          //pt.p0 += cam.BasisZ * additionalZDepthNear;
 
           if (maxDistance > 0)
           {
-            pt.p1 = pt.p0 + (pt.p1 - pt.p0).normalize() * (maxDistance - additionalZDepthNear);
+            pt.p1 = pt.p0 + (pt.p1 - pt.p0).normalize() * (maxDistance);
           }
 
           pt_ret = pt;
@@ -191,10 +199,12 @@ namespace PirateCraft
       {
         vec3 campos = cam.Position_World;
 
-        float t = _planes[fp_near].IntersectLine(v, campos);
-
-        vec3 ret = campos + (v - campos) * t;
-        return ret;
+        float t = 0;
+        if (_planes[fp_near].IntersectLine(v, campos, out t))
+        {
+          vec3 ret = campos + (v - campos) * t;
+          return ret;
+        }
       }
       return null;
     }
@@ -365,6 +375,9 @@ namespace PirateCraft
 
   public class RenderView : MutableState
   {
+    public const string c_EditGUI_Root = "c_EditGUI_Root";//enable/disable edit gui.
+    public const string c_StatusBar = "c_StatusBar";//enable/disable edit gui.
+
     //RenderView: The part of the window in which to render.
     //RenderView needs to use a percentage of the screen not exact coords, since resizing the screen we don't know how big to make the view.
     public WeakReference<Camera3D> Camera { get; set; } = null;//i think the idea here is to allow objects to destroy when they are removed from scene
@@ -373,48 +386,45 @@ namespace PirateCraft
     public GpuCamera GpuCamera { get { return _gpuCamera; } private set { _gpuCamera = value; } }
     public int Id { get; private set; } = 0;
     private static int s_idGen = 0;
-    public Gui2d ActiveGui { get; set; } = null;
-    public Gui2d EditGui { get; set; } = null;
-    public Gui2d GameGui { get; set; } = null;
-    public UiElement DebugInfo { get; set; } = null;
+    public Gui2d Gui { get; set; } = null;
+    public UiElement WorldDebugInfo { get; set; } = null;
+    public UiElement GpuDebugInfo { get; set; } = null;
+    public UiElement ControlsInfo { get; set; } = null;
     public PolygonMode PolygonMode = PolygonMode.Fill;
     public ViewInputMode ViewInputMode = ViewInputMode.Edit;
     public ViewportOverlay Overlay { get; private set; } = null;
-    public Line3f? MouseRay { get; private set; } = null;
     public string Name { get; private set; } = "";
+    public bool Enabled { get; set; } = true;
+
+    public RenderViewMode ViewMode { get { return _viewMode; } }
+    private RenderViewMode _viewMode = RenderViewMode.UIAndWorld;
 
     private mat4 _projLast = mat4.Identity;
     private GpuCamera _gpuCamera = new GpuCamera();
     private vec2 _uv0 = vec2.Zero;
     private vec2 _uv1 = vec2.Zero;
-    private float _renderFOV, _renderNear, _renderFar;//temps for rendering
+    private float? _renderFOV = null;
+    private float? _renderNear = null;
+    private float? _renderFar = null;//temps for rendering
 
-    public RenderView(string name, vec2 uv0, vec2 uv1, int sw, int sh)
+
+    public RenderView(string name, RenderViewMode mode, vec2 uv0, vec2 uv1, int sw, int sh)
     {
       Name = name;
+      _viewMode = mode;
       //note: xy is bottom left in opengl
       Id = s_idGen++;
       Overlay = new ViewportOverlay(this);
-
+      SetSize(uv0, uv1, sw, sh);
+    }
+    public void SetSize(vec2 uv0, vec2 uv1, int sw, int sh)
+    {
       _uv0 = uv0;
       _uv1 = uv1;
       Gu.Assert(_uv0.x < _uv1.x);
       Gu.Assert(_uv0.y < _uv1.y);
       OnResize(sw, sh);
       SetModified();
-    }
-    public void Update_PostView()
-    {
-      ActiveGui?.Update(Gu.Context.Delta);
-
-      //Update Mouse Ray
-      if (Gu.Context.GameWindow.ActiveViewCamera != null)
-      {
-        if (Gu.Context.GameWindow.ActiveViewCamera.Frustum != null)
-        {
-          MouseRay = Gu.Context.GameWindow.ActiveViewCamera.Frustum.RaycastWorld(Gu.Mouse.Pos);
-        }
-      }
     }
     public void SetCurrent()
     {
@@ -429,32 +439,50 @@ namespace PirateCraft
       //Cameras may be shared by different renderviews so we need to update it if we are on the current view
       //The reason for chagne is that cameras will have sub-views within a window's renderview area (black bars)
       //But of course, I mean, we could just change the dimensions of the renderview itself..right?
-      if (Camera != null && Camera.TryGetTarget(out var c))
+
+      if (_viewMode == RenderViewMode.WorldOnly || _viewMode == RenderViewMode.UIAndWorld)
       {
-        c.View = new WeakReference<RenderView>(this);
+        if (Camera != null && Camera.TryGetTarget(out var c))
+        {
+          c.View = new WeakReference<RenderView>(this);
+          SetModified();
+        }
       }
-      SetModified();
     }
     public bool BeginRender3D()
     {
-      //Return false if the camera for this view isn't set.
-      if (Camera != null && Camera.TryGetTarget(out var c))
+      var ret = false;
+      _renderFOV = null;
+      _renderNear = null;
+      _renderFar = null;
+      if (_viewMode == RenderViewMode.UIOnly)
       {
-        _renderFOV = c.FOV;
-        _renderNear = c.Near;
-        _renderFar = c.Far;
-        //Viewport.SetupViewport();
-
-        GL.PolygonMode(MaterialFace.Front, this.PolygonMode);
-
-        SetCurrent();
-        return true;
+        ret = true;
       }
-      return false;
+      else if (_viewMode == RenderViewMode.WorldOnly || _viewMode == RenderViewMode.UIAndWorld)
+      {
+        //Return false if the camera for this view isn't set.
+        if (Camera != null && Camera.TryGetTarget(out var c))
+        {
+          _renderFOV = c.FOV;
+          _renderNear = c.Near;
+          _renderFar = c.Far;
+          //Viewport.SetupViewport();
+
+          GL.PolygonMode(MaterialFace.Front, this.PolygonMode);
+
+          SetCurrent();
+          ret = true;
+        }
+      }
+      return ret;
     }
     public void EndRender3D()
     {
-      SetModified();
+      if (_viewMode == RenderViewMode.WorldOnly || _viewMode == RenderViewMode.UIAndWorld)
+      {
+        SetModified();
+      }
     }
     public void BeginRender2D(mat4? customProj)
     {
@@ -477,7 +505,7 @@ namespace PirateCraft
       ProjectionMatrix = _projLast;
       SetModified();
     }
-    public void BeginPipelineStage(PipelineStage ps)
+    public bool BeginPipelineStage(PipelineStage ps)
     {
       UpdateDimensions(ps.Size.width, ps.Size.height);
       int vx = Viewport.X;
@@ -489,7 +517,22 @@ namespace PirateCraft
       GL.Scissor(vx, vy, vw, vh);
 
       _projLast = ProjectionMatrix;
-      ProjectionMatrix = mat4.projection(_renderFOV, Viewport.Width, Viewport.Height, _renderNear, _renderFar);
+
+      if (ViewMode != RenderViewMode.UIOnly)
+      {
+        if (_renderFar == null || _renderNear == null || _renderFOV == null)
+        {
+          Gu.Log.Error($"{Name} - camera props null");
+          Gu.DebugBreak();
+          return false;
+        }
+        ProjectionMatrix = mat4.projection(_renderFOV.Value, Viewport.Width, Viewport.Height, _renderNear.Value, _renderFar.Value);
+      }
+      else
+      {
+        ProjectionMatrix = mat4.Identity;//we are rendering ui - this wont get used.
+      }
+      return true;
     }
     public void EndPipelineStage(PipelineStage ps)
     {
@@ -499,7 +542,7 @@ namespace PirateCraft
     public void OnResize(int sw, int sh)
     {
       UpdateDimensions(sw, sh);
-      ActiveGui?.OnResize();//Gui is translated to the current FBO size in the shader.
+      Gui?.OnResize();//Gui is translated to the current FBO size in the shader.
     }
     public void UpdateDimensions(int cur_output_fbo_w, int cur_output_fbo_h)
     {
@@ -550,12 +593,25 @@ namespace PirateCraft
     {
       if (Modified || Gu.EngineConfig.Debug_AlwaysCompileAndReloadGpuUniformData)
       {
-        Gu.Assert(Camera != null);
-        if (Camera != null && Camera.TryGetTarget(out var c))
+        if (this.ViewMode != RenderViewMode.UIOnly)
         {
-          _gpuCamera._vViewPos = c.Position_World;
-          _gpuCamera._vViewDir = c.Heading;
-          _gpuCamera._m4View = c.ViewMatrix;
+          if (Camera != null && Camera.TryGetTarget(out var c))
+          {
+            _gpuCamera._vViewPos = c.Position_World;
+            _gpuCamera._vViewDir = c.Heading;
+            _gpuCamera._m4View = c.ViewMatrix;
+          }
+          else
+          {
+            Gu.Log.Error($"{Name} - Camera was null");
+            Gu.DebugBreak();
+          }
+        }
+        else
+        {
+          _gpuCamera._vViewPos = vec3.Zero;
+          _gpuCamera._vViewDir = vec3.Zero;
+          _gpuCamera._m4View = mat4.Identity;
         }
         _gpuCamera._m4Projection = ProjectionMatrix;//Could be orthographic, or perspective depending
         _gpuCamera._fWindowWidth = Gu.Context.GameWindow.Width;
@@ -598,7 +654,7 @@ namespace PirateCraft
     {
       base.Update(world, dt, ref parentBoundBox);
       var p = this.WorldMatrix.ExtractTranslation();
-      ViewMatrix = mat4.getLookAt(p, new vec3(p + BasisZ), new vec3(0, 1, 0));
+      ViewMatrix = mat4.getLookAt(p, new vec3(p + BasisZ_World), new vec3(0, 1, 0));
       Frustum.Update();
     }
 

@@ -13,7 +13,7 @@ namespace PirateCraft
     Slerp,
   }
 
-  [DataContract] [Serializable]
+  [DataContract]
   public class KeyframeBase : ISerializeBinary, IClone, ICopy<KeyframeBase>
   {
     [DataMember] private double _time = 0;
@@ -46,7 +46,7 @@ namespace PirateCraft
       Interpolation = (KeyframeInterpolation)br.ReadInt32();
     }
   }
-  [DataContract] [Serializable]
+  [DataContract]
   public class Vec3Keyframe : KeyframeBase, ISerializeBinary, IClone, ICopy<Vec3Keyframe>
   {
     [DataMember] private vec3 _value = new vec3(0, 0, 0);
@@ -79,10 +79,10 @@ namespace PirateCraft
     }
 
   }
-  [DataContract] [Serializable]
+  [DataContract]
   public class QuatKeyframe : KeyframeBase, ISerializeBinary, IClone, ICopy<QuatKeyframe>
   {
-   [DataMember]  private quat _value = quat.identity();
+    [DataMember] private quat _value = quat.identity();
 
     public quat Value { get { return _value; } set { _value = value; } }
 
@@ -112,7 +112,7 @@ namespace PirateCraft
     }
   }
 
-  [DataContract] [Serializable]
+  [DataContract]
   public class AnimationData : DataBlock, ISerializeBinary, IClone, ICopy<AnimationData> /*technically not a datablock, because this is generated from the .glb, however if we discard glb in hte future it would be*/
   {
     //We may end up compressing the data blocks here.
@@ -126,7 +126,7 @@ namespace PirateCraft
     [DataMember] private List<Vec3Keyframe>? _posChannel = null;
     [DataMember] private List<QuatKeyframe>? _rotChannel = null;
     [DataMember] private List<Vec3Keyframe>? _scaleChannel = null;
- 
+
     public AnimationData() { }
     public void FillRot(float[] times, quat[] rots, KeyframeInterpolation interp, bool data_is_wxyz, bool flipy_gl)
     {

@@ -94,22 +94,95 @@ namespace PirateCraft
     }
   }
   [DataContract]
-  [Serializable]
-  public abstract class OpenGLContextDataManager<T> : DataBlock where T : class
+  public class DynamicFileLoader : DataBlock
   {
-    [NonSerialized] protected Dictionary<WindowContext, T> _contextData = new Dictionary<WindowContext, T>();
+    public DateTime MaxModifyTime { get { return _maxModifyTime; } private set { _maxModifyTime = value; } }
+    public DateTime _maxModifyTime = DateTime.MinValue;
+    public virtual bool ShouldCheck { get { return false; } } //return true to check for chaned fiesl
+    protected virtual List<FileLoc> Files { get { return new List<FileLoc>(); } }
+    //[DataMember] protected HashSet<FileLoc> _files = new HashSet<FileLoc>(new FileLoc.EqualityComparer());
+
+    protected DynamicFileLoader() { } //clone/serialize
+    public DynamicFileLoader(string name) : base(name) { }
+
+    protected virtual void OnSourceChanged(List<FileLoc> changed) { }
+
+    protected void UpdateMaxModifyTime()
+    {
+      //Set max modify time, this lets us compile the shaders dynamically on file changes, it also lets us load the GLBinary on file changes.
+      var oldmod = MaxModifyTime;
+      foreach (var f in this.Files)
+      {
+        MaxModifyTime = MathUtils.Max(MaxModifyTime, f.GetLastWriteTime(true));
+      }
+      if (MaxModifyTime != oldmod)
+      {
+        //debug
+        int n = 0;
+        n++;
+      }
+    }
+
+    public void CheckSourceChanged()
+    {
+      if (this.Files == null || this.Files.Count == 0)
+      {
+        //The shader has been gott, but not initialized.
+        return;
+      }
+      List<FileLoc> changed = new List<FileLoc>();
+
+      foreach (var f in this.Files)
+      {
+        var wt = f.GetLastWriteTime(true);
+        if (wt > MaxModifyTime)
+        {
+          // ** Set the modify time to the maximum file mod - even if compile fails. This prevents infinite checking
+          MaxModifyTime = wt;
+          changed.Add(f);
+        }
+      }
+      if (changed.Count > 0)
+      {
+        Gu.Log.Info($"Resource {Name} has changed, hot-re-loading");
+        OnSourceChanged(changed);
+      }
+    }
+  }
+
+  [DataContract]
+  public abstract class OpenGLContextDataManager<T> : DynamicFileLoader where T : class
+  {
+    protected Dictionary<WindowContext, T> _contextData = new Dictionary<WindowContext, T>();
     protected abstract T CreateNew();
+
+    //Textures are sharable - override return True if the GL data is sharable.
+    public virtual bool IsDataShared { get { return false; } }
 
     protected OpenGLContextDataManager() { }//clone/serialize
 
     public OpenGLContextDataManager(string name) : base(name)
     {
     }
-    protected T GetDataForContext(WindowContext ct)
+    public T GetDataForContext(WindowContext ct)
     {
+      if (IsDataShared)
+      {
+        if (ct.SharedContext != null)
+        {
+          ct = ct.SharedContext;
+        }
+        else if (_contextData.Keys.Count >= 1 && _contextData.Keys.First() != ct)
+        {
+          Gu.Log.Warn("Multiple contexts for textures is not implemented. Texture data will be null, and may need to be copied to additional contexts");
+          Gu.DebugBreak();
+        }
+      }
+
       T? ret = null;
       if (!_contextData.TryGetValue(ct, out ret))
       {
+
         ret = CreateNew();
         _contextData.Add(ct, ret);
       }

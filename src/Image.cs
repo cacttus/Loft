@@ -90,7 +90,7 @@ namespace PirateCraft
     }
   }
 
-  [DataContract] [Serializable]
+  [DataContract]
   public class Image : DataBlock, IClone, ICopy<Image>, ISerializeBinary
   {
     //Note: this class initializes the data buffer when you create it. It requires a w/h
@@ -105,8 +105,8 @@ namespace PirateCraft
     }
     [DataMember] public int _width = 0;
     [DataMember] public int _height = 0;
-    [NonSerialized] public byte[] _data = null;//This is only if there is no data source
     [DataMember] public ImagePixelFormat _format = ImagePixelFormat.Undefined;
+    public byte[] _data = null;//This is only if there is no data source
 
     public int Width { get { return _width; } private set { _width = value; } }
     public int Height { get { return _height; } private set { _height = value; } }

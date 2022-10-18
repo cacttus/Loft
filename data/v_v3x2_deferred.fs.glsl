@@ -11,13 +11,18 @@ void main()
   vec3 fragNormal                       = normalize(fragNormal_and_bump_intensity.xyz);//we are normalizing here, not in deferred.
   vec3 fragPos                          = fragPos_and_nolight.xyz;
   
-  float nolight                         = fragPos_and_nolight.w;
+  float nolight                         = fragPos_and_nolight.w;//Flat
   float bump_intensity                  = fragNormal_and_bump_intensity.w;
-
-//not using plane rn
 
   //vec3 final_color = lightFragmentCookTorrence(fragPos, fragColor, fragNormal, 0.2f, 0.5f, 1);
   vec3 final_color = lightFragmentBlinnPhong(fragPos, fragColor, fragNormal) * (1.0-nolight) + fragColor.rgb * nolight;
+
+
+  //testing
+  //final_color = toneMap_Reinhard(final_color, _ufGpuWorld._fHdrGamma-1.2);
+ // final_color = tonemap_Exposure(final_color, .75, 1.0);
+
+  final_color = tonemap_Exposure(final_color, _ufGpuWorld._fHdrExposure, _ufGpuWorld._fHdrGamma);
 
 	setOutput_Color(vec4(final_color.rgb, 1));
 }

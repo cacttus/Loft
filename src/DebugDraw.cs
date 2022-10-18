@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL4;
 
-
 namespace PirateCraft
 {
   //Debug Draw with points or lines.
@@ -14,9 +13,10 @@ namespace PirateCraft
     public List<v_v3c4> TriPoints = new List<v_v3c4>();
 
     public bool DrawBoundBoxes { get; set; } = false;
-    public bool DrawVertexNormals { get; set; } = false;
-    public bool DrawFaceNormals { get; set; } = false;
-
+    public bool DrawVertexAndFaceNormalsAndTangents { get; set; } = false;
+    public bool DrawObjectBasis { get; set; } = false;
+    public bool DrawWireframeOverlay { get; set; } = false;
+    
     public DebugDraw()
     {
     }

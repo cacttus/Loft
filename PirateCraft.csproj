@@ -8,6 +8,11 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ApplicationIcon>data\icon.ico</ApplicationIcon>
     <PackageIcon>icon.ico</PackageIcon>
+    <AssemblyVersion>1.0.0.1</AssemblyVersion>
+    <!--
+    <VersionPrefix>1.0.0</VersionPrefix>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    -->
   </PropertyGroup>
 
   <ItemGroup>
