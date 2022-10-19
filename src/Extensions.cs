@@ -174,19 +174,44 @@ namespace PirateCraft
     {
       return StringUtil.IsEmpty(s);
     }
+    public static void IterateSafe<T>(this List<T> list, Func<T, int, LambdaBool> act)
+    {
+      if (list != null)
+      {
+        //If we remove components while iterating components..
+        for (int idx = list.Count - 1; idx >= 0; idx--)
+        {
+          if (idx < list.Count)
+          {
+            if (act(list[idx], idx) == LambdaBool.Break)
+            {
+              break;
+            }
+          }
+          else
+          {
+            idx = list.Count - 1;
+          }
+        }
+      }
+    }    
     public static void IterateSafe<T>(this List<T> list, Func<T, LambdaBool> act)
     {
       if (list != null)
       {
         //If we remove components while iterating components..
-        for (int c = list.Count - 1; c >= 0; c--)
+        for (int idx = list.Count - 1; idx >= 0; idx--)
         {
-          if (c < list.Count)
+          if (idx < list.Count)
           {
-            if (act(list[c]) == LambdaBool.Break)
+            if (act(list[idx]) == LambdaBool.Break)
             {
               break;
             }
+          }
+          else
+          {
+            idx = list.Count - 1;
           }
         }
       }
@@ -206,7 +231,7 @@ namespace PirateCraft
 
   }//cls
 
-  
+
   public static class BinaryWriterExtensions
   {
     public static void Write(this System.IO.BinaryWriter writer, vec2 v)
@@ -448,7 +473,7 @@ namespace PirateCraft
       return SerializeTools.Deserialize<T>(buf);
     }
   }
-  
+
 
 
 }//ns

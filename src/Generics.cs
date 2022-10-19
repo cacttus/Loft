@@ -102,7 +102,7 @@ namespace PirateCraft
         return ret.Contains(value);
       }
       return false;
-    }    
+    }
     public List<TValue> ItemsAt(TKey key)
     {
       if (_dict.TryGetValue(key, out var ret))
@@ -651,8 +651,8 @@ namespace PirateCraft
     }
     public static bool DoesNotEqual(string a, string b)
     {
-      return !Equals(a,b);
-    }    
+      return !Equals(a, b);
+    }
     public static string FormatPrec(float x, int prec)
     {
       return String.Format("{0:0." + new string('0', prec) + "}", x);
@@ -2219,6 +2219,43 @@ namespace PirateCraft
       Gu.BRThrowNotImplementedException();
     }
   }
+  public class ReverseGrowList<T>
+  {
+    //Used for UI since sorting isn't supported yet
+    public List<T> List = new List<T>();
+    public int Count { get { return List.Count - _countdown; } }
+    private int _countdown = 0;
+
+    public ReverseGrowList()
+    {
+    }
+    public T[] ToArray()
+    {
+      var range = List.GetRange(_countdown, List.Count - _countdown);
+      return range.ToArray();
+    }
+    public void Reset()
+    {
+      _countdown = List.Count;
+    }
+    public void Add(T item)
+    {
+      if (_countdown == 0)
+      {
+        List.Insert(0, item);
+        if (List.Count > 99999)
+        {
+          Gu.DebugBreak();//forgot to call reset?
+        }
+      }
+      else
+      {
+        List[_countdown - 1] = item;
+        _countdown--;
+      }
+    }
+  }
+
 
 
 }//ns

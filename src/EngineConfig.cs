@@ -61,6 +61,7 @@ namespace PirateCraft
     [JSONXIgnore()] public bool Renderer_UseAlias = true;//-1;//320;//-1=Disable, 640, 320
     [JSONXIgnore()] public int AliasScreenWidthPixels = 430;//-1;//320;//-1=Disable, 640, 320
     [JSONXIgnore()] public bool ReleaseAllButtonsWhenWindowLosesFocus = true;
+    [JSONXIgnore()] public int MaxUIEvents = 500;
 
     public EngineConfig(FileLoc loc)
     {

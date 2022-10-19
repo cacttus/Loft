@@ -24,6 +24,8 @@ namespace PirateCraft
     public const string EditGuiRoot = "EditGuiRoot";
     public const string VerticalBar = "VerticalBar";
     public const string MenuItem = "MenuItem";
+    public const string HBar = "HBar";
+    public const string ToolbarButton = "ToolbarButton";
   }
   //Hard coded User interface stuff.
   //Gui build
@@ -37,12 +39,12 @@ namespace PirateCraft
     public static List<FileLoc> GetSharedGUIResources()
     {
       return new List<FileLoc>(){
-       FontFace.Parisienne
-      ,FontFace.RobotoMono
-      ,FontFace.PressStart2P
-      ,FontFace.EmilysCandy
+       FontFace.Parisienne,
+      FontFace.RobotoMono,
+      //,FontFace.PressStart2P
+   //   ,FontFace.EmilysCandy
       //,FontFace.Entypo// -- stb doesn't do this
-      ,FontFace.Calibri
+      FontFace.Calibri,
       };
     }
     public static Gui2d GetOrCreateSharedGuiForView(string name, RenderView rv)
@@ -55,8 +57,8 @@ namespace PirateCraft
       {
         new UiStyle(StyleName.BaseControl)
         {
-          FontColor = new vec4(0.21f, 0.24f, 0.24f, 1),
-          Color = new vec4(0.63f, 0.7f, 0.7f, 1),
+          FontColor = vec4.rgba_ub(42,42,42, 255),
+          Color = vec4.rgba_ub(230,230,230, 255),
           BorderColor = new vec4(0.14f, 0.16f, 0.16f, 1),
           Padding = 0,
           Margin = 0,
@@ -74,6 +76,7 @@ namespace PirateCraft
           SizeModeWidth = UiSizeMode.Shrink,
           DisplayMode = UiDisplayMode.Inline,
           OverflowMode = UiOverflowMode.Hide,
+          FloatMode = UiFloatMode.None
         },
         new UiStyle(StyleName.Button)
         {
@@ -93,8 +96,7 @@ namespace PirateCraft
           MarginLeft = 5,
           MarginRight = 5,
           MarginTop = 1,
-          MarginBot = 1,
-          Padding=10,//**** REMOVE
+          MarginBot = 3,
         },
         new UiStyle(StyleName.VerticalBar, StyleName.BaseControl)
         {
@@ -104,19 +106,38 @@ namespace PirateCraft
           PositionMode = UiPositionMode.Static,
           DisplayMode = UiDisplayMode.Inline,
           Width = 1,
-          MarginTop= 3,
-          MarginBot= 3,
+          MarginTop= 2,
+          MarginBot= 2,
           MarginLeft=2,
           MarginRight=2,
           Padding = 0,
-          Color = new vec4(0.5f, 0.5f, 0.5f, 0.8f),
+          Color = new vec4(0.6f, 0.6f, 0.6f, 0.8f),
         },
+        new UiStyle(StyleName.HBar)
+        {
+          Texture = gui.DefaultPixel,
+          SizeModeWidth = UiSizeMode.Expand,
+          SizeModeHeight = UiSizeMode.Shrink,
+          PositionMode = UiPositionMode.Static,
+          DisplayMode = UiDisplayMode.Inline,
+          Height = 1,
+          MinHeight = 1,
+          MarginTop = 2,
+          MarginBot = 2,
+          MarginLeft = 2,
+          MarginRight = 2,
+          PadLeft = 2,
+          PadRight = 2,
+          Color = new vec4(0.6f, 0.6f, 0.6f, 1),
+        },        
         new UiStyle(StyleName.DebugLabel, StyleName.Label)
         {
-          Color = new vec4(.6f,.6f,.6f,.98f)
-          ,MaxWidth = 500
+          MaxWidth = 500
           ,FontSize = 16
           ,DisplayMode = UiDisplayMode.Block
+          ,PadTop = 2
+          ,PadLeft = 2
+          , FontFace = FontFace.RobotoMono
         },
         new UiStyle(StyleName.Toolbar, StyleName.BaseControl)
         {
@@ -130,27 +151,15 @@ namespace PirateCraft
           Margin=0,
           Padding=0,
         },
-        new UiStyle(StyleName.StatusBar, StyleName.BaseControl)
-        {
-          Texture = gui.DefaultPixel,
-          MinWidth = 0,
-          MinHeight = 30,
-          SizeModeWidth = UiSizeMode.Expand,
-          SizeModeHeight = UiSizeMode.Shrink,
-          FontSize = 12,
-          FontFace = FontFace.RobotoMono,
-          Margin=0,
-          Padding=0,
-        },
         new UiStyle(StyleName.Panel, StyleName.BaseControl)
         {
           Texture = gui.DefaultPixel,
           SizeModeWidth = UiSizeMode.Expand,
           SizeModeHeight = UiSizeMode.Expand,
-          Padding = 10,
-          Margin = 0,
+          Padding = 0,
+          Margin = 10,
           BorderRadius = 0,
-          FontFace = FontFace.PressStart2P,
+          FontFace = FontFace.Calibri,
           FontSize = 16
         },
         new UiStyle(StyleName.EditGuiRoot)
@@ -166,7 +175,9 @@ namespace PirateCraft
         },
         new UiStyle(StyleName.ContextMenu, StyleName.Label)
         {
-          PositionMode = UiPositionMode.Floating,
+          Color = vec4.rgba_ub(245,245,245, 255),
+          PositionMode = UiPositionMode.Absolute,
+          FloatMode = UiFloatMode.Floating,
           MaxWidth = 500,
           MinWidth = 10,
           SizeModeWidth = UiSizeMode.Shrink,
@@ -175,6 +186,7 @@ namespace PirateCraft
           Padding=0,
           Border=0,
           Margin=0,
+          ColorMul = new vec4(1,1)
         },
         new UiStyle(StyleName.MenuItem, StyleName.Label)
         {
@@ -182,8 +194,13 @@ namespace PirateCraft
           SizeModeHeight = UiSizeMode.Shrink,
           PositionMode = UiPositionMode.Static,
           MaxWidth = 500,
-        },
-
+          MinWidth = 130,
+          MarginTop = 6,
+          MarginBot = 6,
+          MarginLeft = 20,
+          MarginRight = 20,
+        },  
+ 
       };
     }
     public static void MakeGui(RenderView rv)
@@ -196,31 +213,30 @@ namespace PirateCraft
           {
             Gu.World.Editor.DoEvent(WorldEditEvent.Debug_ToggleVSync);
           }),
-          (new UiMenuItem("quit")).Click((e) =>
+          UiMenuItem.HBar(),
+          (new UiMenuItem("Quit")).Click((e) =>
           {
             Gu.World.Editor.DoEvent(WorldEditEvent.Quit);
           })
         );
-      toolbar.AddVBar();
 
       toolbar.AddItem(new UiToolbarButton(Phrase.Edit))
         .AddMenuItems(
-          (new UiMenuItem("undo")).Click((e) =>
+          (new UiMenuItem("Undo")).Click((e) =>
         {
           Gu.World.Editor.DoEvent(WorldEditEvent.Edit_Undo);
         }),
-        (new UiMenuItem("redo")).Click((e) =>
+        (new UiMenuItem("Redo")).Click((e) =>
         {
           Gu.World.Editor.DoEvent(WorldEditEvent.Edit_Redo);
         }),
-        (new UiMenuItem("ddelete")).Click((e) =>
+        (new UiMenuItem("Delete")).Click((e) =>
         {
           Gu.World.Editor.DoEvent(WorldEditEvent.Edit_Delete);
         })
         );
-      toolbar.AddVBar();
 
-      toolbar.AddItem(new UiToolbarButton(Phrase.Help))
+      toolbar.AddItem(new UiToolbarButton("Test"))
         .AddMenuItems(
           (new UiMenuItem(Phrase.About)).Click((e) => { }),
           (new UiMenuItem(Phrase.FolderDoesNotExist)).Click((e) => { }),
@@ -229,7 +245,11 @@ namespace PirateCraft
             (new UiMenuItem(Phrase.DebugInfoHeader)).Click((e) => { }),
             (new UiMenuItem(Phrase.Dark)).Click((e) => { })
             .AddMenuItems(
-              (new UiMenuItem(Phrase.Error)).Click((e) => { }),
+              (new UiMenuItem(Phrase.Error)).Click((e) => { })
+                .AddMenuItem((new UiMenuItem(Phrase.CopyItem))
+                  .AddMenuItem((new UiMenuItem(Phrase.NewProject))
+                    .AddMenuItem((new UiMenuItem(Phrase.TileSize))
+                      .AddMenuItem(new UiMenuItem(Phrase.Version))))),
               (new UiMenuItem(Phrase.AtlasParameters)).Click((e) => { }),
               (new UiMenuItem(Phrase.AtlasParameters)).Click((e) => { }),
               (new UiMenuItem(Phrase.AtlasParameters)).Click((e) => { }),
@@ -256,7 +276,7 @@ namespace PirateCraft
       rv.ControlsInfo.Visible = false;
 
       //Root the edit GUI so we can hide it.
-      var editgui_root = new UiElement(RenderView.c_EditGUI_Root, StyleName.EditGuiRoot);
+      var editgui_root = new UiElement(StyleName.EditGuiRoot);
       editgui_root.AddChild(toolbar);//testing all the jacked up chagnes
       editgui_root.AddChild(rv.WorldDebugInfo);
       editgui_root.AddChild(rv.GpuDebugInfo);

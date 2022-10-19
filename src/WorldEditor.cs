@@ -1053,7 +1053,7 @@ namespace PirateCraft
         }
 
       }
-      sb.Append($"({State.ToString()})");
+     // sb.Append($"({State.ToString()})");
 
       return sb.ToString();
     }
@@ -1647,7 +1647,6 @@ namespace PirateCraft
           if (Gu.TryGetSelectedViewGui(out var g))
           {
             g.DebugDraw.ShowOverlay = !g.DebugDraw.ShowOverlay;
-            g.SetLayoutChanged();
           }
         }
         else if (code == WorldEditEvent.Debug_UI_Toggle_DisableMarginsPadding)
@@ -1656,7 +1655,6 @@ namespace PirateCraft
           {
             g.DebugDraw.DisableMarginsAndPadding = !g.DebugDraw.DisableMarginsAndPadding;
             g.DebugDraw.DisableBorders = !g.DebugDraw.DisableBorders;
-            g.SetLayoutChanged();
           }
         }
         else if (code == WorldEditEvent.Debug_UI_Toggle_DisableClip)
@@ -1664,7 +1662,6 @@ namespace PirateCraft
           if (Gu.TryGetSelectedViewGui(out var g))
           {
             g.DebugDraw.DisableClip = !g.DebugDraw.DisableClip;
-            g.SetLayoutChanged();
           }
         }
 

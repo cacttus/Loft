@@ -563,7 +563,7 @@ namespace PirateCraft
     public vec2 uv0;
     public vec2 uv1;
     public float width;
-    public float marginRight;
+    public float advance;
     public float height;
     public float top;
     public float bot;
@@ -588,7 +588,7 @@ namespace PirateCraft
       bw.Write((vec2)uv0);
       bw.Write((vec2)uv1);
       bw.Write((Single)width);
-      bw.Write((Single)marginRight);
+      bw.Write((Single)advance);
       bw.Write((Single)height);
       bw.Write((Single)top);
       bw.Write((Single)bot);
@@ -603,7 +603,7 @@ namespace PirateCraft
       uv0 = br.ReadVec2();
       uv1 = br.ReadVec2();
       width = br.ReadSingle();
-      marginRight = br.ReadSingle();
+      advance = br.ReadSingle();
       height = br.ReadSingle();
       top = br.ReadSingle();
       bot = br.ReadSingle();
@@ -1165,7 +1165,7 @@ namespace PirateCraft
         float bearing = (float)leftbearing * patchInfo.ScaleForPixelHeight;
         float ascent = (float)_ascent * patchInfo.ScaleForPixelHeight;
         float descent = (float)_descent * patchInfo.ScaleForPixelHeight;
-        float lineHeight = Math.Abs(ascent) + Math.Abs(descent) + (float)_lineGap * patchInfo.ScaleForPixelHeight;
+        float lineHeight = ascent - descent + (float)_lineGap * patchInfo.ScaleForPixelHeight;
         // advanceWidth is the offset from the current horizontal position to the next horizontal position
         // leftSideBearing is the offset from the current horizontal position to the left edge of the character
         // ascent is the coordinate above the baseline the font extends; descent
@@ -1177,7 +1177,7 @@ namespace PirateCraft
 
         ccd.height = lineHeight;
         ccd.width = (stbQuad.x1 - stbQuad.x0);
-        ccd.marginRight = Math.Abs(advance) - ccd.width;
+        ccd.advance = advance;
         ccd.left = stbQuad.x0;
         ccd.top = stbQuad.y0;
         ccd.right = stbQuad.x1;

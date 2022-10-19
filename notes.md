@@ -1,8 +1,14 @@
 ﻿Working On:
 10/18
-remove the layer indexes this is dumb
-instead - all statics are on 1 line and have z-index
-all floats & rels are above it or below it based on their personal z index
+
+  next up 
+    GLTF load animation
+    skin/bone mats
+      array of matrix pallets on instance data (uniform)
+    shared skeles'
+    test model
+
+  fix glyphs and rendering (mipmapping was enabled on megtexture)
 
 10/17
 
@@ -194,9 +200,13 @@ Roadmap:
 * Prototype Complete
 
 TODO list
-* Hot Reload + Edit - (LaunchFileWithSelectedShaderErrorLine)
-    For shaders & Scripts
-      when an error occurs - launch the file in the editor.
+* XML for the UI - relies on Unified Diff
+    * XDocument doc= XDocument.Parse("<e>this is some text<e Position=\"Fixed\" Background=\"image.png\"></e>some more text.<e Position=\"Fixed\">interior element with text</e></e>");
+* Unified UI
+    * Unify Glyphs + Elements (UiElement._glyphs UiElement._children) and change SlidingDiff to work with all elements
+    * Make it work iwth changes to the XDocument DOM
+* LaunchFileWithSelectedShaderErrorLine (shaders & Scripts)
+    * when an error occurs - launch the file in the editor.
 * Do away with generic shader names - files must exist, if they dont exist then it wont be reported if the shader still compiles.
 * Put line width / point size on Material (perhaps GPU state, or just a material param)
   of course put functionality in to render these without compatibility profile

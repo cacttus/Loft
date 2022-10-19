@@ -441,8 +441,7 @@ namespace PirateCraft
         info.AppendLine($"  Arrays_Frame:{MeshView.dbg_numDrawArrays_Frame}");
         info.AppendLine($"  OBs Culled:{Gu.World.NumCulledObjects}");
         info.AppendLine($"UI:");
-        info.AppendLine($"  upd={rv.Gui?.UpdateMs}ms pick={rv.Gui?.PickMs}ms mesh={rv.Gui?.MeshMs}ms obj={rv.Gui?._dbg_ObjectEventsMs}ms ");
-        info.AppendLine($"  win={rv.Gui?.WindowEventsMs}ms tot={rv.Gui?.MeshMs + rv.Gui?.UpdateMs + rv.Gui?.PickMs}ms");
+        info.AppendLine($"  update={rv.Gui?._dbg_UpdateMs}ms mesh={rv.Gui?._dbg_MeshMs}ms event={rv.Gui?._dbg_EventsMs}ms");
         info.AppendLine($"World:");
         info.AppendLine($"  Globs: count={Gu.World.NumGlobs} visible={Gu.World.NumVisibleRenderGlobs}");
         info.AppendLine($"  Picked:{Gu.Context.Renderer.Picker.PickedObjectName}");
@@ -463,8 +462,8 @@ namespace PirateCraft
       if (rv.ControlsInfo != null && rv.ControlsInfo.Visible)
       {
         System.Text.StringBuilder sb = new System.Text.StringBuilder();
-        Gu.World.Editor.KeyMap.ToString(sb, "  ");
         sb.AppendLine($"Controls:");
+        Gu.World.Editor.KeyMap.ToString(sb, "  ");
         rv.ControlsInfo.Text = sb.ToString();
       }
     }
@@ -859,7 +858,6 @@ namespace PirateCraft
           Gu.BRThrowNotImplementedException();
         }
 
-        rv.Gui?.SetLayoutChanged();
       }
     }
     protected override void DebugKeyboard()

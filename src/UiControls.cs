@@ -30,12 +30,12 @@ namespace PirateCraft
         _hasFocus = false;
         Style.ColorMul = new vec4(1.0f, 1.0f);
       });
-      AddEvent(UiEventId.MousePress, (e) =>
+      AddEvent(UiEventId.LmbPress, (e) =>
       {
         _hasClickFocus = true;
-        Style.ColorMul = new vec4(0.8f, 1.0f);
+        Style.ColorMul = new vec4(0.82f, 1.0f);
       });
-      AddEvent(UiEventId.MouseRelease, (e) =>
+      AddEvent(UiEventId.LmbRelease, (e) =>
       {
         _hasClickFocus = false;
         Style.ColorMul = new vec4(1.1f, 1.0f);
@@ -45,9 +45,19 @@ namespace PirateCraft
   public class UiMenuItem : UiControl
   {
     public override string NamingPrefix { get { return "mnu"; } }
-    private UiContextMenu _container = null;
+    private UiContextMenu _contextMenu = null;
     private bool _isTopLevel = true;
 
+    public static UiMenuItem HBar()
+    {
+      var mn = new UiMenuItem();
+      mn.Style.InheritFrom(StyleName.HBar);
+      return mn;
+    }
+    public UiMenuItem AddHBar()
+    {
+      return (UiMenuItem)AddChild(HBar());
+    }
     public UiMenuItem(Phrase p = Phrase.None) : this(Gu.Translator.Translate(p))
     {
     }
@@ -57,7 +67,7 @@ namespace PirateCraft
     }
     public new UiMenuItem Click(UiAction f)
     {
-      AddEvent(UiEventId.MouseRelease, f);
+      AddEvent(UiEventId.LmbRelease, f);
       return this;
     }
     public UiMenuItem AddMenuItems(UiMenuItem e1, UiMenuItem e2,
@@ -85,132 +95,164 @@ namespace PirateCraft
     public UiMenuItem AddMenuItem(UiMenuItem item)
     {
       Gu.Assert(item != null);
-      if (_container == null)
+      if (_contextMenu == null)
       {
-        _container = new UiContextMenu();
-        _container.Hide();
-        AddChild(_container, Gui2d.c_ContextMenuSort);
+        _contextMenu = new UiContextMenu();
+        _contextMenu.Hide();
+        AddChild(_contextMenu);
       }
       item._isTopLevel = false;
       item.Style.DisplayMode = UiDisplayMode.Block;
-      _container.AddChild(item);
-      return item;
+      _contextMenu.AddChild(item);
+      return this;
     }
-    public void Collapse()
+    public void CollapseUp(UiElement? stopat = null)
     {
-      //Collapse all menus
+      ShowContextMenu(false);
       if (Parent != null && Parent is UiContextMenu)
       {
-        if (Parent.Parent != null && Parent.Parent is UiMenuItem)
+        if (Parent.Parent != null && Parent.Parent is UiMenuItem && Parent.Parent != stopat)
         {
-          (Parent.Parent as UiMenuItem).Collapse();
+          (Parent.Parent as UiMenuItem).CollapseUp();
         }
       }
+    }
+    public void CollapseDown(UiElement? stopat = null)
+    {
       ShowContextMenu(false);
+      if (_contextMenu != null && _contextMenu.Children != null)
+      {
+        foreach (var c in _contextMenu.Children)
+        {
+          if (c != null && c is UiMenuItem)
+          {
+            (c as UiMenuItem).CollapseDown();
+          }
+        }
+      }
     }
     private void Init()
     {
-      
       this.Style.DisplayMode = UiDisplayMode.Inline;
 
       var that = this;
-      this.AddEvent(UiEventId.Mouse_Move, (e) =>
+      this.AddEvent(UiEventId.Lost_Press_Focus, (e) =>
       {
-        if (e.State.LeftButtonState == ButtonState.Hold)
-        {
-          ShowContextMenu(true);
-        }
+        CollapseDown();
+        CollapseUp();
       });
       this.AddEvent(UiEventId.Mouse_Enter, (e) =>
       {
-        if (e.State.LeftButtonState == ButtonState.Hold)
+        //mouse enters but PressFocus are a focus sitem
+        if ((e.State.LeftButtonState == ButtonState.Hold ||
+         e.State.LeftButtonState == ButtonState.Press ||
+              e.State.LeftButtonState == ButtonState.Up) && (e.State.PressFocus is UiMenuItem))
         {
           ShowContextMenu(true);
         }
       });
-      this.AddEvent(UiEventId.MousePress, (e) =>
+      this.AddEvent(UiEventId.LmbPress, (e) =>
       {
+        ShowContextMenu(true);
       });
       this.AddEvent(UiEventId.Mouse_Leave, (e) =>
       {
-        if (e.State.Current is UiMenuItem || e.State.Current is UiContextMenu)
+        //mouse leave to other menu item -> close submennus
+        //mouse leave to something else, button up -> close all
+        if (e.State.Current != null)
         {
-          //direct menu ancestor - 
-          //state.current is within parent.parent.parent's children parent = context menu, parent = menu item, parent = context menu
-          if (Parent != null && Parent.Parent != null && Parent.Parent.Parent != null)
+          if (e.State.Current.Parent == this.Parent)
           {
-            bool found = false;
-            Parent.Parent.Parent.IterateChildrenRaw((x) =>
-            {
-              if (x == e.State.Current)
-              {
-                found = true;
-                return LambdaBool.Break;
-              }
-              return LambdaBool.Continue;
-            });
-            if (found)
-            {
-              ShowContextMenu(false);
-            }
+            //moved to another menu item in same container
+            CollapseDown();
           }
-
-          if ((e.State.Current is UiMenuItem || e.State.Current is UiContextMenu) && e.State.Current.TreeDepth <= this.TreeDepth)
+          else if (e.State.Current is UiMenuItem && (e.State.Current as UiMenuItem)._contextMenu == this.Parent)
           {
-            //went up a menu, or to a sibling item
-            ShowContextMenu(false);
+            //moved to parent
+            CollapseDown();
           }
-
+          else if (e.State.Current.Parent != this._contextMenu)
+          {
+            //current is not a child,
+            CollapseDown();
+            CollapseUp();
+          }
+        }
+        else if (e.State.LeftButtonState != ButtonState.Hold &&  !(e.State.PressFocus is UiMenuItem))
+        {
+          CollapseDown();
         }
       });
-      this.AddEvent(UiEventId.MouseRelease, (e) =>
+      this.AddEvent(UiEventId.LmbRelease, (e) =>
       {
-        Collapse();
+        if (e.State.Current != null)
+        {
+          //current should be this 
+          CollapseDown(e.State.Current);
+          CollapseUp(e.State.Current);
+        }
       });
     }
     private void ShowContextMenu(bool show)
     {
-      if (_container != null)
+      if (_contextMenu != null)
       {
         if (!show)
         {
-          if (_container.Visible == true)
+          if (_contextMenu.Visible == true)
           {
-            _container.Hide();
+            _contextMenu.Hide();
           }
         }
         else
         {
-          if (_container.Visible == false)
+          if (_contextMenu.Visible == false)
           {
             if (_isTopLevel)
             {
-              _container.Style.Top = this.LocalQuad.Bottom;
+              _contextMenu.Style.Top = this.FinalQuad.Bottom;
+              _contextMenu.Style.Left = this.FinalQuad.Left;
             }
             else
             {
-              _container.Style.Top = this.LocalQuad.Top;
-              _container.Style.Left = this.LocalQuad.Right;
+              _contextMenu.Style.Top = this.FinalQuad.Top;
+              _contextMenu.Style.Left = Parent.FinalQuad.Right;
             }
-            _container.Show();
+            _contextMenu.Show();
           }
         }
       }
     }
-
   }
   public class UiToolbarButton : UiMenuItem
   {
     public UiToolbarButton(Phrase p = Phrase.None) : this(Gu.Translator.Translate(p))
     {
-    }    
+    }
     public UiToolbarButton(string text) : base(text)
     {
       //expand height, but set minimum height to be contents?
       this.Style.SizeModeHeight = UiSizeMode.Expand;
-      this.Style.SizeModeWidth= UiSizeMode.Shrink;
+      this.Style.SizeModeWidth = UiSizeMode.Shrink;
       this.Style.PositionMode = UiPositionMode.Static;
-      
+      this.Style.MinWidth = 80;
+
+      this.AddEvent(UiEventId.Mouse_Enter, (e) =>
+      {
+        if (Parent != null)
+        {
+          foreach (var c in Parent.Children)
+          {
+            if(c!= this){
+            if (c is UiMenuItem)
+            {
+              (c as UiMenuItem).CollapseDown();
+            }
+            }
+          }
+        }
+      });
+
     }
   }
   public class UiToolbar : UiElement
@@ -236,29 +278,7 @@ namespace PirateCraft
     public override string NamingPrefix { get { return "ctxm"; } }
     public UiContextMenu() : base(new List<string>() { StyleName.ContextMenu })
     {
-      //if the context menu area has no padding these events should not get called.
-      this.AddEvent(UiEventId.Mouse_Leave, (e) =>
-      {
-        //hide if we leave for an element that is not a descendnt of this element
-        if (!
-            (e.State.Current != null &&
-            (e.State.Current is UiMenuItem || e.State.Current is UiContextMenu) &&
-            e.State.Current.TreeDepth > this.TreeDepth)
-            )
-        {
-          if (Parent != null && Parent is UiMenuItem)
-          {
-            (Parent as UiMenuItem).Collapse();
-          }
-        }
-      });
-      this.AddEvent(UiEventId.MouseRelease, (e) =>
-      {
-        if (Parent != null && Parent is UiMenuItem)
-        {
-          (Parent as UiMenuItem).Collapse();
-        }
-      });
+      //context menu should have no pad or margin and wont need events
     }
   }//cls
 

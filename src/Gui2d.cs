@@ -35,20 +35,14 @@ namespace PirateCraft
   {
     [CSSAttribute("static")] Static, // flows within page/container, position is ignored (text)
     [CSSAttribute("relative")] Relative, // positioned relative to the container. (image with text flow)
-    [CSSAttribute("Floating")] Floating //does not affect container element region, but affects clip region (context menu)
+    [CSSAttribute("Absolute")] Absolute, // entiure screen
   }
   public enum UiSizeMode
   {
-    [CSSAttribute("shrink")] Shrink, //Shrink to size of all child contents
     [CSSAttribute("expand")] Expand, //Expand to parent
+    [CSSAttribute("shrink")] Shrink, //Shrink container, grow child expanders to container max w/h
     [CSSAttribute("fixed")] Fixed // Fixed width/height
   }
-  public enum UiSizeModeAdjust
-  {
-    //used when parent = shrink, and child = grow (100%) 
-    [CSSAttribute("none")] None, //do nothing
-    [CSSAttribute("mincd")] MinimumChildContent, //shrink parent to minimum of child grow content
-  }  
   public enum UiBuildOrderX
   {
     //for static elements only
@@ -84,18 +78,32 @@ namespace PirateCraft
     [CSSAttribute("bold")] Bold,
     [CSSAttribute("italic")] Italic
   }
+  public enum UiFloatMode
+  {
+    [CSSAttribute("asdfasdf")] None, // flows within page/container, position is ignored (text)
+    [CSSAttribute("relatasdfgdsagive")] Floating, //does not affect container element region, but affects clip region (context menu)
+  }
   public enum UiEventId
   {
     Undefined,
 
-    MousePress,
-    MouseHold,
-    MouseRelease,
-    MouseUp,
+    LmbPress,
+    LmbHold,
+    LmbRelease,
+    LmbUp,
+    RmbPress,
+    RmbHold,
+    RmbRelease,
+    RmbUp,
 
     Mouse_Enter,
     Mouse_Move,//Mouse_Hover = Mouse_Move?
     Mouse_Leave,
+
+    Lost_Press_Focus,
+    Got_Press_Focus,
+    Release_Press_Focus,
+
 
     Scrollbar_Pos_Change,
 
@@ -157,8 +165,8 @@ namespace PirateCraft
     , SizeModeHeight
     , MinValue
     , MaxValue
-    , SizeModeWidthAdjust
-    , SizeModeHeightAdjust
+    , ZIndex
+    , FloatMode
 
     //****
     , MaxUiProps
@@ -179,6 +187,7 @@ namespace PirateCraft
     public bool DisableMarginsAndPadding = false;
     public bool DisableBorders = false;
     public vec4 OverlayColor = new vec4(1, 0, 0, 0.3f);
+    public int FrameId = 0;
   }
   [StructLayout(LayoutKind.Sequential)]
   public struct UiQuad
@@ -246,8 +255,14 @@ namespace PirateCraft
     public ButtonState RightButtonState { get; private set; }
     public vec2 MousePosCur { get; private set; }
     public vec2 MousePosLast { get; private set; }
+    public UiElement? PressFocus { get; private set; } = null;
 
-    public UiEventState(Gui2d g, vec2 mpos_cur, vec2 mpos_last, UiElement? prev_pick, UiElement? cur_pick, ButtonState leftState, ButtonState rightState)
+    public bool IsAnyGuiItemPicked()
+    {
+      return Current != null;
+    }
+
+    public UiEventState(Gui2d g, vec2 mpos_cur, vec2 mpos_last, UiElement? prev_pick, UiElement? cur_pick, ButtonState leftState, ButtonState rightState, UiElement? pressFocus)
     {
       Gui = g;
       MousePosCur = mpos_cur;
@@ -256,29 +271,25 @@ namespace PirateCraft
       Current = cur_pick;
       LeftButtonState = leftState;
       RightButtonState = rightState;
+      PressFocus = pressFocus;
     }
   }
   public class UiEvent
   {
     public UiEventId EventId { get; private set; } = UiEventId.Undefined;
-    public MouseButton? MouseButton { get; private set; } = null;//not null if this is a mouse event
-    public ButtonState? ButtonState { get; private set; } = null;
+    //public MouseButton? MouseButton { get; private set; } = null;//not null if this is a mouse event
+    // public ButtonState? ButtonState { get; private set; } = null;
     public UiElement Element { get; private set; } //We could store a weak reference here, assuming at some point the Gui system may add/delete non-glyph elements
-    public UiEventState State { get; private set; }
 
-    public UiEvent(UiEventId id, UiElement ele, MouseButton b, ButtonState s, UiEventState state)
-      : this(id, ele, state)
+    public UiEventState? State { get; set; } = null;
+
+    private UiEventThing _thing;
+
+    public UiEvent(UiEventId id, UiElement ele)
     {
-      MouseButton = b;
-      ButtonState = s;
-    }
-    public UiEvent(UiEventId id, UiElement ele, UiEventState state)
-    {
-      Gu.Assert(state != null);
       Gu.Assert(ele != null);
       Element = ele;
       EventId = id;
-      State = state;
     }
     public void Fire()
     {
@@ -289,105 +300,153 @@ namespace PirateCraft
   public class UiEventThing
   {
     //captures input from the user while the UI is updating asynchronously.
+    //trying to do this without registering for events from children - "passive" events
     private int c_iMaxEvents = 500;
 
-    ButtonState _eLast_Lmb = ButtonState.Up;
-    ButtonState _eLast_Rmb = ButtonState.Up;
-    ButtonState _eLast_Mmb = ButtonState.Up;
-
+    private ButtonState _eLast_Lmb = ButtonState.Up;
+    private ButtonState _eLast_Rmb = ButtonState.Up;
+    private ButtonState _eLast_Mmb = ButtonState.Up;
     public List<UiEvent> _events = new List<UiEvent>();
+    private UiElement? _pressFocusLast = null;
+    private UiElement? _pressFocus = null;
+    private List<UiEvent> _new_events_frame = new List<UiEvent>();
 
+    public UiEventThing()
+    {
+      c_iMaxEvents = Gu.EngineConfig.MaxUIEvents;
+      c_iMaxEvents = Math.Clamp(c_iMaxEvents, 0, 9999999);
+    }
     public void PollForEvents(Gui2d g)
     {
+      //Poll each frame, no timer. currently Press/Release are set on a single frame but if we catch press->up we could always send a release in between.
       Gu.Assert(g != null);
       if (_events.Count >= c_iMaxEvents)
       {
         Gu.Log.Error($"Too many UI events! max={c_iMaxEvents}");
+        Gu.DebugBreak();
         return;
       }
 
+      _new_events_frame.Clear();
+
       var picker = Gu.Context.Renderer.Picker;
-      UiElement? last = null;
-      UiElement? cur = null;
+      UiElement? elast = null;
+      UiElement? ecur = null;
 
-      if (picker.PickedObjectFrameLast != null && picker.PickedObjectFrameLast is UiElement)
+      //update picked
+      if (picker.PickedObjectFrameLast is UiElement)
       {
-        last = picker.PickedObjectFrameLast as UiElement;
+        elast = picker.PickedObjectFrameLast as UiElement;
       }
-      if (picker.PickedObjectFrame != null && picker.PickedObjectFrame is UiElement)
+      if (picker.PickedObjectFrame is UiElement)
       {
-        cur = picker.PickedObjectFrame as UiElement;
+        ecur = picker.PickedObjectFrame as UiElement;
       }
 
-      //if we picked something, and user did something, send event
-      if (last != null || cur != null)
+      //button events
+      var lb = Gu.Context.PCMouse.State(MouseButton.Left);
+      var rb = Gu.Context.PCMouse.State(MouseButton.Right);
+      var mpos = Gu.Context.PCMouse.Pos;
+      var mlast = Gu.Context.PCMouse.LastPos;
+
+      //press focus (drag / mouse down)
+      if (Gu.Context.GameWindow.IsFocused == false )
       {
-        //button events
-        var lb = Gu.Context.PCMouse.State(MouseButton.Left);
-        var rb = Gu.Context.PCMouse.State(MouseButton.Right);
-
-        UiEventState state = new UiEventState(g, Gu.Context.PCMouse.Pos, Gu.Context.PCMouse.LastPos, last, cur, lb, rb);
-
-        MouseButtonEvents(MouseButton.Left, ref _eLast_Lmb, last, cur, state);
-        MouseButtonEvents(MouseButton.Right, ref _eLast_Rmb, last, cur, state);
-        MouseButtonEvents(MouseButton.Middle, ref _eLast_Mmb, last, cur, state);
-
-        //move events
-        if (last != null && last != cur)
+        var pold = _pressFocus;
+        _pressFocus = null;
+        SendEvent(UiEventId.Lost_Press_Focus, pold);
+      }
+      else if (lb == ButtonState.Press)
+      {
+        var pold = _pressFocus;
+        if (Gu.TryGetSelectedView(out var vv))
         {
-          _events.Add(new UiEvent(UiEventId.Mouse_Leave, last, state));
+          _pressFocus = ecur;
         }
-        if (cur != null && last != cur)
-        {
-          _events.Add(new UiEvent(UiEventId.Mouse_Enter, cur, state));
-        }
-        if (cur != null && last == cur)
-        {
-          _events.Add(new UiEvent(UiEventId.Mouse_Move, cur, state));
-        }
+        SendEvent(UiEventId.Lost_Press_Focus, pold);
+        SendEvent(UiEventId.Got_Press_Focus, _pressFocus);
+      }
+      else if (lb == ButtonState.Release)
+      {
+        SendEvent(UiEventId.Release_Press_Focus, _pressFocus);
+      }
 
+      //lmb / rmb
+      if (lb != _eLast_Lmb)
+      {
+        if (elast != null)
+        {
+          if (lb == ButtonState.Up) { SendEvent(UiEventId.LmbUp, elast); }
+          if (lb == ButtonState.Press) { SendEvent(UiEventId.LmbPress, elast); }
+          if (lb == ButtonState.Hold) { SendEvent(UiEventId.LmbHold, elast); }
+          if (lb == ButtonState.Release) { SendEvent(UiEventId.LmbRelease, elast); }
+        }
+        if (ecur != null)
+        {
+          if (lb == ButtonState.Up) { SendEvent(UiEventId.LmbUp, ecur); }
+          if (lb == ButtonState.Press) { SendEvent(UiEventId.LmbPress, ecur); }
+          if (lb == ButtonState.Hold) { SendEvent(UiEventId.LmbHold, ecur); }
+          if (lb == ButtonState.Release) { SendEvent(UiEventId.LmbRelease, ecur); }
+        }
+        _eLast_Lmb = lb;
+      }
+      if (rb != _eLast_Rmb)
+      {
+        if (elast != null)
+        {
+          if (rb == ButtonState.Up) { SendEvent(UiEventId.RmbUp, elast); }
+          if (rb == ButtonState.Press) { SendEvent(UiEventId.RmbPress, elast); }
+          if (rb == ButtonState.Hold) { SendEvent(UiEventId.RmbHold, elast); }
+          if (rb == ButtonState.Release) { SendEvent(UiEventId.RmbRelease, elast); }
+        }
+        if (ecur != null)
+        {
+          if (rb == ButtonState.Up) { SendEvent(UiEventId.RmbUp, ecur); }
+          if (rb == ButtonState.Press) { SendEvent(UiEventId.RmbPress, ecur); }
+          if (rb == ButtonState.Hold) { SendEvent(UiEventId.RmbHold, ecur); }
+          if (rb == ButtonState.Release) { SendEvent(UiEventId.RmbRelease, ecur); }
+        }
+        _eLast_Rmb = rb;
+      }
+
+      //move events
+      if (elast != null && elast != ecur)
+      {
+        SendEvent(UiEventId.Mouse_Leave, elast);
+      }
+      if (ecur != null && elast != ecur)
+      {
+        SendEvent(UiEventId.Mouse_Enter, ecur);
+      }
+      if (ecur != null && elast == ecur && mpos != mlast)
+      {
+        SendEvent(UiEventId.Mouse_Move, ecur);
+      }
+
+      //send
+      if (_new_events_frame.Count > 0)
+      {
+        var state = new UiEventState(g, mpos, mlast, elast, ecur, lb, rb, _pressFocus);
+        foreach (var ev in _new_events_frame)
+        {
+          ev.State = state;
+        }
+        _events.AddRange(_new_events_frame);
+
+        _new_events_frame.Clear();
       }
     }
-    private void MouseButtonEvents(MouseButton bt, ref ButtonState laststate, UiElement? elast, UiElement? ecur, UiEventState state)
+    private void SendEvent(UiEventId evid, UiElement? ele)
     {
-      if (elast != null || ecur != null)
+      //make sure ele has registered the event
+      if (ele != null)
       {
-        var lb = Gu.Context.PCMouse.State(bt);
-        if (laststate != lb)
+        if (ele.Events.Keys.Contains(evid))
         {
-          var evid = GetUiEventId(lb);
-          var pos = Gu.Context.PCMouse.Pos;
-          var polast = Gu.Context.PCMouse.LastPos;
-
-          //TODO: we may have to synclock the events here. Assuming GUI does not update the events.
-
-          if (elast != null && elast.Events != null && elast.Events.Keys.Contains(evid))
-          {
-            _events.Add(new UiEvent(evid, elast, bt, lb, state));
-          }
-          if (ecur != null && ecur.Events != null && ecur.Events.Keys.Contains(evid))
-          {
-            _events.Add(new UiEvent(evid, ecur, bt, lb, state));
-          }
-          laststate = lb;
+          _new_events_frame.Add(new UiEvent(evid, ele));
         }
       }
     }
-    private UiEventId GetUiEventId(ButtonState b)
-    {
-      UiEventId ret = UiEventId.Undefined;
-      if (b == ButtonState.Press) { ret = UiEventId.MousePress; }
-      else if (b == ButtonState.Hold) { ret = UiEventId.MouseHold; }
-      else if (b == ButtonState.Release) { ret = UiEventId.MouseRelease; }
-      else if (b == ButtonState.Up) { ret = UiEventId.MouseUp; }
-      else
-      {
-        Gu.DebugBreak();
-      }
-      //TODO: other events .. 
-      return ret;
-    }
-
   }
   public class UiDragInfo
   {
@@ -479,7 +538,7 @@ namespace PirateCraft
     public vec4 Color = new vec4(1, 1, 1, 1);
     public vec4 ColorMul = new vec4(1, 1, 1, 1);//color multiplier
     public vec4 BorderColor = new vec4(1, 1, 1, 1);
-    public PirateCraft.FontFace FontFace = PirateCraft.FontFace.RobotoMono;
+    public PirateCraft.FontFace FontFace = PirateCraft.FontFace.Calibri;
     public float FontSize = 12;
     public UiFontStyle FontStyle = UiFontStyle.Normal;
     public vec4 FontColor = new vec4(0, 0, 0, 1);
@@ -494,8 +553,8 @@ namespace PirateCraft
     public UiSizeMode SizeModeHeight = UiSizeMode.Expand;
     public double MinValue = 0;
     public double MaxValue = 100;
-    public UiSizeModeAdjust SizeModeWidthAdjust = UiSizeModeAdjust.MinimumChildContent;
-    public UiSizeModeAdjust SizeModeHeightAdjust = UiSizeModeAdjust.MinimumChildContent;
+    public float ZIndex = 0;
+    public UiFloatMode FloatMode = UiFloatMode.None;
 
     //Most of this generic field junk can go away and we can manually just return the variables. My hands were huring here so..ugh
     private static UiProps _defaults = new UiProps();//defaults are just set on the field initializer.
@@ -609,6 +668,7 @@ namespace PirateCraft
         for (int i = 0; i < (int)UiPropName.MaxUiProps; ++i)
         {
           UiPropName p = (UiPropName)i;
+          //You didnt add the prop to the fields.
           Gu.Assert(Fields.ContainsKey(p));
         }
       }
@@ -722,8 +782,8 @@ namespace PirateCraft
     [CSSAttribute("texture")] public MtTex Texture { get { return (MtTex)GetClassValue(UiPropName.Texture); } set { SetClassValue(UiPropName.Texture, (MtTex)value); } }
     [CSSAttribute("max-value")] public double? MaxValue { get { return (double?)GetClassValue(UiPropName.MaxValue); } set { SetClassValue(UiPropName.MaxValue, (double?)value); } }
     [CSSAttribute("min-value")] public double? MinValue { get { return (double?)GetClassValue(UiPropName.MinValue); } set { SetClassValue(UiPropName.MinValue, (double?)value); } }
-    [CSSAttribute("dsfg")] public UiSizeModeAdjust? SizeModeWidthAdjust { get { return (UiSizeModeAdjust?)GetClassValue(UiPropName.SizeModeWidthAdjust); } set { SetClassValue(UiPropName.SizeModeWidthAdjust, (UiSizeModeAdjust?)value); } }
-    [CSSAttribute("dsfdfg")] public UiSizeModeAdjust? SizeModeHeightAdjust { get { return (UiSizeModeAdjust?)GetClassValue(UiPropName.SizeModeHeightAdjust); } set { SetClassValue(UiPropName.SizeModeHeightAdjust, (UiSizeModeAdjust?)value); } }
+    [CSSAttribute("z-index")] public float? ZIndex { get { return (float?)GetClassValue(UiPropName.ZIndex); } set { SetClassValue(UiPropName.ZIndex, (float?)value); } }
+    [CSSAttribute("floatmd")] public UiFloatMode? FloatMode { get { return (UiFloatMode?)GetClassValue(UiPropName.FloatMode); } set { SetClassValue(UiPropName.FloatMode, (UiFloatMode?)value); } }
 
     #endregion
     #region Public: Methods
@@ -770,16 +830,16 @@ namespace PirateCraft
     }
     public void SetInheritStyles(List<string> styles)
     {
-      //Set the styles we inherit, then we can compile them.
-      if ((_superStylesNames == null || _superStylesNames.Count == 0) && (styles == null || styles.Count == 0))
+      foreach (var s in styles)
       {
-        //no change
+        InheritFrom(s);
       }
-      else
-      {
-        _superStylesNames = styles;
-        _bMustTranslateInheritedStyles = true;
-      }
+    }
+    public void InheritFrom(string style)
+    {
+      _superStylesNames = _superStylesNames.ConstructIfNeeded();
+      _superStylesNames.Add(style);
+      _bMustTranslateInheritedStyles = true;
     }
     public void SetStyleSheet(UiStyleSheet s)
     {
@@ -887,6 +947,7 @@ namespace PirateCraft
               //not owned, get value from superclass
               if (!InheritFromSuperClasses(s, p.Key, p.Value, framestamp))
               {
+                //DISABLED parent inherit - this is annoying
                 //if subclasses are not set, then try the parent DOM element, otherwise set to a default value
                 if (!InheritFromParentTag(style_DOM_parent, p.Key, p.Value))
                 {
@@ -1077,7 +1138,7 @@ namespace PirateCraft
       //We'll have to figure out how to use Inline (UiElement) styles here though
       IterateElements((e) =>
       {
-        e.SetLayoutChanged();
+        e.SetContentChanged();
       });
     }
     private object? GetClassValue(UiPropName p)
@@ -1130,8 +1191,13 @@ namespace PirateCraft
     public UiQuad _b2LocalQuad = new UiQuad();      // local quad
     public UiQuad _b2FinalQuad = new UiQuad();        // Final quad. Transformed from design space into screen space.
     public vec2 ContentWH = new vec2(0, 0);
+    public vec2 GlyphWH = new vec2(0, 0);//max width/height of all glyphs
     public vec2 OuterMaxWH = new vec2(0, 0);
     public vec2 InnerMaxWH = new vec2(0, 0);
+  }
+  public class UiGlyph
+  {
+
   }
   public class UiElement
   {
@@ -1157,6 +1223,9 @@ namespace PirateCraft
     #endregion
     #region Public: Members
 
+    List<UiElement> _glyphs = null;
+    public void SetContentChanged() { _contentChanged = true; }
+
     public virtual string NamingPrefix { get { return "uielement"; } }
     public string Name { get { return _name; } set { _name = value; } }
     public string Tag { get; set; } = "";
@@ -1170,7 +1239,7 @@ namespace PirateCraft
           _strTextLast = _strText;
           _strText = value;
           _textChanged = true;
-          SetLayoutChanged();
+          _contentChanged = true;
         }
       }
     }
@@ -1188,31 +1257,24 @@ namespace PirateCraft
         return _style;
       }
     }
-    public bool Visible { get { return _visible; } set { _visible = value; SetLayoutChanged(); } }// ** May be on style .. 
+    public bool Visible { get { return _visible; } set { _visible = value; } }// ** May be on style .. 
     public bool DragEnabled { get { return _dragEnabled; } private set { _dragEnabled = value; } }
 
     public Action<vec2>? DragFunc { get; private set; } = null;
     public Dictionary<UiEventId, List<UiAction>> Events { get { return _events; } set { _events = value; } }
-    public MultiMap<int, UiElement>? Children { get { return _children; } }
+    public List<UiElement>? Children { get { return _children; } }
     public UiQuad LocalQuad { get { return _quads._b2LocalQuad; } }
     public UiQuad FinalQuad { get { return _quads._b2FinalQuad; } }
-    public int TreeDepth { get { return _treeDepth; } }
+    //public int TreeDepth { get { return _treeDepth; } }
     public UiElement? Parent { get { return _parent; } }
 
     #endregion
     #region Private: Members
 
-    protected const int c_AllSortLayers = -1;
-    protected const int c_BaseLayerSort = 100;
-    protected const int c_GlyphLayerSort = 200;
-    public const int c_ContextMenuSort = 300;
-    protected const int c_MaxSort = 1000;
-
     protected string _name = "";
     protected UiStyle? _style = null;      //Inline style
-    protected MultiMap<int, UiElement>? _children { get; set; } = null;
+    protected List<UiElement>? _children = null;
     private UiElement? _parent = null;
-    private int _treeDepth = -1; // tree depth / child depth when added
     private MtFontLoader? _cachedFont = null;//For labels that contain glyphs
     private MtCachedCharData? _cachedGlyph = null;//For glyphs
 
@@ -1227,13 +1289,17 @@ namespace PirateCraft
     private string _strTextLast = "";
     private bool _bMustRedoTextBecauseOfStyle = false;
     private Dictionary<UiEventId, List<UiAction>>? _events = null;
+    private int _treeDepth = -1; // tree depth / child depth when added
+    private int _defaultSortKey = 0;
 
     //Flags
     private bool _pickEnabled = false;
     private bool _visible = true;
     private bool _textChanged = false;
     private bool _dragEnabled = false;
-    private bool _layoutChanged = true;
+    private bool _contentChanged = true;
+
+
 
     #endregion
     #region Public: Methods
@@ -1302,11 +1368,11 @@ namespace PirateCraft
     {
       if (_children != null)
       {
-        foreach (var c in _children)
+        foreach (var ele in _children)
         {
-          if (StringUtil.Equals(c.Value.Name, name))
+          if (StringUtil.Equals(ele.Name, name))
           {
-            c.Value.ShowOrHide(show);
+            ele.ShowOrHide(show);
             if (stop_at_first)
             {
               return false;
@@ -1314,7 +1380,7 @@ namespace PirateCraft
           }
           else
           {
-            bool stopdoing = c.Value.ShowOrHideByName(name, show, stop_at_first);
+            bool stopdoing = ele.ShowOrHideByName(name, show, stop_at_first);
             if (stopdoing == false)
             {
               return false;
@@ -1324,22 +1390,10 @@ namespace PirateCraft
       }
       return true;
     }
-    public void IterateChildrenRaw(Func<UiElement, LambdaBool> a, int layer = Gui2d.c_BaseLayerSort)
+    public void IterateAllElements(Func<UiElement, int, LambdaBool> a)
     {
-      if (Parent != null && Parent.Children != null)
-      {
-        if (Parent.Children._dict.TryGetValue(layer, out var list))
-        {
-          foreach (var ch in list)
-          {
-            var b = a?.Invoke(ch);
-            if (b == LambdaBool.Break)
-            {
-              break;
-            }
-          }
-        }
-      }
+      _children?.IterateSafe(a);
+      _glyphs?.IterateSafe(a);
     }
     public vec4 GetMargin(UiDebugDraw dd)
     {
@@ -1393,11 +1447,11 @@ namespace PirateCraft
         Style._props.BorderBotLeftRadius
       );
     }
-    public UiElement AddChild(string stylename, int sort = c_BaseLayerSort)
+    public UiElement AddChild(string stylename)
     {
       return AddChild(new UiElement(stylename));
     }
-    public UiElement AddChild(UiElement e, int sort = c_BaseLayerSort)
+    public UiElement AddChild(UiElement e)
     {
       Gu.Assert(e != null);
       Gu.Assert(this != e);
@@ -1405,25 +1459,25 @@ namespace PirateCraft
       e._parent?.RemoveChild(e);
       if (_children == null)
       {
-        _children = new MultiMap<int, UiElement>();
+        _children = new List<UiElement>();
       }
-      _children.Add(sort, e);
+      _children.Add(e);
       e._parent = this;
-      e._treeDepth = _treeDepth + 1;
+
+      e.UpdateSortKeys();
+
       return e;
     }
     public bool RemoveChild(UiElement e)
     {
+      bool ret = false;
       if (_children != null)
       {
-        foreach (var k in _children.Keys)
+        if (_children.Remove(e))
         {
-          if (_children.Remove(k, e))
-          {
-            e._parent = null;
-            e._treeDepth = -1;
-            return true;
-          }
+          e._parent = null;
+          e._treeDepth = -1;//this doesnt really matert
+          ret = true;
         }
         if (_children.Count == 0)
         {
@@ -1431,9 +1485,38 @@ namespace PirateCraft
         }
       }
       //could not remove.
-      return false;
+      return ret;
     }
-    public void ClearChildren(int sort = c_AllSortLayers)
+    public int DefaultSortKey { get { return _defaultSortKey; } }
+    private void UpdateSortKeys()
+    {
+      // //this may not be needed -- remove if we dont use ti
+
+      // if ((_children == null || _children.Count == 0) && (_glyphs == null || _glyphs.Count == 0))
+      // {
+      //   return;
+      // }
+
+      // int c_iSortFactor = 10000;
+
+      // IterateAllElements((e, e_idx) =>
+      // {
+      //   if (e.Parent == null)
+      //   {
+      //     e._treeDepth = 0;
+      //   }
+      //   else
+      //   {
+      //     e._treeDepth = e.Parent._treeDepth;
+      //   }
+
+      //   e._defaultSortKey = e._treeDepth * c_iSortFactor + e_idx;
+
+      //   e.UpdateSortKeys();
+      //   return LambdaBool.Continue;
+      // });
+    }
+    public void ClearChildren()
     {
       _children?.Clear();
     }
@@ -1441,46 +1524,10 @@ namespace PirateCraft
     {
       DragEnabled = true;
       DragFunc = func;
-      SetLayoutChanged();//get collected
     }
     public void DisableDrag()
     {
       DragEnabled = false;
-      SetLayoutChanged();//get collected
-    }
-    public T GetFirstChild<T>() where T : UiElement
-    {
-      Gu.Assert(_children.Count > 0);
-      return (T)_children.First().Value;
-    }
-    public void SetLayoutChanged()
-    {
-      // if (_layoutChanged == false)
-      {
-        _layoutChanged = true;
-        //   _layoutChanged = true;
-        //if (Style._props.PositionMode == UiPositionMode.Static)
-        {
-          //    _parent?.SetLayoutChanged();
-
-          //If async we cant modify children
-          // if (_children != null)
-          // {
-          //   foreach (var c in _children)
-          //   {
-          //     c.Value.SetLayoutChanged();
-          //   }
-        }
-        //}
-        //   //Unfortunately layout changes must take place in siblings and children as well.
-        //   //Basically the entire UI if a STATIC element changes.
-        //   //If a child has size:expand, layout changes won't take place for just parents.
-        //   //However, relative elements (specifically x or y) would not I think.        
-        //   // if (this.Style.PositionMode == UiPositionMode.Static)
-        //   // {
-
-        //   // }
-      }
     }
     public void DoMouseEvents(UiEvent e, bool iswindow = false)
     {
@@ -1494,7 +1541,7 @@ namespace PirateCraft
     }
     public UiElement Click(UiAction f)
     {
-      AddEvent(UiEventId.MouseRelease, f);
+      AddEvent(UiEventId.LmbRelease, f);
       return this;
     }
     public void AddEvent(UiEventId evId, UiAction f)
@@ -1508,6 +1555,8 @@ namespace PirateCraft
       }
       acts.Add(f);
       _pickEnabled = true;
+
+      //Automatic pick root here - this will override GUI root as pick root
       _iPickId = Gu.Context.Renderer.Picker.GenPickId();
     }
     public bool RemoveEvents(UiEventId evId, string tag)
@@ -1521,7 +1570,32 @@ namespace PirateCraft
       }
       return ret;
     }
+    public int FindParent(UiElement e, int depth = 9)
+    {
+      //Returns [0,depth) if found the given element based on depth, -1 for not found
+      var p = this.Parent;
+      int level = 0;
+      while (p != null)
+      {
+        if (p == e)
+        {
+          break;
+        }
+        level++;
+        if (level == depth)
+        {
+          level = -1;
+          break;
+        }
+        p = p.Parent;
+      }
+      if (p == null)
+      {
+        level = -1;
+      }
 
+      return level;
+    }
     #endregion
     #region Private/Protected: Methods
 
@@ -1576,7 +1650,7 @@ namespace PirateCraft
     {
       //clip children that go beyond this container.
       UiQuad ret = parentClip;
-      if (Style._props.PositionMode == UiPositionMode.Floating)
+      if (Style._props.FloatMode == UiFloatMode.Floating)
       {
         //floating elements go beyond parents
         ret = _quads._b2ClipQuad;
@@ -1588,7 +1662,442 @@ namespace PirateCraft
       }
       return ret;
     }
-    private void ComputeVertexTexcoord(ref v_v4v4v4v2u2v4v4 vc, MtTex pTex, UiImageTiling xtile, UiImageTiling ytile, float pixAdjust)
+    protected virtual void PerformLayout_SizeElements(MegaTex mt, bool bForce, vec2 parentMaxWH, UiStyle? parent, UiStyleSheet sheet, long framesatmp, UiDebugDraw dd)
+    {
+      //if (_layoutChanged || bForce)
+      {
+        Style.CompileStyleTree(sheet, framesatmp, parent);
+        Style._props.Validate();
+
+        // delay to update glyphs this is taking much less time
+        if ((_textChanged || _bMustRedoTextBecauseOfStyle) && (framesatmp % 5 == 0))
+        {
+          UpdateGlyphs(mt, _textChanged && !_bMustRedoTextBecauseOfStyle);
+          _bMustRedoTextBecauseOfStyle = false;
+          _textChanged = false;
+        }
+
+        if (Style._props.MaxWidth < 0 || Style._props.MaxHeight < 0 || Style._props.MaxWidth < Style._props.MinWidth)
+        {
+          //must fix style
+          Gu.DebugBreak();
+        }
+
+        //shrink max rect by parent 
+        //remove margins from maxwh before sending into child, then compute our w/h by removing padding from our parent maxwh
+        _quads.OuterMaxWH = new vec2(
+          Math.Max(Math.Min(parentMaxWH.width, Style._props.MaxWidth), 0),
+          Math.Max(Math.Min(parentMaxWH.height, Style._props.MaxHeight), 0)
+        );
+        //all elements & ele pads + parent margin *margin sizes in the layout lines
+        _quads.ContentWH = _quads.GlyphWH; //start with max wh of all glyphs
+
+        //remove margins for child
+        var this_mar = this.GetMargin(dd);
+        _quads.InnerMaxWH = new vec2(
+          Math.Max(_quads.OuterMaxWH.width - this_mar.left - this_mar.right, 0),
+          Math.Max(_quads.OuterMaxWH.height - this_mar.top - this_mar.bot, 0)
+        );
+
+        //size, then layout children
+        var mar = this.GetMargin(dd);
+        List<UiLine> vecLines = new List<UiLine>();
+        vecLines.Add(new UiLine(0, 0));
+
+        List<UiElement> bucket = new List<UiElement>();
+        if (_children != null && _children.Count > 0)
+        {
+          //compute min content WH first
+          foreach (var ele in _children)
+          {
+            if (ele.Visible)
+            {
+              ele.PerformLayout_SizeElements(mt, bForce, _quads.InnerMaxWH, this.Style, sheet, framesatmp, dd);
+
+              if (ele.Style._props.FloatMode != UiFloatMode.Floating)
+              {
+                if (ele.Style._props.PositionMode == UiPositionMode.Relative)
+                {
+                  //relative elements dont respect margin/padding
+                  _quads.ContentWH.x = Math.Max(_quads.ContentWH.x, ele._quads._b2LocalQuad._left + ele._quads._b2LocalQuad._width);
+                  _quads.ContentWH.y = Math.Max(_quads.ContentWH.y, ele._quads._b2LocalQuad._top + ele._quads._b2LocalQuad._height);
+                }
+                else if (ele.Style._props.PositionMode == UiPositionMode.Absolute)
+                {
+                  //not sure.. we are in relative coords right now
+                  _quads.ContentWH.x = Math.Max(_quads.ContentWH.x, ele._quads._b2LocalQuad._width);
+                  _quads.ContentWH.y = Math.Max(_quads.ContentWH.y, ele._quads._b2LocalQuad._height);
+                }
+                else if (ele.Style._props.PositionMode == UiPositionMode.Static)
+                {
+                  _quads.ContentWH.x = Math.Max(_quads.ContentWH.x, ele._quads._b2LocalQuad._width);
+                  _quads.ContentWH.y = Math.Max(_quads.ContentWH.y, ele._quads._b2LocalQuad._height);
+                }
+              }
+
+
+            }
+          }
+          //layout with min/max
+          foreach (var ele in _children)
+          {
+            if (ele.Visible)
+            {
+              if (ele.Style._props.PositionMode == UiPositionMode.Static)
+              {
+                LayoutStaticElement(ele, vecLines, _quads.InnerMaxWH, _quads.ContentWH, dd);
+              }
+            }
+          }
+        }
+        //**TODO: Unified UI - Glyphs + Elements must be in the same list, & Glyphs must be a BASE class for UiELement and have no _props
+        if (_glyphs != null && _glyphs.Count > 0)
+        {
+          foreach (var ele in _glyphs)
+          {
+            LayoutStaticElement(ele, vecLines, _quads.InnerMaxWH, _quads.ContentWH, dd);
+          }
+        }
+
+        //Calculate content size
+        float totalHeight = mar.top + mar.bot;
+        foreach (var line in vecLines)
+        {
+          totalHeight += line._height;
+          _quads.ContentWH.x = Math.Max(_quads.ContentWH.x, line._width + mar.right + mar.left);
+        }
+        _quads.ContentWH.y = Math.Max(_quads.ContentWH.y, totalHeight);
+
+        SizeElement(_quads.ContentWH, _quads.OuterMaxWH, dd);
+
+        _quads._b2LocalQuad.Validate();
+
+      }
+    }
+    protected void PerformLayout_PositionElements(bool bForce, UiDebugDraw dd, ReverseGrowList<v_v4v4v4v2u2v4v4> eles, UiQuad parentClip, MtTex defaultPixel,
+      uint rootPickId, ref Dictionary<uint, UiElement>? pickable)
+    {
+      //Position elements after size and relative position calculated
+      //clip regions must be calculated on the position step
+      //if (_layoutChanged || bForce)
+      {
+        ComputeQuads(dd);
+
+        //Set pick root 
+        uint pickId = rootPickId;
+        if (_pickEnabled)
+        {
+          pickId = _iPickId;
+
+          if (Gu.AssertDebug(pickId != Picker.c_iInvalidPickId))
+          {
+            pickable = pickable.ConstructIfNeeded();
+            pickable.Add(pickId, this);
+          }
+        }
+
+        //Overlyay
+        //the overlay isnt working right now due to sorting/draw order issue
+        var savedcolor = dd.OverlayColor;
+        var t = dd.OverlayColor.x; //flipflop color for sub-elements
+        dd.OverlayColor.x = dd.OverlayColor.y;
+        dd.OverlayColor.y = dd.OverlayColor.z;
+        dd.OverlayColor.z = t;
+
+        //copy, shrink clip rect 
+        UiQuad clip = ShrinkClipRect(parentClip);
+
+        if (_children != null && _children.Count > 0)
+        {
+          foreach (var ele in _children)
+          {
+            if (ele.Visible)
+            {
+              ele.PerformLayout_PositionElements(bForce, dd, eles, clip, defaultPixel, pickId, ref pickable);
+
+              //expand clip
+              _quads._b2ClipQuad.ExpandByPoint(ele._quads._b2ClipQuad.Min);
+              _quads._b2ClipQuad.ExpandByPoint(ele._quads._b2ClipQuad.Max);
+            }
+          }
+        }
+        if (_glyphs != null)
+        {
+          foreach (var ele in _glyphs)
+          {
+            ele.PerformLayout_PositionElements(bForce, dd, eles, clip, defaultPixel, pickId, ref pickable);
+
+            //expand clip
+            _quads._b2ClipQuad.ExpandByPoint(ele._quads._b2ClipQuad.Min);
+            _quads._b2ClipQuad.ExpandByPoint(ele._quads._b2ClipQuad.Max);
+          }
+        }
+
+        dd.OverlayColor = savedcolor;
+
+        if (Style._props.FloatMode == UiFloatMode.Floating)
+        {
+          GetOpenGLQuadVerts(eles, _quads._b2ClipQuad, defaultPixel, pickId, dd);
+        }
+        else if (IsFullyClipped(parentClip) == false)
+        {
+          GetOpenGLQuadVerts(eles, parentClip, defaultPixel, pickId, dd);
+        }
+
+        _contentChanged = false;
+
+      }
+    }
+    private bool ShrinkExpanderW()
+    {
+      //shrink expander to minimum width of parent children, if parent is a shrinking element
+      //else - grow child to parent boundary 
+      return (Style._props.SizeModeWidth == UiSizeMode.Expand && Parent != null && Parent.Style._props.SizeModeWidth == UiSizeMode.Shrink);
+    }
+    private bool ShrinkExpanderH()
+    {
+      return (Style._props.SizeModeHeight == UiSizeMode.Expand && Parent != null && Parent.Style._props.SizeModeHeight == UiSizeMode.Shrink);
+    }
+    private void SizeElement(vec2 contentWH, vec2 outerMaxWH, UiDebugDraw dd)
+    {
+      //Compute content minimum width/height of static element to compute size of parent
+      //Size is preliminary and static elements will be shortened up to their content size if they go outside parent boundary
+      //conttnetwh is min wh 
+      var epad = GetPadding(dd);
+
+      //shrink expanders if parent controls child expanders
+      bool shrinkExpanderW = ShrinkExpanderW();
+      bool shrinkExpanderH = ShrinkExpanderH();
+
+      if (Style._props.SizeModeWidth == UiSizeMode.Shrink || shrinkExpanderW)
+      {
+        //shrnk to size of contents
+        _quads._b2LocalQuad._width = contentWH.width;
+      }
+      else if (Style._props.SizeModeWidth == UiSizeMode.Expand && !shrinkExpanderW)
+      {
+        //take up 100% of parent max if Parent is ShrinkMax, or maximum of parent content if parent is ShrinkContent
+        _quads._b2LocalQuad._width = Math.Max(outerMaxWH.width - epad.left - epad.right, contentWH.width);
+      }
+      else if (Style._props.SizeModeWidth == UiSizeMode.Fixed)
+      {
+        //note: max=min when fixed
+        _quads._b2LocalQuad._width = Style._props.MaxWidth - Style._props.MinWidth;
+      }
+
+      if (Style._props.SizeModeHeight == UiSizeMode.Shrink || shrinkExpanderH)
+      {
+        _quads._b2LocalQuad._height = contentWH.height;
+      }
+      else if (Style._props.SizeModeHeight == UiSizeMode.Expand && !shrinkExpanderH)
+      {
+        _quads._b2LocalQuad._height = Math.Max(outerMaxWH.height - epad.top - epad.bot, contentWH.height);
+      }
+      else if (Style._props.SizeModeHeight == UiSizeMode.Fixed)
+      {
+        _quads._b2LocalQuad._height = Style._props.MaxHeight - Style._props.MinHeight;
+      }
+
+      //maxw/h are the penultimate parameters and you cant go past them even if clipping happens
+      _quads._b2LocalQuad._width = Math.Clamp(_quads._b2LocalQuad._width, Style._props.MinWidth, Style._props.MaxWidth);
+      _quads._b2LocalQuad._height = Math.Clamp(_quads._b2LocalQuad._height, Style._props.MinHeight, Style._props.MaxHeight);
+
+      _quads._b2LocalQuad.Validate();
+    }
+    private void LayoutStaticElement(UiElement ele, List<UiLine> vecLines, vec2 pmaxInnerWH, vec2 pcontentWH, UiDebugDraw dd)
+    {
+      //compute static element left/top
+      if (vecLines.Count == 0)
+      {
+        Gu.BRThrowException("GUI error - tried to run calc algorithm without any UILines created");
+      }
+      UiLine line = vecLines[vecLines.Count - 1];
+
+      var pmar = this.GetMargin(dd);
+      float pspacex = pmaxInnerWH.x;//maximally equal to the Screen WH
+
+      var e_pad = ele.GetPadding(dd);
+
+      if (ele.ShrinkExpanderW())
+      {
+        ele._quads._b2LocalQuad._width = Math.Min(pcontentWH.width, pmaxInnerWH.width);
+      }
+      if (ele.ShrinkExpanderH())
+      {
+        ele._quads._b2LocalQuad._height = Math.Min(pcontentWH.height, pmaxInnerWH.height);
+      }
+
+      float e_width = ele._quads._b2LocalQuad._width;
+      float e_height = ele._quads._b2LocalQuad._height;
+
+      bool bLineBreak = false;
+      if (ele.Style._props.DisplayMode == UiDisplayMode.Inline)
+      {
+        float e_tot_w = e_pad.left + e_pad.right + e_width; //correct because we remove padding from grow elements
+        if (e_tot_w + line._width > pspacex) //For label - auto width + expand. ?? 
+        {
+          // if (line._width > 0)
+          {
+            bLineBreak = true;
+          }
+        }
+      }
+      else if (ele.Style._props.DisplayMode == UiDisplayMode.Block)
+      {
+        //For /n in text. or block elements. (html block elements will go past parents y and may clip)
+        bLineBreak = true;
+      }
+      else if (ele.Style._props.DisplayMode != UiDisplayMode.InlineNoWrap)
+      {
+        bLineBreak = false;
+      }
+
+      if (bLineBreak)
+      {
+        // new line
+        UiLine line2 = new UiLine(0, line._top + line._height);
+        vecLines.Add(line2);
+        line = vecLines[vecLines.Count - 1];
+      }
+
+      ele._quads._b2LocalQuad._left = line._left + line._width + e_pad.left + pmar.left;
+      ele._quads._b2LocalQuad._top = line._top + e_pad.top + pmar.top;
+      line._width += e_width + e_pad.left + e_pad.right;
+      line._height = Math.Max(line._height, ele._quads._b2LocalQuad._height + e_pad.top + e_pad.bot);
+
+      ele._quads._b2LocalQuad.Validate();
+
+      line._eles.Add(ele);
+    }
+    private void ConstrainValue(float min, float max, ref float x, float size)
+    {
+      //@param x = ele position (x,y) size = ele w/h
+      //@param min/max = parent min/max
+      if (min <= max)
+      {
+        max = min;
+        Gu.DebugBreak();//error:max:=min
+      }
+
+      if ((x + size) > (max - min))
+      {
+        x = (max - min) - size;
+      }
+      if (x < min)
+      {
+        x = min;
+      }
+    }
+    protected void ComputeQuads(UiDebugDraw dd)
+    {
+      float w1 = 1.0f, h1 = 1.0f;
+      w1 = 1;//UiScreen::getDesignMultiplierW();
+      h1 = 1;//UiScreen::getDesignMultiplierH();
+
+      //Position relative/float elements to absolute pixels
+      if (this.Style._props.PositionMode == UiPositionMode.Relative || this.Style._props.PositionMode == UiPositionMode.Static)
+      {
+        this._quads._b2FinalQuad._left = this._quads._b2LocalQuad._left;
+        this._quads._b2FinalQuad._top = this._quads._b2LocalQuad._top;
+        if (_parent != null)
+        {
+          this._quads._b2FinalQuad._left += _parent._quads._b2FinalQuad._left;
+          this._quads._b2FinalQuad._top += _parent._quads._b2FinalQuad._top;
+        }
+      }
+      else if (this.Style._props.PositionMode == UiPositionMode.Absolute)
+      {
+        this._quads._b2FinalQuad._left = this._quads._b2LocalQuad._left = this.Style._props.Left;
+        this._quads._b2FinalQuad._top = this._quads._b2LocalQuad._top = this.Style._props.Top;
+      }
+
+      this._quads._b2FinalQuad._width = this._quads._b2LocalQuad._width;
+      this._quads._b2FinalQuad._height = this._quads._b2LocalQuad._height;
+
+      //initial clip
+
+      if (this._quads._b2LocalQuad._left > 99999 || this._quads._b2LocalQuad._width > 99999) { Gu.DebugBreak(); }
+
+      if (_renderOffset != null && disableoff == false)
+      {
+        //For glyphs, and other elements that go outside their physical regions
+        vec2 origin = new vec2(
+          //appears the horizontal position is only the horizontal center,
+          _quads._b2FinalQuad._left + _quads._b2FinalQuad._width / 2,
+          _quads._b2FinalQuad._top
+        );
+        var ro = _renderOffset.Value;
+        var cpy = _quads._b2FinalQuad;
+        float minx = origin.x + ro.Left - cpy._width / 2f;
+        float miny = origin.y + ro.Top + cpy._height / 1.25f;
+        float maxx = origin.x + ro.Right - cpy._width / 2f;
+        float maxy = origin.y + ro.Bottom + cpy._height / 1.25f;
+        _quads._b2FinalQuad._left = minx;
+        _quads._b2FinalQuad._top = miny;
+        _quads._b2FinalQuad._width = maxx - minx;
+        _quads._b2FinalQuad._height = maxy - miny;
+
+        _quads._b2FinalQuad.Validate();
+      }
+
+      // Set to false if we're controllig coordinates of this element (cursor, or window position)
+      this._quads._b2FinalQuad._left *= w1;
+      this._quads._b2FinalQuad._top *= h1;
+      this._quads._b2FinalQuad._width *= w1;
+      this._quads._b2FinalQuad._height *= h1;
+
+      this._quads._b2ClipQuad = this._quads._b2FinalQuad;
+
+      this._quads._b2FinalQuad.Validate();
+    }
+    public static bool disableoff = false;
+    private void GetOpenGLQuadVerts(ReverseGrowList<v_v4v4v4v2u2v4v4> all_verts, UiQuad b2ClipRect, MtTex defaultPixel, uint rootPickId, UiDebugDraw dd)
+    {
+      if (Visible == false)
+      {
+        return;
+      }
+      if ((Style._props.Texture == null) && (_cachedGlyph == null))
+      {
+        //invisible, or container element
+        return;
+      }
+
+      //**Texture Adjust - modulating repeated textures causes seaming issues, especially with texture filtering
+      // adjust the texture coordinates by some pixels to account for that.  0.5f seems to work well.
+      float adjust = 0;// 1.4f;  // # of pixels to adjust texture by
+
+      v_v4v4v4v2u2v4v4 vc = new v_v4v4v4v2u2v4v4();
+      var radius = this.GetBorderRaduis(dd);
+      vc._rtl_rtr = new vec4(radius.top, radius.right);
+      vc._rbr_rbl = new vec4(radius.bot, radius.left);
+      vc._border_trbl = this.GetBorder(dd);
+      SetVertexRasterArea(ref vc, in _quads._b2FinalQuad, in b2ClipRect, dd);
+      if (_cachedGlyph != null)
+      {
+        ComputeVertexGlyphTCoord(ref vc, _cachedGlyph, adjust);
+      }
+      else
+      {
+        ComputeVertexTexcoord(ref vc, Style._props.Texture, Style._props.ImageTilingX, Style._props.ImageTilingY, adjust);
+      }
+      SetVertexPickAndColor(ref vc, (Style._props.Color * Style._props.ColorMul).Clamp(0.0f, 1.0f), rootPickId);
+      all_verts.Add(vc);//This is because of the new sorting issue
+
+      //Debug overlay
+      if (dd.ShowOverlay)
+      {
+        v_v4v4v4v2u2v4v4 dbgv = new v_v4v4v4v2u2v4v4();
+        SetVertexRasterArea(ref dbgv, in _quads._b2FinalQuad, in b2ClipRect, dd);
+        dbgv._rtl_rtr = new vec4(0, 0, 0, 0);
+        dbgv._rbr_rbl = new vec4(0, 0, 0, 0);
+        ComputeVertexTexcoord(ref dbgv, defaultPixel, UiImageTiling.Expand, UiImageTiling.Expand, adjust);
+        SetVertexPickAndColor(ref dbgv, dd.OverlayColor, rootPickId);
+        all_verts.Add(dbgv);//This is because of the new sorting issue
+      }
+
+    }
+    private void ComputeVertexTexcoord(ref v_v4v4v4v2u2v4v4 vc, MtTex pTex, UiImageTiling xtile, UiImageTiling ytile, float adjust)
     {
       Box2f q2Tex = new Box2f();
       Gu.Assert(pTex != null);
@@ -1656,13 +2165,13 @@ namespace PirateCraft
       {
         w1px = 1.0f / pTex.GetWidth();
         w1px *= vc._texsiz.x;
-        w1px *= pixAdjust;
+        w1px *= adjust;
       }
       if (pTex.GetHeight() > 0 && vc._texsiz.y > 0)
       {
         h1px = 1.0f / pTex.GetHeight();
         h1px *= vc._texsiz.y;
-        h1px *= pixAdjust;
+        h1px *= adjust;
       }
       vc._texsiz.x -= w1px * 2.0f;
       vc._texsiz.y -= h1px * 2.0f;
@@ -1671,51 +2180,38 @@ namespace PirateCraft
       vc._tex.z -= w1px;
       vc._tex.w -= h1px;
     }
-    private void ComputeVertexGlyphTCoord(ref v_v4v4v4v2u2v4v4 vc, MtCachedCharData? glyph, float pixAdjust)
+    private void ComputeVertexGlyphTCoord(ref v_v4v4v4v2u2v4v4 vc, MtCachedCharData? glyph, float adjust)
     {
       Gu.Assert(glyph != null);
-      Box2f q2Tex = new Box2f();
-      q2Tex._min.x = glyph.uv0.x;
-      q2Tex._max.x = glyph.uv1.x;
 
-      //exact y
-      q2Tex._min.y = glyph.uv0.y;
-      q2Tex._max.y = glyph.uv1.y;
-
-      ///proportion y .. not sure if this is what glyph needs.
-      // q2Tex._min.y = glyph.Value.uv1.y;
-      // float fw = q2Tex._max.x - q2Tex._min.x;
-      // float fr = glyph.Value.GetSizeRatio();
-      // float fh = fw * fr;
-      // q2Tex._max.y = q2Tex._min.y + fh;
-
-      vc._tex.x = q2Tex._min.x;  // GL - bottom left
-      vc._tex.y = q2Tex._min.y;
-      vc._tex.z = q2Tex._max.x;  // GL - top right *this essentially flips it upside down
-      vc._tex.w = q2Tex._max.y;
+      vc._tex.x = glyph.uv0.x; // GL - bottom left
+      vc._tex.y = glyph.uv0.y;
+      vc._tex.z = glyph.uv1.x;  // GL - top right *this essentially flips it upside down
+      vc._tex.w = glyph.uv1.y;
       vc._texsiz.x = Math.Abs(glyph.uv1.x - glyph.uv0.x);
       vc._texsiz.y = Math.Abs(glyph.uv1.y - glyph.uv0.y);  // Uv0 - uv1 - because we flipped coords bove
 
-      float w1px = 0;
-      float h1px = 0;
-      if (glyph.patchTexture_Width > 0 && vc._texsiz.x > 0)
+      //adjust = -5f;
+      //this is all for adjust/debug
+      if (adjust != 0)
       {
-        w1px = 1.0f / glyph.patchTexture_Width;
-        w1px *= vc._texsiz.x;
-        w1px *= pixAdjust;
+        float w1px = 0;
+        float h1px = 0;
+        if (glyph.patchTexture_Width > 0 && vc._texsiz.x > 0)
+        {
+          w1px = vc._texsiz.x / glyph.patchTexture_Width * adjust;
+        }
+        if (glyph.patchTexture_Height > 0 && vc._texsiz.y > 0)
+        {
+          h1px = vc._texsiz.y / glyph.patchTexture_Height * adjust;
+        }
+        vc._texsiz.x -= w1px * 2.0f;
+        vc._texsiz.y -= h1px * 2.0f;
+        vc._tex.x += w1px;
+        vc._tex.y += h1px;
+        vc._tex.z -= w1px;
+        vc._tex.w -= h1px;
       }
-      if (glyph.patchTexture_Width > 0 && vc._texsiz.y > 0)
-      {
-        h1px = 1.0f / glyph.patchTexture_Width;
-        h1px *= vc._texsiz.y;
-        h1px *= pixAdjust;
-      }
-      vc._texsiz.x -= w1px * 2.0f;
-      vc._texsiz.y -= h1px * 2.0f;
-      vc._tex.x += w1px;
-      vc._tex.y += h1px;
-      vc._tex.z -= w1px;
-      vc._tex.w -= h1px;
     }
     private void SetVertexRasterArea(ref v_v4v4v4v2u2v4v4 vc, in UiQuad rasterQuad, in UiQuad b2ClipRect, UiDebugDraw dd)
     {
@@ -1753,455 +2249,21 @@ namespace PirateCraft
           ((uint)(color.w * 255.0f) << 0)
       );
     }
-    protected virtual void PerformLayout_SizeElements(MegaTex mt, bool bForce, vec2 parentMaxWH, UiStyle? parent, UiStyleSheet sheet, long framesatmp, UiDebugDraw dd)
-    {
-      //if (_layoutChanged || bForce)
-      {
-        Style.CompileStyleTree(sheet, framesatmp, parent);
-
-        Style._props.Validate();
-
-        if (Name == "vbar")
-        {
-          Gu.Trap();
-        }
-        if (_textChanged || _bMustRedoTextBecauseOfStyle)
-        {
-          CreateGlyphs(mt, _textChanged && !_bMustRedoTextBecauseOfStyle);
-          _bMustRedoTextBecauseOfStyle = false;
-          _textChanged = false;
-        }
-        var this_mar = this.GetMargin(dd);
-
-        if (Style._props.MaxWidth < 0 || Style._props.MaxHeight < 0 || Style._props.MaxWidth < Style._props.MinWidth)
-        {
-          //must fix style
-          Gu.DebugBreak();
-        }
-
-        //shrink max rect by parent 
-        //remove margins from maxwh before sending into child, then compute our w/h by removing padding from our parent maxwh
-        vec2 outerMaxWH = new vec2(
-          Math.Max(Math.Min(parentMaxWH.width, Style._props.MaxWidth), 0),
-          Math.Max(Math.Min(parentMaxWH.height, Style._props.MaxHeight), 0)
-        );
-        //all elements & ele pads + parent margin *margin sizes in the layout lines
-        vec2 contentWH = new vec2(0, 0);
-
-        //remove margins for child
-        vec2 innerMaxWH = new vec2(
-          Math.Max(outerMaxWH.width - this_mar.left - this_mar.right, 0),
-          Math.Max(outerMaxWH.height - this_mar.top - this_mar.bot, 0)
-        );
-if(Text == "Atlas"){
-  Gu.Trap();
-}
-if(Text == "Help"){
-  Gu.Trap();
-}
-        //Size, then Layout children
-        if (_children != null && _children.Count > 0)
-        {
-          int uiLast = int.MaxValue;
-          List<UiElement> bucket = new List<UiElement>();
-          foreach (var p in _children)
-          {
-            var ele = p.Value;
-            if (ele.Visible)
-            {
-
-              if (ele._cachedGlyph == null)
-              {
-                ele.PerformLayout_SizeElements(mt, bForce, innerMaxWH, this.Style, sheet, framesatmp, dd);
-              }
-
-              //TODO:
-              //we should just layout the element right here instead of doing some bucket business.
-              //this may fix some of the problems.
-              if (ele.Style._props.PositionMode == UiPositionMode.Static)
-              {
-                // Static elements,computed position
-                if (p.Key != uiLast)
-                {
-                  uiLast = p.Key;
-                  if (bucket.Count > 0)
-                  {
-                    LayoutLayer(bucket, innerMaxWH, ref contentWH, dd);
-                    bucket.Clear();
-                  }
-                }
-                bucket.Add(p.Value);
-              }
-              else if (ele.Style._props.PositionMode == UiPositionMode.Relative)
-              {
-                //relative elements dont respect margin/padding
-                //question whether we should expand in the other direction
-                contentWH.x = Math.Max(contentWH.x, ele._quads._b2LocalQuad._left + ele._quads._b2LocalQuad._width);
-                contentWH.y = Math.Max(contentWH.y, ele._quads._b2LocalQuad._top + ele._quads._b2LocalQuad._height);
-              }
-              else if (ele.Style._props.PositionMode == UiPositionMode.Floating)
-              {
-                //float ele does not expand content quad
-              }
-              else
-              {
-                Gu.BRThrowNotImplementedException();
-              }
-
-            }
-          }
-          //Position final static layer
-          if (bucket.Count > 0)
-          {
-            LayoutLayer(bucket, innerMaxWH, ref contentWH, dd);
-            bucket.Clear();
-          }
-        }
-        if (this.Text == "About")
-        {
-          Gu.Trap();
-        }
-
-        //either a account for padding in element size or b adjust the width manually in the static layout
-        _quads.ContentWH = contentWH;
-        _quads.OuterMaxWH = outerMaxWH;
-        _quads.InnerMaxWH = innerMaxWH;
-
-        SizeElement(contentWH, outerMaxWH, dd);
-
-        _quads._b2LocalQuad.Validate();
-
-      }
-    }
-    protected void PerformLayout_PositionElements(bool bForce, UiDebugDraw dd, List<v_v4v4v4v2u2v4v4> verts, UiQuad parentClip, MtTex defaultPixel,
-      uint rootPickId, ref Dictionary<uint, UiElement>? pickable)
-    {
-      //Position elements after size and relative position calculated
-      //clip regions must be calculated on the position step
-      //if (_layoutChanged || bForce)
-      {
-        ComputeQuads(dd);
-
-        //Set pick root 
-        uint pickId = rootPickId;
-        if (_pickEnabled)
-        {
-          pickId = _iPickId;
-
-          if (Gu.AssertDebug(pickId != Picker.c_iInvalidPickId))
-          {
-            pickable = pickable.ConstructIfNeeded();
-            pickable.Add(pickId, this);
-          }
-        }
-
-        //Overlyay
-        //the overlay isnt working right now due to sorting/draw order issue
-        var savedcolor = dd.OverlayColor;
-        var t = dd.OverlayColor.x; //flipflop color for sub-elements
-        dd.OverlayColor.x = dd.OverlayColor.y;
-        dd.OverlayColor.y = dd.OverlayColor.z;
-        dd.OverlayColor.z = t;
-
-        //copy, shrink clip rect 
-        UiQuad clip = ShrinkClipRect(parentClip);
-
-        if (_children != null && _children.Count > 0)
-        {
-          foreach (var p in _children)
-          {
-            UiElement ele = p.Value;
-            if (ele.Visible)
-            {
-              ele.PerformLayout_PositionElements(bForce, dd, verts, clip, defaultPixel, pickId, ref pickable);
-
-              //expand clip
-              _quads._b2ClipQuad.ExpandByPoint(ele._quads._b2ClipQuad.Min);
-              _quads._b2ClipQuad.ExpandByPoint(ele._quads._b2ClipQuad.Max);
-            }
-          }
-        }
-
-        dd.OverlayColor = savedcolor;
-
-        //calc vert
-        if (Style._props.PositionMode == UiPositionMode.Floating)
-        {
-          GetOpenGLQuadVerts(verts, _quads._b2ClipQuad, defaultPixel, pickId, dd);
-        }
-        else if (IsFullyClipped(parentClip) == false)
-        {
-          GetOpenGLQuadVerts(verts, parentClip, defaultPixel, pickId, dd);
-        }
-
-        _layoutChanged = false;
-
-      }
-    }
-    private void SizeElement(vec2 contentWH, vec2 outerMaxWH, UiDebugDraw dd)
-    {
-      //Compute content minimum width/height of static element to compute size of parent
-      //Size is preliminary and static elements will be shortened up to their content size if they go outside parent boundary
-      //conttnetwh is min wh 
-      var epad = GetPadding(dd);
-      if (Style._props.SizeModeWidth == UiSizeMode.Shrink)
-      {
-        _quads._b2LocalQuad._width = contentWH.width;
-      }
-      else if (Style._props.SizeModeWidth == UiSizeMode.Expand)
-      {
-        //take up 100% of parent
-        _quads._b2LocalQuad._width = Math.Max(outerMaxWH.width - epad.left - epad.right, contentWH.width);
-      }
-      else if (Style._props.SizeModeWidth == UiSizeMode.Fixed)
-      {
-        //note:fixed := max==min when fixed
-        _quads._b2LocalQuad._width = Style._props.MaxWidth - Style._props.MinWidth;
-      }
-
-      if (Style._props.SizeModeHeight == UiSizeMode.Shrink)
-      {
-        _quads._b2LocalQuad._height = contentWH.height;
-      }
-      else if (Style._props.SizeModeHeight == UiSizeMode.Expand)
-      {
-        _quads._b2LocalQuad._height = Math.Max(outerMaxWH.height - epad.top - epad.bot, contentWH.height);
-      }
-      else if (Style._props.SizeModeHeight == UiSizeMode.Fixed)
-      {
-        _quads._b2LocalQuad._height = Style._props.MaxHeight - Style._props.MinHeight;
-      }
-
-      //maxw/h are the penultimate parameters and you cant go past them even if clipping happens
-      _quads._b2LocalQuad._width = Math.Clamp(_quads._b2LocalQuad._width, Style._props.MinWidth, Style._props.MaxWidth);
-      _quads._b2LocalQuad._height = Math.Clamp(_quads._b2LocalQuad._height, Style._props.MinHeight, Style._props.MaxHeight);
-
-      _quads._b2LocalQuad.Validate();
-    }
-    private void LayoutLayer(List<UiElement> stats, vec2 parentInnerMaxWH, ref vec2 contentWH, UiDebugDraw dd)
-    {
-      //This should all be in relative coords and we  add parent later.
-      var mar = this.GetMargin(dd);
-      List<UiLine> vecLines = new List<UiLine>();
-      //update: we removed marigns from the line and manually add them here because we want to know if the line is just started.
-      vecLines.Add(new UiLine(0, 0));
-      foreach (var ele in stats)
-      {
-        CalcStaticElement(ele, vecLines, parentInnerMaxWH, dd);
-      }
-      //**TODO: UI Build order
-      // if (Style._props.BuildOrder == UiBuildOrder.Horizontal)
-      // else if (Style._props.BuildOrder == UiBuildOrder.Vertical)
-      float totalHeight = mar.top + mar.bot;
-      foreach (var line in vecLines)
-      {
-        totalHeight += line._height;
-        contentWH.x = Math.Max(contentWH.x, line._width + mar.right + mar.left);
-      }
-      contentWH.y = Math.Max(contentWH.y, totalHeight);
-    }
-    private void CalcStaticElement(UiElement ele, List<UiLine> vecLines, vec2 pmaxInnerWH, UiDebugDraw dd)
-    {
-      //compute static element left/top
-      if (vecLines.Count == 0)
-      {
-        Gu.BRThrowException("GUI error - tried to run calc algorithm without any UILines created");
-      }
-      UiLine line = vecLines[vecLines.Count - 1];
-
-      var pmar = this.GetMargin(dd);
-      float pspacex = pmaxInnerWH.x;//maximally equal to the Screen WH
-
-      var e_pad = ele.GetPadding(dd);
-      float e_width = ele._quads._b2LocalQuad._width;//width is already computed for static elements in teh layout-size stage
-
-//TODO:
-      // if(Style._props.SizeModeWidth == UiSizeMode.Shrink && ele.Style._props.SizeModeWidth == UiSizeMode.Expand)
-      // {
-      //   if(Parent!=null && Parent.Style._props.SizeModeWidth == UiSizeMode.Shrink && Style._props.SizeModeWidthAdjust != UiSizeModeAdjust.None)
-      //   {
-      //     //child = expand & parent = shirink -> shrink parent area to the minimum content width of all children
-      //     _quads._b2LocalQuad._width = contentWH.width;
-      //   }
-      //   else
-      //   {
-      //   }
-      //}
-
-      if (ele.Text == "About")
-      {
-        Gu.Trap();
-      }
-      bool bLineBreak = false;
-      if (ele.Style._props.DisplayMode == UiDisplayMode.Inline)
-      {
-        float e_tot_w = e_pad.left + e_pad.right + e_width; //correct because we remove padding from grow elements
-        if (e_tot_w + line._width > pspacex) //For label - auto width + expand. ?? 
-        {
-          // if (line._width > 0)
-          {
-            bLineBreak = true;
-          }
-        }
-      }
-      else if (ele.Style._props.DisplayMode == UiDisplayMode.Block)
-      {
-        //For /n in text. or block elements. (html block elements will go past parents y and may clip)
-        bLineBreak = true;
-      }
-      else if (ele.Style._props.DisplayMode != UiDisplayMode.InlineNoWrap)
-      {
-        bLineBreak = false;
-      }
-
-      if (bLineBreak)
-      {
-        // new line
-        UiLine line2 = new UiLine(0, line._top + line._height);
-        vecLines.Add(line2);
-        line = vecLines[vecLines.Count - 1];
-      }
-
-      ele._quads._b2LocalQuad._left = line._left + line._width + e_pad.left + pmar.left;
-      ele._quads._b2LocalQuad._top = line._top + e_pad.top + pmar.top;
-      line._width += e_width + e_pad.left + e_pad.right;
-      line._height = Math.Max(line._height, ele._quads._b2LocalQuad._height + e_pad.top + e_pad.bot);
-
-      ele._quads._b2LocalQuad.Validate();
-
-      line._eles.Add(ele);
-    }
-    private void ConstrainValue(float min, float max, ref float x, float size)
-    {
-      //@param x = ele position (x,y) size = ele w/h
-      //@param min/max = parent min/max
-      if (min <= max)
-      {
-        max = min;
-        Gu.DebugBreak();//error:max:=min
-      }
-
-      if ((x + size) > (max - min))
-      {
-        x = (max - min) - size;
-      }
-      if (x < min)
-      {
-        x = min;
-      }
-    }
-    protected void ComputeQuads(UiDebugDraw dd)
-    {
-      float w1 = 1.0f, h1 = 1.0f;
-      w1 = 1;//UiScreen::getDesignMultiplierW();
-      h1 = 1;//UiScreen::getDesignMultiplierH();
-      if (_cachedGlyph != null)
-      {
-        Gu.Trap();
-      }
-
-      //Position relative/float elements to absolute pixels
-      if (this.Style._props.PositionMode == UiPositionMode.Relative || this.Style._props.PositionMode == UiPositionMode.Floating)
-      {
-        this._quads._b2LocalQuad._left = this.Style._props.Left;
-        this._quads._b2LocalQuad._top = this.Style._props.Top;
-      }
-
-      if (_parent != null)
-      {
-        this._quads._b2FinalQuad._left = this._quads._b2LocalQuad._left + _parent._quads._b2FinalQuad._left;
-        this._quads._b2FinalQuad._top = this._quads._b2LocalQuad._top + _parent._quads._b2FinalQuad._top;
-        this._quads._b2FinalQuad._width = this._quads._b2LocalQuad._width;
-        this._quads._b2FinalQuad._height = this._quads._b2LocalQuad._height;
-      }
-
-      //initial clip
-      this._quads._b2ClipQuad = this._quads._b2FinalQuad;
-
-      if (this._quads._b2LocalQuad._left > 99999 || this._quads._b2LocalQuad._width > 99999) { Gu.DebugBreak(); }
-
-      if (_renderOffset != null)
-      {
-        //For glyphs, and other elements that go outside their physical regions
-        var origin = _quads._b2FinalQuad.ToBox().Center();
-        var ro = _renderOffset.Value;
-        var cpy = _quads._b2FinalQuad;
-        float minx = origin.x + ro.Left - cpy._width / 2;
-        float miny = origin.y + ro.Top + cpy._height / 4;
-        float maxx = origin.x + ro.Right - cpy._width / 2;
-        float maxy = origin.y + ro.Bottom + cpy._height / 4;
-        _quads._b2FinalQuad._left = minx;
-        _quads._b2FinalQuad._top = miny;
-        _quads._b2FinalQuad._width = maxx - minx;
-        _quads._b2FinalQuad._height = maxy - miny;
-
-        _quads._b2FinalQuad.Validate();
-      }
-
-      // Set to false if we're controllig coordinates of this element (cursor, or window position)
-      this._quads._b2FinalQuad._left *= w1;
-      this._quads._b2FinalQuad._top *= h1;
-      this._quads._b2FinalQuad._width *= w1;
-      this._quads._b2FinalQuad._height *= h1;
-
-      this._quads._b2FinalQuad.Validate();
-    }
-    private void GetOpenGLQuadVerts(List<v_v4v4v4v2u2v4v4> verts, UiQuad b2ClipRect, MtTex defaultPixel, uint rootPickId, UiDebugDraw dd)
-    {
-      if (Visible == false)
-      {
-        return;
-      }
-      if ((Style._props.Texture == null) && (_cachedGlyph == null))
-      {
-        //invisible, or container element
-        return;
-      }
-
-      //**Texture Adjust - modulating repeated textures causes seaming issues, especially with texture filtering
-      // adjust the texture coordinates by some pixels to account for that.  0.5f seems to work well.
-      float pixAdjust = 0;  // # of pixels to adjust texture by
-
-      v_v4v4v4v2u2v4v4 vc = new v_v4v4v4v2u2v4v4();
-      var radius = this.GetBorderRaduis(dd);
-      vc._rtl_rtr = new vec4(radius.top, radius.right);
-      vc._rbr_rbl = new vec4(radius.bot, radius.left);
-      vc._border_trbl = this.GetBorder(dd);
-      SetVertexRasterArea(ref vc, in _quads._b2FinalQuad, in b2ClipRect, dd);
-      if (_cachedGlyph != null)
-      {
-        ComputeVertexGlyphTCoord(ref vc, _cachedGlyph, pixAdjust);
-      }
-      else
-      {
-        ComputeVertexTexcoord(ref vc, Style._props.Texture, Style._props.ImageTilingX, Style._props.ImageTilingY, pixAdjust);
-      }
-      SetVertexPickAndColor(ref vc, Style._props.Color * Style._props.ColorMul, rootPickId);
-      verts.Insert(0, vc);//This is because of the new sorting issue
-
-      //Debug overlay
-      if (dd.ShowOverlay)
-      {
-        v_v4v4v4v2u2v4v4 dbgv = new v_v4v4v4v2u2v4v4();
-        SetVertexRasterArea(ref dbgv, in _quads._b2FinalQuad, in b2ClipRect, dd);
-        dbgv._rtl_rtr = new vec4(0, 0, 0, 0);
-        dbgv._rbr_rbl = new vec4(0, 0, 0, 0);
-        ComputeVertexTexcoord(ref dbgv, defaultPixel, UiImageTiling.Expand, UiImageTiling.Expand, pixAdjust);
-        SetVertexPickAndColor(ref dbgv, dd.OverlayColor, rootPickId);
-        verts.Insert(0, dbgv);//This is because of the new sorting issue
-      }
-    }
-    private void CreateGlyphs(MegaTex mt, bool replaceChangedGlyphs)
+    private void UpdateGlyphs(MegaTex mt, bool replaceChangedGlyphs)
     {
       //textOnly If just text changed then just create new chars
       //style - if style changed we must redo everything.
-      if (_children == null)
-      {
-        _children = new MultiMap<int, UiElement>();
-      }
-
       //Props must never be null.
       Gu.Assert(Style._props.FontFace != null);
+
+      //reset max glyph size
+      _quads.GlyphWH = new vec2(0, 0);
+
+      if (String.IsNullOrEmpty(_strText))
+      {
+        _glyphs = null;
+        return;
+      }
 
       //Get the font if it isn't already got.
       MtFontLoader font = null;
@@ -2225,20 +2287,23 @@ if(Text == "Help"){
       {
         return;
       }
-      if (replaceChangedGlyphs)
+      if (_glyphs == null)
+      {
+        replaceChangedGlyphs = false;
+      }
+      else if (replaceChangedGlyphs)
       {
         //Try to "smart" replace only changed text. 
-        var glyphs = _children.ItemsAt(c_GlyphLayerSort);
-        if (glyphs == null)
+        if (_glyphs.Count == 0)
         {
           replaceChangedGlyphs = false;
         }
-        else if (_strTextLast.Length != glyphs.Count)
+        else if (_strTextLast.Length != _glyphs.Count)
         {
           //This will happen if we update the control text, but the control is hidden / does not render.
           //No need to debugbreak, unless we profile this and it becomes a problem.
           replaceChangedGlyphs = false;
-          _children.Remove(c_GlyphLayerSort);
+          _glyphs = null;
         }
         else
         {
@@ -2257,8 +2322,9 @@ if(Text == "Help"){
             {
               for (int cti = 0; cti < ct; cti++)
               {
-                var e = glyphs[ilast + cti];
-                e._layoutChanged = true;
+                var e = _glyphs[ilast + cti];
+                e._contentChanged = true;
+                ExpandGlyphWH(e);
                 newChildren.Add(e);
               }
               ilast += ct;
@@ -2271,6 +2337,7 @@ if(Text == "Help"){
                 //TODO: this should be UiElementBase, for simplicity. UiElement is too huge.
                 UiElement e = new UiElement();
                 DoGlyph(e, icur + cti, _strText, font, patch, fontHeight);
+                ExpandGlyphWH(e);
                 newChildren.Add(e);
                 debug_numcreated++;
               }
@@ -2281,12 +2348,11 @@ if(Text == "Help"){
               ilast += ct;
             }
           }
-          _children.SetValueList(c_GlyphLayerSort, newChildren);
+          _glyphs = newChildren;
         }
       }
       if (replaceChangedGlyphs == false)
       {
-        _children.Remove(c_GlyphLayerSort);
         int debug_redocount = 0;
         List<UiElement> newChildren = new List<UiElement>();
         for (int ci = 0; ci < _strText.Length; ci++)
@@ -2294,28 +2360,30 @@ if(Text == "Help"){
           UiElement e = new UiElement();
 
           DoGlyph(e, ci, _strText, font, patch, fontHeight);
+          ExpandGlyphWH(e);
           newChildren.Add(e);
 
           debug_redocount++;
         }
-
-        _children.SetValueList(c_GlyphLayerSort, newChildren);
-
+        _glyphs = newChildren;
       }
+    }
+    private void ExpandGlyphWH(UiElement glyph)
+    {
+      _quads.GlyphWH.x = Math.Max(_quads.GlyphWH.x, glyph._quads._b2LocalQuad._width);
+      _quads.GlyphWH.y = Math.Max(_quads.GlyphWH.y, glyph._quads._b2LocalQuad._height);
     }
     private void DoGlyph(UiElement e, int index, string text, MtFontLoader font, MtFontPatchInfo patch, float fontHeight)
     {
       int cc = _strText[index];
       int ccNext = (index + 1) < _strText.Length ? _strText[index + 1] : 0;
-      float adv = font.GetKernAdvanceWidth(patch, Style._props.FontSize, cc, ccNext);
-      if (adv != 0)
-      {
-        int n = 0;
-        n++;
-      }
+      float kern = font.GetKernAdvanceWidth(patch, Style._props.FontSize, cc, ccNext);
 
       float sca = 0;
-      patch.GetChar(cc, fontHeight, out e._cachedGlyph, out sca);
+      if (!patch.GetChar(cc, fontHeight, out e._cachedGlyph, out sca))
+      {
+        Gu.DebugBreak();//Unicode ch not found
+      }
 
       float gtop = 0, gright = 0, gbot = 0, gleft = 0, gwidth = 0, gheight = 0;
       e._cachedGlyph.ApplyScaling(sca, out gtop, out gright, out gbot, out gleft, out gwidth, out gheight);
@@ -2325,31 +2393,16 @@ if(Text == "Help"){
       e._parent = this;//hmm..
       e._pickEnabled = false;
       e.Style.IsPropsOnly = true;
-
-      //this is the precomputed offset code - it doesnt work right because the UiLine will automatically apply marings
-      //we would need separate collection for glypyhs, and why do that? too complex, but it would allow us to simplify glyph class
-      // treat it as a separate element, and optimize the ui some more, - for now - ui is in a separate thread 
-      // //Compue entire glyph area in local space (top left=0,0)
-      // float entire_width = gwidth + e._cachedGlyph.marginRight + adv;
-      // float entire_height = gheight * Style._props.LineHeight;
-
-      // //Add glyph offset to glyph center. (_renderOffset)
+      e.Style._props.SizeModeWidth = UiSizeMode.Fixed;
+      e.Style._props.SizeModeHeight = UiSizeMode.Fixed;
 
       e._renderOffset = new Box2f(new vec2(gleft, gtop), new vec2(gright, gbot));
       e._quads._b2LocalQuad._left = 0;
       e._quads._b2LocalQuad._top = 0;
-      e._quads._b2LocalQuad._width = gwidth + e._cachedGlyph.marginRight + adv;
+      e._quads._b2LocalQuad._width = e._cachedGlyph.advance + kern + 1;//the widths are off somewhere, the +1 prevents sligth clipping of the right leter
       e._quads._b2LocalQuad._height = gheight * Style._props.LineHeight;
-
-      // float entire_width = e._renderOffset.max.x - e._renderOffset._min.x;
-      // float entire_height = e._renderOffset.max.y - e._renderOffset._min.y;
-      // float centerx = entire_width / 2;
-      // float centery = entire_height / 2;
-      // e._quads._b2LocalQuad._min.x = centerx + gleft - centerx;
-      // e._quads._b2LocalQuad._min.y = centery + gtop + centery / 2;
-      // e._quads._b2LocalQuad._max.x = centerx + gright - centerx;
-      // e._quads._b2LocalQuad._max.y = centery + gbot + centery / 2;
-
+      e.Style._props.PadRight = e.Style._props.PadLeft = e.Style._props.PadBot = e.Style._props.PadTop = 0;
+      e.Style._props.MarginBot = e.Style._props.MarginTop = e.Style._props.MarginRight = e.Style._props.MarginLeft = 0;
 
       if (cc == '\n')
       {
@@ -2368,10 +2421,8 @@ if(Text == "Help"){
       if (_visible != show)
       {
         _visible = show;
-        SetLayoutChanged();
       }
     }
-
     #endregion
 
   }//UiElement
@@ -2445,19 +2496,23 @@ if(Text == "Help"){
       return x;
     }
   }
-  public class GVertMap
-  {
-    //TODO: - expanding buffer so we dont recreate 1000s verts every frame
-    public Dictionary<long, v_v4v4v4v2u2v4v4> _gverts = new Dictionary<long, v_v4v4v4v2u2v4v4>();
-    MtTex _defaultPixel;
-    Box2f _clipRect;
-  }
+  // public class GVertMap
+  // {
+  //   //TODO: - expanding buffer so we dont recreate 1000s verts every frame
+  //   public Dictionary<long, v_v4v4v4v2u2v4v4> _gverts = new Dictionary<long, v_v4v4v4v2u2v4v4>();
+  //   MtTex _defaultPixel;
+  //   Box2f _clipRect;
+  // }
   public class Gui2d : UiElement
   {
     //@class Gui2d
     //@brief A GUI local to a given render viewport (RenderView)
     //*note:GUI element sizes translated relative to the current FBO size in the shader, all gui coords are in window coords
     #region Public: Members
+    private enum UiAsyncUpdateState
+    {
+      CanUpdate, Updating, Updated, DoingEvents, DidEvents
+    }
 
     public const int MaxSize = 9999999;
     public const int SlidingDiffWindow = 16;//16 chars for the string difference window. Replacement of a full float string.
@@ -2466,11 +2521,9 @@ if(Text == "Help"){
     public UiDebugDraw DebugDraw { get; set; } = new UiDebugDraw();
     public MeshData Mesh { get; set; } = null;
     public MeshView MeshView { get; set; } = null;
-    public long UpdateMs { get; private set; } = 0;
-    public long MeshMs { get; private set; } = 0;
-    public long PickMs { get; private set; } = 0;
-    public long _dbg_ObjectEventsMs { get; private set; } = 0;
-    public long WindowEventsMs { get; private set; } = 0;
+    public long _dbg_UpdateMs { get; private set; } = 0;
+    public long _dbg_MeshMs { get; private set; } = 0;
+    public long _dbg_EventsMs { get; private set; } = 0;
     public MtTex DefaultPixel { get { return _shared.MegaTex.DefaultPixel; } }
     public UiStyleSheet StyleSheet { get; set; } = null;
 
@@ -2480,7 +2533,11 @@ if(Text == "Help"){
     private UiDragInfo _dragInfo = new UiDragInfo();
     private vec2 _viewport_wh_last = new vec2(1, 1);
     private Gui2dShared _shared = null;
-    private GVertMap _gverts = new GVertMap();
+    //private GVertMap _gverts = new GVertMap();
+    private UiAsyncUpdateState _state = UiAsyncUpdateState.CanUpdate;
+    private UiEventThing _eventThing = new UiEventThing();
+    private Dictionary<uint, UiElement> _pickable = new Dictionary<uint, UiElement>();
+    private bool _async = false;
 
     #endregion
     #region Public: Methods
@@ -2492,36 +2549,17 @@ if(Text == "Help"){
       RenderView = new WeakReference<RenderView>(cam);
       Name = "screen(root)";
 
-      //removing window events, events will be local to the selected UiElement and placed in editor
-      //CreateWindowEvents();
+      //Default pick id for whole gui - we need this because we need to know whether or not we are ponting at
+      //the GUI, or not. Sub-elements override this pick ID with their own "pick root"-s
+      _iPickId = Gu.Context.Renderer.Picker.GenPickId();
     }
-    public void OnResize()
-    {
-      //*note:GUI is translated to the current FBO size in the shader, all gui coords are in window coords
-      //**This isn't really necessary, as we keep track of the viewport and force a layout change if it changes.
-      SetLayoutChanged();
-    }
-    public Drawable GetDrawable()
-    {
-      //**THIS MAY BE INVALID - 
-      //dummy is shared among contexts.. must test this
-      //      return new Drawable(this.Name, MeshView, _worldMaterial_Op, mat4.Identity);
-      //Swap out the mesh for this instance's mesh
-      _shared.Dummy.MeshView = MeshView;
-      return _shared.Dummy;
-    }
-    private enum UiAsyncUpdateState
-    {
-      CanUpdate, Updating, Updated, DoingEvents, DidEvents
-    }
-    UiAsyncUpdateState _state = UiAsyncUpdateState.CanUpdate;
-    private UiEventThing _eventThing = new UiEventThing();
-    //collect pickable objects into a list because yeah it's just easier than geopick.
-    private Dictionary<uint, UiElement> _pickable = new Dictionary<uint, UiElement>();
-    // List<UiEvent> _events = new List<UiEvent>();
-    // public void AddEvent()
     public void Update(double dt)
     {
+      if (Gu.Context.PCKeyboard.Press(Keys.U))
+      {
+        disableoff = !disableoff;
+      }
+
       //queue update if processed events.
       if (_state == UiAsyncUpdateState.CanUpdate)
       {
@@ -2534,8 +2572,8 @@ if(Text == "Help"){
             long a = Gu.Milliseconds();
             StyleSheet?.Update();
             SetExtentsToViewport(rv);
-            this.UpdateMs = Gu.Milliseconds() - a;
             UpdateLayout_Async(_shared.MegaTex, Gu.Context.PCMouse, rv, ref pickable);
+            this._dbg_UpdateMs = Gu.Milliseconds() - a;
           }
           Gu.Context.Gpu.Post_To_RenderThread(Gu.Context, x =>
           {
@@ -2543,13 +2581,11 @@ if(Text == "Help"){
             {
               _pickable = pickable;
             }
-
             if (RenderView != null && RenderView.TryGetTarget(out var rv2))
             {
               SendMeshToGpu_Sync(rv2);
               _state = UiAsyncUpdateState.Updated;
             }
-
           });
         });
       }
@@ -2573,49 +2609,76 @@ if(Text == "Help"){
           {
             e.Fire();
           }
-          _dbg_ObjectEventsMs = Gu.Milliseconds() - a;
+          _dbg_EventsMs = Gu.Milliseconds() - a;
         }
 
         _eventThing._events.Clear();
         _state = UiAsyncUpdateState.DidEvents;
-
         _state = UiAsyncUpdateState.CanUpdate;
       }
 
     }
     public void Pick()
     {
-      var ct = Gu.Context;
       //See WorldObject->Pick
-      if (Gu.Context.Renderer.Picker.PickedObjectFrame != null)
+      if (Gu.Context.Renderer.Picker.PickedObjectFrame == null)
       {
-        return;
+        //Do Pick
+        var pixid = Gu.Context.Renderer.Picker.SelectedPixelId;
+        if (_pickable.TryGetValue(pixid, out var ele))
+        {
+          Gu.Context.Renderer.Picker.PickedObjectFrame = ele;
+        }
       }
-
-      //Do Pick
-      var pixid = Gu.Context.Renderer.Picker.SelectedPixelId;
-      if (_pickable.TryGetValue(pixid, out var ele))
-      {
-        Gu.Context.Renderer.Picker.PickedObjectFrame = ele;
-      }
+    }
+    public void OnResize()
+    {
+      //*note:GUI is translated to the current FBO size in the shader, all gui coords are in window coords
+      //**This isn't really necessary, as we keep track of the viewport and force a layout change if it changes.
+    }
+    public Drawable GetDrawable()
+    {
+      //**THIS MAY BE INVALID - 
+      //dummy is shared among contexts.. must test this
+      //      return new Drawable(this.Name, MeshView, _worldMaterial_Op, mat4.Identity);
+      //Swap out the mesh for this instance's mesh
+      _shared.Dummy.MeshView = MeshView;
+      return _shared.Dummy;
     }
     #endregion
     #region Private: Methods
 
+    private int _async_framestamp = 0;
     //TODO: use some kind of expanding buffer
-    List<v_v4v4v4v2u2v4v4> _async_verts = new List<v_v4v4v4v2u2v4v4>();
+    ReverseGrowList<v_v4v4v4v2u2v4v4> _async_verts = new ReverseGrowList<v_v4v4v4v2u2v4v4>();
     private void UpdateLayout_Async(MegaTex mt, PCMouse mouse, RenderView rv, ref Dictionary<uint, UiElement>? pickable)
     {
-      _async_verts = new List<v_v4v4v4v2u2v4v4>();
-
+      //not sure if this is faster doesnt seem to make too much differnts.
+      _async_verts.Reset();
       //for now - the layout changed thing does not work, partially due to async, (but the async is actually faster than that anyway).
       bool force = true;
 
+      _async_framestamp++;
       //pass 1 compute minimum sizes for children,  child relative positions, relative clip quads
       //pass 2 compute absolute positions elements, compute quads.
       ComputeQuads(DebugDraw);
-      PerformLayout_SizeElements(mt, force, new vec2(Style._props.MaxWidth, Style._props.MaxHeight), null, StyleSheet, Gu.Context.FrameStamp, DebugDraw);
-      PerformLayout_PositionElements(force, DebugDraw, _async_verts, this._quads._b2ClipQuad, mt.DefaultPixel, Picker.c_iInvalidPickId, ref pickable);
+      PerformLayout_SizeElements(mt, force, new vec2(Style._props.MaxWidth, Style._props.MaxHeight), null, StyleSheet, _async_framestamp, DebugDraw);
+      PerformLayout_PositionElements(force, DebugDraw, _async_verts, this._quads._b2ClipQuad, mt.DefaultPixel, _iPickId, ref pickable);
+
+      //TODO: we need to have a sort - debug &c is not showing
+      // _eles_tmp.List.Sort((x, y) => { return x.DefaultSortKey - y.DefaultSortKey; });
+      // if (_eles_tmp.Count > _async_verts.Count)
+      // {
+      //   _async_verts = new List<v_v4v4v4v2u2v4v4>(_eles_tmp.Count);
+      // }
+      // foreach (var e in _eles_tmp)
+      // {
+      //   //calc vert
+      // }
+      //sort the vertexes based on the sort algorithm
+      //sort: 
+      // tree depth * 10000 + Child index + z-index
+      //_async_verts.Sort((x, y) => x.);
     }
     private void SendMeshToGpu_Sync(RenderView rv)
     {
@@ -2657,7 +2720,7 @@ if(Text == "Help"){
       Style.MaxHeight = rv.Viewport.Height;//Make sure stuff doesn't go off the screen.
       Style.SizeModeWidth = UiSizeMode.Fixed;
       Style.SizeModeHeight = UiSizeMode.Fixed;
-      Style.PositionMode = UiPositionMode.Relative;
+      Style.PositionMode = UiPositionMode.Absolute;
 
       _quads._b2FinalQuad._left = _quads._b2LocalQuad._left = rv.Viewport.X;
       _quads._b2FinalQuad._top = _quads._b2LocalQuad._top = rv.Viewport.Y;
@@ -2665,44 +2728,6 @@ if(Text == "Help"){
       _quads._b2FinalQuad._height = _quads._b2LocalQuad._height = rv.Viewport.Height;
       _quads._b2ClipQuad = _quads._b2LocalQuad = _quads._b2FinalQuad;
     }
-    // private void CreateWindowEvents()
-    // {
-    //   //Drag Info..
-    //   //Context Menus..
-    //   AddEvent(UiEventId.Mouse_Lmb_Press, (UiEventId evId, UiElement ele, PCMouse m, Gui2d g) =>
-    //   {
-    //     var e = (Gu.Context.Renderer.Picker.PickedObjectFrame as UiElement);
-    //     _dragInfo.StartDrag(e, m);
-    //   });
-    //   AddEvent(UiEventId.Mouse_Move, (UiEventId evId, UiElement ele, PCMouse m, Gui2d g) =>
-    //   {
-    //     _dragInfo.UpdateDrag(m);
-    //   });
-    //   AddEvent(UiEventId.Mouse_Lmb_Release, (UiEventId evId, UiElement ele, PCMouse m, Gui2d g) =>
-    //   {
-    //     _dragInfo.EndDrag();
-    //     // if (ContextMenu.RenderVisible)
-    //     // {
-    //     //   ContextMenu?.Hide();
-    //     // }
-    //   });
-    //   AddEvent(UiEventId.Mouse_Rmb_Press, (UiEventId evId, UiElement ele, PCMouse m, Gui2d g) =>
-    //   {
-    //     // if (ContextMenu != null)
-    //     // {
-    //     //   ContextMenu.Show();
-    //     //   ContextMenu.InlineStyle.Pos = m.Pos;
-    //     // }
-    //   });
-    //   AddEvent(UiEventId.Mouse_Rmb_Release, (UiEventId evId, UiElement ele, PCMouse m, Gui2d g) =>
-    //   {
-    //     // if (ContextMenu.RenderVisible)
-    //     // {
-    //     //   ContextMenu?.Hide();
-    //     // }
-    //   });
-    // }
-
 
     #endregion
 
@@ -2718,7 +2743,8 @@ if(Text == "Help"){
     public Gui2dShared(string name, List<FileLoc> resources)
     {
       Name = name;
-      MegaTex = new MegaTex("gui_megatex", true, MegaTex.MtClearColor.DebugRainbow, true, TexFilter.Linear, false);
+      //DO NOT USE MIPMAPS
+      MegaTex = new MegaTex("gui_megatex", true, MegaTex.MtClearColor.DebugRainbow, false, TexFilter.Linear, false);//nearest
       MegaTex.AddResources(resources);
       var tx = MegaTex.Compile();
 

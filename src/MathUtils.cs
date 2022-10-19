@@ -1909,9 +1909,10 @@ namespace PirateCraft
       ret.w = OpenTK.Mathematics.MathHelper.Clamp(v.w, a, b);
       return ret;
     }
-    public void Clamp(float a, float b)
+    public vec4 Clamp(float a, float b)
     {
       this = Clamp(this, a, b);
+      return this;
     }
     public void SetMinLightValue(float val)
     {
