@@ -242,31 +242,49 @@ namespace PirateCraft
       //Remove/Destroy windows / main window destroys app, or force
       foreach (var win in toClose)
       {
-        win.Context.MakeNoneCurrent();
-        Contexts.Remove(win);
-        win.Close();
-        win.IsVisible = false;
-
-        if (Contexts.Count == 0 || win.IsMain)
-        {
-          Environment.Exit(0);
-          break;
-        }
+        DestroyWindowSafe(win);
       }
       toClose.Clear();
 
+      //Check if exit was posted.
       if (_exitPosted)
       {
         //Basically Exit() failed, maybe there was a window created since Exit() was called..
         Environment.Exit(0);
       }
     }
-    public static void Exit()
+    private static void DestroyWindowSafe(UiWindowBase? win)
     {
+      try
+      {
+        win.Context.MakeNoneCurrent();
+        Contexts.Remove(win);
+        win.Close();
+        win.IsVisible = false;
+      }
+      catch (Exception ex)
+      {
+        Gu.Log.Error(ex);
+      }
+      if (Contexts.Count == 0 || win.IsMain)
+      {
+        Environment.Exit(0);
+      }
+    }
+    public static void Exit(bool abort_immediately)
+    {
+      //only call immediately if we are aborting /on error
       _exitPosted = true;
       foreach (var ct in Contexts)
       {
-        CloseWindow(ct.Key);
+        if (abort_immediately)
+        {
+          DestroyWindowSafe(ct.Key);
+        }
+        else
+        {
+          CloseWindow(ct.Key);
+        }
       }
     }
     public static void CloseWindow(UiWindowBase win)
@@ -856,17 +874,20 @@ namespace PirateCraft
         success = proc.Start();
 
         output = new List<string>();
-        if (success)
+        if (redirect_output)
         {
-          while (!proc.StandardOutput.EndOfStream)
+          if (success)
           {
-            var line = proc.StandardOutput.ReadLine();
-            output.Append(line);
+            while (!proc.StandardOutput.EndOfStream)
+            {
+              var line = proc.StandardOutput.ReadLine();
+              output.Add(line);
+            }
           }
-        }
-        else
-        {
-          Gu.Log.Error($"Process.Start failed: {fn_args}:");
+          else
+          {
+            Gu.Log.Error($"Process.Start failed: {fn_args}:");
+          }
         }
       }
       catch (Exception ex)

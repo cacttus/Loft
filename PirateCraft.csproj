@@ -13,6 +13,7 @@
     <VersionPrefix>1.0.0</VersionPrefix>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);.\data\**\*.pattern</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>

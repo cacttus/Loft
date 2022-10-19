@@ -165,7 +165,6 @@ namespace PirateCraft
       }
     }
   }
-
   public class FileLoc : ISerializeBinary
   {
     /// FileLoc represents a virtual file location on disk, embed, or web
@@ -611,7 +610,6 @@ namespace PirateCraft
     }
     #endregion
   }
-
   public class Minimax<T>
   {
     public T Min;
@@ -623,7 +621,6 @@ namespace PirateCraft
     }
 
   }
-
   public class StringUtil
   {
     public static string CutOut(ref string instr, int id0, int id1)
@@ -863,7 +860,6 @@ namespace PirateCraft
       return ret;
     }
   }
-
   public interface IClone
   {
     public object? Clone(bool? shallow = null);
@@ -1006,28 +1002,71 @@ namespace PirateCraft
       base.TrimExcess();
       Modified = true;
     }
-
   }
-
-  public class DeltaTimer : IClone, ICopy<DeltaTimer>
+  public class BaseTimer : IClone, ICopy<BaseTimer>
   {
-    public double Frequency { get; private set; } = 0;
-    public double Time { get; private set; } = 0;
-    public ActionState State { get; private set; } = ActionState.Stop;
-    public ActionRepeat Repeat { get; set; } = ActionRepeat.DoNotRepeat;
-    public Action Action { get; set; } = null;
+    public long PeriodMS { get { return _periodMS; } private set { _periodMS = value; } }
+    public ActionState State { get { return _state; } private set { _state = value; } }
+    public ActionRepeat Repeat { get { return _repeat; } private set { _repeat = value; } }
+    public Action Action { get { return _action; } private set { _action = value; } }
 
-    public DeltaTimer() { }//clone
-    public DeltaTimer(double frequency_seconds, ActionRepeat repeat, ActionState start, Action? act = null)
+    protected long _periodMS = 0;
+    protected ActionState _state = ActionState.Stop;
+    protected ActionRepeat _repeat = ActionRepeat.DoNotRepeat;
+    protected Action? _action = null;
+
+    public BaseTimer() { }//clone
+    public BaseTimer(long periodMS, ActionRepeat repeat, ActionState start, Action? act = null)
     {
-      Frequency = frequency_seconds;
-      Repeat = repeat;
-      Action = act;
+      _periodMS = periodMS;
+      _repeat = repeat;
+      _action = act;
       if (start == ActionState.Run)
       {
         Start();
       }
     }
+    public virtual void Start()
+    {
+      _state = ActionState.Run;
+    }
+    public virtual void Stop()
+    {
+      _state = ActionState.Stop;
+    }
+    public virtual void Pause()
+    {
+      _state = ActionState.Pause;
+    }
+    public void Restart()
+    {
+      Stop();
+      Start();
+    }
+    public virtual object? Clone(bool? shallow = null)
+    {
+      return Gu.Clone<BaseTimer>(this);
+    }
+    public void CopyFrom(BaseTimer? d, bool? shallow = null)
+    {
+      Gu.Assert(d != null);
+      this._state = d._state;
+      this._action = d._action;
+      this._repeat = d._repeat;
+    }
+  }
+  public class DeltaTimer : BaseTimer, IClone, ICopy<BaseTimer>
+  {
+    public double Time { get; private set; } = 0;
+    private double FrequencyS = 0;
+
+    public DeltaTimer(long periodMS, ActionRepeat repeat, ActionState start, Action? act = null)
+    : base(periodMS, repeat, start, act)
+    {
+      FrequencyS = (double)periodMS / 1000.0;
+    }
+
+    //Timer that runs in sync with the program / frame loop
     public int Update(double dt, Action? act = null)
     {
       //Putting action here makes it more sense, since it keeps the action code within the update code.
@@ -1036,9 +1075,9 @@ namespace PirateCraft
       if (State != ActionState.Stop)
       {
         Time += dt;
-        while (Time > Frequency)
+        while (Time > FrequencyS)
         {
-          Time -= Frequency;
+          Time -= FrequencyS;
           Action?.Invoke();
           act?.Invoke();
           fires++;
@@ -1046,27 +1085,79 @@ namespace PirateCraft
       }
       return fires;
     }
-    public void Start()
+    public override object? Clone(bool? shallow = null)
     {
-      State = ActionState.Run;
-    }
-    public void Stop()
-    {
-      State = ActionState.Stop;
-    }
-    public object? Clone(bool? shallow = null)
-    {
-      return Gu.Clone<DeltaTimer>(this);
+      return Gu.Clone<BaseTimer>(this);
     }
     public void CopyFrom(DeltaTimer? d, bool? shallow = null)
     {
       Gu.Assert(d != null);
-      this.Frequency = d.Frequency;
       this.Time = d.Time;
-      this.State = d.State;
-      this.Action = d.Action;
-      this.Repeat = d.Repeat;
+      this.FrequencyS = d.FrequencyS;
     }
+  }
+  public class AsyncTimer : BaseTimer
+  {
+    //threaded timer which executes the Tick action on the calling thread
+    private System.Timers.Timer? _timer = null;
+
+    public AsyncTimer(int periodMS, ActionRepeat repeat, ActionState start, Action? act = null)
+      : base(periodMS, repeat, start, act)
+    {
+    }
+    public override void Start()
+    {
+      if (_state == ActionState.Pause)
+      {
+        if (_timer == null)
+        {
+          StartNewTimer();
+        }
+        else
+        {
+          _timer.Start();
+        }
+      }
+      else if (_state == ActionState.Stop)
+      {
+        StartNewTimer();
+      }
+
+      base.Start();
+    }
+    public override void Stop()
+    {
+      _timer.Stop();
+      _timer = null;
+      base.Stop();
+    }
+    public override void Pause()
+    {
+      //this may not work - we may need _resumeMS to create a new timer with a new delay parameter
+      Gu.MustTest();
+      _timer?.Stop();
+      base.Pause();
+    }
+    private void StartNewTimer()
+    {
+      System.Timers.ElapsedEventHandler func = (sender, args) =>
+      {
+        if (_state == ActionState.Run)
+        {
+          _action?.Invoke();
+          if (_repeat == ActionRepeat.Repeat)
+          {
+            _timer.Start();
+          }
+        }
+      };
+      _timer = new System.Timers.Timer();
+      _timer.Interval = _periodMS;
+      _timer.Elapsed += func;
+      _timer.AutoReset = false;//run once, then reset if Repeat is set
+      _timer.Start();
+    }
+
   }
   public class FrameDataTimer
   {
@@ -1447,7 +1538,6 @@ namespace PirateCraft
       return true;
     }
   }
-
   public abstract class ByteForByteFile
   {
     //text file we parse each byte
@@ -1615,7 +1705,6 @@ namespace PirateCraft
     }
     #endregion
   }
-
   public interface ISerializeBinary
   {
     public abstract void Serialize(BinaryWriter br);
@@ -1626,7 +1715,6 @@ namespace PirateCraft
     public int Version { get; } = 0;//for future implementation, file version
     public SerializedFileVersion(int v) { Version = v; }
   }
-
   public interface ISerializeByteArray
   {
     public void Serialize(ByteBuffer b);
@@ -1862,13 +1950,6 @@ namespace PirateCraft
       return floats;
     }
   }
-  //We will probably delete the range stuff, just keeping it here for now.
-  public interface IRangeItem
-  {
-    public ushort Min { get; }
-    public ushort Max { get; }
-  }
-
   public class BList<T> : List<T> where T : IComparable
   {
     //Sorted list O(logn)
@@ -1879,6 +1960,8 @@ namespace PirateCraft
 
     public BList(bool unique_values_only = false)
     {
+      //This does not work ** 
+      Gu.BRThrowNotImplementedException();
       Unique = unique_values_only;
     }
     public void CheckOrderSlow()
@@ -2173,7 +2256,6 @@ namespace PirateCraft
       Gu.BRThrowNotImplementedException();
     }
   }
-
   public class DataRef<T> : IClone, ICopy<DataRef<T>>, ISerializeBinary where T : DataBlock
   {
     //This would be a much more compact DataRef than the other, assuming it would work

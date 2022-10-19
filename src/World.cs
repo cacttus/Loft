@@ -280,6 +280,11 @@ namespace PirateCraft
     //Beam edges can't be zero, in case we do use the RangeList (eventually)
     // however they must have a "zero height" because we allow for "pyramids"
   }
+  public interface IRangeItem
+  {
+    public ushort Min { get; }
+    public ushort Max { get; }
+  }
   [StructLayout(LayoutKind.Sequential)]
   public struct BeamEdge : IRangeItem
   {
@@ -819,6 +824,7 @@ namespace PirateCraft
     [DataMember] public float GlobWidthY { get; private set; } = 0;
     [DataMember] public float GlobWidthZ { get; private set; } = 0;
     [DataMember] public float Gravity { get; private set; } = c_EarthGravity * 0.5f; //m/s
+    [DataMember] public FileLoc? WorldScriptLoc = null;
 
     //Generation shell
     private int _currentShell = 1;
@@ -830,7 +836,7 @@ namespace PirateCraft
 
     #endregion
 
-    public WorldInfo(string worldName, bool delete_world_start_fresh, int limit_y_axis = 0, float blockSize = 4.0f, float blockHeightScale = 0.25f, int globBlocksX = 16)
+    public WorldInfo(string worldName, FileLoc? worldScriptLoc, bool delete_world_start_fresh, int limit_y_axis = 0, float blockSize = 4.0f, float blockHeightScale = 0.25f, int globBlocksX = 16)
     {
       Name = worldName;
       LimitYAxisGeneration = limit_y_axis;
@@ -838,6 +844,7 @@ namespace PirateCraft
       BlockSizeX = blockSize;
       GlobBlocksX = globBlocksX;
       HeightScale = blockHeightScale;
+      WorldScriptLoc = worldScriptLoc;
 
       Compute();
     }
@@ -1256,7 +1263,7 @@ namespace PirateCraft
     }
 
     #endregion
-    #region Private:Members
+    #region Private: Members
 
     [DataMember] private GameMode _eGameMode = GameMode.Edit;
     private WorldEditor? _worldEditor = null;
@@ -1288,6 +1295,7 @@ namespace PirateCraft
     private double _autoSaveTimeout = 0;
 
     #endregion
+    #region Enter/Exit/Update
 
     public World(WindowContext updateContext)
     {
@@ -1300,29 +1308,67 @@ namespace PirateCraft
       _worldInfo = info;
       _worldEditor = new WorldEditor();
 
-      _worldProps = new WorldProps("WorldProps");
+      CreateWorldProps();
 
       GameMode = Gu.EngineConfig.StartInEditMode ? GameMode.Edit : GameMode.Play;
 
       DefineWorldTiles();
       CreateMaterials();
 
+      //Load the terrain and existing objects
       InitWorldDiskFile(info.DeleteStartFresh);
 
-      _worldProps.EnvironmentMap = new Texture("_worldProps.EnvironmentMap", Gu.Lib.LoadImage("envmap", new FileLoc("hilly_terrain_01_2k.hdr", FileStorage.Embedded)), true, TexFilter.Nearest);
-      _worldProps.DayNightCycle = new DayNightCycle();
-      _worldProps.DayNightCycle.Update(0);
+      //Call an update to refresh everything
+      UpdateWorld(0);
 
-      //Gu.Log.Info("Building initail grid");
-      //* BuildDromeGrid(Player.WorldMatrix.extractTranslation(), GenRadiusShell, true);
-      //I'm assuming since this is cube voxesl we're going to do physics on the integer grid, we don't need triangle data then.
-      //* WaitForAllDromesToGenerate();
-      //* UpdateLiterallyEverything_Blockish(Camera); // This will generate the globs
-      //* WaitForAllGlobsToGenerate();
+      LoadWorldScript();
     }
+    private WorldScript? _worldScript = null;
     private void IterateObjectsSafe(Func<WorldObject, LambdaBool> f, bool iterateDeleted = false)
     {
       SceneRoot.IterateChildrenSafe(f, iterateDeleted);
+    }
+    private void CreateWorldProps()
+    {
+      _worldProps = new WorldProps("WorldProps");
+
+      //this should be set via the script
+      _worldProps.EnvironmentMap = new Texture("_worldProps.EnvironmentMap",
+        Gu.Lib.LoadImage("envmap", new FileLoc("hilly_terrain_01_2k.hdr", FileStorage.Embedded)), true, TexFilter.Nearest);
+      _worldProps.DayNightCycle = new DayNightCycle();
+      _worldProps.DayNightCycle.Update(0);
+    }
+    private void LoadWorldScript()
+    {
+      //Load world script for objects.
+      Gu.Assert(_worldInfo != null);
+      if (_worldInfo.WorldScriptLoc != null)
+      {
+        _worldScript = new WorldScript(_worldInfo.WorldScriptLoc);
+        if (_worldScript.Compile())
+        {
+          if (_worldScript != null)
+          {
+            _worldScript.OnLoad(this);
+          }
+          else
+          {
+            Gu.Log.Error("World script object was not defined!.");
+            Gu.DebugBreak();
+          }
+        }
+        else
+        {
+          //We could possibly load an old assembly .. later
+          Gu.Log.Error("World script did not compile.");
+          Gu.DebugBreak();
+        }
+      }
+      else
+      {
+        Gu.Log.Error("No world script specified.");
+        Gu.DebugBreak();
+      }
     }
     public void UpdateWorld(double dt)
     {
@@ -1331,6 +1377,8 @@ namespace PirateCraft
         Gu.Log.Error("Tried to call update twice between two windows. Update must be called once on a single window (or, we could put it on its own thread, unless we do end up with OpenGL stuff.)");
         Gu.DebugBreak();
       }
+
+      _worldScript?.OnUpdate(this, dt);
 
       Gu.Lib.Update(dt);
 
@@ -1355,6 +1403,14 @@ namespace PirateCraft
       //update after picking, view can be null
       _worldEditor.Update(selview);
     }
+
+    public void ExitWorld()
+    {
+      _worldScript?.OnExit(this);
+    }
+
+    #endregion
+    #region Topology
 
     public void BuildAndCull(RenderView rv)
     {
@@ -1733,6 +1789,7 @@ namespace PirateCraft
       return ret;
     }
 
+    #endregion
     #region Objects
 
     public Glob GetGlobForPoint(vec3 pt, GlobArray? ga = null)
@@ -2220,11 +2277,6 @@ namespace PirateCraft
     }
 
     #endregion
-
-    #region Index
-
-    #endregion
-
     #region Rendering
 
     public void RenderPipeStage(RenderView rv, PipelineStageEnum stage)
@@ -2349,7 +2401,7 @@ namespace PirateCraft
           _debugDrawTris.Mesh.VertexBuffers[0].ExpandBuffer(Gu.Context.DebugDraw.TriPoints.Count);
           _debugDrawTris.Mesh.VertexBuffers[0].CopyToGPU(GpuDataPtr.GetGpuDataPtr(Gu.Context.DebugDraw.TriPoints.ToArray()));
           _debugDrawTris.MeshView.Start = 0;
-          _debugDrawTris.MeshView.Count = Gu.Context.DebugDraw.TriPoints.Count;          
+          _debugDrawTris.MeshView.Count = Gu.Context.DebugDraw.TriPoints.Count;
         }
         _visibleStuff.AddObject(rv, _debugDrawTris);
       }
@@ -2452,9 +2504,9 @@ namespace PirateCraft
       }
       return cmp;
     }
-    #endregion
 
-    #region World Edit 
+    #endregion
+    #region Editing
 
     public void SetGlob(ivec3 gpos, Glob? g)
     {
@@ -2475,7 +2527,7 @@ namespace PirateCraft
     }
 
     #endregion
-    #region Private: Globs
+    #region Globs
 
     private void BuildGrid(vec3 origin, float awareness_radius, bool logprogress = false)
     {
@@ -2574,7 +2626,7 @@ namespace PirateCraft
     }
 
     #endregion
-    #region Private: Files
+    #region Files
 
     private FileLoc GetTileFile(TileImage img)
     {
@@ -2750,9 +2802,7 @@ namespace PirateCraft
 
     #endregion
 
-
   }//World
-
 
   public class WorldLoader
   {
@@ -2773,21 +2823,21 @@ namespace PirateCraft
         SaveWorldsFile(_worldFileLoc);
       }
     }
-    public void GoToArea(string areaName)
+    public World GoToWorld(WorldInfo wi)
     {
-      //Destroy World.
-      //LoadWorldFile
-      // WorldInfo wi = new WorldInfo();
-      //CurWorld = new WorldArea(inf);
-    }
-    public World CreateNewWorld(WorldInfo wi)
-    {
+      if (Gu.World != null)
+      {
+        Gu.World.ExitWorld();
+        Gu.World = null;
+        //GC.Collect();
+      }
       var w = Gu.World = new World(_updateContext);
       w.Initialize(wi);
       return w;
     }
     public void CreateHillsArea()
     {
+      //this will be moved to the editor or script
       Gu.Assert(Gu.World != null);
       Box3i b = new Box3i(new ivec3(-2, 0, -2), new ivec3(2, 1, 2));
       b.iterate((x, y, z, dbgcount) =>

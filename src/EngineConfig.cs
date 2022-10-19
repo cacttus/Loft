@@ -62,6 +62,8 @@ namespace PirateCraft
     [JSONXIgnore()] public int AliasScreenWidthPixels = 430;//-1;//320;//-1=Disable, 640, 320
     [JSONXIgnore()] public bool ReleaseAllButtonsWhenWindowLosesFocus = true;
     [JSONXIgnore()] public int MaxUIEvents = 500;
+    [JSONXIgnore()] public string ScriptDLLName = "Scripts.dll";
+    //[JSONXIgnore()] public bool AllowFailedScriptsToLoadOldAssemblies = false;
 
     public EngineConfig(FileLoc loc)
     {

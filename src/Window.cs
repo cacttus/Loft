@@ -142,11 +142,11 @@ namespace PirateCraft
         if (rv.Enabled)
         {
           rv.SetCurrent();
-         
+
           rv.Gui?.Update(Gu.Context.FrameDelta);
- 
+
           Gu.World.BuildAndCull(rv);//Pick
-          
+
           OnUpateGUI(rv);
         }
       }
@@ -323,7 +323,7 @@ namespace PirateCraft
       var background = new UiElement(new List<string> { StyleName.Panel }, "pnlPanel");
       gui.AddChild(background);
 
-      _info = new UiElement(StyleName.Label , Phrase.DebugInfoHeader);
+      _info = new UiElement(StyleName.Label, Phrase.DebugInfoHeader);
       background.AddChild(_info);
     }
     private void UpdateInfo()
@@ -422,7 +422,6 @@ namespace PirateCraft
         cpos = cm.Position_World;
       }
 
-
       //UI Test
       if (rv.WorldDebugInfo != null && rv.WorldDebugInfo.Visible)
       {
@@ -442,6 +441,8 @@ namespace PirateCraft
         info.AppendLine($"  OBs Culled:{Gu.World.NumCulledObjects}");
         info.AppendLine($"UI:");
         info.AppendLine($"  update={rv.Gui?._dbg_UpdateMs}ms mesh={rv.Gui?._dbg_MeshMs}ms event={rv.Gui?._dbg_EventsMs}ms");
+        info.AppendLine($"Scripts:");
+        info.AppendLine($"  bytes={CSharpScript.TotalLoadedScriptAssemblyBytes}");
         info.AppendLine($"World:");
         info.AppendLine($"  Globs: count={Gu.World.NumGlobs} visible={Gu.World.NumVisibleRenderGlobs}");
         info.AppendLine($"  Picked:{Gu.Context.Renderer.Picker.PickedObjectName}");
@@ -486,7 +487,7 @@ namespace PirateCraft
       Title = "Slaver " + VersionId.ToString();
       Gu.WorldLoader = new WorldLoader(Gu.GetContextForWindow(this));
 
-      var w = Gu.WorldLoader.CreateNewWorld(new WorldInfo("MyWorld", DELETE_WORLD_START_FRESH, 2));
+      var w = Gu.WorldLoader.GoToWorld(new WorldInfo("MyWorld", new FileLoc("MyWorldScript.cs",FileStorage.Embedded), DELETE_WORLD_START_FRESH, 2));
 
       Gu.Log.Debug("Debug:Creatingf flat area");
       Gu.WorldLoader.CreateHillsArea();

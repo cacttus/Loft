@@ -679,7 +679,7 @@ namespace PirateCraft
     public override bool IsHistoryAction { get { return false; } }
     public override WorldActionState Do(WorldEditor editor, RenderView? renderview, PCKeyboard k, PCMouse m)
     {
-      Gu.Exit();
+      Gu.Exit(false);
       return WorldActionState.Done;
     }
     public override void Undo(WorldEditor editor)

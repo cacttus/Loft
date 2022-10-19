@@ -74,7 +74,6 @@ namespace PirateCraft
     public static ResourceType MeshContextManager = new ResourceType("MeshContextManager", typeof(OpenGLContextDataManager<VertexArrayObject>), "-ctmgrm");
     public static ResourceType ShaderContextManager = new ResourceType("ShaderContextManager", typeof(OpenGLContextDataManager<Dictionary<int, GpuShader>>), "-ctmgrs");
     public static ResourceType TextureContextManager = new ResourceType("TextureContextManager", typeof(OpenGLContextDataManager<GpuTexture>), "-ctmgrt");
-    public static ResourceType DynamicFileLoader = new ResourceType("DynamicFileLoader", typeof(DynamicFileLoader), "-dfl");
 
     public static ResourceType CSharpScript = new ResourceType("CSharpScript", typeof(CSharpScript), "-csscript");
 
@@ -160,6 +159,7 @@ namespace PirateCraft
 
     #endregion
     #region Methods
+
     // private void SaveResourceFile(FileMode savemode = FileMode.Text)
     // {
     //   CleanResources();
@@ -391,8 +391,101 @@ namespace PirateCraft
   }
 
   [DataContract]
+  public class DynamicFileLoader
+  {
+    //dynamically check for file changes
+    public DateTime MaxModifyTime { get { return _maxModifyTime; } }
+    public long PollIntervalMs { get { return _poll; } }
+   
+    public List<FileLoc> Files {get{return _files;} set{_files=value;}}
+    private List<FileLoc> _files = new List<FileLoc>();
+    private Action<List<FileLoc>>? _onFilesChanged = null;
+    private DateTime _maxModifyTime = DateTime.MinValue;
+    private long _poll = 500;
+
+    protected DynamicFileLoader() { } //clone/serialize
+    public DynamicFileLoader(List<FileLoc> files, Action<List<FileLoc>> onFilesChanged, long pollInterval = 500)
+    {
+      _files = files;
+      _poll = pollInterval;
+      Gu.Assert(onFilesChanged != null);
+      _onFilesChanged = onFilesChanged;
+
+      CheckFilesChanged(true);
+
+      //Registers a synchronous timer for each file type, not each file - to prevent too many timers
+      // possibly, we could use a timer for each file, async, ect, but this neds to be tested
+      // (see AsyncTimer)
+      Gu.Lib.AddDynamicLoader(this);
+    }
+    public void CheckFilesChanged(bool initialCheck = false)
+    {
+      //initialCheck = updates modify time
+      if (_files != null)
+      {
+        List<FileLoc> changed = new List<FileLoc>();
+        foreach (var f in this._files)
+        {
+          var wt = f.GetLastWriteTime(true);
+          if (wt > _maxModifyTime)
+          {
+            // ** Set the modify time to the maximum file mod - even if compile fails. This prevents infinite checking
+            _maxModifyTime = wt;
+            changed.Add(f);
+          }
+        }
+        if (changed.Count > 0 && initialCheck == false)
+        {
+          Gu.Log.Info($"Resource '{changed.ToString()}' has changed, hot-re-loading");
+          _onFilesChanged?.Invoke(changed);
+        }
+      }
+    }
+  }
+
+
+  [DataContract]
   public class Library : ResourceTable
   {
+    private class DynamicLoaderInfo
+    {
+      //update compiled things so we don't gotta compile and run again and we can easily see changes
+      public List<WeakReference<DynamicFileLoader>> _loaders = new List<WeakReference<DynamicFileLoader>>();
+      private DeltaTimer _timer;
+      public Type _type;
+
+      System.Threading.Timer t = new Timer((x) => { });
+
+      public DynamicLoaderInfo(Type t, long pollIntervalMS)
+      {
+        _type = t;
+        _timer = new DeltaTimer(pollIntervalMS, ActionRepeat.Repeat, ActionState.Run);
+      }
+      public void AddLoader(DynamicFileLoader ll)
+      {
+        //allow system to dispose the object
+        var loaderref = new WeakReference<DynamicFileLoader>(ll);
+        _loaders.Add(loaderref);
+      }
+      public void Update(double dt)
+      {
+        _timer.Update(dt, () =>
+        {
+          for (int iitem = _loaders.Count - 1; iitem >= 0; iitem--)
+          {
+            var item = _loaders[iitem];
+            if (item.TryGetTarget(out var loader))
+            {
+              loader.CheckFilesChanged();
+            }
+            else
+            {
+              _loaders.RemoveAt(iitem);
+            }
+          }
+        });
+      }
+    }
     //Resource Database / asset manager / Library
     #region Constants
 
@@ -408,10 +501,24 @@ namespace PirateCraft
     #endregion
     #region Members
 
-    private DeltaTimer _shaderChangedTimer = null;
     private float _checkForShaderFileChangeUpdatesTimeSeconds = 0.5f;
     private Dictionary<ulong, Dictionary<object, List<string>>> PointerFixUp = null;
+    //This is all temporary.
+    private Dictionary<Type, DynamicLoaderInfo> _dynamicLoaders = new Dictionary<Type, DynamicLoaderInfo>();
 
+    public void AddDynamicLoader(DynamicFileLoader loader)
+    {
+      Gu.Assert(loader != null);
+      var t = loader.GetType();
+      List<WeakReference<DynamicFileLoader>>? outlist = null;
+      DynamicLoaderInfo? inf = null;
+      if (!_dynamicLoaders.TryGetValue(t, out inf))
+      {
+        inf = new DynamicLoaderInfo(t, loader.PollIntervalMs);
+        _dynamicLoaders.Add(t, inf);
+      }
+      inf.AddLoader(loader);
+    }
     #endregion
     #region Methods
 
@@ -430,13 +537,6 @@ namespace PirateCraft
       if (!Directory.Exists(dir))
       {
         Directory.CreateDirectory(dir);
-      }
-
-      //Start the shader poller, to update shaders so we don't gotta compile and run again 
-      //We can poll for engine config, or any other file realyl, but that is a much larger system.
-      if (_shaderChangedTimer == null)
-      {
-        _shaderChangedTimer = new DeltaTimer(_checkForShaderFileChangeUpdatesTimeSeconds, ActionRepeat.Repeat, ActionState.Run);
       }
 
       //LoadResourceFile();
@@ -673,29 +773,13 @@ namespace PirateCraft
     }
     public void Update(double dt)
     {
-      _shaderChangedTimer.Update(dt, () =>
+      foreach (var kvp in _dynamicLoaders)
+      {
+        if (kvp.Value != null)
         {
-          IterateResource<Shader>((s) =>
-          {
-            s.CheckSourceChanged();
-            return LambdaBool.Continue;
-          });
-          IterateResource<CSharpScript>((s) =>
-          {
-            s.CheckSourceChanged();
-            return LambdaBool.Continue;
-          });
-        });
-      // _cleanupTimer.Update(dt, () =>
-      //   {
-      //     foreach (var pair in Shaders)
-      //     {
-      //       if (pair.Value.TryGetTarget(out var s))
-      //       {
-      //         s.CheckSourceChanged();
-      //       }
-      //     }
-      //   });
+          kvp.Value.Update(dt);
+        }
+      }
     }
 
     //Load functions:

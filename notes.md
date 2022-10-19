@@ -1,4 +1,13 @@
 ﻿Working On:
+10/19
+  animation
+  move Window init to world script
+    
+  X startup script for world
+  X guy test
+  X world scripts 
+  X dynamic load fix
+
 10/18
 
   next up 

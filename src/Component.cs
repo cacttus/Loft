@@ -54,7 +54,7 @@ namespace PirateCraft
     public EventComponent(Action<WorldObject>? action, double tick_seconds, ActionRepeat repeat, ActionState start)
     {
       Action = action;
-      Timer = new DeltaTimer(tick_seconds, repeat, start);
+      Timer = new DeltaTimer((long)(tick_seconds * 1000.0), repeat, start);
     }
     public override void OnCreate(WorldObject myObj)
     {
@@ -87,7 +87,7 @@ namespace PirateCraft
     {
       Gu.Assert(other != null);
       base.CopyFrom(other, shallow);
-      this.Timer = Gu.Clone<DeltaTimer>(other.Timer);
+      this.Timer = (DeltaTimer)other.Timer.Clone(shallow);
       this.Action = other.Action;
     }
     public override void Serialize(BinaryWriter bw)

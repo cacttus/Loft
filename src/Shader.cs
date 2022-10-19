@@ -1588,7 +1588,7 @@ namespace PirateCraft
               else if (!is_hot_reload)
               {
                 Gu.DebugBreak();
-                      return;
+                return;
               }
             }
             else
@@ -2329,20 +2329,7 @@ namespace PirateCraft
 
     public const int c_iNormalizedFileCount = 3; // Number of ALL shader files if we used all pipeline stages ex. v,g,f=3.
     public OpenTK.Graphics.OpenGL4.PrimitiveType? GSPrimType { get { return _gsPrimType; } private set { _gsPrimType = value; } }
-
-    public override bool ShouldCheck { get { return true; } }
-    protected override List<FileLoc> Files
-    {
-      get
-      {
-        if (_bInitHeaders == false)
-        {
-          return new List<FileLoc>();
-        }
-        Gu.Assert(_all_unique_files != null);
-        return _all_unique_files.Keys.ToList();
-      }
-    }
+    public DynamicFileLoader? _loader = null;
 
     #endregion
     #region Private: Members
@@ -2350,7 +2337,7 @@ namespace PirateCraft
     [DataMember] private OpenTK.Graphics.OpenGL4.PrimitiveType? _gsPrimType = null; //if we have a GS, this must be set.
     private List<ShaderSrc> _inputFiles;
     private Dictionary<FileLoc, ShaderSrc>? _all_unique_files = null;//All files + headers (for hot reload) to the _files array
-    private bool _bInitHeaders = false;
+    private bool _bInit = false;
     private bool _isFS = false;
     private bool _isGS = false;
     private bool _isCompute = false;
@@ -2382,11 +2369,11 @@ namespace PirateCraft
         new FileLoc($"{generic_name}.fs.glsl", storage),
         new FileLoc($"{generic_name}.cs.glsl", storage)
       };
-      ParseInputFiles(locs, gs_primType, false);
+      Init(locs, gs_primType, false);
     }
     public Shader(string name, List<FileLoc> locs, OpenTK.Graphics.OpenGL4.PrimitiveType? gs_primType = null) : base(name)
     {
-      ParseInputFiles(locs, gs_primType, true);
+      Init(locs, gs_primType, true);
     }
     public GpuShader GetShaderForCurrentContext()
     {
@@ -2396,7 +2383,7 @@ namespace PirateCraft
     #endregion
     #region Private & Protected: Methods
 
-    private void ParseInputFiles(List<FileLoc> locs, OpenTK.Graphics.OpenGL4.PrimitiveType? gs_primType, bool mustexist)
+    private void Init(List<FileLoc> locs, OpenTK.Graphics.OpenGL4.PrimitiveType? gs_primType, bool mustexist)
     {
       _gsPrimType = gs_primType;
       _inputFiles = new List<ShaderSrc>();
@@ -2444,6 +2431,7 @@ namespace PirateCraft
       }
       Gu.Assert(_inputFiles != null && _inputFiles.Count > 0);
       Gu.Assert(!(_isFS && _isCompute));
+
     }
     private bool InitHeaders()
     {
@@ -2486,13 +2474,21 @@ namespace PirateCraft
         return false;
       }
 
-      _bInitHeaders = true;
-
-      UpdateMaxModifyTime();
+      var flist = _all_unique_files.Keys.ToList();
+      if (_loader == null)
+      {
+        _loader = new DynamicFileLoader(flist, OnFilesChanged);
+      }
+      else
+      {
+        _loader.Files = flist;
+      }
+      
+      _bInit = true;
 
       return true;
     }
-    protected override void OnSourceChanged(List<FileLoc> changed)
+    protected void OnFilesChanged(List<FileLoc> changed)
     {
       InitHeaders();
 
@@ -2537,7 +2533,7 @@ namespace PirateCraft
     private GpuShader GetOrCreateShader(WindowContext ct)
     {
       Gu.Assert(ct != null);
-      if (!_bInitHeaders)
+      if (!_bInit)
       {
         InitHeaders();
       }
@@ -2558,7 +2554,7 @@ namespace PirateCraft
     private GpuShader CreateNewShaderForContextPipe(WindowContext ct, int stageindex, bool is_hot_reload)
     {
       var non_header = _all_unique_files.Where(p => p.Value.ShaderType != null).ToDictionary(p => p.Key, p => p.Value);
-      var shader = new GpuShader(Name, ct, non_header, MaxModifyTime, stageindex, is_hot_reload);
+      var shader = new GpuShader(Name, ct, non_header, _loader.MaxModifyTime, stageindex, is_hot_reload);
       return shader;
     }
     #endregion

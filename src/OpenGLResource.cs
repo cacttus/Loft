@@ -94,64 +94,7 @@ namespace PirateCraft
     }
   }
   [DataContract]
-  public class DynamicFileLoader : DataBlock
-  {
-    public DateTime MaxModifyTime { get { return _maxModifyTime; } private set { _maxModifyTime = value; } }
-    public DateTime _maxModifyTime = DateTime.MinValue;
-    public virtual bool ShouldCheck { get { return false; } } //return true to check for chaned fiesl
-    protected virtual List<FileLoc> Files { get { return new List<FileLoc>(); } }
-    //[DataMember] protected HashSet<FileLoc> _files = new HashSet<FileLoc>(new FileLoc.EqualityComparer());
-
-    protected DynamicFileLoader() { } //clone/serialize
-    public DynamicFileLoader(string name) : base(name) { }
-
-    protected virtual void OnSourceChanged(List<FileLoc> changed) { }
-
-    protected void UpdateMaxModifyTime()
-    {
-      //Set max modify time, this lets us compile the shaders dynamically on file changes, it also lets us load the GLBinary on file changes.
-      var oldmod = MaxModifyTime;
-      foreach (var f in this.Files)
-      {
-        MaxModifyTime = MathUtils.Max(MaxModifyTime, f.GetLastWriteTime(true));
-      }
-      if (MaxModifyTime != oldmod)
-      {
-        //debug
-        int n = 0;
-        n++;
-      }
-    }
-
-    public void CheckSourceChanged()
-    {
-      if (this.Files == null || this.Files.Count == 0)
-      {
-        //The shader has been gott, but not initialized.
-        return;
-      }
-      List<FileLoc> changed = new List<FileLoc>();
-
-      foreach (var f in this.Files)
-      {
-        var wt = f.GetLastWriteTime(true);
-        if (wt > MaxModifyTime)
-        {
-          // ** Set the modify time to the maximum file mod - even if compile fails. This prevents infinite checking
-          MaxModifyTime = wt;
-          changed.Add(f);
-        }
-      }
-      if (changed.Count > 0)
-      {
-        Gu.Log.Info($"Resource {Name} has changed, hot-re-loading");
-        OnSourceChanged(changed);
-      }
-    }
-  }
-
-  [DataContract]
-  public abstract class OpenGLContextDataManager<T> : DynamicFileLoader where T : class
+  public abstract class OpenGLContextDataManager<T> : DataBlock where T : class
   {
     protected Dictionary<WindowContext, T> _contextData = new Dictionary<WindowContext, T>();
     protected abstract T CreateNew();

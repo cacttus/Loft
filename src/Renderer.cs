@@ -657,15 +657,6 @@ namespace PirateCraft
       {
         _pipelineStages[psi].Index = psi;
       }
-
-      // if (envTextureLoc != null)
-      // {
-      //   _pEnvTex = Gu.Resources.LoadTextureResource(envTextureLoc, true, TexFilter.Linear);
-      // }
-      // else
-      // {
-      Gu.Log.Warn("[Renderer] No environment texture specified.");
-      //}
     }
     public void ResizeScreenBuffers(int w, int h)
     {
