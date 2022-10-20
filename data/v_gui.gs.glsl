@@ -11,7 +11,7 @@ in vec4 _rtl_rtrVS[];
 in vec4 _rbr_rblVS[];
 in vec2 _texsizVS[];
 flat in uvec2 _pick_colorVS[];
-in vec4 _border_trblVS[];
+in vec3 _quadrantVS[];
 
 out vec2 _vert;
 out vec2 _tex;
@@ -22,7 +22,7 @@ flat out vec2 _texPos;//don't interpolate
 flat out vec4 _rtl_rtr;
 flat out vec4 _rbr_rbl;
 flat out vec4 _rect;
-flat out vec4 _border_trbl;
+flat out vec3 _quadrant;
 
 //note:GL: bottom left corner
 float p0x(vec4 f) { return f.x; }
@@ -39,7 +39,7 @@ void setGS(){
   _rtl_rtr     = _rtl_rtrVS[0];
   _rbr_rbl     = _rbr_rblVS[0];
   _rect        = _rectVS[0];
-  _border_trbl = _border_trblVS[0];
+  _quadrant    = _quadrantVS[0];
 }
 
 void main() {
@@ -52,8 +52,6 @@ void main() {
   P0
   */
 
-  //TODO: _border_trbl - border - somehwo
-  
   //We flipped Y for OpenGL, but the texs are still in window coords.
   setGS();
   _tex            = vec2(p0x(_texVS [0]), p0y(_texVS [0]));

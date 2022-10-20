@@ -528,8 +528,8 @@ namespace PirateCraft
     [DataMember] public uvec2 _pick_color;
     [DataMember] public vec4 _rtl_rtr; //css corners = tl, tr, br, bl = xyzw
     [DataMember] public vec4 _rbr_rbl;
-    [DataMember] public vec4 _border_trbl;//top, right, bot, left
-    [DataMember] public vec4 _depth; //depth + pad
+    [DataMember] public vec3 _quadrant;
+    [DataMember] public float _pad;
   };
   [StructLayout(LayoutKind.Sequential)]
   public struct v_v3x2

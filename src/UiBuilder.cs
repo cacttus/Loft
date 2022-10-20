@@ -57,6 +57,7 @@ namespace PirateCraft
       {
         new UiStyle(StyleName.BaseControl)
         {
+          RenderMode = UiRenderMode.Color,
           FontColor = vec4.rgba_ub(42,42,42, 255),
           Color = vec4.rgba_ub(230,230,230, 255),
           BorderColor = new vec4(0.14f, 0.16f, 0.16f, 1),
@@ -78,17 +79,8 @@ namespace PirateCraft
           OverflowMode = UiOverflowMode.Hide,
           FloatMode = UiFloatMode.None
         },
-        new UiStyle(StyleName.Button)
-        {
-          PositionMode = UiPositionMode.Static,
-          SizeModeHeight = UiSizeMode.Shrink,
-          SizeModeWidth = UiSizeMode.Shrink,
-          DisplayMode = UiDisplayMode.Inline,
-          OverflowMode = UiOverflowMode.Hide,
-        },
         new UiStyle(StyleName.Label, StyleName.BaseControl)
         {
-          Texture = gui.DefaultPixel,
           SizeModeWidth = UiSizeMode.Shrink,
           SizeModeHeight = UiSizeMode.Shrink,
           PositionMode = UiPositionMode.Static,
@@ -100,7 +92,6 @@ namespace PirateCraft
         },
         new UiStyle(StyleName.VerticalBar, StyleName.BaseControl)
         {
-          Texture = gui.DefaultPixel,
           SizeModeWidth = UiSizeMode.Shrink,
           SizeModeHeight = UiSizeMode.Expand,
           PositionMode = UiPositionMode.Static,
@@ -115,7 +106,7 @@ namespace PirateCraft
         },
         new UiStyle(StyleName.HBar)
         {
-          Texture = gui.DefaultPixel,
+          RenderMode = UiRenderMode.Color,
           SizeModeWidth = UiSizeMode.Expand,
           SizeModeHeight = UiSizeMode.Shrink,
           PositionMode = UiPositionMode.Static,
@@ -129,7 +120,7 @@ namespace PirateCraft
           PadLeft = 2,
           PadRight = 2,
           Color = new vec4(0.6f, 0.6f, 0.6f, 1),
-        },        
+        },
         new UiStyle(StyleName.DebugLabel, StyleName.Label)
         {
           MaxWidth = 500
@@ -139,21 +130,9 @@ namespace PirateCraft
           ,PadLeft = 2
           , FontFace = FontFace.RobotoMono
         },
-        new UiStyle(StyleName.Toolbar, StyleName.BaseControl)
-        {
-          Texture = gui.DefaultPixel,
-          MinWidth = 0,
-          MinHeight = 20,
-          MaxWidth = Gui2d.MaxSize,
-          SizeModeWidth = UiSizeMode.Expand,
-          SizeModeHeight = UiSizeMode.Shrink,
-          MaxHeight = 40,
-          Margin=0,
-          Padding=0,
-        },
+
         new UiStyle(StyleName.Panel, StyleName.BaseControl)
         {
-          Texture = gui.DefaultPixel,
           SizeModeWidth = UiSizeMode.Expand,
           SizeModeHeight = UiSizeMode.Expand,
           Padding = 0,
@@ -194,13 +173,27 @@ namespace PirateCraft
           SizeModeHeight = UiSizeMode.Shrink,
           PositionMode = UiPositionMode.Static,
           MaxWidth = 500,
-          MinWidth = 130,
+          MinWidth = 0,
           MarginTop = 6,
           MarginBot = 6,
           MarginLeft = 20,
           MarginRight = 20,
-        },  
- 
+          Padding=0,
+        },
+        new UiStyle(StyleName.Toolbar, StyleName.BaseControl)
+        {
+          MinWidth = 0,
+          MinHeight = 20,
+          MaxWidth = Gui2d.MaxSize,
+          SizeModeWidth = UiSizeMode.Expand,
+          SizeModeHeight = UiSizeMode.Shrink,
+          MaxHeight = 60,
+          Margin=0,
+          Padding=0,
+          BorderBot=1,
+          Color = vec4.rgba_ub(240,240,240),
+          BorderBotColor = vec4.rgba_ub(110,110,110)
+        },
       };
     }
     public static void MakeGui(RenderView rv)
@@ -208,60 +201,57 @@ namespace PirateCraft
       var toolbar = new UiToolbar();
 
       toolbar.AddItem(new UiToolbarButton(Phrase.File))
-        .AddMenuItems(
-          (new UiMenuItem("Toggle VSync")).Click((e) =>
-          {
-            Gu.World.Editor.DoEvent(WorldEditEvent.Debug_ToggleVSync);
-          }),
-          UiMenuItem.HBar(),
-          (new UiMenuItem("Quit")).Click((e) =>
-          {
-            Gu.World.Editor.DoEvent(WorldEditEvent.Quit);
-          })
-        );
+        .AddItem("Toggle VSync", e => Gu.World.Editor.DoEvent(WorldEditEvent.Debug_ToggleVSync))
+        .AddItem("Quit", e => Gu.World.Editor.DoEvent(WorldEditEvent.Quit))
+        ;
 
       toolbar.AddItem(new UiToolbarButton(Phrase.Edit))
-        .AddMenuItems(
-          (new UiMenuItem("Undo")).Click((e) =>
-        {
-          Gu.World.Editor.DoEvent(WorldEditEvent.Edit_Undo);
-        }),
-        (new UiMenuItem("Redo")).Click((e) =>
-        {
-          Gu.World.Editor.DoEvent(WorldEditEvent.Edit_Redo);
-        }),
-        (new UiMenuItem("Delete")).Click((e) =>
-        {
-          Gu.World.Editor.DoEvent(WorldEditEvent.Edit_Delete);
-        })
-        );
+        .AddItem("Undo", e => Gu.World.Editor.DoEvent(WorldEditEvent.Edit_Undo))
+        .AddItem("Redo", e => Gu.World.Editor.DoEvent(WorldEditEvent.Edit_Redo))
+        .AddItem("Delete", e => Gu.World.Editor.DoEvent(WorldEditEvent.Edit_Delete))
+        ;
 
       toolbar.AddItem(new UiToolbarButton("Test"))
-        .AddMenuItems(
-          (new UiMenuItem(Phrase.About)).Click((e) => { }),
-          (new UiMenuItem(Phrase.FolderDoesNotExist)).Click((e) => { }),
-          (new UiMenuItem(Phrase.Atlas)).Click((e) => { })
-          .AddMenuItems(
-            (new UiMenuItem(Phrase.DebugInfoHeader)).Click((e) => { }),
-            (new UiMenuItem(Phrase.Dark)).Click((e) => { })
-            .AddMenuItems(
-              (new UiMenuItem(Phrase.Error)).Click((e) => { })
-                .AddMenuItem((new UiMenuItem(Phrase.CopyItem))
-                  .AddMenuItem((new UiMenuItem(Phrase.NewProject))
-                    .AddMenuItem((new UiMenuItem(Phrase.TileSize))
-                      .AddMenuItem(new UiMenuItem(Phrase.Version))))),
-              (new UiMenuItem(Phrase.AtlasParameters)).Click((e) => { }),
-              (new UiMenuItem(Phrase.AtlasParameters)).Click((e) => { }),
-              (new UiMenuItem(Phrase.AtlasParameters)).Click((e) => { }),
-              (new UiMenuItem(Phrase.AtlasParameters)).Click((e) => { }),
-              (new UiMenuItem(Phrase.AtlasParameters)).Click((e) => { }),
-              (new UiMenuItem(Phrase.AtlasParameters)).Click((e) => { }),
-              (new UiMenuItem(Phrase.AtlasParameters)).Click((e) => { }),
-              (new UiMenuItem(Phrase.AtlasParameters)).Click((e) => { }),
-              (new UiMenuItem(Phrase.RemoveItem)).Click((e) => { })
-            )
-          )
-        );
+        .AddItem("Show Message Box", e => Gu.MessageBox("Guess what?", $"Calling you direct from 1-800-{e.Element._iPickId}"))
+        .AddItem(Phrase.FolderDoesNotExist)
+        .AddSubMenu(Phrase.Atlas)
+          .AddItem(Phrase.DebugInfoHeader)
+          .AddSubMenu(Phrase.Dark)
+            .AddItem(Phrase.CopyItem)
+            .AddItem(Phrase.NewProject)
+            .AddItem(Phrase.TileSize)
+            .AddSubMenu(Phrase.Version)
+              .AddItem(Phrase.AtlasParameters)
+              .AddItem(Phrase.AtlasParameters)
+              .AddItem(Phrase.AtlasParameters)
+              .AddItem(Phrase.AtlasParameters)
+              .AddItem(Phrase.AtlasParameters)
+              .AddItem(Phrase.AtlasParameters)
+              .AddItem(Phrase.AtlasParameters)
+              .AddItem(Phrase.AtlasParameters)
+              .AddItem(Phrase.RemoveItem)
+              ;
+
+      //testing new border stuff
+      UiElement eee = new UiElement("testbor", null, "hElLo!");
+      eee.Style.Width = 60;
+      eee.Style.Height = 30;
+      eee.Style.SizeModeWidth = UiSizeMode.Shrink;
+      eee.Style.SizeModeHeight = UiSizeMode.Fixed;
+      eee.Style.BorderRadius = 4;
+      eee.Style.BorderTop = 5;
+      eee.Style.BorderTopColor = new vec4(1, 0, 0, 1);
+      eee.Style.BorderRight = 5;
+      eee.Style.BorderRightColor = new vec4(0, 1, 0, 1);
+      eee.Style.BorderBot = 5;
+      eee.Style.BorderBotColor = new vec4(0, 0, 1, 1);
+      eee.Style.BorderLeft = 5;
+      eee.Style.BorderLeftColor = new vec4(1, 0, 1, 1);
+      eee.Style.FontSize = 14;
+      eee.Style.Padding = 0;
+      eee.Style.PadLeft = 1;
+      eee.Style.Margin = 0;
+      toolbar.AddChild(eee);
 
       //*** Debug info panels
       rv.WorldDebugInfo = UiBuilder.Create(StyleName.DebugLabel);

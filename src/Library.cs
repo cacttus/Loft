@@ -396,15 +396,16 @@ namespace PirateCraft
     //dynamically check for file changes
     public DateTime MaxModifyTime { get { return _maxModifyTime; } }
     public long PollIntervalMs { get { return _poll; } }
-   
-    public List<FileLoc> Files {get{return _files;} set{_files=value;}}
+
+    public List<FileLoc> Files { get { return _files; } set { _files = value; } }
     private List<FileLoc> _files = new List<FileLoc>();
-    private Action<List<FileLoc>>? _onFilesChanged = null;
+    private Func<List<FileLoc>, bool>? _onFilesChanged = null;
     private DateTime _maxModifyTime = DateTime.MinValue;
     private long _poll = 500;
+    private DateTime _lastFailTime = DateTime.MinValue;
 
     protected DynamicFileLoader() { } //clone/serialize
-    public DynamicFileLoader(List<FileLoc> files, Action<List<FileLoc>> onFilesChanged, long pollInterval = 500)
+    public DynamicFileLoader(List<FileLoc> files, Func<List<FileLoc>, bool> onFilesChanged, long pollInterval = 500)
     {
       _files = files;
       _poll = pollInterval;
@@ -427,7 +428,7 @@ namespace PirateCraft
         foreach (var f in this._files)
         {
           var wt = f.GetLastWriteTime(true);
-          if (wt > _maxModifyTime)
+          if (wt > _maxModifyTime && wt > _lastFailTime)
           {
             // ** Set the modify time to the maximum file mod - even if compile fails. This prevents infinite checking
             _maxModifyTime = wt;
@@ -437,7 +438,13 @@ namespace PirateCraft
         if (changed.Count > 0 && initialCheck == false)
         {
           Gu.Log.Info($"Resource '{changed.ToString()}' has changed, hot-re-loading");
-          _onFilesChanged?.Invoke(changed);
+          if (_onFilesChanged != null)
+          {
+            if (!_onFilesChanged.Invoke(changed))
+            {
+              _lastFailTime = DateTime.Now;
+            }
+          }
         }
       }
     }

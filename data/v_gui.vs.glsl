@@ -7,7 +7,7 @@ layout(location = 3) in vec2 _v201;//texsiz
 layout(location = 4) in uvec2 _u201;//pick_color
 layout(location = 5) in vec4 _v404;//border radius0
 layout(location = 6) in vec4 _v405;//border radius1
-layout(location = 7) in vec4 _v406;//border
+layout(location = 7) in vec3 _v301;//quadrant
 
 out vec4 _rectVS;
 out vec4 _clipVS;
@@ -16,7 +16,7 @@ out vec4 _rtl_rtrVS;
 out vec4 _rbr_rblVS;
 out vec2 _texsizVS;
 flat out uvec2 _pick_colorVS;
-out vec4 _border_trblVS;
+out vec3 _quadrantVS;
 
 // The GUI is computed relative to the window 0,0, even in multiple views, we compute absolute X/Y locations in the render quad
 vec4 windowRect(in vec4 screen) {
@@ -76,7 +76,7 @@ void main() {
 
   _texsizVS = _v201;
   _pick_colorVS = _u201;
-  _border_trblVS = _v406;
+  _quadrantVS = _v301;
 
   gl_Position =  vec4(_rectVS.x, _rectVS.y, -1, 1);	
 }

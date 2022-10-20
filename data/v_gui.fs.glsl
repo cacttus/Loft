@@ -9,7 +9,7 @@ flat in uvec2 _pick_color;
 flat in vec4 _rtl_rtr;
 flat in vec4 _rbr_rbl;
 flat in vec4 _rect;
-flat in vec4 _border_trbl;
+flat in vec3 _quadrant;
 
 void main(){
   //We flip everything in the VS
@@ -18,16 +18,16 @@ void main(){
   vec2 tl = vec2(bl.x, tr.y);
   vec2 br = vec2(tr.x, bl.y);
 
-  vec2 cxy = bl+(tr-bl)*0.5;
-  float h2 = abs(tr.y - bl.y)/2.0;
-  float w2 = abs(tr.x - bl.x)/2.0;
+  vec2 cxy = bl+(tr-bl) * 0.5; // quad center
+  float h2 = abs(tr.y - bl.y) * 0.5;
+  float w2 = abs(tr.x - bl.x) * 0.5;
 
   //Round Corners
-  vec2 rtl = _rtl_rtr.xy;
+  vec2 rtl = _rtl_rtr.xy;//radii
   vec2 rtr = _rtl_rtr.zw;
   vec2 rbr = _rbr_rbl.xy;
   vec2 rbl = _rbr_rbl.zw;
-  rtl.x = clamp(rtl.x, 0, w2);
+  rtl.x = clamp(rtl.x, 0, w2);//max radius
   rtl.y = clamp(rtl.y, 0, h2);
   rtr.x = clamp(rtr.x, 0, w2);
   rtr.y = clamp(rtr.y, 0, h2);
@@ -35,7 +35,7 @@ void main(){
   rbr.y = clamp(rbr.y, 0, h2);
   rbl.x = clamp(rbl.x, 0, w2);
   rbl.y = clamp(rbl.y, 0, h2);
-  vec2 ctr = vec2(tr.x - rtr.x, tr.y - rtr.y);
+  vec2 ctr = vec2(tr.x - rtr.x, tr.y - rtr.y);//ellipse center
   vec2 cbr = vec2(br.x - rbr.x, br.y + rbr.y);
   vec2 ctl = vec2(tl.x + rtl.x, tl.y - rtl.y);
   vec2 cbl = vec2(bl.x + rbl.x, bl.y + rbl.y);
@@ -53,6 +53,15 @@ void main(){
 
   //round corner. check for vertex outside of ellipse boundaries.
   // Kind of ugly. We could enable border smoothing by muting a very small pixel radius.
+
+  //this is for.. colored borders + radius
+  // float div = abs(_quadrant.x) * (h2/w2) + abs(_quadrant.y) * (w2/h2);
+  // float ang = atan(div);
+  // float quad0 = (ang - acos(dot(_quadrant.xy, normalize(_vert - ctl)))) 
+  //                  + _quadrant.z;
+  //   (quad0<0) ||
+  //subquad xywh
+
 
   if(
     (etr > 1.0) || (ebr>1.0) || (etl>1.0) || (ebl>1.0)

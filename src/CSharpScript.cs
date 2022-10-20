@@ -127,6 +127,7 @@ namespace PirateCraft
       _loader = new DynamicFileLoader(_files, (f) =>
       {
         Compile();
+        return this._scriptStatus == ScriptStatus.CompileSuccess;
       });
     }
     public bool Compile()
@@ -177,8 +178,13 @@ namespace PirateCraft
           "System.dll",
           "System.Runtime.dll",
           "System.Collections.dll",
+          "System.Linq.dll",//IEnumerable.ToArray
           System.IO.Path.Combine(Gu.ExePath, "PirateCraft.dll"),
           System.IO.Path.Combine(Gu.ExePath, "OpenTK.Core.dll"),
+          System.IO.Path.Combine(Gu.ExePath, "OpenTK.Graphics.dll"),
+          System.IO.Path.Combine(Gu.ExePath, "OpenTK.Windowing.Common.dll"),
+          System.IO.Path.Combine(Gu.ExePath, "OpenTK.Windowing.Desktop.dll"),
+          System.IO.Path.Combine(Gu.ExePath, "OpenTK.Windowing.GraphicsLibraryFramework.dll"),
         };
       //TODO: rel paths / PATH .. 
       List<String> libs = new List<string>(){

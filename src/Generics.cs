@@ -536,10 +536,19 @@ namespace PirateCraft
         Create();
       }
     }
-    public void Create()
+    public void Create(bool createDirs = true)
     {
       if (FileStorage == FileStorage.Disk)
       {
+        if (createDirs)
+        {
+          var d = System.IO.Path.GetDirectoryName(QualifiedPath);
+          if (!System.IO.Directory.Exists(d))
+          {
+            System.IO.Directory.CreateDirectory(d);
+          }
+        }
+
         using (var fs = System.IO.File.Create(QualifiedPath))
         {
         }

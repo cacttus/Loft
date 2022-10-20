@@ -34,12 +34,10 @@ namespace PirateCraft
       var bm = b % b_to_mb;
       return (float)(bc + (float)bm / (float)b_to_mb);
     }
-
   }
 
   public static class Gu
   {
-
     // Global Utils. static Class
     #region Public: Constants
 
@@ -745,6 +743,25 @@ namespace PirateCraft
       }
       return view != null;
     }
+    public static bool TryGetSelectedViewOrDefault(out RenderView? view)
+    {
+      view=null;
+      if (TryGetSelectedView(out var ss))
+      {
+        view = ss;
+        return true;
+      }
+      else if (Gu.TryGetMainwWindow(out var mw))
+      {
+        //get the first view in the default window.
+        if (mw.RenderViews.Count > 0)
+        {
+          view = mw.RenderViews[0];
+        }
+      }
+
+      return view != null;
+    }
     public static bool TryGetSelectedViewOverlay(out ViewportOverlay? over)
     {
       over = null;
@@ -950,7 +967,27 @@ namespace PirateCraft
         Gu.BRThrowException($"'{fileloc}': Could not delete file - not found.");
       }
     }
+    public static void MessageBox(string title, string msg)
+    {
+      if (Gu.TryGetSelectedViewOrDefault(out var v))
+      {
+        if (v.Gui != null)
+        {
+          vec2 wh = new vec2(650, 500);
 
+          vec2 pos = new vec2(
+            v.Viewport.Width / 2 - wh.width / 2,
+            v.Viewport.Height / 2 - wh.height / 2
+            );
+          UiWindow win = new UiWindow(title, pos, wh, msg);
+          win.TopMost=true;
+          v.Gui.AddChild(win);
+        }
+      }
+
+
+
+    }
     #endregion
 
 

@@ -2866,6 +2866,9 @@ namespace PirateCraft
       try
       {
         var enc = Encoding.GetEncoding("iso-8859-1");
+        if(!loc.ExistsOnDisk()){
+          loc.Create();
+        }
         using (var fs = loc.OpenWrite())
         using (var bw = new System.IO.BinaryWriter(fs, enc))
         {

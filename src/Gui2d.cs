@@ -37,23 +37,23 @@ namespace PirateCraft
     [CSSAttribute("relative")] Relative, // positioned relative to the container. (image with text flow)
     [CSSAttribute("Absolute")] Absolute, // entiure screen
   }
+  public enum UiAlignment
+  {
+    [CSSAttribute("left")] Left,  //float left, roman text
+    [CSSAttribute("right")] Right, //float right, arabic text
+    [CSSAttribute("center")] Center, //center
+  }
   public enum UiSizeMode
   {
     [CSSAttribute("expand")] Expand, //Expand to parent
     [CSSAttribute("shrink")] Shrink, //Shrink container, grow child expanders to container max w/h
     [CSSAttribute("fixed")] Fixed // Fixed width/height
   }
-  public enum UiBuildOrderX
+  public enum UiRenderMode
   {
-    //for static elements only
-    [CSSAttribute("LeftToRight")] LeftToRight,
-    [CSSAttribute("RightToLeft")] RightToLeft,
-  }
-  public enum UiBuildOrderY
-  {
-    //for static elements only
-    [CSSAttribute("TopToBot")] TopToBot,
-    [CSSAttribute("BotToTop")] BotToTop,
+    [CSSAttribute("none")] None, // not drawn
+    [CSSAttribute("color")] Color, // flat color, => the Tex will be default pixel
+    [CSSAttribute("textured")] Textured, // texture => uses Texture
   }
   public enum UiBuildOrder
   {
@@ -81,7 +81,7 @@ namespace PirateCraft
   public enum UiFloatMode
   {
     [CSSAttribute("asdfasdf")] None, // flows within page/container, position is ignored (text)
-    [CSSAttribute("relatasdfgdsagive")] Floating, //does not affect container element region, but affects clip region (context menu)
+    [CSSAttribute("relatasdfgdsagive")] Floating, //element "floats" absolute above parent, does not affect container element region, but affects clip region (context menu)
   }
   public enum UiEventId
   {
@@ -149,7 +149,10 @@ namespace PirateCraft
     , BorderBotLeftRadius
     , Color
     , ColorMul
-    , BorderColor
+    , BorderTopColor
+    , BorderRightColor
+    , BorderBotColor
+    , BorderLeftColor
     , FontFace
     , FontSize
     , FontStyle
@@ -167,6 +170,9 @@ namespace PirateCraft
     , MaxValue
     , ZIndex
     , FloatMode
+    , RenderMode
+    , TextAlign
+    , Alignment
 
     //****
     , MaxUiProps
@@ -184,7 +190,8 @@ namespace PirateCraft
   {
     public bool DisableClip = false;
     public bool ShowOverlay = false;
-    public bool DisableMarginsAndPadding = false;
+    public bool DisableMargins = false;
+    public bool DisablePadding = false;
     public bool DisableBorders = false;
     public vec4 OverlayColor = new vec4(1, 0, 0, 0.3f);
     public int FrameId = 0;
@@ -350,7 +357,7 @@ namespace PirateCraft
       var mlast = Gu.Context.PCMouse.LastPos;
 
       //press focus (drag / mouse down)
-      if (Gu.Context.GameWindow.IsFocused == false )
+      if (Gu.Context.GameWindow.IsFocused == false)
       {
         var pold = _pressFocus;
         _pressFocus = null;
@@ -537,7 +544,10 @@ namespace PirateCraft
     public float BorderBotLeftRadius = 0;
     public vec4 Color = new vec4(1, 1, 1, 1);
     public vec4 ColorMul = new vec4(1, 1, 1, 1);//color multiplier
-    public vec4 BorderColor = new vec4(1, 1, 1, 1);
+    public vec4 BorderTopColor = new vec4(0, 0, 0, 1);
+    public vec4 BorderRightColor = new vec4(0, 0, 0, 1);
+    public vec4 BorderBotColor = new vec4(0, 0, 0, 1);
+    public vec4 BorderLeftColor = new vec4(0, 0, 0, 1);
     public PirateCraft.FontFace FontFace = PirateCraft.FontFace.Calibri;
     public float FontSize = 12;
     public UiFontStyle FontStyle = UiFontStyle.Normal;
@@ -555,6 +565,9 @@ namespace PirateCraft
     public double MaxValue = 100;
     public float ZIndex = 0;
     public UiFloatMode FloatMode = UiFloatMode.None;
+    public UiRenderMode RenderMode = UiRenderMode.None;
+    public UiAlignment TextAlign = UiAlignment.Left;
+    public UiAlignment Alignment = UiAlignment.Left;
 
     //Most of this generic field junk can go away and we can manually just return the variables. My hands were huring here so..ugh
     private static UiProps _defaults = new UiProps();//defaults are just set on the field initializer.
@@ -680,7 +693,6 @@ namespace PirateCraft
 
     public string Name { get; set; } = "";
 
-    [CSSAttribute("margin")]
     public float? Margin
     {
       get { return (float?)_props.Get(UiPropName.MarginTop); }
@@ -689,7 +701,6 @@ namespace PirateCraft
         MarginTop = MarginRight = MarginBot = MarginLeft = value;
       }
     }
-    [CSSAttribute("border")]
     public float? Border
     {
       get { return (float?)_props.Get(UiPropName.BorderTop); }
@@ -698,7 +709,14 @@ namespace PirateCraft
         BorderTop = BorderRight = BorderLeft = BorderBot = value;
       }
     }
-    [CSSAttribute("border-radius")]
+    public vec4? BorderColor
+    {
+      get { return (vec4?)_props.Get(UiPropName.BorderTopColor); }
+      set
+      {
+        BorderTopColor = BorderRightColor = BorderLeftColor = BorderBotColor = value;
+      }
+    }
     public float? BorderRadius
     {
       get { return (float?)_props.Get(UiPropName.BorderTopLeftRadius); }
@@ -707,7 +725,6 @@ namespace PirateCraft
         BorderTopLeftRadius = BorderTopRightRadius = BorderBotRightRadius = BorderBotLeftRadius = value;
       }
     }
-    [CSSAttribute("padding")]
     public float? Padding
     {
       get { return (float?)_props.Get(UiPropName.PadTop); }
@@ -742,48 +759,56 @@ namespace PirateCraft
     //Manual setters.. these will cause this style class to own this property
     //**Note: Do not use nullable<> or ? types on class types here. This will return (null) even if the class type is set on the nullable boxer.
     //OK so you could actually just return _props.Top .. etc here, but for now we're doing this to simplify things (as they are written)
-    [CSSAttribute("top")] public float? Top { get { return (float?)GetClassValue(UiPropName.Top); } set { SetClassValue(UiPropName.Top, (float?)value); } }
-    [CSSAttribute("left")] public float? Left { get { return (float?)GetClassValue(UiPropName.Left); } set { SetClassValue(UiPropName.Left, (float?)value); } }
-    [CSSAttribute("min-width")] public float? MinWidth { get { return (float?)GetClassValue(UiPropName.MinWidth); } set { SetClassValue(UiPropName.MinWidth, (float?)value); } }
-    [CSSAttribute("min-height")] public float? MinHeight { get { return (float?)GetClassValue(UiPropName.MinHeight); } set { SetClassValue(UiPropName.MinHeight, (float?)value); } }
-    [CSSAttribute("max-width")] public float? MaxWidth { get { return (float?)GetClassValue(UiPropName.MaxWidth); } set { SetClassValue(UiPropName.MaxWidth, (float?)value); } }
-    [CSSAttribute("max-height")] public float? MaxHeight { get { return (float?)GetClassValue(UiPropName.MaxHeight); } set { SetClassValue(UiPropName.MaxHeight, (float?)value); } }
-    [CSSAttribute("padding-top")] public float? PadTop { get { return (float?)GetClassValue(UiPropName.PadTop); } set { SetClassValue(UiPropName.PadTop, (float?)value); } }
-    [CSSAttribute("padding-right")] public float? PadRight { get { return (float?)GetClassValue(UiPropName.PadRight); } set { SetClassValue(UiPropName.PadRight, (float?)value); } }
-    [CSSAttribute("padding-bottom")] public float? PadBot { get { return (float?)GetClassValue(UiPropName.PadBot); } set { SetClassValue(UiPropName.PadBot, (float?)value); } }
-    [CSSAttribute("padding-left")] public float? PadLeft { get { return (float?)GetClassValue(UiPropName.PadLeft); } set { SetClassValue(UiPropName.PadLeft, (float?)value); } }
-    [CSSAttribute("margin-top")] public float? MarginTop { get { return (float?)GetClassValue(UiPropName.MarginTop); } set { SetClassValue(UiPropName.MarginTop, (float?)value); } }
-    [CSSAttribute("margin-right")] public float? MarginRight { get { return (float?)GetClassValue(UiPropName.MarginRight); } set { SetClassValue(UiPropName.MarginRight, (float?)value); } }
-    [CSSAttribute("margin-bottom")] public float? MarginBot { get { return (float?)GetClassValue(UiPropName.MarginBot); } set { SetClassValue(UiPropName.MarginBot, (float?)value); } }
-    [CSSAttribute("margin-left")] public float? MarginLeft { get { return (float?)GetClassValue(UiPropName.MarginLeft); } set { SetClassValue(UiPropName.MarginLeft, (float?)value); } }
-    [CSSAttribute("border-top")] public float? BorderTop { get { return (float?)GetClassValue(UiPropName.BorderTop); } set { SetClassValue(UiPropName.BorderTop, (float?)value); } }
-    [CSSAttribute("border-right")] public float? BorderRight { get { return (float?)GetClassValue(UiPropName.BorderRight); } set { SetClassValue(UiPropName.BorderRight, (float?)value); } }
-    [CSSAttribute("border-bottom")] public float? BorderBot { get { return (float?)GetClassValue(UiPropName.BorderBot); } set { SetClassValue(UiPropName.BorderBot, (float?)value); } }
-    [CSSAttribute("border-left")] public float? BorderLeft { get { return (float?)GetClassValue(UiPropName.BorderLeft); } set { SetClassValue(UiPropName.BorderLeft, (float?)value); } }
-    [CSSAttribute("border-top-left-radius")] public float? BorderTopLeftRadius { get { return (float?)GetClassValue(UiPropName.BorderTopLeftRadius); } set { SetClassValue(UiPropName.BorderTopLeftRadius, (float?)value); } }
-    [CSSAttribute("border-top-right-radius")] public float? BorderTopRightRadius { get { return (float?)GetClassValue(UiPropName.BorderTopRightRadius); } set { SetClassValue(UiPropName.BorderTopRightRadius, (float?)value); } }
-    [CSSAttribute("border-bottom-right-radius")] public float? BorderBotRightRadius { get { return (float?)GetClassValue(UiPropName.BorderBotRightRadius); } set { SetClassValue(UiPropName.BorderBotRightRadius, (float?)value); } }
-    [CSSAttribute("border-bottom-left-radius")] public float? BorderBotLeftRadius { get { return (float?)GetClassValue(UiPropName.BorderBotLeftRadius); } set { SetClassValue(UiPropName.BorderBotLeftRadius, (float?)value); } }
-    [CSSAttribute("font-color")] public vec4? Color { get { return (vec4?)GetClassValue(UiPropName.Color); } set { SetClassValue(UiPropName.Color, (vec4?)value); } }
-    [CSSAttribute("color-mul")] public vec4? ColorMul { get { return (vec4?)GetClassValue(UiPropName.ColorMul); } set { SetClassValue(UiPropName.ColorMul, (vec4?)value); } }
-    [CSSAttribute("border-color")] public vec4? BorderColor { get { return (vec4?)GetClassValue(UiPropName.BorderColor); } set { SetClassValue(UiPropName.BorderColor, (vec4?)value); } }
-    [CSSAttribute("font-family")] public FontFace FontFace { get { return (FontFace)GetClassValue(UiPropName.FontFace); } set { SetClassValue(UiPropName.FontFace, (FontFace)value); } }
-    [CSSAttribute("font-size")] public float? FontSize { get { return (float?)GetClassValue(UiPropName.FontSize); } set { SetClassValue(UiPropName.FontSize, (float?)value); } }
-    [CSSAttribute("font-style")] public UiFontStyle? FontStyle { get { return (UiFontStyle?)GetClassValue(UiPropName.FontStyle); } set { SetClassValue(UiPropName.FontStyle, (UiFontStyle?)value); } }
-    [CSSAttribute("color")] public vec4? FontColor { get { return (vec4?)GetClassValue(UiPropName.FontColor); } set { SetClassValue(UiPropName.FontColor, (vec4?)value); } }
-    [CSSAttribute("line-height")] public float? LineHeight { get { return (float?)GetClassValue(UiPropName.LineHeight); } set { SetClassValue(UiPropName.LineHeight, (float?)value); } }
-    [CSSAttribute("position-mode")] public UiPositionMode? PositionMode { get { return (UiPositionMode?)GetClassValue(UiPropName.PositionMode); } set { SetClassValue(UiPropName.PositionMode, (UiPositionMode?)value); } }
-    [CSSAttribute("overflow-mode")] public UiOverflowMode? OverflowMode { get { return (UiOverflowMode?)GetClassValue(UiPropName.OverflowMode); } set { SetClassValue(UiPropName.OverflowMode, (UiOverflowMode?)value); } }
-    [CSSAttribute("size-mode-width")] public UiSizeMode? SizeModeWidth { get { return (UiSizeMode?)GetClassValue(UiPropName.SizeModeWidth); } set { SetClassValue(UiPropName.SizeModeWidth, (UiSizeMode?)value); } }
-    [CSSAttribute("size-mode-height")] public UiSizeMode? SizeModeHeight { get { return (UiSizeMode?)GetClassValue(UiPropName.SizeModeHeight); } set { SetClassValue(UiPropName.SizeModeHeight, (UiSizeMode?)value); } }
-    [CSSAttribute("display")] public UiDisplayMode? DisplayMode { get { return (UiDisplayMode?)GetClassValue(UiPropName.DisplayMode); } set { SetClassValue(UiPropName.DisplayMode, (UiDisplayMode?)value); } }
-    [CSSAttribute("image-tiling-x")] public UiImageTiling? ImageTilingX { get { return (UiImageTiling?)GetClassValue(UiPropName.ImageTilingX); } set { SetClassValue(UiPropName.ImageTilingX, (UiImageTiling?)value); } }
-    [CSSAttribute("image-tiling-y")] public UiImageTiling? ImageTilingY { get { return (UiImageTiling?)GetClassValue(UiPropName.ImageTilingY); } set { SetClassValue(UiPropName.ImageTilingY, (UiImageTiling?)value); } }
-    [CSSAttribute("texture")] public MtTex Texture { get { return (MtTex)GetClassValue(UiPropName.Texture); } set { SetClassValue(UiPropName.Texture, (MtTex)value); } }
-    [CSSAttribute("max-value")] public double? MaxValue { get { return (double?)GetClassValue(UiPropName.MaxValue); } set { SetClassValue(UiPropName.MaxValue, (double?)value); } }
-    [CSSAttribute("min-value")] public double? MinValue { get { return (double?)GetClassValue(UiPropName.MinValue); } set { SetClassValue(UiPropName.MinValue, (double?)value); } }
-    [CSSAttribute("z-index")] public float? ZIndex { get { return (float?)GetClassValue(UiPropName.ZIndex); } set { SetClassValue(UiPropName.ZIndex, (float?)value); } }
-    [CSSAttribute("floatmd")] public UiFloatMode? FloatMode { get { return (UiFloatMode?)GetClassValue(UiPropName.FloatMode); } set { SetClassValue(UiPropName.FloatMode, (UiFloatMode?)value); } }
+    public float? Top { get { return (float?)GetClassValue(UiPropName.Top); } set { SetClassValue(UiPropName.Top, (float?)value); } }
+    public float? Left { get { return (float?)GetClassValue(UiPropName.Left); } set { SetClassValue(UiPropName.Left, (float?)value); } }
+    public float? MinWidth { get { return (float?)GetClassValue(UiPropName.MinWidth); } set { SetClassValue(UiPropName.MinWidth, (float?)value); } }
+    public float? MinHeight { get { return (float?)GetClassValue(UiPropName.MinHeight); } set { SetClassValue(UiPropName.MinHeight, (float?)value); } }
+    public float? MaxWidth { get { return (float?)GetClassValue(UiPropName.MaxWidth); } set { SetClassValue(UiPropName.MaxWidth, (float?)value); } }
+    public float? MaxHeight { get { return (float?)GetClassValue(UiPropName.MaxHeight); } set { SetClassValue(UiPropName.MaxHeight, (float?)value); } }
+    public float? PadTop { get { return (float?)GetClassValue(UiPropName.PadTop); } set { SetClassValue(UiPropName.PadTop, (float?)value); } }
+    public float? PadRight { get { return (float?)GetClassValue(UiPropName.PadRight); } set { SetClassValue(UiPropName.PadRight, (float?)value); } }
+    public float? PadBot { get { return (float?)GetClassValue(UiPropName.PadBot); } set { SetClassValue(UiPropName.PadBot, (float?)value); } }
+    public float? PadLeft { get { return (float?)GetClassValue(UiPropName.PadLeft); } set { SetClassValue(UiPropName.PadLeft, (float?)value); } }
+    public float? MarginTop { get { return (float?)GetClassValue(UiPropName.MarginTop); } set { SetClassValue(UiPropName.MarginTop, (float?)value); } }
+    public float? MarginRight { get { return (float?)GetClassValue(UiPropName.MarginRight); } set { SetClassValue(UiPropName.MarginRight, (float?)value); } }
+    public float? MarginBot { get { return (float?)GetClassValue(UiPropName.MarginBot); } set { SetClassValue(UiPropName.MarginBot, (float?)value); } }
+    public float? MarginLeft { get { return (float?)GetClassValue(UiPropName.MarginLeft); } set { SetClassValue(UiPropName.MarginLeft, (float?)value); } }
+    public float? BorderTop { get { return (float?)GetClassValue(UiPropName.BorderTop); } set { SetClassValue(UiPropName.BorderTop, (float?)value); } }
+    public float? BorderRight { get { return (float?)GetClassValue(UiPropName.BorderRight); } set { SetClassValue(UiPropName.BorderRight, (float?)value); } }
+    public float? BorderBot { get { return (float?)GetClassValue(UiPropName.BorderBot); } set { SetClassValue(UiPropName.BorderBot, (float?)value); } }
+    public float? BorderLeft { get { return (float?)GetClassValue(UiPropName.BorderLeft); } set { SetClassValue(UiPropName.BorderLeft, (float?)value); } }
+    public float? BorderTopLeftRadius { get { return (float?)GetClassValue(UiPropName.BorderTopLeftRadius); } set { SetClassValue(UiPropName.BorderTopLeftRadius, (float?)value); } }
+    public float? BorderTopRightRadius { get { return (float?)GetClassValue(UiPropName.BorderTopRightRadius); } set { SetClassValue(UiPropName.BorderTopRightRadius, (float?)value); } }
+    public float? BorderBotRightRadius { get { return (float?)GetClassValue(UiPropName.BorderBotRightRadius); } set { SetClassValue(UiPropName.BorderBotRightRadius, (float?)value); } }
+    public float? BorderBotLeftRadius { get { return (float?)GetClassValue(UiPropName.BorderBotLeftRadius); } set { SetClassValue(UiPropName.BorderBotLeftRadius, (float?)value); } }
+    public vec4? Color { get { return (vec4?)GetClassValue(UiPropName.Color); } set { SetClassValue(UiPropName.Color, (vec4?)value); } }
+    public vec4? ColorMul { get { return (vec4?)GetClassValue(UiPropName.ColorMul); } set { SetClassValue(UiPropName.ColorMul, (vec4?)value); } }
+    public vec4? BorderTopColor { get { return (vec4?)GetClassValue(UiPropName.BorderTopColor); } set { SetClassValue(UiPropName.BorderTopColor, (vec4?)value); } }
+    public vec4? BorderRightColor { get { return (vec4?)GetClassValue(UiPropName.BorderRightColor); } set { SetClassValue(UiPropName.BorderRightColor, (vec4?)value); } }
+    public vec4? BorderBotColor { get { return (vec4?)GetClassValue(UiPropName.BorderBotColor); } set { SetClassValue(UiPropName.BorderBotColor, (vec4?)value); } }
+    public vec4? BorderLeftColor { get { return (vec4?)GetClassValue(UiPropName.BorderLeftColor); } set { SetClassValue(UiPropName.BorderLeftColor, (vec4?)value); } }
+    public FontFace FontFace { get { return (FontFace)GetClassValue(UiPropName.FontFace); } set { SetClassValue(UiPropName.FontFace, (FontFace)value); } }
+    public float? FontSize { get { return (float?)GetClassValue(UiPropName.FontSize); } set { SetClassValue(UiPropName.FontSize, (float?)value); } }
+    public UiFontStyle? FontStyle { get { return (UiFontStyle?)GetClassValue(UiPropName.FontStyle); } set { SetClassValue(UiPropName.FontStyle, (UiFontStyle?)value); } }
+    public vec4? FontColor { get { return (vec4?)GetClassValue(UiPropName.FontColor); } set { SetClassValue(UiPropName.FontColor, (vec4?)value); } }
+    public float? LineHeight { get { return (float?)GetClassValue(UiPropName.LineHeight); } set { SetClassValue(UiPropName.LineHeight, (float?)value); } }
+    public UiPositionMode? PositionMode { get { return (UiPositionMode?)GetClassValue(UiPropName.PositionMode); } set { SetClassValue(UiPropName.PositionMode, (UiPositionMode?)value); } }
+    public UiOverflowMode? OverflowMode { get { return (UiOverflowMode?)GetClassValue(UiPropName.OverflowMode); } set { SetClassValue(UiPropName.OverflowMode, (UiOverflowMode?)value); } }
+    public UiSizeMode? SizeModeWidth { get { return (UiSizeMode?)GetClassValue(UiPropName.SizeModeWidth); } set { SetClassValue(UiPropName.SizeModeWidth, (UiSizeMode?)value); } }
+    public UiSizeMode? SizeModeHeight { get { return (UiSizeMode?)GetClassValue(UiPropName.SizeModeHeight); } set { SetClassValue(UiPropName.SizeModeHeight, (UiSizeMode?)value); } }
+    public UiDisplayMode? DisplayMode { get { return (UiDisplayMode?)GetClassValue(UiPropName.DisplayMode); } set { SetClassValue(UiPropName.DisplayMode, (UiDisplayMode?)value); } }
+    public UiImageTiling? ImageTilingX { get { return (UiImageTiling?)GetClassValue(UiPropName.ImageTilingX); } set { SetClassValue(UiPropName.ImageTilingX, (UiImageTiling?)value); } }
+    public UiImageTiling? ImageTilingY { get { return (UiImageTiling?)GetClassValue(UiPropName.ImageTilingY); } set { SetClassValue(UiPropName.ImageTilingY, (UiImageTiling?)value); } }
+    public MtTex Texture { get { return (MtTex)GetClassValue(UiPropName.Texture); } set { SetClassValue(UiPropName.Texture, (MtTex)value); } }
+    public double? MaxValue { get { return (double?)GetClassValue(UiPropName.MaxValue); } set { SetClassValue(UiPropName.MaxValue, (double?)value); } }
+    public double? MinValue { get { return (double?)GetClassValue(UiPropName.MinValue); } set { SetClassValue(UiPropName.MinValue, (double?)value); } }
+    public float? ZIndex { get { return (float?)GetClassValue(UiPropName.ZIndex); } set { SetClassValue(UiPropName.ZIndex, (float?)value); } }
+    public UiFloatMode? FloatMode { get { return (UiFloatMode?)GetClassValue(UiPropName.FloatMode); } set { SetClassValue(UiPropName.FloatMode, (UiFloatMode?)value); } }
+    public UiRenderMode? RenderMode { get { return (UiRenderMode?)GetClassValue(UiPropName.RenderMode); } set { SetClassValue(UiPropName.RenderMode, (UiRenderMode?)value); } }
+    public UiAlignment? TextAlign { get { return (UiAlignment?)GetClassValue(UiPropName.TextAlign); } set { SetClassValue(UiPropName.TextAlign, (UiAlignment?)value); } }
+    public UiAlignment? Alignment { get { return (UiAlignment?)GetClassValue(UiPropName.Alignment); } set { SetClassValue(UiPropName.Alignment, (UiAlignment?)value); } }
+
+
 
     #endregion
     #region Public: Methods
@@ -1189,7 +1214,11 @@ namespace PirateCraft
     //*render quad is the origin
     public UiQuad _b2ClipQuad = new UiQuad();      // The clip quad - all floating and contained, elements and min/max w/h. *clip quad may not equal computed quad if there are floating elements
     public UiQuad _b2LocalQuad = new UiQuad();      // local quad
-    public UiQuad _b2FinalQuad = new UiQuad();        // Final quad. Transformed from design space into screen space.
+    public UiQuad _b2ContentQuad = new UiQuad();        // Final quad. content without margin /border
+    public UiQuad _b2MarginQuad = new UiQuad();
+    public UiQuad _b2PaddingQuad = new UiQuad();
+    public UiQuad _b2PreOffsetBorderQuad = new UiQuad();
+    public UiQuad _b2BorderQuad = new UiQuad();        // Final quad. content area + margin + border area
     public vec2 ContentWH = new vec2(0, 0);
     public vec2 GlyphWH = new vec2(0, 0);//max width/height of all glyphs
     public vec2 OuterMaxWH = new vec2(0, 0);
@@ -1226,9 +1255,10 @@ namespace PirateCraft
     List<UiElement> _glyphs = null;
     public void SetContentChanged() { _contentChanged = true; }
 
-    public virtual string NamingPrefix { get { return "uielement"; } }
+    public virtual string NamingPrefix { get { return "ele"; } }
     public string Name { get { return _name; } set { _name = value; } }
     public string Tag { get; set; } = "";
+
     public string Text
     {
       get { return _strText; }
@@ -1264,9 +1294,10 @@ namespace PirateCraft
     public Dictionary<UiEventId, List<UiAction>> Events { get { return _events; } set { _events = value; } }
     public List<UiElement>? Children { get { return _children; } }
     public UiQuad LocalQuad { get { return _quads._b2LocalQuad; } }
-    public UiQuad FinalQuad { get { return _quads._b2FinalQuad; } }
+    public UiQuad FinalQuad { get { return _quads._b2BorderQuad; } }
     //public int TreeDepth { get { return _treeDepth; } }
     public UiElement? Parent { get { return _parent; } }
+    public bool TopMost { get { return _topMost; } set { _topMost = value; } }
 
     #endregion
     #region Private: Members
@@ -1298,8 +1329,7 @@ namespace PirateCraft
     private bool _textChanged = false;
     private bool _dragEnabled = false;
     private bool _contentChanged = true;
-
-
+    private bool _topMost = false;
 
     #endregion
     #region Public: Methods
@@ -1310,39 +1340,44 @@ namespace PirateCraft
     }
     public UiElement(string style) : this()
     {
-      init(new List<string>() { style }, NamingPrefix);
+      Init(new List<string>() { style }, null);
     }
     public UiElement(string style, string text) : this()
     {
-      init(new List<string>() { style }, NamingPrefix, text);
+      Init(new List<string>() { style }, null, text);
     }
-    public UiElement(string name, string style, string text) : this()
+    public UiElement(string name, string? style, string text) : this()
     {
-      init(new List<string>() { style }, name, text);
+      List<string> styles = new List<string>();
+      if (style != null)
+      {
+        styles.Add(style);
+      }
+      Init(styles, name, text);
     }
     public UiElement(string style, Phrase p) : this()
     {
-      init(new List<string>() { style }, NamingPrefix, Gu.Translator.Translate(p));
+      Init(new List<string>() { style }, null, Gu.Translator.Translate(p));
     }
     public UiElement(List<string> styleClasses) : this()
     {
-      init(styleClasses, NamingPrefix);
+      Init(styleClasses, null);
     }
     public UiElement(List<string> styleClasses, Phrase phrase) : this()
     {
-      init(styleClasses, NamingPrefix, Gu.Translator.Translate(phrase));
+      Init(styleClasses, null, Gu.Translator.Translate(phrase));
     }
     public UiElement(List<string> styleClasses, string text) : this()
     {
-      init(styleClasses, NamingPrefix, text);
+      Init(styleClasses, null, text);
     }
     public UiElement(List<string> styleClasses, Phrase phrase, List<UiElement> children) : this()
     {
-      init(styleClasses, NamingPrefix, Gu.Translator.Translate(phrase), children);
+      Init(styleClasses, null, Gu.Translator.Translate(phrase), children);
     }
     public UiElement(List<string> styleClasses, string text, List<UiElement> children) : this()
     {
-      init(styleClasses, NamingPrefix, text, children);
+      Init(styleClasses, null, text, children);
     }
     public void ToggleVisible()
     {
@@ -1363,6 +1398,17 @@ namespace PirateCraft
     public void Show(string name)
     {
       ShowOrHideByName(name, true);
+    }
+    private string GetDefaultName(string? text)
+    {
+      if (text != null)
+      {
+        return NamingPrefix + text;
+      }
+      else
+      {
+        return NamingPrefix + this.GetType().Name.ToString();
+      }
     }
     public bool ShowOrHideByName(string name, bool show, bool stop_at_first = false)
     {
@@ -1395,9 +1441,22 @@ namespace PirateCraft
       _children?.IterateSafe(a);
       _glyphs?.IterateSafe(a);
     }
+    public vec4 GetMarginAndBorder(UiDebugDraw dd)
+    {
+      if (dd.DisableMargins && dd.DisableBorders)
+      {
+        return vec4.Zero;
+      }
+      return new vec4(
+        (dd.DisableMargins ? 0 : Style._props.MarginTop) + (dd.DisableBorders ? 0 : Style._props.BorderTop),
+        (dd.DisableMargins ? 0 : Style._props.MarginRight) + (dd.DisableBorders ? 0 : Style._props.BorderRight),
+        (dd.DisableMargins ? 0 : Style._props.MarginBot) + (dd.DisableBorders ? 0 : Style._props.BorderBot),
+        (dd.DisableMargins ? 0 : Style._props.MarginLeft) + (dd.DisableBorders ? 0 : Style._props.BorderLeft)
+      );
+    }
     public vec4 GetMargin(UiDebugDraw dd)
     {
-      if (dd.DisableMarginsAndPadding)
+      if (dd.DisableMargins)
       {
         return vec4.Zero;
       }
@@ -1410,7 +1469,7 @@ namespace PirateCraft
     }
     public vec4 GetPadding(UiDebugDraw dd)
     {
-      if (dd.DisableMarginsAndPadding)
+      if (dd.DisablePadding)
       {
         return vec4.Zero;
       }
@@ -1434,7 +1493,7 @@ namespace PirateCraft
         Style._props.BorderLeft
       );
     }
-    public vec4 GetBorderRaduis(UiDebugDraw dd)
+    public vec4 GetBorderRadius(UiDebugDraw dd)
     {
       if (dd.DisableBorders)
       {
@@ -1465,6 +1524,7 @@ namespace PirateCraft
       e._parent = this;
 
       e.UpdateSortKeys();
+      e.OnAddedToParent(this);
 
       return e;
     }
@@ -1546,6 +1606,21 @@ namespace PirateCraft
     }
     public void AddEvent(UiEventId evId, UiAction f)
     {
+      //add an additional event
+      SetOrAddEvent(evId, f, false);
+    }
+    public void SetEvent(UiEventId evId, UiAction f)
+    {
+      //erase all events and set the new one
+      SetOrAddEvent(evId, f, true);
+    }
+    private void SetOrAddEvent(UiEventId evId, UiAction f, bool set)
+    {
+      Gu.Assert(f != null);
+      if (set)
+      {
+        _events.Remove(evId);
+      }
       _events = _events.ConstructIfNeeded();
       List<UiAction>? acts = null;
       if (!_events.TryGetValue(evId, out acts))
@@ -1599,17 +1674,22 @@ namespace PirateCraft
     #endregion
     #region Private/Protected: Methods
 
-    private void init(List<string> styleClasses, string name, string? phrase = null, List<UiElement> children = null)
+    protected virtual void OnAddedToParent(UiElement parent) { }
+
+    private void Init(List<string> styleClasses, string? name = null, string? phrase = null, List<UiElement> children = null)
     {
       this.Style.SetInheritStyles(styleClasses);
-      _name = name;
-      if (String.IsNullOrEmpty(_name))
-      {
-        _name = NamingPrefix;//help
-      }
       if (phrase != null)
       {
         Text = phrase;
+      }
+      if (name == null)
+      {
+        _name = GetDefaultName(phrase);
+      }
+      else
+      {
+        _name = name;
       }
       if (children != null)
       {
@@ -1693,14 +1773,13 @@ namespace PirateCraft
         _quads.ContentWH = _quads.GlyphWH; //start with max wh of all glyphs
 
         //remove margins for child
-        var this_mar = this.GetMargin(dd);
+        var mb = this.GetMarginAndBorder(dd);
         _quads.InnerMaxWH = new vec2(
-          Math.Max(_quads.OuterMaxWH.width - this_mar.left - this_mar.right, 0),
-          Math.Max(_quads.OuterMaxWH.height - this_mar.top - this_mar.bot, 0)
+          Math.Max(_quads.OuterMaxWH.width - mb.left - mb.right, 0),
+          Math.Max(_quads.OuterMaxWH.height - mb.top - mb.bot, 0)
         );
 
         //size, then layout children
-        var mar = this.GetMargin(dd);
         List<UiLine> vecLines = new List<UiLine>();
         vecLines.Add(new UiLine(0, 0));
 
@@ -1745,7 +1824,7 @@ namespace PirateCraft
             {
               if (ele.Style._props.PositionMode == UiPositionMode.Static)
               {
-                LayoutStaticElement(ele, vecLines, _quads.InnerMaxWH, _quads.ContentWH, dd);
+                LayoutStaticElement(ele, Style._props.Alignment, vecLines, _quads.InnerMaxWH, _quads.ContentWH, dd);
               }
             }
           }
@@ -1755,16 +1834,16 @@ namespace PirateCraft
         {
           foreach (var ele in _glyphs)
           {
-            LayoutStaticElement(ele, vecLines, _quads.InnerMaxWH, _quads.ContentWH, dd);
+            LayoutStaticElement(ele, Style._props.TextAlign, vecLines, _quads.InnerMaxWH, _quads.ContentWH, dd);
           }
         }
 
         //Calculate content size
-        float totalHeight = mar.top + mar.bot;
+        float totalHeight = mb.top + mb.bot;
         foreach (var line in vecLines)
         {
           totalHeight += line._height;
-          _quads.ContentWH.x = Math.Max(_quads.ContentWH.x, line._width + mar.right + mar.left);
+          _quads.ContentWH.x = Math.Max(_quads.ContentWH.x, line._width + mb.right + mb.left);
         }
         _quads.ContentWH.y = Math.Max(_quads.ContentWH.y, totalHeight);
 
@@ -1774,7 +1853,7 @@ namespace PirateCraft
 
       }
     }
-    protected void PerformLayout_PositionElements(bool bForce, UiDebugDraw dd, ReverseGrowList<v_v4v4v4v2u2v4v4> eles, UiQuad parentClip, MtTex defaultPixel,
+    protected void PerformLayout_PositionElements(bool bForce, UiDebugDraw dd, ReverseGrowList<v_v4v4v4v2u2v4v4> verts, UiQuad parentClip, MtTex defaultPixel,
       uint rootPickId, ref Dictionary<uint, UiElement>? pickable)
     {
       //Position elements after size and relative position calculated
@@ -1813,7 +1892,7 @@ namespace PirateCraft
           {
             if (ele.Visible)
             {
-              ele.PerformLayout_PositionElements(bForce, dd, eles, clip, defaultPixel, pickId, ref pickable);
+              ele.PerformLayout_PositionElements(bForce, dd, verts, clip, defaultPixel, pickId, ref pickable);
 
               //expand clip
               _quads._b2ClipQuad.ExpandByPoint(ele._quads._b2ClipQuad.Min);
@@ -1825,7 +1904,7 @@ namespace PirateCraft
         {
           foreach (var ele in _glyphs)
           {
-            ele.PerformLayout_PositionElements(bForce, dd, eles, clip, defaultPixel, pickId, ref pickable);
+            ele.PerformLayout_PositionElements(bForce, dd, verts, clip, defaultPixel, pickId, ref pickable);
 
             //expand clip
             _quads._b2ClipQuad.ExpandByPoint(ele._quads._b2ClipQuad.Min);
@@ -1837,11 +1916,11 @@ namespace PirateCraft
 
         if (Style._props.FloatMode == UiFloatMode.Floating)
         {
-          GetOpenGLQuadVerts(eles, _quads._b2ClipQuad, defaultPixel, pickId, dd);
+          GetOpenGLQuadVerts(verts, _quads._b2ClipQuad, defaultPixel, pickId, dd);
         }
         else if (IsFullyClipped(parentClip) == false)
         {
-          GetOpenGLQuadVerts(eles, parentClip, defaultPixel, pickId, dd);
+          GetOpenGLQuadVerts(verts, parentClip, defaultPixel, pickId, dd);
         }
 
         _contentChanged = false;
@@ -1904,22 +1983,21 @@ namespace PirateCraft
 
       _quads._b2LocalQuad.Validate();
     }
-    private void LayoutStaticElement(UiElement ele, List<UiLine> vecLines, vec2 pmaxInnerWH, vec2 pcontentWH, UiDebugDraw dd)
+    private void LayoutStaticElement(UiElement ele, UiAlignment align, List<UiLine> vecLines, vec2 pmaxInnerWH, vec2 pcontentWH, UiDebugDraw dd)
     {
+      //So now we have a UiLine Array
+      //[left, center, right] .. perhaps moer.
+      //for now just left/right
+
       //compute static element left/top
       if (vecLines.Count == 0)
       {
         Gu.BRThrowException("GUI error - tried to run calc algorithm without any UILines created");
       }
-      UiLine line = vecLines[vecLines.Count - 1];
-
-      var pmar = this.GetMargin(dd);
-      float pspacex = pmaxInnerWH.x;//maximally equal to the Screen WH
-
-      var e_pad = ele.GetPadding(dd);
 
       if (ele.ShrinkExpanderW())
       {
+        //parent=shrink, child=grow (race condition), set child to min content
         ele._quads._b2LocalQuad._width = Math.Min(pcontentWH.width, pmaxInnerWH.width);
       }
       if (ele.ShrinkExpanderH())
@@ -1927,8 +2005,10 @@ namespace PirateCraft
         ele._quads._b2LocalQuad._height = Math.Min(pcontentWH.height, pmaxInnerWH.height);
       }
 
-      float e_width = ele._quads._b2LocalQuad._width;
-      float e_height = ele._quads._b2LocalQuad._height;
+      UiLine line = vecLines[vecLines.Count - 1];
+      var e_width = ele._quads._b2LocalQuad._width;
+      var e_pad = ele.GetPadding(dd);
+      float pspacex = pmaxInnerWH.x;//maximally equal to the Screen WH
 
       bool bLineBreak = false;
       if (ele.Style._props.DisplayMode == UiDisplayMode.Inline)
@@ -1952,6 +2032,25 @@ namespace PirateCraft
         bLineBreak = false;
       }
 
+      if (align == UiAlignment.Left)
+      {
+        LayoutLeft(ele, e_width, e_pad, bLineBreak, line, vecLines, pmaxInnerWH, pcontentWH, dd);
+      }
+      else if (align == UiAlignment.Right)
+      {
+        LayoutLeft(ele, e_width, e_pad, bLineBreak, line, vecLines, pmaxInnerWH, pcontentWH, dd);
+
+        //LayoutRight(ele, e_width, e_pad, bLineBreak, line, vecLines, pmaxInnerWH, pcontentWH, dd);
+      }
+      else if (align == UiAlignment.Center)
+      {
+        //TODO:
+        LayoutLeft(ele, e_width, e_pad, bLineBreak, line, vecLines, pmaxInnerWH, pcontentWH, dd);
+      }
+    }
+    private void LayoutLeft(UiElement ele, float e_width, vec4 e_pad, bool bLineBreak, UiLine line,
+                            List<UiLine> vecLines, vec2 pmaxInnerWH, vec2 pcontentWH, UiDebugDraw dd)
+    {
       if (bLineBreak)
       {
         // new line
@@ -1960,8 +2059,10 @@ namespace PirateCraft
         line = vecLines[vecLines.Count - 1];
       }
 
-      ele._quads._b2LocalQuad._left = line._left + line._width + e_pad.left + pmar.left;
-      ele._quads._b2LocalQuad._top = line._top + e_pad.top + pmar.top;
+      var pmarb = this.GetMarginAndBorder(dd);
+
+      ele._quads._b2LocalQuad._left = line._left + line._width + pmarb.left + e_pad.left;
+      ele._quads._b2LocalQuad._top = line._top + pmarb.top + e_pad.top;
       line._width += e_width + e_pad.left + e_pad.right;
       line._height = Math.Max(line._height, ele._quads._b2LocalQuad._height + e_pad.top + e_pad.bot);
 
@@ -1969,6 +2070,28 @@ namespace PirateCraft
 
       line._eles.Add(ele);
     }
+    // private void LayoutRight(UiElement ele, float e_width, vec4 e_pad, bool bLineBreak, UiLine line,
+    //                         List<UiLine> vecLines, vec2 pmaxInnerWH, vec2 pcontentWH, UiDebugDraw dd)
+    // {
+    //   if (bLineBreak)
+    //   {
+    //     // new line
+    //     UiLine line2 = new UiLine(0, line._top + line._height);
+    //     vecLines.Add(line2);
+    //     line = vecLines[vecLines.Count - 1];
+    //   }
+
+    //   var pmarb = this.GetMarginAndBorder(dd);
+
+    //   ele._quads._b2LocalQuad._left = line._left + line._width + e_pad.left + pmarb.left;
+    //   ele._quads._b2LocalQuad._top = line._top + e_pad.top + pmarb.top;
+    //   line._width += e_width + e_pad.left + e_pad.right;
+    //   line._height = Math.Max(line._height, ele._quads._b2LocalQuad._height + e_pad.top + e_pad.bot);
+
+    //   ele._quads._b2LocalQuad.Validate();
+
+    //   line._eles.Add(ele);
+    // }
     private void ConstrainValue(float min, float max, ref float x, float size)
     {
       //@param x = ele position (x,y) size = ele w/h
@@ -1990,6 +2113,7 @@ namespace PirateCraft
     }
     protected void ComputeQuads(UiDebugDraw dd)
     {
+      //Add parent offsets to child quads.
       float w1 = 1.0f, h1 = 1.0f;
       w1 = 1;//UiScreen::getDesignMultiplierW();
       h1 = 1;//UiScreen::getDesignMultiplierH();
@@ -1997,22 +2121,22 @@ namespace PirateCraft
       //Position relative/float elements to absolute pixels
       if (this.Style._props.PositionMode == UiPositionMode.Relative || this.Style._props.PositionMode == UiPositionMode.Static)
       {
-        this._quads._b2FinalQuad._left = this._quads._b2LocalQuad._left;
-        this._quads._b2FinalQuad._top = this._quads._b2LocalQuad._top;
+        this._quads._b2BorderQuad._left = this._quads._b2LocalQuad._left;
+        this._quads._b2BorderQuad._top = this._quads._b2LocalQuad._top;
         if (_parent != null)
         {
-          this._quads._b2FinalQuad._left += _parent._quads._b2FinalQuad._left;
-          this._quads._b2FinalQuad._top += _parent._quads._b2FinalQuad._top;
+          this._quads._b2BorderQuad._left += _parent._quads._b2BorderQuad._left;
+          this._quads._b2BorderQuad._top += _parent._quads._b2BorderQuad._top;
         }
       }
       else if (this.Style._props.PositionMode == UiPositionMode.Absolute)
       {
-        this._quads._b2FinalQuad._left = this._quads._b2LocalQuad._left = this.Style._props.Left;
-        this._quads._b2FinalQuad._top = this._quads._b2LocalQuad._top = this.Style._props.Top;
+        this._quads._b2BorderQuad._left = this._quads._b2LocalQuad._left = this.Style._props.Left;
+        this._quads._b2BorderQuad._top = this._quads._b2LocalQuad._top = this.Style._props.Top;
       }
 
-      this._quads._b2FinalQuad._width = this._quads._b2LocalQuad._width;
-      this._quads._b2FinalQuad._height = this._quads._b2LocalQuad._height;
+      this._quads._b2BorderQuad._width = this._quads._b2LocalQuad._width;
+      this._quads._b2BorderQuad._height = this._quads._b2LocalQuad._height;
 
       //initial clip
 
@@ -2023,32 +2147,58 @@ namespace PirateCraft
         //For glyphs, and other elements that go outside their physical regions
         vec2 origin = new vec2(
           //appears the horizontal position is only the horizontal center,
-          _quads._b2FinalQuad._left + _quads._b2FinalQuad._width / 2,
-          _quads._b2FinalQuad._top
+          _quads._b2BorderQuad._left + _quads._b2BorderQuad._width / 2,
+          _quads._b2BorderQuad._top
         );
         var ro = _renderOffset.Value;
-        var cpy = _quads._b2FinalQuad;
+        _quads._b2PreOffsetBorderQuad = _quads._b2BorderQuad.Clone();
+        var cpy = _quads._b2BorderQuad.Clone();
         float minx = origin.x + ro.Left - cpy._width / 2f;
         float miny = origin.y + ro.Top + cpy._height / 1.25f;
         float maxx = origin.x + ro.Right - cpy._width / 2f;
         float maxy = origin.y + ro.Bottom + cpy._height / 1.25f;
-        _quads._b2FinalQuad._left = minx;
-        _quads._b2FinalQuad._top = miny;
-        _quads._b2FinalQuad._width = maxx - minx;
-        _quads._b2FinalQuad._height = maxy - miny;
-
-        _quads._b2FinalQuad.Validate();
+        _quads._b2BorderQuad._left = minx;
+        _quads._b2BorderQuad._top = miny;
+        _quads._b2BorderQuad._width = maxx - minx;
+        _quads._b2BorderQuad._height = maxy - miny;
       }
 
       // Set to false if we're controllig coordinates of this element (cursor, or window position)
-      this._quads._b2FinalQuad._left *= w1;
-      this._quads._b2FinalQuad._top *= h1;
-      this._quads._b2FinalQuad._width *= w1;
-      this._quads._b2FinalQuad._height *= h1;
+      this._quads._b2BorderQuad._left *= w1;
+      this._quads._b2BorderQuad._top *= h1;
+      this._quads._b2BorderQuad._width *= w1;
+      this._quads._b2BorderQuad._height *= h1;
 
-      this._quads._b2ClipQuad = this._quads._b2FinalQuad;
+      this._quads._b2ClipQuad = this._quads._b2BorderQuad;
 
-      this._quads._b2FinalQuad.Validate();
+      this._quads._b2BorderQuad.Validate();
+
+      //separate the border quad from the content area quad
+
+      this._quads._b2ContentQuad = this._quads._b2BorderQuad;
+
+      var bd = this.GetBorder(dd);
+      this._quads._b2ContentQuad._left += bd.left;
+      this._quads._b2ContentQuad._top += bd.top;
+      this._quads._b2ContentQuad._width -= (bd.left + bd.right);
+      this._quads._b2ContentQuad._height -= (bd.top + bd.bot);
+      this._quads._b2ContentQuad.Validate();
+
+      var mg = this.GetMargin(dd);
+      this._quads._b2MarginQuad = this._quads._b2BorderQuad.Clone();
+      // this._quads._b2MarginQuad._left -= mg.left;
+      // this._quads._b2MarginQuad._top -= mg.top;
+      // this._quads._b2MarginQuad._width -= (mg.right+ mg.left);
+      // this._quads._b2MarginQuad._height -= (mg.bot+mg.top);
+
+      var pd = this.GetPadding(dd);
+      this._quads._b2PaddingQuad = this._quads._b2BorderQuad.Clone();
+      this._quads._b2PaddingQuad._left -= pd.left;
+      this._quads._b2PaddingQuad._top -= pd.top;
+      this._quads._b2PaddingQuad._width += (pd.right+pd.left);
+      this._quads._b2PaddingQuad._height += (pd.bot+pd.top);
+
+
     }
     public static bool disableoff = false;
     private void GetOpenGLQuadVerts(ReverseGrowList<v_v4v4v4v2u2v4v4> all_verts, UiQuad b2ClipRect, MtTex defaultPixel, uint rootPickId, UiDebugDraw dd)
@@ -2057,7 +2207,7 @@ namespace PirateCraft
       {
         return;
       }
-      if ((Style._props.Texture == null) && (_cachedGlyph == null))
+      if ((Style._props.RenderMode == UiRenderMode.None) && (_cachedGlyph == null))
       {
         //invisible, or container element
         return;
@@ -2067,35 +2217,150 @@ namespace PirateCraft
       // adjust the texture coordinates by some pixels to account for that.  0.5f seems to work well.
       float adjust = 0;// 1.4f;  // # of pixels to adjust texture by
 
+
+      var bd = GetBorder(dd);
+      var radius = this.GetBorderRadius(dd);
+
+      //Debug overlay
+      if (dd.ShowOverlay)
+      {
+        //preoffset border
+        v_v4v4v4v2u2v4v4 dbgv = new v_v4v4v4v2u2v4v4();
+        SetVertexRasterArea(ref dbgv, in _quads._b2PreOffsetBorderQuad, in b2ClipRect, dd);
+        dbgv._rtl_rtr = new vec4(0, 0, 0, 0);
+        dbgv._rbr_rbl = new vec4(0, 0, 0, 0);
+        dbgv._quadrant = new vec3(0, 0, 999);
+        ComputeVertexTexcoord(ref dbgv, defaultPixel, UiImageTiling.Expand, UiImageTiling.Expand, 0);
+        SetVertexPickAndColor(ref dbgv, (new vec4(1,0,0,.3f)) , rootPickId);
+        all_verts.Add(dbgv);//This is because of the new sorting issue
+
+        SetVertexRasterArea(ref dbgv, in _quads._b2ContentQuad, in b2ClipRect, dd);
+        dbgv._rtl_rtr = new vec4(0, 0, 0, 0);
+        dbgv._rbr_rbl = new vec4(0, 0, 0, 0);
+        dbgv._quadrant = new vec3(0, 0, 999);
+        ComputeVertexTexcoord(ref dbgv, defaultPixel, UiImageTiling.Expand, UiImageTiling.Expand, 0);
+        SetVertexPickAndColor(ref dbgv, (new vec4(0,1,0,.3f)), rootPickId);
+        all_verts.Add(dbgv);//This is because of the new sorting issue
+
+        SetVertexRasterArea(ref dbgv, in _quads._b2BorderQuad, in b2ClipRect, dd);
+        dbgv._rtl_rtr = new vec4(0, 0, 0, 0);
+        dbgv._rbr_rbl = new vec4(0, 0, 0, 0);
+        dbgv._quadrant = new vec3(0, 0, 999);
+        ComputeVertexTexcoord(ref dbgv, defaultPixel, UiImageTiling.Expand, UiImageTiling.Expand, 0);
+        SetVertexPickAndColor(ref dbgv, (new vec4(1,0,1,.3f)) , rootPickId);
+        all_verts.Add(dbgv);//This is because of the new sorting issue  
+
+        SetVertexRasterArea(ref dbgv, in _quads._b2PaddingQuad, in b2ClipRect, dd);
+        dbgv._rtl_rtr = new vec4(0, 0, 0, 0);
+        dbgv._rbr_rbl = new vec4(0, 0, 0, 0);
+        dbgv._quadrant = new vec3(0, 0, 999);
+        ComputeVertexTexcoord(ref dbgv, defaultPixel, UiImageTiling.Expand, UiImageTiling.Expand, 0);
+        SetVertexPickAndColor(ref dbgv, (new vec4(1,1,0,0.4)) , rootPickId);
+        all_verts.Add(dbgv);//This is because of the new sorting issue        
+      }
+
+      //Content Quad
       v_v4v4v4v2u2v4v4 vc = new v_v4v4v4v2u2v4v4();
-      var radius = this.GetBorderRaduis(dd);
       vc._rtl_rtr = new vec4(radius.top, radius.right);
       vc._rbr_rbl = new vec4(radius.bot, radius.left);
-      vc._border_trbl = this.GetBorder(dd);
-      SetVertexRasterArea(ref vc, in _quads._b2FinalQuad, in b2ClipRect, dd);
+      vc._quadrant = new vec3(0, 0, 999);
+      SetVertexRasterArea(ref vc, in _quads._b2ContentQuad, in b2ClipRect, dd);
       if (_cachedGlyph != null)
       {
         ComputeVertexGlyphTCoord(ref vc, _cachedGlyph, adjust);
       }
       else
       {
-        ComputeVertexTexcoord(ref vc, Style._props.Texture, Style._props.ImageTilingX, Style._props.ImageTilingY, adjust);
+        MtTex tex = null;
+        if (Style._props.RenderMode == UiRenderMode.Color)
+        {
+          tex = defaultPixel;
+        }
+        else if (Style._props.Texture != null)
+        {
+          tex = Style._props.Texture;
+        }
+        else
+        {
+          Gu.Log.Error($"{Name}: UI: Render mode is texture, but texture was not set. Changing to color.");
+          tex = defaultPixel;
+          Gu.DebugBreak();
+        }
+
+        ComputeVertexTexcoord(ref vc, tex, Style._props.ImageTilingX, Style._props.ImageTilingY, adjust);
       }
       SetVertexPickAndColor(ref vc, (Style._props.Color * Style._props.ColorMul).Clamp(0.0f, 1.0f), rootPickId);
       all_verts.Add(vc);//This is because of the new sorting issue
 
-      //Debug overlay
-      if (dd.ShowOverlay)
-      {
-        v_v4v4v4v2u2v4v4 dbgv = new v_v4v4v4v2u2v4v4();
-        SetVertexRasterArea(ref dbgv, in _quads._b2FinalQuad, in b2ClipRect, dd);
-        dbgv._rtl_rtr = new vec4(0, 0, 0, 0);
-        dbgv._rbr_rbl = new vec4(0, 0, 0, 0);
-        ComputeVertexTexcoord(ref dbgv, defaultPixel, UiImageTiling.Expand, UiImageTiling.Expand, adjust);
-        SetVertexPickAndColor(ref dbgv, dd.OverlayColor, rootPickId);
-        all_verts.Add(dbgv);//This is because of the new sorting issue
-      }
+      //TODO: border radius is still broken 
+      //Borders here don't work with border radius.
 
+      //Border
+      DoBorders(bd, radius, all_verts, b2ClipRect, defaultPixel, rootPickId, dd, false);
+    }
+    private void DoBorders(vec4 bd, vec4 radius, ReverseGrowList<v_v4v4v4v2u2v4v4> all_verts,
+                           UiQuad b2ClipRect, MtTex defaultPixel, uint rootPickId, UiDebugDraw dd, bool usequad)
+    {
+      //Quadrant version works with border radius but may not produce correct border
+      //Accurate version make perfect borders without radius.
+      if (!usequad)
+      {
+        radius = new vec4(0, 0, 0, 0);
+      }
+      if (bd.top > 0)
+      {
+        UiQuad bt = _quads._b2BorderQuad.Clone();
+        if (!usequad)
+        {
+          bt._height = _quads._b2ContentQuad._top - _quads._b2BorderQuad._top;
+        }
+        var r2 = usequad ? new vec4(radius.x, radius.y, 0, 0) : radius;
+        DoBorder(bt, Style._props.BorderTopColor, r2, all_verts, b2ClipRect, defaultPixel, rootPickId, dd, new vec3(0, 1, usequad ? 0 : 999));
+      }
+      if (bd.right > 0)
+      {
+        UiQuad bt = _quads._b2BorderQuad.Clone();
+        if (!usequad)
+        {
+          bt._left += _quads._b2ContentQuad._width;
+          bt._width -= _quads._b2ContentQuad._width;
+        }
+        var r2 = usequad ? new vec4(0, radius.y, radius.z, 0) : radius;
+        DoBorder(bt, Style._props.BorderRightColor, r2, all_verts, b2ClipRect, defaultPixel, rootPickId, dd, new vec3(1, 0, usequad ? 0 : 999));
+      }
+      if (bd.bot > 0)
+      {
+        UiQuad bt = _quads._b2BorderQuad.Clone();
+        if (!usequad)
+        {
+          bt._top += _quads._b2ContentQuad._height;
+          bt._height -= _quads._b2ContentQuad._height;
+        }
+        var r2 = usequad ? new vec4(0, 0, radius.z, radius.w) : radius;
+        DoBorder(bt, Style._props.BorderBotColor, r2, all_verts, b2ClipRect, defaultPixel, rootPickId, dd, new vec3(0, -1, usequad ? 0 : 999));
+      }
+      if (bd.left > 0)
+      {
+        UiQuad bt = _quads._b2BorderQuad.Clone();
+        if (!usequad)
+        {
+          bt._width = _quads._b2ContentQuad._left - _quads._b2BorderQuad._left;
+        }
+        var r2 = usequad ? new vec4(radius.x, 0, 0, radius.w) : radius;
+        DoBorder(bt, Style._props.BorderLeftColor, r2, all_verts, b2ClipRect, defaultPixel, rootPickId, dd, new vec3(-1, 0, usequad ? 0 : 999));
+      }
+    }
+    private void DoBorder(UiQuad borderquad, vec4 bodfercolor, vec4 radius, ReverseGrowList<v_v4v4v4v2u2v4v4> all_verts,
+                          UiQuad b2ClipRect, MtTex defaultPixel, uint rootPickId, UiDebugDraw dd, vec3 quadrant)
+    {
+      v_v4v4v4v2u2v4v4 vb = new v_v4v4v4v2u2v4v4();
+      vb._rtl_rtr = new vec4(radius.top, radius.right);
+      vb._rbr_rbl = new vec4(radius.bot, radius.left);
+      vb._quadrant = quadrant;
+      SetVertexRasterArea(ref vb, in borderquad, in b2ClipRect, dd);
+      ComputeVertexTexcoord(ref vb, defaultPixel, UiImageTiling.Expand, UiImageTiling.Expand, 0);
+      SetVertexPickAndColor(ref vb, bodfercolor, rootPickId);
+      all_verts.Add(vb);//This is because of the new sorting issue
     }
     private void ComputeVertexTexcoord(ref v_v4v4v4v2u2v4v4 vc, MtTex pTex, UiImageTiling xtile, UiImageTiling ytile, float adjust)
     {
@@ -2524,7 +2789,7 @@ namespace PirateCraft
     public long _dbg_UpdateMs { get; private set; } = 0;
     public long _dbg_MeshMs { get; private set; } = 0;
     public long _dbg_EventsMs { get; private set; } = 0;
-    public MtTex DefaultPixel { get { return _shared.MegaTex.DefaultPixel; } }
+
     public UiStyleSheet StyleSheet { get; set; } = null;
 
     #endregion
@@ -2722,11 +2987,11 @@ namespace PirateCraft
       Style.SizeModeHeight = UiSizeMode.Fixed;
       Style.PositionMode = UiPositionMode.Absolute;
 
-      _quads._b2FinalQuad._left = _quads._b2LocalQuad._left = rv.Viewport.X;
-      _quads._b2FinalQuad._top = _quads._b2LocalQuad._top = rv.Viewport.Y;
-      _quads._b2FinalQuad._width = _quads._b2LocalQuad._width = rv.Viewport.Width;
-      _quads._b2FinalQuad._height = _quads._b2LocalQuad._height = rv.Viewport.Height;
-      _quads._b2ClipQuad = _quads._b2LocalQuad = _quads._b2FinalQuad;
+      _quads._b2ContentQuad._left = _quads._b2LocalQuad._left = rv.Viewport.X;
+      _quads._b2ContentQuad._top = _quads._b2LocalQuad._top = rv.Viewport.Y;
+      _quads._b2ContentQuad._width = _quads._b2LocalQuad._width = rv.Viewport.Width;
+      _quads._b2ContentQuad._height = _quads._b2LocalQuad._height = rv.Viewport.Height;
+      _quads._b2ClipQuad = _quads._b2LocalQuad = _quads._b2ContentQuad;
     }
 
     #endregion

@@ -370,7 +370,7 @@ namespace PirateCraft
               }
               else if (StringUtil.Equals(pval, "solidcolor"))
               {
-                value = _gui.DefaultPixel;
+               // value = _gui.DefaultPixel;
               }
               else
               {

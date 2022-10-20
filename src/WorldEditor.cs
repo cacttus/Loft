@@ -1212,10 +1212,13 @@ namespace PirateCraft
     MRS_TransformPlaneX, MRS_TransformPlaneY, MRS_TransformPlaneZ, MRS_TransformToggleOrigin,
 
     Debug_MoveCameraToOrigin,
-    Debug_UI_Toggle_ShowOverlay, Debug_UI_Toggle_DisableMarginsPadding, Debug_UI_Toggle_DisableClip,
+    Debug_UI_Toggle_ShowOverlay,  Debug_UI_Toggle_DisableClip,
     Debug_ShowInfoWindow, Debug_ToggleShowConsole,
     Debug_ToggleDebugInfo, Debug_ToggleVSync, Debug_DrawBoundBoxes, Debug_DrawNormalsTangents, Debug_SaveFBOs,
     Debug_DrawObjectBasis, Debug_ShowWireFrame, Debug_ShowWireFrame_Overlay,
+    Debug_UI_Toggle_DisableBorders,
+    Debug_UI_Toggle_DisableMargins,
+    Debug_UI_Toggle_DisablePadding,
 
     Window_ToggleFullscreen,
 
@@ -1256,13 +1259,15 @@ namespace PirateCraft
         new KeyCombo(Global, WorldEditEvent.Debug_SaveFBOs, KeyMod.None, Keys.F6, ButtonState.Press),
         new KeyCombo(Global, WorldEditEvent.Debug_ToggleDebugInfo, KeyMod.None, Keys.F7, ButtonState.Press),
         new KeyCombo(Global, WorldEditEvent.Debug_UI_Toggle_ShowOverlay, KeyMod.None, Keys.F9, ButtonState.Press),
-        new KeyCombo(Global, WorldEditEvent.Debug_UI_Toggle_DisableMarginsPadding, KeyMod.None, Keys.F10, ButtonState.Press),
         new KeyCombo(Global, WorldEditEvent.Window_ToggleFullscreen, KeyMod.None, Keys.F11, ButtonState.Press),
 
         new KeyCombo(Global, WorldEditEvent.Debug_ShowWireFrame, KeyMod.Shift, Keys.F3, ButtonState.Press),
         new KeyCombo(Global, WorldEditEvent.Debug_DrawObjectBasis, KeyMod.Shift, Keys.F4, ButtonState.Press),
-        new KeyCombo(Global, WorldEditEvent.Debug_ShowInfoWindow, KeyMod.Shift, Keys.F9, ButtonState.Press),
         new KeyCombo(Global, WorldEditEvent.Debug_UI_Toggle_DisableClip, KeyMod.Shift, Keys.F10, ButtonState.Press),
+
+        new KeyCombo(Global, WorldEditEvent.Debug_UI_Toggle_DisableBorders, KeyMod.Ctrl, Keys.F9, ButtonState.Press),
+        new KeyCombo(Global, WorldEditEvent.Debug_UI_Toggle_DisableMargins, KeyMod.Ctrl, Keys.F10, ButtonState.Press),
+        new KeyCombo(Global, WorldEditEvent.Debug_UI_Toggle_DisablePadding, KeyMod.Ctrl, Keys.F11, ButtonState.Press),
 
         new KeyCombo(IsEditMode, WorldEditEvent.Edit_ToggleView1, KeyMod.None, Keys.D1, ButtonState.Press),
         new KeyCombo(IsEditMode, WorldEditEvent.Edit_ToggleView2, KeyMod.None, Keys.D2, ButtonState.Press),
@@ -1649,14 +1654,27 @@ namespace PirateCraft
             g.DebugDraw.ShowOverlay = !g.DebugDraw.ShowOverlay;
           }
         }
-        else if (code == WorldEditEvent.Debug_UI_Toggle_DisableMarginsPadding)
+        else if (code == WorldEditEvent.Debug_UI_Toggle_DisableMargins)
         {
           if (Gu.TryGetSelectedViewGui(out var g))
           {
-            g.DebugDraw.DisableMarginsAndPadding = !g.DebugDraw.DisableMarginsAndPadding;
-            g.DebugDraw.DisableBorders = !g.DebugDraw.DisableBorders;
+            g.DebugDraw.DisableMargins = !g.DebugDraw.DisableMargins;
           }
         }
+        else if (code == WorldEditEvent.Debug_UI_Toggle_DisablePadding)
+        {
+          if (Gu.TryGetSelectedViewGui(out var g))
+          {
+            g.DebugDraw.DisablePadding = !g.DebugDraw.DisablePadding;
+          }
+        }        
+        else if (code == WorldEditEvent.Debug_UI_Toggle_DisableBorders)
+        {
+          if (Gu.TryGetSelectedViewGui(out var g))
+          {
+            g.DebugDraw.DisableBorders = !g.DebugDraw.DisableBorders;
+          }
+        }        
         else if (code == WorldEditEvent.Debug_UI_Toggle_DisableClip)
         {
           if (Gu.TryGetSelectedViewGui(out var g))

@@ -2483,14 +2483,16 @@ namespace PirateCraft
       {
         _loader.Files = flist;
       }
-      
+
       _bInit = true;
 
       return true;
     }
-    protected void OnFilesChanged(List<FileLoc> changed)
+    protected bool OnFilesChanged(List<FileLoc> changed)
     {
       InitHeaders();
+
+      bool ret = true;
 
       var cur_ctx = Gu.Context;
       foreach (var context_pipeshader in _contextData)
@@ -2512,11 +2514,13 @@ namespace PirateCraft
             context_pipeshader.Value[pipeshader] = newshader;
             oldShader.DestroyForGC();
             oldShader = null;
+            ret = true;
           }
           else
           {
             newshader.DestroyForGC();
             newshader = null;
+            ret = false;
           }
           Gpu.CheckGpuErrorsRt();
           GC.Collect();
@@ -2525,6 +2529,8 @@ namespace PirateCraft
       }
       //set back our old ocntext
       Gu.SetContext(cur_ctx);
+
+      return ret;
     }
     protected override Dictionary<int, GpuShader> CreateNew()
     {
