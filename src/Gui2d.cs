@@ -39,9 +39,9 @@ namespace PirateCraft
   }
   public enum UiAlignment
   {
-    [CSSAttribute("left")] Left,  //float left, roman text
-    [CSSAttribute("right")] Right, //float right, arabic text
-    [CSSAttribute("center")] Center, //center
+    [CSSAttribute("left")] Left,  // float left, roman text
+    [CSSAttribute("center")] Center,// center
+    [CSSAttribute("right")] Right, // float right, arabic text
   }
   public enum UiSizeMode
   {
@@ -972,9 +972,9 @@ namespace PirateCraft
               //not owned, get value from superclass
               if (!InheritFromSuperClasses(s, p.Key, p.Value, framestamp))
               {
-                //DISABLED parent inherit - this is annoying
+                //DISABLED auto parent inherit - this is annoying
                 //if subclasses are not set, then try the parent DOM element, otherwise set to a default value
-                if (!InheritFromParentTag(style_DOM_parent, p.Key, p.Value))
+                //  if (!InheritFromParentTag(style_DOM_parent, p.Key, p.Value))
                 {
                   //No parent element, and, no styles, set to default.
                   SetDefaultValue(p.Key, p.Value);
@@ -1231,20 +1231,26 @@ namespace PirateCraft
   public class UiElement
   {
     #region Classes 
-
-    private class UiLine
+    private class UiCol
     {
+      //line column
       public float _top = 0;//not null depending on UiBuildOrder
-      // public float? _bot = null;
-      // public float? _left = null;
       public float _left = 0;
-
       public float _height = 0;
       public float _width = 0;
       public List<UiElement> _eles = new List<UiElement>();
+    }
+    private class UiLine
+    {
+      public UiCol[] _cols = new UiCol[3] { new UiCol(), new UiCol(), new UiCol() };
+      public float _top = 0;//not null depending on UiBuildOrder
+      public float _x = 0;
+      public float _height { get { return Math.Max(_cols[0]._height, Math.Max(_cols[1]._height, _cols[2]._height)); } }
+      public float _width { get { return _cols[0]._width + _cols[1]._width + _cols[2]._width; } }
+
       public UiLine(float left, float top)
       {
-        _left = left;
+        _x = left;
         _top = top;
       }
     }
@@ -1782,8 +1788,8 @@ namespace PirateCraft
         //size, then layout children
         List<UiLine> vecLines = new List<UiLine>();
         vecLines.Add(new UiLine(0, 0));
+        int lineidx = 0;
 
-        List<UiElement> bucket = new List<UiElement>();
         if (_children != null && _children.Count > 0)
         {
           //compute min content WH first
@@ -1814,34 +1820,73 @@ namespace PirateCraft
                 }
               }
 
-
             }
           }
+
+          //the algorithm is to layout center, then LR, and not move center, wrap LR but
+          // for now try to do this without buckets - just sort into columns based on child order, we
+          //we can have a WrapMode for each column to prevent erroneous wrapping 
           //layout with min/max
+
+          //layout all 3 columns to the left, then modify element position later
+          lineidx = 0;
           foreach (var ele in _children)
           {
-            if (ele.Visible)
+            if (ele.Visible && ele.Style._props.PositionMode == UiPositionMode.Static)
             {
-              if (ele.Style._props.PositionMode == UiPositionMode.Static)
-              {
-                LayoutStaticElement(ele, Style._props.Alignment, vecLines, _quads.InnerMaxWH, _quads.ContentWH, dd);
-              }
+              LayoutStaticElement(ele, Style._props.Alignment, vecLines, _quads.InnerMaxWH, _quads.ContentWH, dd, ref lineidx);
             }
           }
+
+
         }
         //**TODO: Unified UI - Glyphs + Elements must be in the same list, & Glyphs must be a BASE class for UiELement and have no _props
+
+        lineidx = 0;
         if (_glyphs != null && _glyphs.Count > 0)
         {
           foreach (var ele in _glyphs)
           {
-            LayoutStaticElement(ele, Style._props.TextAlign, vecLines, _quads.InnerMaxWH, _quads.ContentWH, dd);
+            if (ele.Style._props.PositionMode == UiPositionMode.Static && ele.Visible == true)
+            {
+              LayoutStaticElement(ele, Style._props.TextAlign, vecLines, _quads.InnerMaxWH, _quads.ContentWH, dd, ref lineidx);
+            }
           }
         }
 
+        //adjust line offsets for center/right
+        //note:basically we need to sort the eles into buckets anyway, so the algorithm woulr
+        //bneefit from having hte center column go first
+        foreach (var line in vecLines)
+        {
+          var linew = line._cols[0]._width + line._cols[1]._width + line._cols[2]._width;
+          foreach (var ele in line._cols[(int)UiAlignment.Center]._eles)
+          {
+            ele._quads._b2LocalQuad._left += _quads.InnerMaxWH.width / 2 - line._cols[(int)UiAlignment.Center]._width / 2;
+          }
+          foreach (var ele in line._cols[(int)UiAlignment.Right]._eles)
+          {
+            if (Translator.TextFlow == LanguageTextFlow.Left)
+            {
+              //arabic text
+              ele._quads._b2LocalQuad._left = _quads.InnerMaxWH.width - ele._quads._b2LocalQuad._left - ele._quads._b2LocalQuad._width;
+            }
+            else
+            {
+              //roman
+              ele._quads._b2LocalQuad._left += _quads.InnerMaxWH.width - line._cols[(int)UiAlignment.Right]._width - ele._quads._b2LocalQuad._width;
+            }
+
+          }
+        }
+
+
+        //TODO: proably putting text on separate layer
         //Calculate content size
         float totalHeight = mb.top + mb.bot;
         foreach (var line in vecLines)
         {
+          //add the center/right offsets
           totalHeight += line._height;
           _quads.ContentWH.x = Math.Max(_quads.ContentWH.x, line._width + mb.right + mb.left);
         }
@@ -1983,12 +2028,8 @@ namespace PirateCraft
 
       _quads._b2LocalQuad.Validate();
     }
-    private void LayoutStaticElement(UiElement ele, UiAlignment align, List<UiLine> vecLines, vec2 pmaxInnerWH, vec2 pcontentWH, UiDebugDraw dd)
+    private void LayoutStaticElement(UiElement ele, UiAlignment align, List<UiLine> vecLines, vec2 pmaxInnerWH, vec2 pcontentWH, UiDebugDraw dd, ref int lineidx)
     {
-      //So now we have a UiLine Array
-      //[left, center, right] .. perhaps moer.
-      //for now just left/right
-
       //compute static element left/top
       if (vecLines.Count == 0)
       {
@@ -2005,7 +2046,7 @@ namespace PirateCraft
         ele._quads._b2LocalQuad._height = Math.Min(pcontentWH.height, pmaxInnerWH.height);
       }
 
-      UiLine line = vecLines[vecLines.Count - 1];
+      UiLine line = vecLines[lineidx];
       var e_width = ele._quads._b2LocalQuad._width;
       var e_pad = ele.GetPadding(dd);
       float pspacex = pmaxInnerWH.x;//maximally equal to the Screen WH
@@ -2032,44 +2073,48 @@ namespace PirateCraft
         bLineBreak = false;
       }
 
-      if (align == UiAlignment.Left)
-      {
-        LayoutLeft(ele, e_width, e_pad, bLineBreak, line, vecLines, pmaxInnerWH, pcontentWH, dd);
-      }
-      else if (align == UiAlignment.Right)
-      {
-        LayoutLeft(ele, e_width, e_pad, bLineBreak, line, vecLines, pmaxInnerWH, pcontentWH, dd);
-
-        //LayoutRight(ele, e_width, e_pad, bLineBreak, line, vecLines, pmaxInnerWH, pcontentWH, dd);
-      }
-      else if (align == UiAlignment.Center)
-      {
-        //TODO:
-        LayoutLeft(ele, e_width, e_pad, bLineBreak, line, vecLines, pmaxInnerWH, pcontentWH, dd);
-      }
-    }
-    private void LayoutLeft(UiElement ele, float e_width, vec4 e_pad, bool bLineBreak, UiLine line,
-                            List<UiLine> vecLines, vec2 pmaxInnerWH, vec2 pcontentWH, UiDebugDraw dd)
-    {
       if (bLineBreak)
       {
-        // new line
-        UiLine line2 = new UiLine(0, line._top + line._height);
-        vecLines.Add(line2);
-        line = vecLines[vecLines.Count - 1];
+        UiLine line2;
+        if (lineidx + 1 >= vecLines.Count)
+        {
+          // new line
+          line2 = new UiLine(0, line._top + line._height);
+          vecLines.Add(line2);
+        }
+        else
+        {
+          line2 = vecLines[lineidx + 1];
+        }
+        lineidx++;
+        line = vecLines[lineidx];
       }
 
       var pmarb = this.GetMarginAndBorder(dd);
 
-      ele._quads._b2LocalQuad._left = line._left + line._width + pmarb.left + e_pad.left;
+      ele._quads._b2LocalQuad._left = line._x + line._width + pmarb.left + e_pad.left;
       ele._quads._b2LocalQuad._top = line._top + pmarb.top + e_pad.top;
-      line._width += e_width + e_pad.left + e_pad.right;
-      line._height = Math.Max(line._height, ele._quads._b2LocalQuad._height + e_pad.top + e_pad.bot);
+      line._cols[(int)align]._width += e_width + e_pad.left + e_pad.right;
+      line._cols[(int)align]._height = Math.Max(line._height, ele._quads._b2LocalQuad._height + e_pad.top + e_pad.bot);
+      line._cols[(int)align]._eles.Add(ele);
 
       ele._quads._b2LocalQuad.Validate();
-
-      line._eles.Add(ele);
     }
+    // private void LayoutLeft(UiElement ele, float e_width, vec4 e_pad, bool bLineBreak, UiLine line,
+    //                         List<UiLine> vecLines, vec2 pmaxInnerWH, vec2 pcontentWH, UiDebugDraw dd, vec4 pmarb, ref int lineidx)
+    // {
+    //   ele._quads._b2LocalQuad._left = line._x + line._width + pmarb.left + e_pad.left;
+    // }
+    // private void LayoutRight(UiElement ele, float e_width, vec4 e_pad, bool bLineBreak, UiLine line,
+    //                          List<UiLine> vecLines, vec2 pmaxInnerWH, vec2 pcontentWH, UiDebugDraw dd, vec4 pmarb, ref int lineidx)
+    // {
+    //   //if the line is full the element gets appended to the end of the full line ,essentially gets clipped
+    //   ele._quads._b2LocalQuad._left = line._x - line._width + pmarb.right + e_pad.right + e_width;
+
+    //   // ele._quads._b2LocalQuad._top = line._top + pmarb.top + e_pad.top;
+    //   // line._cols[2]._width += e_width + e_pad.left + e_pad.right;
+    //   // line._cols[2]._height = Math.Max(line._height, ele._quads._b2LocalQuad._height + e_pad.top + e_pad.bot);
+    // }
     // private void LayoutRight(UiElement ele, float e_width, vec4 e_pad, bool bLineBreak, UiLine line,
     //                         List<UiLine> vecLines, vec2 pmaxInnerWH, vec2 pcontentWH, UiDebugDraw dd)
     // {
@@ -2195,8 +2240,8 @@ namespace PirateCraft
       this._quads._b2PaddingQuad = this._quads._b2BorderQuad.Clone();
       this._quads._b2PaddingQuad._left -= pd.left;
       this._quads._b2PaddingQuad._top -= pd.top;
-      this._quads._b2PaddingQuad._width += (pd.right+pd.left);
-      this._quads._b2PaddingQuad._height += (pd.bot+pd.top);
+      this._quads._b2PaddingQuad._width += (pd.right + pd.left);
+      this._quads._b2PaddingQuad._height += (pd.bot + pd.top);
 
 
     }
@@ -2231,7 +2276,7 @@ namespace PirateCraft
         dbgv._rbr_rbl = new vec4(0, 0, 0, 0);
         dbgv._quadrant = new vec3(0, 0, 999);
         ComputeVertexTexcoord(ref dbgv, defaultPixel, UiImageTiling.Expand, UiImageTiling.Expand, 0);
-        SetVertexPickAndColor(ref dbgv, (new vec4(1,0,0,.3f)) , rootPickId);
+        SetVertexPickAndColor(ref dbgv, (new vec4(1, 0, 0, .3f)), rootPickId);
         all_verts.Add(dbgv);//This is because of the new sorting issue
 
         SetVertexRasterArea(ref dbgv, in _quads._b2ContentQuad, in b2ClipRect, dd);
@@ -2239,7 +2284,7 @@ namespace PirateCraft
         dbgv._rbr_rbl = new vec4(0, 0, 0, 0);
         dbgv._quadrant = new vec3(0, 0, 999);
         ComputeVertexTexcoord(ref dbgv, defaultPixel, UiImageTiling.Expand, UiImageTiling.Expand, 0);
-        SetVertexPickAndColor(ref dbgv, (new vec4(0,1,0,.3f)), rootPickId);
+        SetVertexPickAndColor(ref dbgv, (new vec4(0, 1, 0, .3f)), rootPickId);
         all_verts.Add(dbgv);//This is because of the new sorting issue
 
         SetVertexRasterArea(ref dbgv, in _quads._b2BorderQuad, in b2ClipRect, dd);
@@ -2247,7 +2292,7 @@ namespace PirateCraft
         dbgv._rbr_rbl = new vec4(0, 0, 0, 0);
         dbgv._quadrant = new vec3(0, 0, 999);
         ComputeVertexTexcoord(ref dbgv, defaultPixel, UiImageTiling.Expand, UiImageTiling.Expand, 0);
-        SetVertexPickAndColor(ref dbgv, (new vec4(1,0,1,.3f)) , rootPickId);
+        SetVertexPickAndColor(ref dbgv, (new vec4(1, 0, 1, .3f)), rootPickId);
         all_verts.Add(dbgv);//This is because of the new sorting issue  
 
         SetVertexRasterArea(ref dbgv, in _quads._b2PaddingQuad, in b2ClipRect, dd);
@@ -2255,7 +2300,7 @@ namespace PirateCraft
         dbgv._rbr_rbl = new vec4(0, 0, 0, 0);
         dbgv._quadrant = new vec3(0, 0, 999);
         ComputeVertexTexcoord(ref dbgv, defaultPixel, UiImageTiling.Expand, UiImageTiling.Expand, 0);
-        SetVertexPickAndColor(ref dbgv, (new vec4(1,1,0,0.4)) , rootPickId);
+        SetVertexPickAndColor(ref dbgv, (new vec4(1, 1, 0, 0.4)), rootPickId);
         all_verts.Add(dbgv);//This is because of the new sorting issue        
       }
 

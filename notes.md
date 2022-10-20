@@ -209,6 +209,8 @@ Roadmap:
 * Prototype Complete
 
 TODO list
+* Inheriting from parents is very annoying - remove parent inheritance
+
 * XML for the UI - relies on Unified Diff
     * XDocument doc= XDocument.Parse("<e>this is some text<e Position=\"Fixed\" Background=\"image.png\"></e>some more text.<e Position=\"Fixed\">interior element with text</e></e>");
 * Unified UI

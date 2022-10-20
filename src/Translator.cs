@@ -449,8 +449,12 @@ namespace PirateCraft
       return ret;
     }
   }
+  public enum LanguageTextFlow  {
+    Right, Left
+  }
   public class Translator
   {
+    public static LanguageTextFlow TextFlow {get;set;} = LanguageTextFlow.Right;
     public LanguageCode LanguageCode { get; set; } = LanguageCode.en;
     private BoJankEnumDataTable<LanguageCode, Phrase, String> _translateDataTable = null;
     public Translator()

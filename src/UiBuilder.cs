@@ -240,6 +240,7 @@ namespace PirateCraft
       eee.Style.SizeModeHeight = UiSizeMode.Fixed;
       eee.Style.BorderRadius = 4;
       eee.Style.BorderTop = 5;
+      eee.Style.DisplayMode = UiDisplayMode.Inline;
       eee.Style.BorderTopColor = new vec4(1, 0, 0, 1);
       eee.Style.BorderRight = 5;
       eee.Style.BorderRightColor = new vec4(0, 1, 0, 1);
@@ -252,6 +253,53 @@ namespace PirateCraft
       eee.Style.PadLeft = 1;
       eee.Style.Margin = 0;
       toolbar.AddChild(eee);
+
+      UiElement lefttest = new UiElement("left", null, "left");
+      lefttest.Style.RenderMode = UiRenderMode.Color;
+      lefttest.Style.Color = new vec4(.7f, 1, 1, 1);
+      lefttest.Style.SizeModeWidth = UiSizeMode.Expand;
+      lefttest.Style.SizeModeHeight = UiSizeMode.Shrink;
+      lefttest.Style.TextAlign = UiAlignment.Left;
+      lefttest.Style.FontSize = 22;
+      lefttest.Style.Padding = 5;
+      lefttest.Style.Margin = 5;
+      lefttest.Style.PositionMode = UiPositionMode.Static;
+
+      UiElement righttest = new UiElement("ret", null, "right");
+      righttest.Style.RenderMode = UiRenderMode.Color;
+      righttest.Style.Color = new vec4(.7f, 1, .7f, 1);
+      righttest.Style.SizeModeWidth = UiSizeMode.Expand;
+      righttest.Style.SizeModeHeight = UiSizeMode.Shrink;
+      righttest.Style.TextAlign = UiAlignment.Right;
+      righttest.Style.FontSize = 22;
+      righttest.Style.Padding = 5;
+      righttest.Style.Margin = 5;
+      righttest.Style.PositionMode = UiPositionMode.Static;
+
+      UiElement centertest = new UiElement("ret", null, "center");
+      centertest.Style.RenderMode = UiRenderMode.Color;
+      centertest.Style.Color = new vec4(.7f, .7f, .7f, 1);
+      centertest.Style.PositionMode = UiPositionMode.Static;
+      centertest.Style.SizeModeWidth = UiSizeMode.Expand;
+      centertest.Style.SizeModeHeight = UiSizeMode.Shrink;
+      centertest.Style.TextAlign = UiAlignment.Center;
+      centertest.Style.FontSize = 22;
+      centertest.Style.Padding = 5;
+      centertest.Style.Margin = 5;
+
+      UiElement testcont = new UiElement();
+      testcont.Style.RenderMode = UiRenderMode.Color;
+      testcont.Style.Color = new vec4(1, 1, 1, 1);
+      testcont.Style.Left = 700;
+      testcont.Style.Top = 200;
+      testcont.Style.Width = 200;
+      testcont.Style.Margin = 0;
+      testcont.Style.SizeModeHeight = UiSizeMode.Shrink;
+      testcont.Style.SizeModeWidth = UiSizeMode.Fixed;
+      testcont.Style.PositionMode = UiPositionMode.Absolute;
+      testcont.AddChild(righttest);
+      testcont.AddChild(lefttest);
+      testcont.AddChild(centertest);
 
       //*** Debug info panels
       rv.WorldDebugInfo = UiBuilder.Create(StyleName.DebugLabel);
@@ -271,6 +319,7 @@ namespace PirateCraft
       editgui_root.AddChild(rv.WorldDebugInfo);
       editgui_root.AddChild(rv.GpuDebugInfo);
       editgui_root.AddChild(rv.ControlsInfo);
+      editgui_root.AddChild(testcont);
 
       var g = GetOrCreateSharedGuiForView("main-edit-gui", rv);
       g.StyleSheet.AddStyles(UiBuilder.GetGlobalStyles(g));
