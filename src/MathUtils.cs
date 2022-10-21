@@ -316,6 +316,7 @@ namespace PirateCraft
     }
     public bool IntersectLine(vec3 p1, vec3 p2, out vec3 pt)
     {
+      //return false if line is paralell
       if (IntersectRay(p1, p2 - p1, out var t))
       {
         pt = p1 + (p2 - p1) * t;
@@ -326,6 +327,7 @@ namespace PirateCraft
     }
     public bool IntersectRay(vec3 origin, vec3 dir, out float t)
     {
+      //return false if line is paralell
       t = 0;
       float denom = (dir).dot(n);
       if (dir.dot(n) == 0)
@@ -454,14 +456,35 @@ namespace PirateCraft
     }
     public static float pointOnRay_t(vec3 ray, vec3 pt)
     {
-      //Returns the point on ray between [0,1] of the ray.
-      //Both ray and point are relative the the origin.
+      //Returns the point on ray where [0,1] intersects the ray.
       float ap_ab = pt.dot(ray);
       float ab2 = ray.dot(ray);
       float t = ap_ab / ab2;
       return t;
     }
 
+
+  }
+  [StructLayout(LayoutKind.Sequential)]
+  public struct ray3f
+  {
+    public vec3 _origin = vec3.Zero;
+    public vec3 _dir = new vec3(0, 1, 0);
+    public ray3f() { }
+    public ray3f(vec3 origin, vec3 dir)
+    {
+      _origin = origin;
+      _dir = dir;
+    }
+    public static float distance(ray3f a, ray3f b)
+    {
+      //reutrns t where t is shortest distnace betwen a, and b, where 0<=t<=1 is a solution
+      //rays directions be normalized.
+      var tv = (b._dir - a._dir);
+      var tp = (b._origin - a._origin);
+      float d = tp.dot(tv) / tv.dot(tv);
+      return d;
+    }
   }
   [DataContract]
   [StructLayout(LayoutKind.Sequential)]
@@ -474,8 +497,8 @@ namespace PirateCraft
     }
     [DataMember] public float x;
     [DataMember] public float y;
-    public float width { get { return x; } }
-    public float height { get { return y; } }
+    public float width { get { return x; } set { x = value; } }
+    public float height { get { return y; } set { y = value; } }
     public bool IsSane()
     {
       return Gu.SaneFloat(x) && Gu.SaneFloat(y);
@@ -3779,12 +3802,12 @@ namespace PirateCraft
 
     public static Box2f Max { get { return new Box2f(-float.MaxValue, -float.MaxValue, float.MaxValue, float.MaxValue); } }
     public static Box2f Zero { get { return new Box2f(0, 0, 0, 0); } }
-    
+
     //Dont add setters
-    public float Width { get { return _max.x - _min.x; }}
-    public float Height { get { return _max.y - _min.y; }}
+    public float Width { get { return _max.x - _min.x; } }
+    public float Height { get { return _max.y - _min.y; } }
     public float Top { get { return _min.y; } }
-    public float Left { get { return _min.x; }}
+    public float Left { get { return _min.x; } }
     public float Right { get { return _max.x; } }
     public float Bottom { get { return _max.y; } }
     public vec2 TopRight { get { return new vec2(_max.x, _min.y); } }

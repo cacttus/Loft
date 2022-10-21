@@ -687,6 +687,102 @@ namespace PirateCraft
       }
     }
   }
+
+  public class SyncThen
+  {
+    //synchronous promise
+    private DeltaTimer _timer;
+    public Action<double> _then;
+    public SyncThen(Action<double> act) { _then = act; }
+    public SyncThen Then(Action<double> act)
+    {
+      return new SyncThen(act);
+    }
+    public void Update(double dt)
+    {
+    }
+  }
+  public interface IUiPropAnimation
+  {
+    public UiElement Element { get; }
+    public UiPropName Prop { get; }
+    public bool Update(double dt);
+  }
+  public class UiPropAnimation<T> : IUiPropAnimation where T : struct
+  {
+    public UiElement Element { get; }
+    public UiPropName Prop { get; }
+
+    private int _duration;
+    private int _current = 0;
+    private double _elapsed = 0;
+    private double _durationseconds;
+    private T? _startValue;
+    private T? _endValue;
+    private int _repeatCount = 0;
+    private int _executed = 0;
+
+    public UiPropAnimation(UiElement e, UiPropName p, T? endValue, int durationMS, int repeatCount = 0)
+    {
+      Gu.Assert(e != null);
+      Element = e;
+      Prop = p;
+      _repeatCount = repeatCount;
+
+      _durationseconds = (double)durationMS / 1000.0;
+      if (_durationseconds <= 0)
+      {
+        _durationseconds = 0.00001;
+      }
+      var prop = e.Style.GetClassProp(p);
+      Gu.Assert(prop != null);
+
+      _startValue = (prop as T?).Value;
+      _endValue = endValue;
+
+    }
+    public bool Update(double dt)
+    {
+      //return true if it's done
+      if (_elapsed < _durationseconds && _executed < (_repeatCount + 1))
+      {
+        T? newval = null;
+        _elapsed += dt;
+        double x = Math.Clamp(_elapsed / _durationseconds, 0, 1);
+
+        if (typeof(T) == typeof(vec4))
+        {
+          var a = _startValue as vec4?;
+          var b = _endValue as vec4?;
+          newval = (a + (b - a) * (float)x) as T?;
+        }
+        else if (typeof(T) == typeof(double))
+        {
+          var a = _startValue as double?;
+          var b = _endValue as double?;
+          newval = (a + (b - a) * x) as T?;
+        }
+        else
+        {
+          Gu.BRThrowNotImplementedException();
+        }
+
+        if (newval != null)
+        {
+          Element.Style.SetProp(Prop, newval);
+        }
+
+        for (int xx = 0; Gu.WhileTrueGuard(xx, Gu.c_intMaxWhileTrueLoopSmall) && _elapsed >= _durationseconds; xx++)
+        {
+          _elapsed %= _durationseconds;
+          _executed++;
+        }
+
+      }
+      return _executed >= (_repeatCount + 1);
+    }
+
+  }
   public class UiStyle
   {
     #region Public: Aggregate Prop Setters
@@ -737,16 +833,16 @@ namespace PirateCraft
     {
       set
       {
-        SetClassValue(UiPropName.MinWidth, (float?)value);
-        SetClassValue(UiPropName.MaxWidth, (float?)value);
+        SetProp(UiPropName.MinWidth, (float?)value);
+        SetProp(UiPropName.MaxWidth, (float?)value);
       }
     }
     public float? Height
     {
       set
       {
-        SetClassValue(UiPropName.MinHeight, (float?)value);
-        SetClassValue(UiPropName.MaxHeight, (float?)value);
+        SetProp(UiPropName.MinHeight, (float?)value);
+        SetProp(UiPropName.MaxHeight, (float?)value);
       }
     }
     // public float? Bottom { get { return (float?)GetClassValue(UiPropName.Top) + Width; } }
@@ -759,55 +855,54 @@ namespace PirateCraft
     //Manual setters.. these will cause this style class to own this property
     //**Note: Do not use nullable<> or ? types on class types here. This will return (null) even if the class type is set on the nullable boxer.
     //OK so you could actually just return _props.Top .. etc here, but for now we're doing this to simplify things (as they are written)
-    public float? Top { get { return (float?)GetClassValue(UiPropName.Top); } set { SetClassValue(UiPropName.Top, (float?)value); } }
-    public float? Left { get { return (float?)GetClassValue(UiPropName.Left); } set { SetClassValue(UiPropName.Left, (float?)value); } }
-    public float? MinWidth { get { return (float?)GetClassValue(UiPropName.MinWidth); } set { SetClassValue(UiPropName.MinWidth, (float?)value); } }
-    public float? MinHeight { get { return (float?)GetClassValue(UiPropName.MinHeight); } set { SetClassValue(UiPropName.MinHeight, (float?)value); } }
-    public float? MaxWidth { get { return (float?)GetClassValue(UiPropName.MaxWidth); } set { SetClassValue(UiPropName.MaxWidth, (float?)value); } }
-    public float? MaxHeight { get { return (float?)GetClassValue(UiPropName.MaxHeight); } set { SetClassValue(UiPropName.MaxHeight, (float?)value); } }
-    public float? PadTop { get { return (float?)GetClassValue(UiPropName.PadTop); } set { SetClassValue(UiPropName.PadTop, (float?)value); } }
-    public float? PadRight { get { return (float?)GetClassValue(UiPropName.PadRight); } set { SetClassValue(UiPropName.PadRight, (float?)value); } }
-    public float? PadBot { get { return (float?)GetClassValue(UiPropName.PadBot); } set { SetClassValue(UiPropName.PadBot, (float?)value); } }
-    public float? PadLeft { get { return (float?)GetClassValue(UiPropName.PadLeft); } set { SetClassValue(UiPropName.PadLeft, (float?)value); } }
-    public float? MarginTop { get { return (float?)GetClassValue(UiPropName.MarginTop); } set { SetClassValue(UiPropName.MarginTop, (float?)value); } }
-    public float? MarginRight { get { return (float?)GetClassValue(UiPropName.MarginRight); } set { SetClassValue(UiPropName.MarginRight, (float?)value); } }
-    public float? MarginBot { get { return (float?)GetClassValue(UiPropName.MarginBot); } set { SetClassValue(UiPropName.MarginBot, (float?)value); } }
-    public float? MarginLeft { get { return (float?)GetClassValue(UiPropName.MarginLeft); } set { SetClassValue(UiPropName.MarginLeft, (float?)value); } }
-    public float? BorderTop { get { return (float?)GetClassValue(UiPropName.BorderTop); } set { SetClassValue(UiPropName.BorderTop, (float?)value); } }
-    public float? BorderRight { get { return (float?)GetClassValue(UiPropName.BorderRight); } set { SetClassValue(UiPropName.BorderRight, (float?)value); } }
-    public float? BorderBot { get { return (float?)GetClassValue(UiPropName.BorderBot); } set { SetClassValue(UiPropName.BorderBot, (float?)value); } }
-    public float? BorderLeft { get { return (float?)GetClassValue(UiPropName.BorderLeft); } set { SetClassValue(UiPropName.BorderLeft, (float?)value); } }
-    public float? BorderTopLeftRadius { get { return (float?)GetClassValue(UiPropName.BorderTopLeftRadius); } set { SetClassValue(UiPropName.BorderTopLeftRadius, (float?)value); } }
-    public float? BorderTopRightRadius { get { return (float?)GetClassValue(UiPropName.BorderTopRightRadius); } set { SetClassValue(UiPropName.BorderTopRightRadius, (float?)value); } }
-    public float? BorderBotRightRadius { get { return (float?)GetClassValue(UiPropName.BorderBotRightRadius); } set { SetClassValue(UiPropName.BorderBotRightRadius, (float?)value); } }
-    public float? BorderBotLeftRadius { get { return (float?)GetClassValue(UiPropName.BorderBotLeftRadius); } set { SetClassValue(UiPropName.BorderBotLeftRadius, (float?)value); } }
-    public vec4? Color { get { return (vec4?)GetClassValue(UiPropName.Color); } set { SetClassValue(UiPropName.Color, (vec4?)value); } }
-    public vec4? ColorMul { get { return (vec4?)GetClassValue(UiPropName.ColorMul); } set { SetClassValue(UiPropName.ColorMul, (vec4?)value); } }
-    public vec4? BorderTopColor { get { return (vec4?)GetClassValue(UiPropName.BorderTopColor); } set { SetClassValue(UiPropName.BorderTopColor, (vec4?)value); } }
-    public vec4? BorderRightColor { get { return (vec4?)GetClassValue(UiPropName.BorderRightColor); } set { SetClassValue(UiPropName.BorderRightColor, (vec4?)value); } }
-    public vec4? BorderBotColor { get { return (vec4?)GetClassValue(UiPropName.BorderBotColor); } set { SetClassValue(UiPropName.BorderBotColor, (vec4?)value); } }
-    public vec4? BorderLeftColor { get { return (vec4?)GetClassValue(UiPropName.BorderLeftColor); } set { SetClassValue(UiPropName.BorderLeftColor, (vec4?)value); } }
-    public FontFace FontFace { get { return (FontFace)GetClassValue(UiPropName.FontFace); } set { SetClassValue(UiPropName.FontFace, (FontFace)value); } }
-    public float? FontSize { get { return (float?)GetClassValue(UiPropName.FontSize); } set { SetClassValue(UiPropName.FontSize, (float?)value); } }
-    public UiFontStyle? FontStyle { get { return (UiFontStyle?)GetClassValue(UiPropName.FontStyle); } set { SetClassValue(UiPropName.FontStyle, (UiFontStyle?)value); } }
-    public vec4? FontColor { get { return (vec4?)GetClassValue(UiPropName.FontColor); } set { SetClassValue(UiPropName.FontColor, (vec4?)value); } }
-    public float? LineHeight { get { return (float?)GetClassValue(UiPropName.LineHeight); } set { SetClassValue(UiPropName.LineHeight, (float?)value); } }
-    public UiPositionMode? PositionMode { get { return (UiPositionMode?)GetClassValue(UiPropName.PositionMode); } set { SetClassValue(UiPropName.PositionMode, (UiPositionMode?)value); } }
-    public UiOverflowMode? OverflowMode { get { return (UiOverflowMode?)GetClassValue(UiPropName.OverflowMode); } set { SetClassValue(UiPropName.OverflowMode, (UiOverflowMode?)value); } }
-    public UiSizeMode? SizeModeWidth { get { return (UiSizeMode?)GetClassValue(UiPropName.SizeModeWidth); } set { SetClassValue(UiPropName.SizeModeWidth, (UiSizeMode?)value); } }
-    public UiSizeMode? SizeModeHeight { get { return (UiSizeMode?)GetClassValue(UiPropName.SizeModeHeight); } set { SetClassValue(UiPropName.SizeModeHeight, (UiSizeMode?)value); } }
-    public UiDisplayMode? DisplayMode { get { return (UiDisplayMode?)GetClassValue(UiPropName.DisplayMode); } set { SetClassValue(UiPropName.DisplayMode, (UiDisplayMode?)value); } }
-    public UiImageTiling? ImageTilingX { get { return (UiImageTiling?)GetClassValue(UiPropName.ImageTilingX); } set { SetClassValue(UiPropName.ImageTilingX, (UiImageTiling?)value); } }
-    public UiImageTiling? ImageTilingY { get { return (UiImageTiling?)GetClassValue(UiPropName.ImageTilingY); } set { SetClassValue(UiPropName.ImageTilingY, (UiImageTiling?)value); } }
-    public MtTex Texture { get { return (MtTex)GetClassValue(UiPropName.Texture); } set { SetClassValue(UiPropName.Texture, (MtTex)value); } }
-    public double? MaxValue { get { return (double?)GetClassValue(UiPropName.MaxValue); } set { SetClassValue(UiPropName.MaxValue, (double?)value); } }
-    public double? MinValue { get { return (double?)GetClassValue(UiPropName.MinValue); } set { SetClassValue(UiPropName.MinValue, (double?)value); } }
-    public float? ZIndex { get { return (float?)GetClassValue(UiPropName.ZIndex); } set { SetClassValue(UiPropName.ZIndex, (float?)value); } }
-    public UiFloatMode? FloatMode { get { return (UiFloatMode?)GetClassValue(UiPropName.FloatMode); } set { SetClassValue(UiPropName.FloatMode, (UiFloatMode?)value); } }
-    public UiRenderMode? RenderMode { get { return (UiRenderMode?)GetClassValue(UiPropName.RenderMode); } set { SetClassValue(UiPropName.RenderMode, (UiRenderMode?)value); } }
-    public UiAlignment? TextAlign { get { return (UiAlignment?)GetClassValue(UiPropName.TextAlign); } set { SetClassValue(UiPropName.TextAlign, (UiAlignment?)value); } }
-    public UiAlignment? Alignment { get { return (UiAlignment?)GetClassValue(UiPropName.Alignment); } set { SetClassValue(UiPropName.Alignment, (UiAlignment?)value); } }
-
+    public float? Top { get { return (float?)GetClassProp(UiPropName.Top); } set { SetProp(UiPropName.Top, (float?)value); } }
+    public float? Left { get { return (float?)GetClassProp(UiPropName.Left); } set { SetProp(UiPropName.Left, (float?)value); } }
+    public float? MinWidth { get { return (float?)GetClassProp(UiPropName.MinWidth); } set { SetProp(UiPropName.MinWidth, (float?)value); } }
+    public float? MinHeight { get { return (float?)GetClassProp(UiPropName.MinHeight); } set { SetProp(UiPropName.MinHeight, (float?)value); } }
+    public float? MaxWidth { get { return (float?)GetClassProp(UiPropName.MaxWidth); } set { SetProp(UiPropName.MaxWidth, (float?)value); } }
+    public float? MaxHeight { get { return (float?)GetClassProp(UiPropName.MaxHeight); } set { SetProp(UiPropName.MaxHeight, (float?)value); } }
+    public float? PadTop { get { return (float?)GetClassProp(UiPropName.PadTop); } set { SetProp(UiPropName.PadTop, (float?)value); } }
+    public float? PadRight { get { return (float?)GetClassProp(UiPropName.PadRight); } set { SetProp(UiPropName.PadRight, (float?)value); } }
+    public float? PadBot { get { return (float?)GetClassProp(UiPropName.PadBot); } set { SetProp(UiPropName.PadBot, (float?)value); } }
+    public float? PadLeft { get { return (float?)GetClassProp(UiPropName.PadLeft); } set { SetProp(UiPropName.PadLeft, (float?)value); } }
+    public float? MarginTop { get { return (float?)GetClassProp(UiPropName.MarginTop); } set { SetProp(UiPropName.MarginTop, (float?)value); } }
+    public float? MarginRight { get { return (float?)GetClassProp(UiPropName.MarginRight); } set { SetProp(UiPropName.MarginRight, (float?)value); } }
+    public float? MarginBot { get { return (float?)GetClassProp(UiPropName.MarginBot); } set { SetProp(UiPropName.MarginBot, (float?)value); } }
+    public float? MarginLeft { get { return (float?)GetClassProp(UiPropName.MarginLeft); } set { SetProp(UiPropName.MarginLeft, (float?)value); } }
+    public float? BorderTop { get { return (float?)GetClassProp(UiPropName.BorderTop); } set { SetProp(UiPropName.BorderTop, (float?)value); } }
+    public float? BorderRight { get { return (float?)GetClassProp(UiPropName.BorderRight); } set { SetProp(UiPropName.BorderRight, (float?)value); } }
+    public float? BorderBot { get { return (float?)GetClassProp(UiPropName.BorderBot); } set { SetProp(UiPropName.BorderBot, (float?)value); } }
+    public float? BorderLeft { get { return (float?)GetClassProp(UiPropName.BorderLeft); } set { SetProp(UiPropName.BorderLeft, (float?)value); } }
+    public float? BorderTopLeftRadius { get { return (float?)GetClassProp(UiPropName.BorderTopLeftRadius); } set { SetProp(UiPropName.BorderTopLeftRadius, (float?)value); } }
+    public float? BorderTopRightRadius { get { return (float?)GetClassProp(UiPropName.BorderTopRightRadius); } set { SetProp(UiPropName.BorderTopRightRadius, (float?)value); } }
+    public float? BorderBotRightRadius { get { return (float?)GetClassProp(UiPropName.BorderBotRightRadius); } set { SetProp(UiPropName.BorderBotRightRadius, (float?)value); } }
+    public float? BorderBotLeftRadius { get { return (float?)GetClassProp(UiPropName.BorderBotLeftRadius); } set { SetProp(UiPropName.BorderBotLeftRadius, (float?)value); } }
+    public vec4? Color { get { return (vec4?)GetClassProp(UiPropName.Color); } set { SetProp(UiPropName.Color, (vec4?)value); } }
+    public vec4? ColorMul { get { return (vec4?)GetClassProp(UiPropName.ColorMul); } set { SetProp(UiPropName.ColorMul, (vec4?)value); } }
+    public vec4? BorderTopColor { get { return (vec4?)GetClassProp(UiPropName.BorderTopColor); } set { SetProp(UiPropName.BorderTopColor, (vec4?)value); } }
+    public vec4? BorderRightColor { get { return (vec4?)GetClassProp(UiPropName.BorderRightColor); } set { SetProp(UiPropName.BorderRightColor, (vec4?)value); } }
+    public vec4? BorderBotColor { get { return (vec4?)GetClassProp(UiPropName.BorderBotColor); } set { SetProp(UiPropName.BorderBotColor, (vec4?)value); } }
+    public vec4? BorderLeftColor { get { return (vec4?)GetClassProp(UiPropName.BorderLeftColor); } set { SetProp(UiPropName.BorderLeftColor, (vec4?)value); } }
+    public FontFace FontFace { get { return (FontFace)GetClassProp(UiPropName.FontFace); } set { SetProp(UiPropName.FontFace, (FontFace)value); } }
+    public float? FontSize { get { return (float?)GetClassProp(UiPropName.FontSize); } set { SetProp(UiPropName.FontSize, (float?)value); } }
+    public UiFontStyle? FontStyle { get { return (UiFontStyle?)GetClassProp(UiPropName.FontStyle); } set { SetProp(UiPropName.FontStyle, (UiFontStyle?)value); } }
+    public vec4? FontColor { get { return (vec4?)GetClassProp(UiPropName.FontColor); } set { SetProp(UiPropName.FontColor, (vec4?)value); } }
+    public float? LineHeight { get { return (float?)GetClassProp(UiPropName.LineHeight); } set { SetProp(UiPropName.LineHeight, (float?)value); } }
+    public UiPositionMode? PositionMode { get { return (UiPositionMode?)GetClassProp(UiPropName.PositionMode); } set { SetProp(UiPropName.PositionMode, (UiPositionMode?)value); } }
+    public UiOverflowMode? OverflowMode { get { return (UiOverflowMode?)GetClassProp(UiPropName.OverflowMode); } set { SetProp(UiPropName.OverflowMode, (UiOverflowMode?)value); } }
+    public UiSizeMode? SizeModeWidth { get { return (UiSizeMode?)GetClassProp(UiPropName.SizeModeWidth); } set { SetProp(UiPropName.SizeModeWidth, (UiSizeMode?)value); } }
+    public UiSizeMode? SizeModeHeight { get { return (UiSizeMode?)GetClassProp(UiPropName.SizeModeHeight); } set { SetProp(UiPropName.SizeModeHeight, (UiSizeMode?)value); } }
+    public UiDisplayMode? DisplayMode { get { return (UiDisplayMode?)GetClassProp(UiPropName.DisplayMode); } set { SetProp(UiPropName.DisplayMode, (UiDisplayMode?)value); } }
+    public UiImageTiling? ImageTilingX { get { return (UiImageTiling?)GetClassProp(UiPropName.ImageTilingX); } set { SetProp(UiPropName.ImageTilingX, (UiImageTiling?)value); } }
+    public UiImageTiling? ImageTilingY { get { return (UiImageTiling?)GetClassProp(UiPropName.ImageTilingY); } set { SetProp(UiPropName.ImageTilingY, (UiImageTiling?)value); } }
+    public MtTex Texture { get { return (MtTex)GetClassProp(UiPropName.Texture); } set { SetProp(UiPropName.Texture, (MtTex)value); } }
+    public double? MaxValue { get { return (double?)GetClassProp(UiPropName.MaxValue); } set { SetProp(UiPropName.MaxValue, (double?)value); } }
+    public double? MinValue { get { return (double?)GetClassProp(UiPropName.MinValue); } set { SetProp(UiPropName.MinValue, (double?)value); } }
+    public float? ZIndex { get { return (float?)GetClassProp(UiPropName.ZIndex); } set { SetProp(UiPropName.ZIndex, (float?)value); } }
+    public UiFloatMode? FloatMode { get { return (UiFloatMode?)GetClassProp(UiPropName.FloatMode); } set { SetProp(UiPropName.FloatMode, (UiFloatMode?)value); } }
+    public UiRenderMode? RenderMode { get { return (UiRenderMode?)GetClassProp(UiPropName.RenderMode); } set { SetProp(UiPropName.RenderMode, (UiRenderMode?)value); } }
+    public UiAlignment? TextAlign { get { return (UiAlignment?)GetClassProp(UiPropName.TextAlign); } set { SetProp(UiPropName.TextAlign, (UiAlignment?)value); } }
+    public UiAlignment? Alignment { get { return (UiAlignment?)GetClassProp(UiPropName.Alignment); } set { SetProp(UiPropName.Alignment, (UiAlignment?)value); } }
 
 
     #endregion
@@ -836,8 +931,16 @@ namespace PirateCraft
     private Dictionary<UiPropName, object?> _debugInheritedNamesList = null;//Properties owned (set) by this class. For visual debug
     private Dictionary<UiPropName, object?> _debugDefaultNamesList = null;//Properties owned (set) by this class. For visual debug
 #endif
+    public UiStyle(UiStyleName name)
+      : this(name.ToString(), new List<string>() { })
+    {
+    }
     public UiStyle(string name)
       : this(name, new List<string>() { })
+    {
+    }
+    public UiStyle(UiStyleName name, UiStyleName inherted_style)
+  : this(name.ToString(), new List<string>() { inherted_style.ToString() })
     {
     }
     public UiStyle(string name, string inherted_style)
@@ -875,6 +978,36 @@ namespace PirateCraft
         StyleSheet = null;
       }
       StyleSheet = new WeakReference<UiStyleSheet>(s);
+    }
+    public void SetProp(UiPropName p, object? value)
+    {
+      //set a property 
+      // * set value to null to clear/inherit value
+      if (CheckValueEnabled(p, value))
+      {
+        SetClassValueDirect(p, value);
+      }
+    }
+    private object? GetProp(UiPropName p)
+    {
+      //get the compiled property 
+      //returns the compiled / owned value
+      // * value will not be null
+      return _props.Get(p);
+    }
+    public object? GetClassProp(UiPropName p)
+    {
+      //Get class property
+      // * value will be null if prop is not owned.
+      var owned = _owned.Get((int)p);
+      if (!owned)
+      {
+        return null;
+      }
+      else
+      {
+        return GetProp(p);
+      }
     }
     private void TranslateStyleNames(UiStyleSheet sheet)
     {
@@ -972,9 +1105,9 @@ namespace PirateCraft
               //not owned, get value from superclass
               if (!InheritFromSuperClasses(s, p.Key, p.Value, framestamp))
               {
-                //DISABLED auto parent inherit - this is annoying
                 //if subclasses are not set, then try the parent DOM element, otherwise set to a default value
-                //  if (!InheritFromParentTag(style_DOM_parent, p.Key, p.Value))
+                //Ok super annoying, but we acutally need this because say you set opacity on a parent element to fade out, then the text should get the same opacity as it all should fade
+                if (!InheritFromParentTag(style_DOM_parent, p.Key, p.Value))
                 {
                   //No parent element, and, no styles, set to default.
                   SetDefaultValue(p.Key, p.Value);
@@ -1046,7 +1179,7 @@ namespace PirateCraft
       //Return true if successfully inherited.
       if (fromStyle.PropIsOwnedOrInherited(p))
       {
-        var val = fromStyle.GetPropValue(p);
+        var val = fromStyle.GetProp(p);
         fi.SetValue(this._props, val);
         _inherited.Set((int)p, true);
         return true;
@@ -1108,17 +1241,10 @@ namespace PirateCraft
 
     #endregion
     #region Private: Methods
-    private void SetClassValue(UiPropName p, object? value)
+
+    private bool CheckValueEnabled(UiPropName p, object? new_class_value)
     {
-      //Set nullable value for class. Set to null to clear/inherit value
-      if (CheckValueModified(p, value))
-      {
-        SetClassValueDirect(p, value);
-      }
-    }
-    private bool CheckValueModified(UiPropName p, object? new_class_value)
-    {
-      //Return true if
+      //Check if we set the prop to null (disabled it) 
       var owned = _owned.Get((int)p);
       if (new_class_value == null && owned == false)
       {
@@ -1133,7 +1259,6 @@ namespace PirateCraft
       else if (new_class_value != null && owned == true)
       {
         //Class value is set, and we set a new value check for value difference (prevent recompiling all classes!)
-        //Check hard (prop) value for new value
         var cur_prop_val = _props.Get(p);
         if (!cur_prop_val.Equals(new_class_value))
         {
@@ -1144,14 +1269,16 @@ namespace PirateCraft
     }
     private void SetClassValueDirect(UiPropName p, object? value)
     {
-      //Set the class value, skipping over modified value checking.
+      //Set the class value for this style, skipping over modified value checking.
       if (value != null)
       {
+        //Only set the prop value if not null, as, null is basically the way we say "clear the value"
         _owned.Set((int)p, true);
-        _props.Set(p, value); //Only set the prop value if not null, as, null is basically the way we say "clear the value"
+        _props.Set(p, value);
       }
       else
       {
+        //the property was cleared.
         _owned.Set((int)p, false);
       }
       _changed.Set((int)p, true);
@@ -1165,24 +1292,6 @@ namespace PirateCraft
       {
         e.SetContentChanged();
       });
-    }
-    private object? GetClassValue(UiPropName p)
-    {
-      //Get the class value (not compiled value)
-      var owned = _owned.Get((int)p);
-      if (!owned)
-      {
-        return null;
-      }
-      else
-      {
-        return GetPropValue(p);
-      }
-    }
-    private object? GetPropValue(UiPropName p)
-    {
-      //Get the compiled / or / owned value
-      return _props.Get(p);
     }
     private void IterateElements(Action<UiElement> act)
     {
@@ -1215,7 +1324,6 @@ namespace PirateCraft
     public UiQuad _b2ClipQuad = new UiQuad();      // The clip quad - all floating and contained, elements and min/max w/h. *clip quad may not equal computed quad if there are floating elements
     public UiQuad _b2LocalQuad = new UiQuad();      // local quad
     public UiQuad _b2ContentQuad = new UiQuad();        // Final quad. content without margin /border
-    public UiQuad _b2MarginQuad = new UiQuad();
     public UiQuad _b2PaddingQuad = new UiQuad();
     public UiQuad _b2PreOffsetBorderQuad = new UiQuad();
     public UiQuad _b2BorderQuad = new UiQuad();        // Final quad. content area + margin + border area
@@ -1224,16 +1332,24 @@ namespace PirateCraft
     public vec2 OuterMaxWH = new vec2(0, 0);
     public vec2 InnerMaxWH = new vec2(0, 0);
   }
-  public class UiGlyph
+  //UiGlyph to uielemnet
+  //uielement to UIBlock
+  public class UiBlock
   {
-
+    protected UiQuads _quads;
+  }
+  public class UiGlyph : UiBlock
+  {
+    //minimal version of UIelement
+    protected MtCachedCharData? _cachedGlyph = null;//For glyphs
+    protected vec4 _color;
   }
   public class UiElement
   {
     #region Classes 
     private class UiCol
     {
-      //line column
+      //line column, left, center, or right
       public float _top = 0;//not null depending on UiBuildOrder
       public float _left = 0;
       public float _height = 0;
@@ -1286,7 +1402,7 @@ namespace PirateCraft
       {
         if (_style == null)
         {
-          _style = new UiStyle(StyleName.Inline);
+          _style = new UiStyle("inline");
           _style.IsInline = true;
           _style.AddReference(this);
         }
@@ -1344,44 +1460,44 @@ namespace PirateCraft
     {
       _id = s_idgen++;
     }
-    public UiElement(string style) : this()
+    public UiElement(string name) : this()
     {
-      Init(new List<string>() { style }, null);
+      Init(new List<UiStyleName>() { }, name);
     }
-    public UiElement(string style, string text) : this()
+    public UiElement(UiStyleName style) : this()
     {
-      Init(new List<string>() { style }, null, text);
+      Init(new List<UiStyleName>() { style }, null);
     }
-    public UiElement(string name, string? style, string text) : this()
+    public UiElement(UiStyleName style, string name) : this()
     {
-      List<string> styles = new List<string>();
+      Init(new List<UiStyleName>() { style }, null, name);
+    }
+    public UiElement(UiStyleName style, Phrase p) : this()
+    {
+      List<UiStyleName> styles = new List<UiStyleName>();
       if (style != null)
       {
         styles.Add(style);
       }
-      Init(styles, name, text);
+      Init(styles, null, Gu.Translator.Translate(p));
     }
-    public UiElement(string style, Phrase p) : this()
-    {
-      Init(new List<string>() { style }, null, Gu.Translator.Translate(p));
-    }
-    public UiElement(List<string> styleClasses) : this()
+    public UiElement(List<UiStyleName> styleClasses) : this()
     {
       Init(styleClasses, null);
     }
-    public UiElement(List<string> styleClasses, Phrase phrase) : this()
+    public UiElement(List<UiStyleName> styleClasses, Phrase phrase) : this()
     {
       Init(styleClasses, null, Gu.Translator.Translate(phrase));
     }
-    public UiElement(List<string> styleClasses, string text) : this()
+    public UiElement(List<UiStyleName> styleClasses, string text) : this()
     {
       Init(styleClasses, null, text);
     }
-    public UiElement(List<string> styleClasses, Phrase phrase, List<UiElement> children) : this()
+    public UiElement(List<UiStyleName> styleClasses, Phrase phrase, List<UiElement> children) : this()
     {
       Init(styleClasses, null, Gu.Translator.Translate(phrase), children);
     }
-    public UiElement(List<string> styleClasses, string text, List<UiElement> children) : this()
+    public UiElement(List<UiStyleName> styleClasses, string text, List<UiElement> children) : this()
     {
       Init(styleClasses, null, text, children);
     }
@@ -1404,6 +1520,40 @@ namespace PirateCraft
     public void Show(string name)
     {
       ShowOrHideByName(name, true);
+    }
+    public bool TryGetGui2dRoot(out Gui2d? ret)
+    {
+      ret = null;
+      UiElement? parent = this.Parent;
+      while (parent != null && parent.Parent != null)
+      {
+        parent = parent.Parent;
+      }
+      if (parent is Gui2d)
+      {
+        ret = parent as Gui2d;
+      }
+      return ret != null;
+    }
+    public bool Animate(UiPropName prop, double value, int durationMS, int repeatCount = 0)
+    {
+      if (TryGetGui2dRoot(out var g))
+      {
+        var pa = new UiPropAnimation<double>(this, prop, value, durationMS, repeatCount);
+        g.AddAnimation(pa);
+        return true;
+      }
+      return false;
+    }
+    public bool Animate(UiPropName prop, vec4 value, int durationMS, int repeatCount = 0)
+    {
+      if (TryGetGui2dRoot(out var g))
+      {
+        var pa = new UiPropAnimation<vec4>(this, prop, value, durationMS, repeatCount);
+        g.AddAnimation(pa);
+        return true;
+      }
+      return false;
     }
     private string GetDefaultName(string? text)
     {
@@ -1512,10 +1662,10 @@ namespace PirateCraft
         Style._props.BorderBotLeftRadius
       );
     }
-    public UiElement AddChild(string stylename)
-    {
-      return AddChild(new UiElement(stylename));
-    }
+    // public UiElement AddChild(string stylename)
+    // {
+    //   return AddChild(new UiElement(stylename));
+    // }
     public UiElement AddChild(UiElement e)
     {
       Gu.Assert(e != null);
@@ -1682,9 +1832,9 @@ namespace PirateCraft
 
     protected virtual void OnAddedToParent(UiElement parent) { }
 
-    private void Init(List<string> styleClasses, string? name = null, string? phrase = null, List<UiElement> children = null)
+    private void Init(List<UiStyleName> styleClasses, string? name = null, string? phrase = null, List<UiElement> children = null)
     {
-      this.Style.SetInheritStyles(styleClasses);
+      this.Style.SetInheritStyles(styleClasses.ConvertAll(x => x.ToString()));
       if (phrase != null)
       {
         Text = phrase;
@@ -1778,8 +1928,12 @@ namespace PirateCraft
         //all elements & ele pads + parent margin *margin sizes in the layout lines
         _quads.ContentWH = _quads.GlyphWH; //start with max wh of all glyphs
 
-        //remove margins for child
+        //expand content WH by margin - 
         var mb = this.GetMarginAndBorder(dd);
+        // _quads.ContentWH.width += mb.left + mb.right;
+        // _quads.ContentWH.height += mb.top + mb.bot;
+
+        //remove margins for child
         _quads.InnerMaxWH = new vec2(
           Math.Max(_quads.OuterMaxWH.width - mb.left - mb.right, 0),
           Math.Max(_quads.OuterMaxWH.height - mb.top - mb.bot, 0)
@@ -1795,6 +1949,11 @@ namespace PirateCraft
           //compute min content WH first
           foreach (var ele in _children)
           {
+            //Hide opacity=0 elements
+            // if(ele.Visible && ele.Style._props.RenderMode != UiRenderMode.None && ele.Style._props.Color.a == 0){
+            //   ele.Visible = false;
+            // }
+
             if (ele.Visible)
             {
               ele.PerformLayout_SizeElements(mt, bForce, _quads.InnerMaxWH, this.Style, sheet, framesatmp, dd);
@@ -1834,14 +1993,17 @@ namespace PirateCraft
           {
             if (ele.Visible && ele.Style._props.PositionMode == UiPositionMode.Static)
             {
-              LayoutStaticElement(ele, Style._props.Alignment, vecLines, _quads.InnerMaxWH, _quads.ContentWH, dd, ref lineidx);
+              LayoutStaticElement(ele, ele.Style._props.Alignment, vecLines, _quads.InnerMaxWH, _quads.ContentWH, dd, ref lineidx);
             }
           }
-
 
         }
         //**TODO: Unified UI - Glyphs + Elements must be in the same list, & Glyphs must be a BASE class for UiELement and have no _props
 
+        //  we would remove layout:block anyway for glph basd on various textual things like word wrap.
+        //  we could have some kind of "block run" of elements that are runs of elements. 
+
+        //glyph runs
         lineidx = 0;
         if (_glyphs != null && _glyphs.Count > 0)
         {
@@ -1854,34 +2016,6 @@ namespace PirateCraft
           }
         }
 
-        //adjust line offsets for center/right
-        //note:basically we need to sort the eles into buckets anyway, so the algorithm woulr
-        //bneefit from having hte center column go first
-        foreach (var line in vecLines)
-        {
-          var linew = line._cols[0]._width + line._cols[1]._width + line._cols[2]._width;
-          foreach (var ele in line._cols[(int)UiAlignment.Center]._eles)
-          {
-            ele._quads._b2LocalQuad._left += _quads.InnerMaxWH.width / 2 - line._cols[(int)UiAlignment.Center]._width / 2;
-          }
-          foreach (var ele in line._cols[(int)UiAlignment.Right]._eles)
-          {
-            if (Translator.TextFlow == LanguageTextFlow.Left)
-            {
-              //arabic text
-              ele._quads._b2LocalQuad._left = _quads.InnerMaxWH.width - ele._quads._b2LocalQuad._left - ele._quads._b2LocalQuad._width;
-            }
-            else
-            {
-              //roman
-              ele._quads._b2LocalQuad._left += _quads.InnerMaxWH.width - line._cols[(int)UiAlignment.Right]._width - ele._quads._b2LocalQuad._width;
-            }
-
-          }
-        }
-
-
-        //TODO: proably putting text on separate layer
         //Calculate content size
         float totalHeight = mb.top + mb.bot;
         foreach (var line in vecLines)
@@ -1892,9 +2026,32 @@ namespace PirateCraft
         }
         _quads.ContentWH.y = Math.Max(_quads.ContentWH.y, totalHeight);
 
+        //Compute final width 
         SizeElement(_quads.ContentWH, _quads.OuterMaxWH, dd);
 
-        _quads._b2LocalQuad.Validate();
+        //adjust line offsets for center/right 
+        foreach (var line in vecLines)
+        {
+          var linew = line._cols[0]._width + line._cols[1]._width + line._cols[2]._width;
+          foreach (var ele in line._cols[(int)UiAlignment.Center]._eles)
+          {
+            ele._quads._b2LocalQuad._left += _quads._b2LocalQuad._width / 2 - line._cols[(int)UiAlignment.Center]._width / 2;
+          }
+          foreach (var ele in line._cols[(int)UiAlignment.Right]._eles)
+          {
+            if (Translator.TextFlow == LanguageTextFlow.Left)
+            {
+              //arabic text
+              ele._quads._b2LocalQuad._left = _quads._b2LocalQuad._width - ele._quads._b2LocalQuad._left - ele._quads._b2LocalQuad._width;
+            }
+            else
+            {
+              //roman
+              ele._quads._b2LocalQuad._left = _quads._b2LocalQuad._width - line._cols[(int)UiAlignment.Right]._width;
+            }
+          }
+        }
+
 
       }
     }
@@ -2100,43 +2257,6 @@ namespace PirateCraft
 
       ele._quads._b2LocalQuad.Validate();
     }
-    // private void LayoutLeft(UiElement ele, float e_width, vec4 e_pad, bool bLineBreak, UiLine line,
-    //                         List<UiLine> vecLines, vec2 pmaxInnerWH, vec2 pcontentWH, UiDebugDraw dd, vec4 pmarb, ref int lineidx)
-    // {
-    //   ele._quads._b2LocalQuad._left = line._x + line._width + pmarb.left + e_pad.left;
-    // }
-    // private void LayoutRight(UiElement ele, float e_width, vec4 e_pad, bool bLineBreak, UiLine line,
-    //                          List<UiLine> vecLines, vec2 pmaxInnerWH, vec2 pcontentWH, UiDebugDraw dd, vec4 pmarb, ref int lineidx)
-    // {
-    //   //if the line is full the element gets appended to the end of the full line ,essentially gets clipped
-    //   ele._quads._b2LocalQuad._left = line._x - line._width + pmarb.right + e_pad.right + e_width;
-
-    //   // ele._quads._b2LocalQuad._top = line._top + pmarb.top + e_pad.top;
-    //   // line._cols[2]._width += e_width + e_pad.left + e_pad.right;
-    //   // line._cols[2]._height = Math.Max(line._height, ele._quads._b2LocalQuad._height + e_pad.top + e_pad.bot);
-    // }
-    // private void LayoutRight(UiElement ele, float e_width, vec4 e_pad, bool bLineBreak, UiLine line,
-    //                         List<UiLine> vecLines, vec2 pmaxInnerWH, vec2 pcontentWH, UiDebugDraw dd)
-    // {
-    //   if (bLineBreak)
-    //   {
-    //     // new line
-    //     UiLine line2 = new UiLine(0, line._top + line._height);
-    //     vecLines.Add(line2);
-    //     line = vecLines[vecLines.Count - 1];
-    //   }
-
-    //   var pmarb = this.GetMarginAndBorder(dd);
-
-    //   ele._quads._b2LocalQuad._left = line._left + line._width + e_pad.left + pmarb.left;
-    //   ele._quads._b2LocalQuad._top = line._top + e_pad.top + pmarb.top;
-    //   line._width += e_width + e_pad.left + e_pad.right;
-    //   line._height = Math.Max(line._height, ele._quads._b2LocalQuad._height + e_pad.top + e_pad.bot);
-
-    //   ele._quads._b2LocalQuad.Validate();
-
-    //   line._eles.Add(ele);
-    // }
     private void ConstrainValue(float min, float max, ref float x, float size)
     {
       //@param x = ele position (x,y) size = ele w/h
@@ -2229,12 +2349,6 @@ namespace PirateCraft
       this._quads._b2ContentQuad._height -= (bd.top + bd.bot);
       this._quads._b2ContentQuad.Validate();
 
-      var mg = this.GetMargin(dd);
-      this._quads._b2MarginQuad = this._quads._b2BorderQuad.Clone();
-      // this._quads._b2MarginQuad._left -= mg.left;
-      // this._quads._b2MarginQuad._top -= mg.top;
-      // this._quads._b2MarginQuad._width -= (mg.right+ mg.left);
-      // this._quads._b2MarginQuad._height -= (mg.bot+mg.top);
 
       var pd = this.GetPadding(dd);
       this._quads._b2PaddingQuad = this._quads._b2BorderQuad.Clone();
@@ -2242,7 +2356,6 @@ namespace PirateCraft
       this._quads._b2PaddingQuad._top -= pd.top;
       this._quads._b2PaddingQuad._width += (pd.right + pd.left);
       this._quads._b2PaddingQuad._height += (pd.bot + pd.top);
-
 
     }
     public static bool disableoff = false;
@@ -2261,10 +2374,6 @@ namespace PirateCraft
       //**Texture Adjust - modulating repeated textures causes seaming issues, especially with texture filtering
       // adjust the texture coordinates by some pixels to account for that.  0.5f seems to work well.
       float adjust = 0;// 1.4f;  // # of pixels to adjust texture by
-
-
-      var bd = GetBorder(dd);
-      var radius = this.GetBorderRadius(dd);
 
       //Debug overlay
       if (dd.ShowOverlay)
@@ -2304,7 +2413,10 @@ namespace PirateCraft
         all_verts.Add(dbgv);//This is because of the new sorting issue        
       }
 
-      //Content Quad
+      var bd = GetBorder(dd);
+      var radius = this.GetBorderRadius(dd);
+
+      //Content Quad w/ margins
       v_v4v4v4v2u2v4v4 vc = new v_v4v4v4v2u2v4v4();
       vc._rtl_rtr = new vec4(radius.top, radius.right);
       vc._rbr_rbl = new vec4(radius.bot, radius.left);
@@ -2703,16 +2815,17 @@ namespace PirateCraft
       e._parent = this;//hmm..
       e._pickEnabled = false;
       e.Style.IsPropsOnly = true;
-      e.Style._props.SizeModeWidth = UiSizeMode.Fixed;
-      e.Style._props.SizeModeHeight = UiSizeMode.Fixed;
+
+      //most Glyph props should directly inherit from its parent UiElement
+
+      //e.Style._props.SizeModeWidth = UiSizeMode.Fixed;
+      //e.Style._props.SizeModeHeight = UiSizeMode.Fixed;
 
       e._renderOffset = new Box2f(new vec2(gleft, gtop), new vec2(gright, gbot));
       e._quads._b2LocalQuad._left = 0;
       e._quads._b2LocalQuad._top = 0;
       e._quads._b2LocalQuad._width = e._cachedGlyph.advance + kern + 1;//the widths are off somewhere, the +1 prevents sligth clipping of the right leter
       e._quads._b2LocalQuad._height = gheight * Style._props.LineHeight;
-      e.Style._props.PadRight = e.Style._props.PadLeft = e.Style._props.PadBot = e.Style._props.PadTop = 0;
-      e.Style._props.MarginBot = e.Style._props.MarginTop = e.Style._props.MarginRight = e.Style._props.MarginLeft = 0;
 
       if (cc == '\n')
       {
@@ -2827,7 +2940,7 @@ namespace PirateCraft
     public const int MaxSize = 9999999;
     public const int SlidingDiffWindow = 16;//16 chars for the string difference window. Replacement of a full float string.
 
-    public WeakReference<RenderView> RenderView { get; private set; } = new WeakReference<RenderView>(null);
+    public RenderView RenderView { get; private set; }
     public UiDebugDraw DebugDraw { get; set; } = new UiDebugDraw();
     public MeshData Mesh { get; set; } = null;
     public MeshView MeshView { get; set; } = null;
@@ -2848,6 +2961,8 @@ namespace PirateCraft
     private UiEventThing _eventThing = new UiEventThing();
     private Dictionary<uint, UiElement> _pickable = new Dictionary<uint, UiElement>();
     private bool _async = false;
+    private Dictionary<UiElement, Dictionary<UiPropName, IUiPropAnimation>>? _animations = null;
+    //private DeltaTimer _propAnimationTimer ;
 
     #endregion
     #region Public: Methods
@@ -2856,8 +2971,11 @@ namespace PirateCraft
     {
       StyleSheet = new UiStyleSheet(new FileLoc("ui-default.css", FileStorage.Embedded));
       _shared = shared;
-      RenderView = new WeakReference<RenderView>(cam);
+      RenderView = cam;
       Name = "screen(root)";
+
+      //TODO:
+      // _propAnimationTimer = new DeltaTimer(c_iPropAnimationTime, true, ActionState.Run, )
 
       //Default pick id for whole gui - we need this because we need to know whether or not we are ponting at
       //the GUI, or not. Sub-elements override this pick ID with their own "pick root"-s
@@ -2870,6 +2988,8 @@ namespace PirateCraft
         disableoff = !disableoff;
       }
 
+      UpdatePropAnimations(dt);
+
       //queue update if processed events.
       if (_state == UiAsyncUpdateState.CanUpdate)
       {
@@ -2877,12 +2997,12 @@ namespace PirateCraft
         ThreadPool.QueueUserWorkItem(stateinfo =>
         {
           Dictionary<uint, UiElement>? pickable = null;
-          if (RenderView != null && RenderView.TryGetTarget(out var rv))
+          if (RenderView != null && RenderView.Enabled)
           {
             long a = Gu.Milliseconds();
             StyleSheet?.Update();
-            SetExtentsToViewport(rv);
-            UpdateLayout_Async(_shared.MegaTex, Gu.Context.PCMouse, rv, ref pickable);
+            SetExtentsToViewport(RenderView);
+            UpdateLayout_Async(_shared.MegaTex, Gu.Context.PCMouse, RenderView, ref pickable);
             this._dbg_UpdateMs = Gu.Milliseconds() - a;
           }
           Gu.Context.Gpu.Post_To_RenderThread(Gu.Context, x =>
@@ -2891,9 +3011,9 @@ namespace PirateCraft
             {
               _pickable = pickable;
             }
-            if (RenderView != null && RenderView.TryGetTarget(out var rv2))
+            if (RenderView != null && RenderView.Enabled)
             {
-              SendMeshToGpu_Sync(rv2);
+              SendMeshToGpu_Sync(RenderView);
               _state = UiAsyncUpdateState.Updated;
             }
           });
@@ -2912,7 +3032,7 @@ namespace PirateCraft
       {
         _state = UiAsyncUpdateState.DoingEvents;
 
-        if (RenderView != null && RenderView.TryGetTarget(out var rv))
+        if (RenderView != null)
         {
           long a = Gu.Milliseconds();
           foreach (var e in _eventThing._events)
@@ -2955,9 +3075,58 @@ namespace PirateCraft
       _shared.Dummy.MeshView = MeshView;
       return _shared.Dummy;
     }
+    public void AddAnimation(IUiPropAnimation p)
+    {
+      //add a property animation (see $jquery(element).animate({ prop:value }); )
+      Gu.Assert(p != null);
+      Gu.Assert(p.Element != null);
+      _animations = _animations.ConstructIfNeeded();
+
+      Dictionary<UiPropName, IUiPropAnimation>? plist = null;
+      if (!_animations.TryGetValue(p.Element, out plist))
+      {
+        plist = new Dictionary<UiPropName, IUiPropAnimation>();
+        _animations.Add(p.Element, plist);
+      }
+
+      //overwrite with new, not allowing multiple animations on a prop.
+      plist[p.Prop] = p;
+
+    }
+
     #endregion
     #region Private: Methods
 
+    private void UpdatePropAnimations(double dt)
+    {
+      if (_animations != null)
+      {
+        List<UiElement> toRemoveEles = new List<UiElement>();
+        foreach (var ea in _animations)
+        {
+          List<UiPropName> toRemove = new List<UiPropName>();
+          foreach (var ep in ea.Value)
+          {
+            if (ep.Value.Update(dt))
+            {
+              toRemove.Add(ep.Key);
+            }
+          }
+          foreach (var k in toRemove)
+          {
+            ea.Value.Remove(k);
+          }
+          if (ea.Value.Count == 0)
+          {
+            toRemoveEles.Add(ea.Key);
+          }
+        }
+        foreach (var k in toRemoveEles)
+        {
+          _animations.Remove(k);
+        }
+      }
+    }
     private int _async_framestamp = 0;
     //TODO: use some kind of expanding buffer
     ReverseGrowList<v_v4v4v4v2u2v4v4> _async_verts = new ReverseGrowList<v_v4v4v4v2u2v4v4>();

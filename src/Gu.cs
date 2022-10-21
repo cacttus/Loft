@@ -548,9 +548,8 @@ namespace PirateCraft
     }
     public static bool WhileTrueGuard(int whileloop_index, int whileloop_maxlen)
     {
-      //simple while loop guard used in a for loop to prevent infinite execution
+      //guard infinite execution
       //log when we take too long.
-      //the while true loop should always break 
       if (whileloop_index > 1000)
       {
         int n = 0; n++;

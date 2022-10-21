@@ -1,8 +1,31 @@
 ﻿Working On:
+10/20
+  word wrap, 
+  glyph props share/unify, 
+  fix align
+
+  prop sharing
+    text needs to hide
+      but we need to have separate props for text so we get rid of that element crap
+        pass in a default glyph style to the layout and vert compute with special props set.
+          dont set glyph props
+
+  fix the align text not working.
+    fix prop inheritance first - to see text when it hides
+    then chekcin and we do word wrap and prop sharing
+
+
+  word wrap
+
+  fixing PRS edit
+
+  X UI animation rough-in
+  X TextAlign / Align buggy
+
 10/19
   animation
-  move Window init to world script
-    
+  
+  X move Window init to world script
   X startup script for world
   X guy test
   X world scripts 
@@ -209,6 +232,7 @@ Roadmap:
 * Prototype Complete
 
 TODO list
+* Implement Prop Animation Timer in Gui2D to animate props on a timer, versus, all at once
 * Inheriting from parents is very annoying - remove parent inheritance
 
 * XML for the UI - relies on Unified Diff

@@ -219,6 +219,7 @@ namespace PirateCraft
   {
     private class ObjectXFormSpace
     {
+      //Stores temporary to transform object in the current space
       /*
       fixingthis..
       KEEP FIRST PROJECT POS**
@@ -240,20 +241,23 @@ namespace PirateCraft
       wrap when p1>p2 or p1<p2
       free -> rotate about view plane
       2 axes, .. same as others .. use the axis
-
       */
       public mat4 Space;
       public float ConstraintX;
       public float ConstraintY;
       public float ConstraintZ;
+      public vec3 Axis;
       public vec3 Origin;
-      public ObjectXFormSpace(mat4 space, float cx, float cy, float cz, vec3 origin)
+      public bool IsPlane=false;
+      public ObjectXFormSpace(mat4 space, float cx, float cy, float cz, vec3 axis, vec3 origin, bool isplane)
       {
         Space = space;
         ConstraintX = cx;
         ConstraintY = cy;
         ConstraintZ = cz;
         Origin = origin;
+        Axis = axis;
+        IsPlane=isplane;
       }
     }
     public enum MoveRotateScale
@@ -268,7 +272,7 @@ namespace PirateCraft
     private List<ObjectXFormSpace> _obj_xform = null;
     private vec2 _xform_MouseStart;
     private vec2 _mouse_wrapcount;
-    private Line3f? _xform_startRay = null;
+    private Line3f? _xform_mouseStartRay = null;
     private WorldEditEvent? _current_XForm = null;
 
     public MoveRotateScaleAction(List<WorldObject> objs, MoveRotateScale type) : base(objs)
@@ -284,7 +288,7 @@ namespace PirateCraft
 
       _xform_MouseStart = Gu.Context.PCMouse.Pos;
       _mouse_wrapcount = new vec2(0, 0);
-      _xform_startRay = Gu.TryCastRayFromScreen(_xform_MouseStart);
+      _xform_mouseStartRay = Gu.TryCastRayFromScreen(_xform_MouseStart);
 
       ComputeXFormSpace(Gu.World.Editor);
     }
@@ -344,6 +348,7 @@ namespace PirateCraft
       vec3 locla = (_lastMat[obi].invert() * global_axis.toVec4(1)).toVec3().normalize();
       return locla;
     }
+    private vec3 _global_axis = vec3.Zero;
     private void ComputeXFormSpace(WorldEditor editor)
     {
       Gu.Assert(Gu.World.Editor.SelectionOrigin != null);
@@ -353,47 +358,57 @@ namespace PirateCraft
       //   average_axis += ComputeLocalObjectAxis(obi, _xform_global_axis);
       // }
       // average_axis = (average_axis / (float)_objects.Count).normalize();
+      if (_xFormSpace == XFormSpace.Free)
+      {
+        _global_axis = new vec3(0, 1, 0);
+        if (Gu.TryGetSelectedView(out var rv))
+        {
+          if (rv.Camera.TryGetTarget(out var c))
+          {
+            _global_axis = -c.BasisZ_World; //"view" translation
+                                            //_current_XForm = WorldEditEvent.TransformPlaneView;
+          }
+        }
+      }
 
       _obj_xform = new List<ObjectXFormSpace>();
       for (int obi = 0; obi < _objects.Count; obi++)
       {
-        _obj_xform.Add(ComputeObjectXFormSpace(obi, _xFormSpace, editor.XFormOrigin, editor.SelectionOrigin.Value));
+        var xf = ComputeObjectXFormSpace(obi, _xFormSpace, editor.XFormOrigin, editor.SelectionOrigin.Value);
+        _obj_xform.Add(xf);
       }
     }
     private ObjectXFormSpace ComputeObjectXFormSpace(int obi, XFormSpace space, XFormOrigin origin, vec3 average_origin)
     {
       ObjectXFormSpace ret = null;
 
-      //var ob_axis = vec3.Zero;
       var ob_origin = vec3.Zero;
-      //    bool plane = false;
-      //vec3 global_axis = new vec3(0, 0, 0);
+          bool plane = false;
       vec3 basisX = new vec3(1, 0, 0), basisY = new vec3(0, 1, 0), basisZ = new vec3(0, 0, 1);
       float cX = 1, cY = 1, cZ = 1;
       mat4 mspace = new mat4();
+      vec3 axis = new vec3(0, 1, 0);
 
       if (space == XFormSpace.Free)
       {
-        //"view" translation
-        if (Gu.TryGetSelectedView(out var rv))
-        {
-          if (rv.Camera.TryGetTarget(out var c))
-          {
-            mspace = new mat4(new vec4(c.BasisX_World, 0), new vec4(-c.BasisZ_World, 0), new vec4(c.BasisY_World, 0), new vec4(0, 0, 0, 1));
-            cX = cZ = 1;
-            cY = 0;
-          }
-        }
+        //"view" translation or "free"
+       // mspace = new mat4(new vec4(c.BasisX_World, 0), new vec4(-c.BasisZ_World, 0), new vec4(c.BasisY_World, 0), new vec4(0, 0, 0, 1));
+        cX = cZ = 1;
+        cY = 0;
+        axis = _global_axis;
+        plane = true;
       }
       else
       {
-        if (_current_XForm == WorldEditEvent.MRS_TransformAxisX) { cX = 1; cY = 0; cZ = 0; }
-        else if (_current_XForm == WorldEditEvent.MRS_TransformAxisY) { cX = 0; cY = 1; cZ = 0; }
-        else if (_current_XForm == WorldEditEvent.MRS_TransformAxisZ) { cX = 0; cY = 0; cZ = 1; }
+        //local/global
 
-        else if (_current_XForm == WorldEditEvent.MRS_TransformPlaneX) { cX = 0; cY = 1; cZ = 1; }
-        else if (_current_XForm == WorldEditEvent.MRS_TransformPlaneY) { cX = 1; cY = 0; cZ = 1; }
-        else if (_current_XForm == WorldEditEvent.MRS_TransformPlaneZ) { cX = 1; cY = 1; cZ = 0; }
+        if (_current_XForm == WorldEditEvent.MRS_TransformAxisX) { cX = 1; cY = 0; cZ = 0; axis = new vec3(1,0,0); plane = false;}
+        else if (_current_XForm == WorldEditEvent.MRS_TransformAxisY) { cX = 0; cY = 1; cZ = 0;  axis = new vec3(0,1,0); plane = false;}
+        else if (_current_XForm == WorldEditEvent.MRS_TransformAxisZ) { cX = 0; cY = 0; cZ = 1;  axis = new vec3(0,0,1); plane = false;}
+
+        else if (_current_XForm == WorldEditEvent.MRS_TransformPlaneX) { cX = 0; cY = 1; cZ = 1;  axis = new vec3(1,0,0); plane = true;}
+        else if (_current_XForm == WorldEditEvent.MRS_TransformPlaneY) { cX = 1; cY = 0; cZ = 1;  axis = new vec3(0,1,0); plane = true;}
+        else if (_current_XForm == WorldEditEvent.MRS_TransformPlaneZ) { cX = 1; cY = 1; cZ = 0;  axis = new vec3(0,0,1); plane = true;}
 
         if (space == XFormSpace.Global)
         {
@@ -401,6 +416,7 @@ namespace PirateCraft
         }
         else if (space == XFormSpace.Local)
         {
+          axis = (_lastMat[obi].inverseOf() * new vec4(axis,1)).toVec3().normalize();
           mspace = _lastMat[obi].toQuat().toMat4();
         }
       }
@@ -418,7 +434,7 @@ namespace PirateCraft
         Gu.BRThrowNotImplementedException();
       }
 
-      ret = new ObjectXFormSpace(mspace, cX, cY, cZ, ob_origin);
+      ret = new ObjectXFormSpace(mspace, cX, cY, cZ, axis, ob_origin, plane);
       return ret;
     }
     public override WorldActionState HandleEvent(WorldEditor editor, WorldEditEvent code)
@@ -499,11 +515,12 @@ namespace PirateCraft
           Gu.Context.DebugDraw.DrawAxisLine(space.Origin, space.Space.Row3.xyz() * space.ConstraintZ);
 
           var axis = (space.Space.Row1.xyz() * space.ConstraintX + space.Space.Row2.xyz() * space.ConstraintY + space.Space.Row3.xyz() * space.ConstraintZ).normalize();
-          float delta = CalcDelta(axis, space.Origin, screen_ray, space.ConstraintX, space.ConstraintY, space.ConstraintZ);
-
+          //float delta = CalcDelta(axis, space.Origin, screen_ray, space.ConstraintX, space.ConstraintY, space.ConstraintZ);
+float delta = 0;
           mat4 mn = mat4.Identity;
           if (this._type == MoveRotateScale.Move)
           {
+            delta = DoMove(space.Axis,space.Origin,space.IsPlane, screen_ray, space.ConstraintX,space.ConstraintY,space.ConstraintZ);
             //p.Position = Translate(space.Axis, space.Origin, space.Plane, screen_ray);
           }
           if (this._type == MoveRotateScale.Rotate)
@@ -570,41 +587,44 @@ namespace PirateCraft
       return WorldActionState.StillDoing;
 
     }//update
-    private float CalcDelta(vec3 axis, vec3 origin, Line3f? screen_ray, float cx, float cy, float cz)
+    private float DoMove(vec3 axis, vec3 origin, bool isplane, Line3f? screen_ray, float cx, float cy, float cz)
     {
       //this is invalid
       Plane3f pf = new Plane3f(axis, origin);
       float delta = 0;
-      if (pf.IntersectLine(screen_ray.Value.p0, screen_ray.Value.p1, out vec3 pt_cur))
+      if (isplane)
       {
-        if (cx + cy + cz > 1.001)
+        //cast plane
+        vec3 pt_cur = vec3.Zero;
+        vec3 pt_start = vec3.Zero;
+        bool didhit = true;
+        didhit = didhit && pf.IntersectLine(_xform_mouseStartRay.Value.p0, _xform_mouseStartRay.Value.p1, out pt_start) ;
+        didhit = didhit && pf.IntersectLine(screen_ray.Value.p0, screen_ray.Value.p1, out  pt_cur) ;
+        if(didhit)
         {
-          if (pf.IntersectLine(_xform_startRay.Value.p0, _xform_startRay.Value.p1, out vec3 pt_start))
+          float len0 = (pt_cur - origin).len2();
+          float len1 = (pt_start - origin).len2();
+
+          Gu.Context.DebugDraw.Point((pt_cur), new vec4(1, 0, 0, 1));
+          Gu.Context.DebugDraw.Point((pt_start), new vec4(1, 0, 1, 1));
+          Gu.Context.DebugDraw.Point((origin), new vec4(0, 1, 1, 1));
+
+          if (len1 > 0)
           {
-            float len0 = (pt_cur - origin).len2();
-            float len1 = (pt_start - origin).len2();
-
-            Gu.Context.DebugDraw.Point((pt_cur), new vec4(1, 0, 0, 1));
-            Gu.Context.DebugDraw.Point((pt_start), new vec4(1, 0, 1, 1));
-            Gu.Context.DebugDraw.Point((origin), new vec4(0, 1, 1, 1));
-
-            if (len1 > 0)
-            {
-              delta = len0 / len1;
-            }
+            delta = len0 / len1;
           }
         }
-        else
-        {
-          //cast to the axis/line
-          var p0 = screen_ray.Value.p0;
-          var v0 = (screen_ray.Value.p1 - screen_ray.Value.p0).normalize();//prevent  huge numbers
-          var p1 = origin;
-          var v1 = axis;// space.BasisX * space.ConstraintX + space.BasisY * space.ConstraintY + space.BasisZ * space.ConstraintZ;
-          var tv = (v1 - v0);
-          var tp = (p1 - p0);
-          delta = tp.dot(tv) / tv.dot(tv);
-        }
+      }
+      else
+      {
+        //cast to the axis/line
+        var p0 = screen_ray.Value.p0;
+        var v0 = (screen_ray.Value.p1 - screen_ray.Value.p0).normalize();//prevent  huge numbers
+        var p1 = origin;
+        var v1 = axis;// space.BasisX * space.ConstraintX + space.BasisY * space.ConstraintY + space.BasisZ * space.ConstraintZ;
+        var tv = (v1 - v0);
+        var tp = (p1 - p0);
+        delta = tp.dot(tv) / tv.dot(tv);
       }
       return delta;
     }
@@ -1053,7 +1073,7 @@ namespace PirateCraft
         }
 
       }
-     // sb.Append($"({State.ToString()})");
+      // sb.Append($"({State.ToString()})");
 
       return sb.ToString();
     }
@@ -1212,7 +1232,7 @@ namespace PirateCraft
     MRS_TransformPlaneX, MRS_TransformPlaneY, MRS_TransformPlaneZ, MRS_TransformToggleOrigin,
 
     Debug_MoveCameraToOrigin,
-    Debug_UI_Toggle_ShowOverlay,  Debug_UI_Toggle_DisableClip,
+    Debug_UI_Toggle_ShowOverlay, Debug_UI_Toggle_DisableClip,
     Debug_ShowInfoWindow, Debug_ToggleShowConsole,
     Debug_ToggleDebugInfo, Debug_ToggleVSync, Debug_DrawBoundBoxes, Debug_DrawNormalsTangents, Debug_SaveFBOs,
     Debug_DrawObjectBasis, Debug_ShowWireFrame, Debug_ShowWireFrame_Overlay,
@@ -1667,14 +1687,14 @@ namespace PirateCraft
           {
             g.DebugDraw.DisablePadding = !g.DebugDraw.DisablePadding;
           }
-        }        
+        }
         else if (code == WorldEditEvent.Debug_UI_Toggle_DisableBorders)
         {
           if (Gu.TryGetSelectedViewGui(out var g))
           {
             g.DebugDraw.DisableBorders = !g.DebugDraw.DisableBorders;
           }
-        }        
+        }
         else if (code == WorldEditEvent.Debug_UI_Toggle_DisableClip)
         {
           if (Gu.TryGetSelectedViewGui(out var g))

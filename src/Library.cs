@@ -466,17 +466,7 @@ namespace PirateCraft
       public DynamicLoaderInfo(Type t, long pollIntervalMS)
       {
         _type = t;
-        _timer = new DeltaTimer(pollIntervalMS, ActionRepeat.Repeat, ActionState.Run);
-      }
-      public void AddLoader(DynamicFileLoader ll)
-      {
-        //allow system to dispose the object
-        var loaderref = new WeakReference<DynamicFileLoader>(ll);
-        _loaders.Add(loaderref);
-      }
-      public void Update(double dt)
-      {
-        _timer.Update(dt, () =>
+        _timer = new DeltaTimer(pollIntervalMS, ActionRepeat.Repeat, ActionState.Run, () =>
         {
           for (int iitem = _loaders.Count - 1; iitem >= 0; iitem--)
           {
@@ -491,6 +481,16 @@ namespace PirateCraft
             }
           }
         });
+      }
+      public void AddLoader(DynamicFileLoader ll)
+      {
+        //allow system to dispose the object
+        var loaderref = new WeakReference<DynamicFileLoader>(ll);
+        _loaders.Add(loaderref);
+      }
+      public void Update(double dt)
+      {
+        _timer.Update(dt);
       }
     }
     //Resource Database / asset manager / Library

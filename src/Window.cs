@@ -320,10 +320,10 @@ namespace PirateCraft
       styles.AddRange(new List<UiStyle>() { });
       gui.StyleSheet.AddStyles(styles);
 
-      var background = new UiElement(new List<string> { StyleName.Panel }, "pnlPanel");
+      var background = new UiElement(UiStyleName.Panel, "pnlPanel");
       gui.AddChild(background);
 
-      _info = new UiElement(StyleName.Label, Phrase.DebugInfoHeader);
+      _info = new UiElement(UiStyleName.Label, Phrase.DebugInfoHeader);
       background.AddChild(_info);
     }
     private void UpdateInfo()

@@ -1066,29 +1066,30 @@ namespace PirateCraft
   }
   public class DeltaTimer : BaseTimer, IClone, ICopy<BaseTimer>
   {
-    public double Time { get; private set; } = 0;
-    private double FrequencyS = 0;
+    public double ElapsedSeconds { get; private set; } = 0;
+    public double PeriodSeconds {get; private set; }= 0;
 
-    public DeltaTimer(long periodMS, ActionRepeat repeat, ActionState start, Action? act = null)
+    public DeltaTimer(long periodMS, ActionRepeat repeat, ActionState start, Action? act)
     : base(periodMS, repeat, start, act)
     {
-      FrequencyS = (double)periodMS / 1000.0;
+      //act can be null in which case we just use the timer.
+      PeriodSeconds = (double)periodMS / 1000.0;
+      this._action = act;
     }
 
     //Timer that runs in sync with the program / frame loop
-    public int Update(double dt, Action? act = null)
+    public int Update(double dt)
     {
       //Putting action here makes it more sense, since it keeps the action code within the update code.
       //Returns the number of times this timer fired, and executes optional action
       int fires = 0;
       if (State != ActionState.Stop)
       {
-        Time += dt;
-        while (Time > FrequencyS)
+        ElapsedSeconds += dt;
+        while (ElapsedSeconds > PeriodSeconds)
         {
-          Time -= FrequencyS;
+          ElapsedSeconds -= PeriodSeconds;
           Action?.Invoke();
-          act?.Invoke();
           fires++;
         }
       }
@@ -1101,8 +1102,8 @@ namespace PirateCraft
     public void CopyFrom(DeltaTimer? d, bool? shallow = null)
     {
       Gu.Assert(d != null);
-      this.Time = d.Time;
-      this.FrequencyS = d.FrequencyS;
+      this.ElapsedSeconds = d.ElapsedSeconds;
+      this.PeriodSeconds = d.PeriodSeconds;
     }
   }
   public class AsyncTimer : BaseTimer

@@ -54,7 +54,7 @@ namespace PirateCraft
     public EventComponent(Action<WorldObject>? action, double tick_seconds, ActionRepeat repeat, ActionState start)
     {
       Action = action;
-      Timer = new DeltaTimer((long)(tick_seconds * 1000.0), repeat, start);
+      Timer = new DeltaTimer((long)(tick_seconds * 1000.0), repeat, start , null);
     }
     public override void OnCreate(WorldObject myObj)
     {

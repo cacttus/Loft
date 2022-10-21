@@ -17,13 +17,44 @@ namespace PirateCraft
     }
 
     //base class for controls button/thumb/scrollbar/knob/trackbar.. etc
-    public UiControl()
+    public UiControl() : this(UiStyleName.BaseControl, null, true)
     {
       RegisterStyleEvents();
     }
-    public UiControl(string style, string text) : base(style, text)
+    public UiControl(string text, bool useMouseInputStyle = true) : this(UiStyleName.BaseControl, text, useMouseInputStyle)
     {
-      RegisterStyleEvents();
+    }
+    public UiControl(UiStyleName style, string text, bool useMouseInputStyle = true) : base(style, text)
+    {
+      if (useMouseInputStyle)
+      {
+        RegisterStyleEvents();
+      }
+      SetStyle();
+    }
+    private void SetStyle()
+    {
+      this.Style.RenderMode = UiRenderMode.Color;
+      this.Style.FontColor = vec4.rgba_ub(42, 42, 42, 255);
+      this.Style.Color = vec4.rgba_ub(230, 230, 230, 255);
+      this.Style.BorderColor = new vec4(0.14f, 0.16f, 0.16f, 1);
+      this.Style.Padding = 0;
+      this.Style.Margin = 0;
+      this.Style.Border = 0;
+      this.Style.MinWidth = 0;
+      this.Style.MinHeight = 0;
+      this.Style.MaxWidth = Gui2d.MaxSize;
+      this.Style.MaxHeight = Gui2d.MaxSize;
+      this.Style.FontFace = FontFace.Calibri;
+      this.Style.FontStyle = UiFontStyle.Normal;
+      this.Style.FontSize = 22;
+      this.Style.LineHeight = 1.0f;
+      this.Style.PositionMode = UiPositionMode.Static;
+      this.Style.SizeModeHeight = UiSizeMode.Shrink;
+      this.Style.SizeModeWidth = UiSizeMode.Shrink;
+      this.Style.DisplayMode = UiDisplayMode.Inline;
+      this.Style.OverflowMode = UiOverflowMode.Hide;
+      this.Style.FloatMode = UiFloatMode.None;
     }
     private void RegisterStyleEvents()
     {
@@ -56,20 +87,10 @@ namespace PirateCraft
     private bool _isTopLevel = true;
     private UiMenuItem? _parentMenuItem = null;
 
-    public static UiMenuItem HBar()
-    {
-      var mn = new UiMenuItem();
-      mn.Style.InheritFrom(StyleName.HBar);
-      return mn;
-    }
-    public UiMenuItem AddHBar()
-    {
-      return (UiMenuItem)AddChild(HBar());
-    }
     public UiMenuItem(Phrase p = Phrase.None) : this(Gu.Translator.Translate(p))
     {
     }
-    public UiMenuItem(string text, Action<UiEvent>? act = null) : base(StyleName.MenuItem, text)
+    public UiMenuItem(string text, Action<UiEvent>? act = null) : base(UiStyleName.MenuItem, text)
     {
       Init();
       if (act != null)
@@ -77,9 +98,9 @@ namespace PirateCraft
         Click(act);
       }
     }
-    public UiMenuItem AddSubMenu(Phrase p, Action<UiEvent>? click = null)
+    public UiMenuItem AddSubMenu(Phrase p)
     {
-      return AddMenuItemOrSubMenu(Gu.Translator.Translate(p), true, click);
+      return AddMenuItemOrSubMenu(Gu.Translator.Translate(p), true, null);
     }
     public UiMenuItem AddItem(Phrase p, Action<UiEvent>? click = null)
     {
@@ -149,6 +170,17 @@ namespace PirateCraft
       this.Style.BorderLeft = 1;
       this.Style.BorderRight = 1;
       this.Style.BorderColor = vec4.rgba_ub(190, 190, 190);
+
+      this.Style.SizeModeWidth = UiSizeMode.Expand;
+      this.Style.SizeModeHeight = UiSizeMode.Shrink;
+      this.Style.PositionMode = UiPositionMode.Static;
+      this.Style.MaxWidth = 500;
+      this.Style.MinWidth = 0;
+      this.Style.MarginTop = 6;
+      this.Style.MarginBot = 6;
+      this.Style.MarginLeft = 20;
+      this.Style.MarginRight = 20;
+      this.Style.Padding = 0;
 
       var that = this;
       this.AddEvent(UiEventId.Lost_Press_Focus, (e) =>
@@ -239,6 +271,42 @@ namespace PirateCraft
       }
     }
   }
+  public class UiLabel : UiControl
+  {
+    public UiLabel(string text) : base(text)
+    {
+    }
+  }
+  public class UiToast : UiControl
+  {
+    public UiToast(string text) : base(text)
+    {
+      this.Name = "_lblToast";
+      //toast at the top corner
+      this.Text = text;
+      this.Style.Margin = 5;
+      this.Style.PadRight = 7;
+      this.Style.PadTop = 7;
+      this.Style.PadBot = 7;
+      this.Style.PadLeft = 7;
+      this.Style.FontSize = 28;
+      this.Style.PositionMode = UiPositionMode.Static;
+      this.Style.TextAlign = UiAlignment.Center;
+      this.Style.Alignment = UiAlignment.Right;
+
+      Click((e) =>
+      {
+        vec4 c = this.Style._props.Color;
+        this.Animate(UiPropName.Color, new vec4(c.r,c.g,c.b, 0), 200, 0);
+      });
+    }
+    public void Show(string text)
+    {
+      this.Text = text;
+        vec4 c = this.Style._props.Color;
+        this.Animate(UiPropName.Color, new vec4(c.r,c.g,c.b, 1), 90, 0);
+    }
+  }
   public class UiToolbarButton : UiMenuItem
   {
     public UiToolbarButton(Phrase p = Phrase.None) : this(Gu.Translator.Translate(p))
@@ -252,7 +320,7 @@ namespace PirateCraft
       this.Style.PositionMode = UiPositionMode.Static;
       this.Style.MinWidth = 0;
       this.Style.BorderLeft = 0;
-      this.Style.Border=0;
+      this.Style.Border = 0;
       this.Style.Color = vec4.rgba_ub(240, 240, 240);
       // this.Style.BorderTop = 1;
       // this.Style.BorderTopColor = new vec4(1, 0, 0, 1);
@@ -287,13 +355,10 @@ namespace PirateCraft
   {
     public override string NamingPrefix { get { return "tlb"; } }
 
-    public UiToolbar() : base(StyleName.Toolbar)
+    public UiToolbar() : base(UiStyleName.Toolbar)
     {
     }
-    public void AddVBar()
-    {
-      AddChild(StyleName.VerticalBar).Name = "vbar";
-    }
+
     public UiMenuItem AddItem(UiMenuItem item)
     {
       Gu.Assert(item != null);
@@ -304,7 +369,7 @@ namespace PirateCraft
   public class UiContextMenu : UiElement
   {
     public override string NamingPrefix { get { return "ctxm"; } }
-    public UiContextMenu() : base(new List<string>() { StyleName.ContextMenu })
+    public UiContextMenu() : base(UiStyleName.ContextMenu)
     {
       this.Style.BorderColor = vec4.rgba_ub(190, 190, 190);
       this.Style.BorderBot = 2;
@@ -316,7 +381,7 @@ namespace PirateCraft
   public class UiWindow : UiElement
   {
     private UiElement _titleBar;
-    public UiWindow(string title, vec2 pos, vec2 wh, string text = "") : base(StyleName.BaseControl)
+    public UiWindow(string title, vec2 pos, vec2 wh, string text = "") : base(UiStyleName.BaseControl)
     {
       this.Style.PositionMode = UiPositionMode.Absolute;
       this.Style.RenderMode = UiRenderMode.Color;
@@ -329,7 +394,7 @@ namespace PirateCraft
       this.Style.Width = wh.width;
       this.Style.Height = wh.height;
 
-      _titleBar = new UiElement(StyleName.BaseControl);
+      _titleBar = new UiElement(UiStyleName.BaseControl);
       _titleBar.Style.RenderMode = UiRenderMode.Color;
       _titleBar.Style.SizeModeWidth = UiSizeMode.Expand;
       _titleBar.Style.SizeModeHeight = UiSizeMode.Shrink;
@@ -339,7 +404,7 @@ namespace PirateCraft
       _titleBar.Style.Margin = 4;
       _titleBar.Style.TextAlign = UiAlignment.Center;
 
-      var closebt = new UiElement(StyleName.BaseControl);
+      var closebt = new UiElement(UiStyleName.BaseControl);
       closebt = new UiElement();
       closebt.Style.RenderMode = UiRenderMode.Color;
       closebt.Style.Alignment = UiAlignment.Right;
@@ -352,7 +417,7 @@ namespace PirateCraft
       closebt.Click(x => this.Close());
       _titleBar.AddChild(closebt);
 
-      var contentArea = new UiElement(StyleName.BaseControl);
+      var contentArea = new UiElement(UiStyleName.BaseControl);
       contentArea.Style.SizeModeHeight = UiSizeMode.Expand;
       contentArea.Style.SizeModeWidth = UiSizeMode.Expand;
       contentArea.Style.Margin = 10;

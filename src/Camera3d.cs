@@ -395,6 +395,7 @@ namespace PirateCraft
     public ViewportOverlay Overlay { get; private set; } = null;
     public string Name { get; private set; } = "";
     public bool Enabled { get; set; } = true;
+    public UiToast Toast { get; set; } = null;
 
     public RenderViewMode ViewMode { get { return _viewMode; } }
     private RenderViewMode _viewMode = RenderViewMode.UIAndWorld;
