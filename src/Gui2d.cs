@@ -148,7 +148,7 @@ namespace PirateCraft
     , BorderBotRightRadius
     , BorderBotLeftRadius
     , Color
-    , ColorMul
+    , MultiplyColor
     , BorderTopColor
     , BorderRightColor
     , BorderBotColor
@@ -173,6 +173,7 @@ namespace PirateCraft
     , RenderMode
     , TextAlign
     , Alignment
+    , Opacity
 
     //****
     , MaxUiProps
@@ -543,7 +544,7 @@ namespace PirateCraft
     public float BorderBotRightRadius = 0;
     public float BorderBotLeftRadius = 0;
     public vec4 Color = new vec4(1, 1, 1, 1);
-    public vec4 ColorMul = new vec4(1, 1, 1, 1);//color multiplier
+    public vec4 MultiplyColor = new vec4(1, 1, 1, 1);//color multiplier
     public vec4 BorderTopColor = new vec4(0, 0, 0, 1);
     public vec4 BorderRightColor = new vec4(0, 0, 0, 1);
     public vec4 BorderBotColor = new vec4(0, 0, 0, 1);
@@ -568,6 +569,7 @@ namespace PirateCraft
     public UiRenderMode RenderMode = UiRenderMode.None;
     public UiAlignment TextAlign = UiAlignment.Left;
     public UiAlignment Alignment = UiAlignment.Left;
+    public double Opacity = 1;//opacity of all
 
     //Most of this generic field junk can go away and we can manually just return the variables. My hands were huring here so..ugh
     private static UiProps _defaults = new UiProps();//defaults are just set on the field initializer.
@@ -734,7 +736,7 @@ namespace PirateCraft
       {
         _durationseconds = 0.00001;
       }
-      var prop = e.Style.GetClassProp(p);
+      var prop = e.Style.GetProp(p);
       Gu.Assert(prop != null);
 
       _startValue = (prop as T?).Value;
@@ -878,7 +880,7 @@ namespace PirateCraft
     public float? BorderBotRightRadius { get { return (float?)GetClassProp(UiPropName.BorderBotRightRadius); } set { SetProp(UiPropName.BorderBotRightRadius, (float?)value); } }
     public float? BorderBotLeftRadius { get { return (float?)GetClassProp(UiPropName.BorderBotLeftRadius); } set { SetProp(UiPropName.BorderBotLeftRadius, (float?)value); } }
     public vec4? Color { get { return (vec4?)GetClassProp(UiPropName.Color); } set { SetProp(UiPropName.Color, (vec4?)value); } }
-    public vec4? ColorMul { get { return (vec4?)GetClassProp(UiPropName.ColorMul); } set { SetProp(UiPropName.ColorMul, (vec4?)value); } }
+    public vec4? MultiplyColor { get { return (vec4?)GetClassProp(UiPropName.MultiplyColor); } set { SetProp(UiPropName.MultiplyColor, (vec4?)value); } }
     public vec4? BorderTopColor { get { return (vec4?)GetClassProp(UiPropName.BorderTopColor); } set { SetProp(UiPropName.BorderTopColor, (vec4?)value); } }
     public vec4? BorderRightColor { get { return (vec4?)GetClassProp(UiPropName.BorderRightColor); } set { SetProp(UiPropName.BorderRightColor, (vec4?)value); } }
     public vec4? BorderBotColor { get { return (vec4?)GetClassProp(UiPropName.BorderBotColor); } set { SetProp(UiPropName.BorderBotColor, (vec4?)value); } }
@@ -903,6 +905,7 @@ namespace PirateCraft
     public UiRenderMode? RenderMode { get { return (UiRenderMode?)GetClassProp(UiPropName.RenderMode); } set { SetProp(UiPropName.RenderMode, (UiRenderMode?)value); } }
     public UiAlignment? TextAlign { get { return (UiAlignment?)GetClassProp(UiPropName.TextAlign); } set { SetProp(UiPropName.TextAlign, (UiAlignment?)value); } }
     public UiAlignment? Alignment { get { return (UiAlignment?)GetClassProp(UiPropName.Alignment); } set { SetProp(UiPropName.Alignment, (UiAlignment?)value); } }
+    public double? Opacity { get { return (double?)GetClassProp(UiPropName.Opacity); } set { SetProp(UiPropName.Opacity, (double?)value); } }
 
 
     #endregion
@@ -988,7 +991,7 @@ namespace PirateCraft
         SetClassValueDirect(p, value);
       }
     }
-    private object? GetProp(UiPropName p)
+    public object? GetProp(UiPropName p)
     {
       //get the compiled property 
       //returns the compiled / owned value
@@ -1325,7 +1328,6 @@ namespace PirateCraft
     public UiQuad _b2LocalQuad = new UiQuad();      // local quad
     public UiQuad _b2ContentQuad = new UiQuad();        // Final quad. content without margin /border
     public UiQuad _b2PaddingQuad = new UiQuad();
-    public UiQuad _b2PreOffsetBorderQuad = new UiQuad();
     public UiQuad _b2BorderQuad = new UiQuad();        // Final quad. content area + margin + border area
     public vec2 ContentWH = new vec2(0, 0);
     public vec2 GlyphWH = new vec2(0, 0);//max width/height of all glyphs
@@ -1334,17 +1336,43 @@ namespace PirateCraft
   }
   //UiGlyph to uielemnet
   //uielement to UIBlock
-  public class UiBlock
+  public abstract class UiBlock //base interface for for glyphs / eles
   {
-    protected UiQuads _quads;
+    public UiQuads _quads = new UiQuads();
+  }
+  public class UiGlyphChar : UiBlock
+  {
+    public MtCachedCharData? _cachedGlyph = null;//For glyphs
+    public Box2f? _renderOffset = null;
+    public int _code;
   }
   public class UiGlyph : UiBlock
   {
-    //minimal version of UIelement
-    protected MtCachedCharData? _cachedGlyph = null;//For glyphs
-    protected vec4 _color;
+    public UiGlyphChar? _reference = null;
+    public UiGlyph(UiGlyphChar? dref)
+    {
+      _reference = dref;
+    }
   }
-  public class UiElement
+  public class UiSpan
+  {
+    //span of inline elements
+    public List<UiBlock> _blocks = new List<UiBlock>();
+    public float _top = 0;
+    public float _left = 0;
+    public float _width_NoPad = 0;
+    public float _height = 0;
+    public UiDisplayMode _displayMode = UiDisplayMode.Inline;//ok
+    public UiSpan() { }
+    public UiSpan(UiBlock e, UiDisplayMode dm)
+    {
+      _blocks = new List<UiBlock>() { e };
+      _width_NoPad = e._quads._b2LocalQuad._width;
+      _height = e._quads._b2LocalQuad._height;
+      _displayMode = dm;
+    }
+  }
+  public class UiElement : UiBlock
   {
     #region Classes 
     private class UiCol
@@ -1354,7 +1382,7 @@ namespace PirateCraft
       public float _left = 0;
       public float _height = 0;
       public float _width = 0;
-      public List<UiElement> _eles = new List<UiElement>();
+      public List<UiBlock> _eles = new List<UiBlock>();
     }
     private class UiLine
     {
@@ -1374,7 +1402,6 @@ namespace PirateCraft
     #endregion
     #region Public: Members
 
-    List<UiElement> _glyphs = null;
     public void SetContentChanged() { _contentChanged = true; }
 
     public virtual string NamingPrefix { get { return "ele"; } }
@@ -1416,10 +1443,12 @@ namespace PirateCraft
     public Dictionary<UiEventId, List<UiAction>> Events { get { return _events; } set { _events = value; } }
     public List<UiElement>? Children { get { return _children; } }
     public UiQuad LocalQuad { get { return _quads._b2LocalQuad; } }
+    public UiQuad ContentQuad { get { return _quads._b2ContentQuad; } }
     public UiQuad FinalQuad { get { return _quads._b2BorderQuad; } }
     //public int TreeDepth { get { return _treeDepth; } }
     public UiElement? Parent { get { return _parent; } }
     public bool TopMost { get { return _topMost; } set { _topMost = value; } }
+
 
     #endregion
     #region Private: Members
@@ -1429,14 +1458,13 @@ namespace PirateCraft
     protected List<UiElement>? _children = null;
     private UiElement? _parent = null;
     private MtFontLoader? _cachedFont = null;//For labels that contain glyphs
-    private MtCachedCharData? _cachedGlyph = null;//For glyphs
+    Dictionary<int, UiGlyphChar> _glyphs = null;//unicode->glyph
+    List<UiSpan> _glyphSpans = null;//unicode->glyph
 
     private static long s_idgen = 100;
     protected long _id = 0;
     private vec2 _tileScale = new vec2(1, 1); //Scale if UiImageSizeMode is Tile
-    protected UiQuads _quads = new UiQuads();
     //private Quads _borderArea = null;
-    protected Box2f? _renderOffset = null;
     public uint _iPickId = 0;
     protected string _strText = "";
     private string _strTextLast = "";
@@ -1592,11 +1620,6 @@ namespace PirateCraft
       }
       return true;
     }
-    public void IterateAllElements(Func<UiElement, int, LambdaBool> a)
-    {
-      _children?.IterateSafe(a);
-      _glyphs?.IterateSafe(a);
-    }
     public vec4 GetMarginAndBorder(UiDebugDraw dd)
     {
       if (dd.DisableMargins && dd.DisableBorders)
@@ -1636,9 +1659,9 @@ namespace PirateCraft
         Style._props.PadLeft
       );
     }
-    public vec4 GetBorder(UiDebugDraw dd)
+    public vec4 GetBorder(UiDebugDraw? dd)
     {
-      if (dd.DisableBorders)
+      if (dd != null && dd.DisableBorders)
       {
         return vec4.Zero;
       }
@@ -1790,7 +1813,7 @@ namespace PirateCraft
       //Automatic pick root here - this will override GUI root as pick root
       _iPickId = Gu.Context.Renderer.Picker.GenPickId();
     }
-    public bool RemoveEvents(UiEventId evId, string tag)
+    public bool RemoveEvents(UiEventId evId)
     {
       //remove all events of id
       bool ret = _events.Remove(evId);
@@ -1908,7 +1931,7 @@ namespace PirateCraft
         // delay to update glyphs this is taking much less time
         if ((_textChanged || _bMustRedoTextBecauseOfStyle) && (framesatmp % 5 == 0))
         {
-          UpdateGlyphs(mt, _textChanged && !_bMustRedoTextBecauseOfStyle);
+          UpdateGlyphSpans(mt, _textChanged && !_bMustRedoTextBecauseOfStyle);
           _bMustRedoTextBecauseOfStyle = false;
           _textChanged = false;
         }
@@ -1998,23 +2021,19 @@ namespace PirateCraft
           }
 
         }
-        //**TODO: Unified UI - Glyphs + Elements must be in the same list, & Glyphs must be a BASE class for UiELement and have no _props
 
-        //  we would remove layout:block anyway for glph basd on various textual things like word wrap.
-        //  we could have some kind of "block run" of elements that are runs of elements. 
 
-        //glyph runs
+        //glyph spans
         lineidx = 0;
-        if (_glyphs != null && _glyphs.Count > 0)
+        if (_glyphSpans != null && _glyphSpans.Count > 0)
         {
-          foreach (var ele in _glyphs)
+          vec4 pad = new vec4(0, 0, 0, 0);
+          foreach (var span in this._glyphSpans)
           {
-            if (ele.Style._props.PositionMode == UiPositionMode.Static && ele.Visible == true)
-            {
-              LayoutStaticElement(ele, Style._props.TextAlign, vecLines, _quads.InnerMaxWH, _quads.ContentWH, dd, ref lineidx);
-            }
+            LayoutSpan(span, pad, Style._props.TextAlign, vecLines, _quads.InnerMaxWH, _quads.ContentWH, dd, ref lineidx);
           }
         }
+
 
         //Calculate content size
         float totalHeight = mb.top + mb.bot;
@@ -2062,6 +2081,7 @@ namespace PirateCraft
       //clip regions must be calculated on the position step
       //if (_layoutChanged || bForce)
       {
+
         ComputeQuads(dd);
 
         //Set pick root 
@@ -2102,15 +2122,65 @@ namespace PirateCraft
             }
           }
         }
-        if (_glyphs != null)
-        {
-          foreach (var ele in _glyphs)
-          {
-            ele.PerformLayout_PositionElements(bForce, dd, verts, clip, defaultPixel, pickId, ref pickable);
 
-            //expand clip
-            _quads._b2ClipQuad.ExpandByPoint(ele._quads._b2ClipQuad.Min);
-            _quads._b2ClipQuad.ExpandByPoint(ele._quads._b2ClipQuad.Max);
+        //glyph spans.
+        if (_glyphSpans != null)
+        {
+          foreach (var span in _glyphSpans)
+          {
+            float curw = 0;
+            foreach (var block in span._blocks)
+            {
+              var glyph = block as UiGlyph;
+              if (glyph != null)
+              {
+                UiQuad gq = glyph._quads._b2LocalQuad;
+                gq._left += this._quads._b2BorderQuad._left;
+                gq._top += this._quads._b2BorderQuad._top;
+
+                //RenderOffset
+                vec2 origin = new vec2(
+                  //appears the horizontal position is only the horizontal center,
+                  gq._left + gq._width / 2,
+                  gq._top
+                );
+                var ro = glyph._reference._renderOffset.Value;
+                var preOffsetBorderQuad = gq.Clone();
+                var cpy = gq.Clone();
+                float minx = origin.x + ro.Left - cpy._width / 2f;
+                float miny = origin.y + ro.Top + cpy._height / 1.25f;
+                float maxx = origin.x + ro.Right - cpy._width / 2f;
+                float maxy = origin.y + ro.Bottom + cpy._height / 1.25f;
+                gq._left = minx;
+                gq._top = miny;
+                gq._width = maxx - minx;
+                gq._height = maxy - miny;
+
+                if (dd.ShowOverlay)
+                {
+                  v_v4v4v4v2u2v4v4 dbgv = new v_v4v4v4v2u2v4v4();
+                  SetVertexRasterArea(ref dbgv, preOffsetBorderQuad, _quads._b2ClipQuad, dd);
+                  dbgv._rtl_rtr = new vec4(0, 0, 0, 0);
+                  dbgv._rbr_rbl = new vec4(0, 0, 0, 0);
+                  dbgv._quadrant = new vec3(0, 0, 999);
+                  ComputeVertexTexcoord(ref dbgv, defaultPixel, UiImageTiling.Expand, UiImageTiling.Expand, 0);
+                  SetVertexPickAndColor(ref dbgv, (new vec4(1, 0, 0, .3f)), pickId);
+                  verts.Add(dbgv);//This is because of the new sorting issue
+                }
+
+                //Make Glyph Vert
+                float adjust = 0;
+                v_v4v4v4v2u2v4v4 vc = new v_v4v4v4v2u2v4v4();
+                SetVertexRasterArea(ref vc, gq, _quads._b2ClipQuad, dd);
+                vc._rtl_rtr = new vec4(0, 0, 0, 0);
+                vc._rbr_rbl = new vec4(0, 0, 0, 0);
+                vc._quadrant = new vec3(0, 0, 999);
+                ComputeVertexGlyphTCoord(ref vc, glyph._reference._cachedGlyph, adjust);
+                SetVertexPickAndColor(ref vc, new vec4(Style._props.FontColor.xyz(), Style._props.FontColor.w * (float)Style._props.Opacity), pickId);
+                verts.Add(vc);//This is because of the new sorting issue
+
+              }
+            }
           }
         }
 
@@ -2203,15 +2273,19 @@ namespace PirateCraft
         ele._quads._b2LocalQuad._height = Math.Min(pcontentWH.height, pmaxInnerWH.height);
       }
 
-      UiLine line = vecLines[lineidx];
-      var e_width = ele._quads._b2LocalQuad._width;
       var e_pad = ele.GetPadding(dd);
+      LayoutSpan(new UiSpan(ele, ele.Style._props.DisplayMode), e_pad, align, vecLines, pmaxInnerWH, pcontentWH, dd, ref lineidx);
+
+    }
+    private void LayoutSpan(UiSpan span, vec4 e_pad, UiAlignment align, List<UiLine> vecLines, vec2 pmaxInnerWH, vec2 pcontentWH, UiDebugDraw dd, ref int lineidx)
+    {
       float pspacex = pmaxInnerWH.x;//maximally equal to the Screen WH
+      UiLine line = vecLines[lineidx];
 
       bool bLineBreak = false;
-      if (ele.Style._props.DisplayMode == UiDisplayMode.Inline)
+      if (span._displayMode == UiDisplayMode.Inline)
       {
-        float e_tot_w = e_pad.left + e_pad.right + e_width; //correct because we remove padding from grow elements
+        float e_tot_w = e_pad.left + e_pad.right + span._width_NoPad; //correct because we remove padding from grow elements
         if (e_tot_w + line._width > pspacex) //For label - auto width + expand. ?? 
         {
           // if (line._width > 0)
@@ -2220,12 +2294,12 @@ namespace PirateCraft
           }
         }
       }
-      else if (ele.Style._props.DisplayMode == UiDisplayMode.Block)
+      else if (span._displayMode == UiDisplayMode.Block)
       {
         //For /n in text. or block elements. (html block elements will go past parents y and may clip)
         bLineBreak = true;
       }
-      else if (ele.Style._props.DisplayMode != UiDisplayMode.InlineNoWrap)
+      else if (span._displayMode != UiDisplayMode.InlineNoWrap)
       {
         bLineBreak = false;
       }
@@ -2248,14 +2322,32 @@ namespace PirateCraft
       }
 
       var pmarb = this.GetMarginAndBorder(dd);
+      foreach (var ele in span._blocks)
+      {
+        float e_width = ele._quads._b2LocalQuad._width;
+        float e_mb = 0;
+        if (align == UiAlignment.Left)
+        {
+          e_mb = pmarb.left + e_pad.left;
+        }
+        else if (align == UiAlignment.Right)
+        {
+          e_mb = pmarb.right + e_pad.right;
+        }
+        else if (align == UiAlignment.Center)
+        {
+          e_mb = e_pad.right + e_pad.left;
+        }
+        else { Gu.BRThrowNotImplementedException(); }
+        ele._quads._b2LocalQuad._left = line._x + line._width + e_mb;
+        ele._quads._b2LocalQuad._top = line._top + pmarb.top + e_pad.top;
+        line._cols[(int)align]._width += e_width + e_pad.left + e_pad.right;
+        line._cols[(int)align]._height = Math.Max(line._height, ele._quads._b2LocalQuad._height + e_pad.top + e_pad.bot);
+        line._cols[(int)align]._eles.Add(ele);
 
-      ele._quads._b2LocalQuad._left = line._x + line._width + pmarb.left + e_pad.left;
-      ele._quads._b2LocalQuad._top = line._top + pmarb.top + e_pad.top;
-      line._cols[(int)align]._width += e_width + e_pad.left + e_pad.right;
-      line._cols[(int)align]._height = Math.Max(line._height, ele._quads._b2LocalQuad._height + e_pad.top + e_pad.bot);
-      line._cols[(int)align]._eles.Add(ele);
+        ele._quads._b2LocalQuad.Validate();
+      }
 
-      ele._quads._b2LocalQuad.Validate();
     }
     private void ConstrainValue(float min, float max, ref float x, float size)
     {
@@ -2307,27 +2399,6 @@ namespace PirateCraft
 
       if (this._quads._b2LocalQuad._left > 99999 || this._quads._b2LocalQuad._width > 99999) { Gu.DebugBreak(); }
 
-      if (_renderOffset != null && disableoff == false)
-      {
-        //For glyphs, and other elements that go outside their physical regions
-        vec2 origin = new vec2(
-          //appears the horizontal position is only the horizontal center,
-          _quads._b2BorderQuad._left + _quads._b2BorderQuad._width / 2,
-          _quads._b2BorderQuad._top
-        );
-        var ro = _renderOffset.Value;
-        _quads._b2PreOffsetBorderQuad = _quads._b2BorderQuad.Clone();
-        var cpy = _quads._b2BorderQuad.Clone();
-        float minx = origin.x + ro.Left - cpy._width / 2f;
-        float miny = origin.y + ro.Top + cpy._height / 1.25f;
-        float maxx = origin.x + ro.Right - cpy._width / 2f;
-        float maxy = origin.y + ro.Bottom + cpy._height / 1.25f;
-        _quads._b2BorderQuad._left = minx;
-        _quads._b2BorderQuad._top = miny;
-        _quads._b2BorderQuad._width = maxx - minx;
-        _quads._b2BorderQuad._height = maxy - miny;
-      }
-
       // Set to false if we're controllig coordinates of this element (cursor, or window position)
       this._quads._b2BorderQuad._left *= w1;
       this._quads._b2BorderQuad._top *= h1;
@@ -2361,13 +2432,8 @@ namespace PirateCraft
     public static bool disableoff = false;
     private void GetOpenGLQuadVerts(ReverseGrowList<v_v4v4v4v2u2v4v4> all_verts, UiQuad b2ClipRect, MtTex defaultPixel, uint rootPickId, UiDebugDraw dd)
     {
-      if (Visible == false)
+      if (Visible == false || Style._props.RenderMode == UiRenderMode.None)
       {
-        return;
-      }
-      if ((Style._props.RenderMode == UiRenderMode.None) && (_cachedGlyph == null))
-      {
-        //invisible, or container element
         return;
       }
 
@@ -2380,13 +2446,7 @@ namespace PirateCraft
       {
         //preoffset border
         v_v4v4v4v2u2v4v4 dbgv = new v_v4v4v4v2u2v4v4();
-        SetVertexRasterArea(ref dbgv, in _quads._b2PreOffsetBorderQuad, in b2ClipRect, dd);
-        dbgv._rtl_rtr = new vec4(0, 0, 0, 0);
-        dbgv._rbr_rbl = new vec4(0, 0, 0, 0);
-        dbgv._quadrant = new vec3(0, 0, 999);
-        ComputeVertexTexcoord(ref dbgv, defaultPixel, UiImageTiling.Expand, UiImageTiling.Expand, 0);
-        SetVertexPickAndColor(ref dbgv, (new vec4(1, 0, 0, .3f)), rootPickId);
-        all_verts.Add(dbgv);//This is because of the new sorting issue
+
 
         SetVertexRasterArea(ref dbgv, in _quads._b2ContentQuad, in b2ClipRect, dd);
         dbgv._rtl_rtr = new vec4(0, 0, 0, 0);
@@ -2422,31 +2482,27 @@ namespace PirateCraft
       vc._rbr_rbl = new vec4(radius.bot, radius.left);
       vc._quadrant = new vec3(0, 0, 999);
       SetVertexRasterArea(ref vc, in _quads._b2ContentQuad, in b2ClipRect, dd);
-      if (_cachedGlyph != null)
+
+      MtTex tex = null;
+      if (Style._props.RenderMode == UiRenderMode.Color)
       {
-        ComputeVertexGlyphTCoord(ref vc, _cachedGlyph, adjust);
+        tex = defaultPixel;
+      }
+      else if (Style._props.Texture != null)
+      {
+        tex = Style._props.Texture;
       }
       else
       {
-        MtTex tex = null;
-        if (Style._props.RenderMode == UiRenderMode.Color)
-        {
-          tex = defaultPixel;
-        }
-        else if (Style._props.Texture != null)
-        {
-          tex = Style._props.Texture;
-        }
-        else
-        {
-          Gu.Log.Error($"{Name}: UI: Render mode is texture, but texture was not set. Changing to color.");
-          tex = defaultPixel;
-          Gu.DebugBreak();
-        }
-
-        ComputeVertexTexcoord(ref vc, tex, Style._props.ImageTilingX, Style._props.ImageTilingY, adjust);
+        Gu.Log.Error($"{Name}: UI: Render mode is texture, but texture was not set. Changing to color.");
+        tex = defaultPixel;
+        Gu.DebugBreak();
       }
-      SetVertexPickAndColor(ref vc, (Style._props.Color * Style._props.ColorMul).Clamp(0.0f, 1.0f), rootPickId);
+
+      ComputeVertexTexcoord(ref vc, tex, Style._props.ImageTilingX, Style._props.ImageTilingY, adjust);
+
+      vec4 cmul = Style._props.Color * Style._props.MultiplyColor;
+      SetVertexPickAndColor(ref vc, new vec4(cmul.xyz(), cmul.w * (float)Style._props.Opacity).Clamp(0.0f, 1.0f), rootPickId);
       all_verts.Add(vc);//This is because of the new sorting issue
 
       //TODO: border radius is still broken 
@@ -2516,7 +2572,7 @@ namespace PirateCraft
       vb._quadrant = quadrant;
       SetVertexRasterArea(ref vb, in borderquad, in b2ClipRect, dd);
       ComputeVertexTexcoord(ref vb, defaultPixel, UiImageTiling.Expand, UiImageTiling.Expand, 0);
-      SetVertexPickAndColor(ref vb, bodfercolor, rootPickId);
+      SetVertexPickAndColor(ref vb, new vec4(bodfercolor.xyz(), bodfercolor.w * (float)Style._props.Opacity), rootPickId);
       all_verts.Add(vb);//This is because of the new sorting issue
     }
     private void ComputeVertexTexcoord(ref v_v4v4v4v2u2v4v4 vc, MtTex pTex, UiImageTiling xtile, UiImageTiling ytile, float adjust)
@@ -2602,7 +2658,7 @@ namespace PirateCraft
       vc._tex.z -= w1px;
       vc._tex.w -= h1px;
     }
-    private void ComputeVertexGlyphTCoord(ref v_v4v4v4v2u2v4v4 vc, MtCachedCharData? glyph, float adjust)
+    private static void ComputeVertexGlyphTCoord(ref v_v4v4v4v2u2v4v4 vc, MtCachedCharData? glyph, float adjust)
     {
       Gu.Assert(glyph != null);
 
@@ -2635,7 +2691,7 @@ namespace PirateCraft
         vc._tex.w -= h1px;
       }
     }
-    private void SetVertexRasterArea(ref v_v4v4v4v2u2v4v4 vc, in UiQuad rasterQuad, in UiQuad b2ClipRect, UiDebugDraw dd)
+    private static void SetVertexRasterArea(ref v_v4v4v4v2u2v4v4 vc, in UiQuad rasterQuad, in UiQuad b2ClipRect, UiDebugDraw dd)
     {
       //BL = min TR = max
       vc._rect.x = rasterQuad.Min.x;
@@ -2660,7 +2716,7 @@ namespace PirateCraft
         vc._clip.w = b2ClipRect.Max.y;
       }
     }
-    private void SetVertexPickAndColor(ref v_v4v4v4v2u2v4v4 vc, vec4 color, uint rootPickId)
+    private static void SetVertexPickAndColor(ref v_v4v4v4v2u2v4v4 vc, vec4 color, uint rootPickId)
     {
       vc._pick_color = new uvec2(
          //Since we can't discard fragments for the pick buffer, assume the pick id of the parent pick root
@@ -2671,11 +2727,10 @@ namespace PirateCraft
           ((uint)(color.w * 255.0f) << 0)
       );
     }
-    private void UpdateGlyphs(MegaTex mt, bool replaceChangedGlyphs)
+    private void UpdateGlyphSpans(MegaTex mt, bool replaceChangedGlyphs)
     {
-      //textOnly If just text changed then just create new chars
-      //style - if style changed we must redo everything.
-      //Props must never be null.
+      //create spans for glyph words
+
       Gu.Assert(Style._props.FontFace != null);
 
       //reset max glyph size
@@ -2684,6 +2739,7 @@ namespace PirateCraft
       if (String.IsNullOrEmpty(_strText))
       {
         _glyphs = null;
+        _glyphSpans = null;
         return;
       }
 
@@ -2709,136 +2765,83 @@ namespace PirateCraft
       {
         return;
       }
-      if (_glyphs == null)
+
+      //  var ch = _strText.Distinct().ToList();//this is interesting
+      _glyphSpans = new List<UiSpan>();
+      _glyphs = new Dictionary<int, UiGlyphChar>();
+      UiSpan curSpan = new UiSpan();
+
+      //redoing this whole boo
+      for (int ci = 0; ci < _strText.Length; ci++)
       {
-        replaceChangedGlyphs = false;
-      }
-      else if (replaceChangedGlyphs)
-      {
-        //Try to "smart" replace only changed text. 
-        if (_glyphs.Count == 0)
+        var ch = _strText[ci];
+        var cnext = (ci + 1 >= _strText.Length) ? '\0' : _strText[ci + 1];
+
+        UiGlyphChar? gg = null;
+        if (!_glyphs.TryGetValue(ch, out gg))
         {
-          replaceChangedGlyphs = false;
-        }
-        else if (_strTextLast.Length != _glyphs.Count)
-        {
-          //This will happen if we update the control text, but the control is hidden / does not render.
-          //No need to debugbreak, unless we profile this and it becomes a problem.
-          replaceChangedGlyphs = false;
-          _glyphs = null;
-        }
-        else
-        {
-          //Sliding Diff algorithm to create a subset of glyphs.
-          int ilast = 0;
-          int icur = 0;
-          List<UiElement> newChildren = new List<UiElement>();
-          //We could cache diff in a static variable if its size becomes a problem.
-          int[] diff = StringUtil.SlidingDiff(_strTextLast, _strText, Gui2d.SlidingDiffWindow);
-          int debug_numcreated = 0;
-          for (int di = 0; di < diff.Length; di += 2)
+          gg = new UiGlyphChar();
+
+          int ccNext = (ci + 1) < _strText.Length ? _strText[ci + 1] : 0;
+          float kern = font.GetKernAdvanceWidth(patch, Style._props.FontSize, ch, ccNext);
+
+          float sca = 0;
+          if (!patch.GetChar(ch, fontHeight, out gg._cachedGlyph, out sca))
           {
-            int ct = diff[di + 1];
-            int code = diff[di + 0];
-            if (code == 0) // no change 
-            {
-              for (int cti = 0; cti < ct; cti++)
-              {
-                var e = _glyphs[ilast + cti];
-                e._contentChanged = true;
-                ExpandGlyphWH(e);
-                newChildren.Add(e);
-              }
-              ilast += ct;
-              icur += ct;
-            }
-            else if (code == 1)//add new
-            {
-              for (int cti = 0; cti < ct; cti++)
-              {
-                //TODO: this should be UiElementBase, for simplicity. UiElement is too huge.
-                UiElement e = new UiElement();
-                DoGlyph(e, icur + cti, _strText, font, patch, fontHeight);
-                ExpandGlyphWH(e);
-                newChildren.Add(e);
-                debug_numcreated++;
-              }
-              icur += ct;
-            }
-            else if (code == 2) //remove
-            {
-              ilast += ct;
-            }
+            Gu.DebugBreak();//Unicode ch not found
           }
-          _glyphs = newChildren;
+
+          float gtop = 0, gright = 0, gbot = 0, gleft = 0, gwidth = 0, gheight = 0;
+          gg._cachedGlyph.ApplyScaling(sca, out gtop, out gright, out gbot, out gleft, out gwidth, out gheight);
+          gg._renderOffset = new Box2f(new vec2(gleft, gtop), new vec2(gright, gbot));
+          gg._quads._b2LocalQuad._left = 0;
+          gg._quads._b2LocalQuad._top = 0;
+          gg._quads._b2LocalQuad._width = gg._cachedGlyph.advance + kern + 1;//the widths are off somewhere, the +1 prevents sligth clipping of the right leter
+          gg._quads._b2LocalQuad._height = gheight * Style._props.LineHeight;
+          gg._quads._b2LocalQuad.Validate();
+
+          _glyphs.Add(ch, gg);
+
+          ExpandGlyphWH(gg);
         }
-      }
-      if (replaceChangedGlyphs == false)
-      {
-        int debug_redocount = 0;
-        List<UiElement> newChildren = new List<UiElement>();
-        for (int ci = 0; ci < _strText.Length; ci++)
+
+        UiGlyph gc = new UiGlyph(gg);
+        gc._quads._b2LocalQuad = gg._quads._b2LocalQuad;
+        curSpan._blocks.Add(gc);
+        curSpan._width_NoPad += gg._quads._b2LocalQuad._width;
+        curSpan._height = Math.Max(gg._quads._b2LocalQuad._height, curSpan._height);
+
+        if (ch == '\n')
         {
-          UiElement e = new UiElement();
-
-          DoGlyph(e, ci, _strText, font, patch, fontHeight);
-          ExpandGlyphWH(e);
-          newChildren.Add(e);
-
-          debug_redocount++;
+          curSpan._displayMode = UiDisplayMode.Block;
         }
-        _glyphs = newChildren;
+
+        if (char.IsWhiteSpace(cnext) || char.IsWhiteSpace(ch)) //Layout:Block for all Whitespace
+        {
+          if (curSpan._width_NoPad > 0)
+          {
+            _glyphSpans.Add(curSpan);
+          }
+          curSpan = new UiSpan();
+        }
+
+        //get the remaining width for the current line here and hyphentate for justified
+
       }
+
+      //final span
+      if (curSpan._width_NoPad > 0)
+      {
+        _glyphSpans.Add(curSpan);
+      }
+
     }
-    private void ExpandGlyphWH(UiElement glyph)
+    private void ExpandGlyphWH(UiGlyphChar glyph)
     {
       _quads.GlyphWH.x = Math.Max(_quads.GlyphWH.x, glyph._quads._b2LocalQuad._width);
       _quads.GlyphWH.y = Math.Max(_quads.GlyphWH.y, glyph._quads._b2LocalQuad._height);
     }
-    private void DoGlyph(UiElement e, int index, string text, MtFontLoader font, MtFontPatchInfo patch, float fontHeight)
-    {
-      int cc = _strText[index];
-      int ccNext = (index + 1) < _strText.Length ? _strText[index + 1] : 0;
-      float kern = font.GetKernAdvanceWidth(patch, Style._props.FontSize, cc, ccNext);
 
-      float sca = 0;
-      if (!patch.GetChar(cc, fontHeight, out e._cachedGlyph, out sca))
-      {
-        Gu.DebugBreak();//Unicode ch not found
-      }
-
-      float gtop = 0, gright = 0, gbot = 0, gleft = 0, gwidth = 0, gheight = 0;
-      e._cachedGlyph.ApplyScaling(sca, out gtop, out gright, out gbot, out gleft, out gwidth, out gheight);
-
-      //avoid setting props
-      //We dont set glyph parent.
-      e._parent = this;//hmm..
-      e._pickEnabled = false;
-      e.Style.IsPropsOnly = true;
-
-      //most Glyph props should directly inherit from its parent UiElement
-
-      //e.Style._props.SizeModeWidth = UiSizeMode.Fixed;
-      //e.Style._props.SizeModeHeight = UiSizeMode.Fixed;
-
-      e._renderOffset = new Box2f(new vec2(gleft, gtop), new vec2(gright, gbot));
-      e._quads._b2LocalQuad._left = 0;
-      e._quads._b2LocalQuad._top = 0;
-      e._quads._b2LocalQuad._width = e._cachedGlyph.advance + kern + 1;//the widths are off somewhere, the +1 prevents sligth clipping of the right leter
-      e._quads._b2LocalQuad._height = gheight * Style._props.LineHeight;
-
-      if (cc == '\n')
-      {
-        e.Style._props.DisplayMode = UiDisplayMode.Block;
-      }
-      else
-      {
-        e.Style._props.DisplayMode = UiDisplayMode.Inline;
-      }
-      e.Style._props.Color = Style._props.FontColor;
-
-      e._quads._b2LocalQuad.Validate();
-    }
     private void ShowOrHide(bool show)
     {
       if (_visible != show)

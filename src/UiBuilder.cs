@@ -121,8 +121,10 @@ namespace PirateCraft
           MaxWidth = 500
           ,FontSize = 16
           ,DisplayMode = UiDisplayMode.Block
-          ,PadTop = 2
-          ,PadLeft = 2
+          ,MarginLeft = 20
+          ,MarginRight = 40
+          ,PadLeft = 20
+          ,PadRight = 40
           , FontFace = FontFace.RobotoMono
         },
 
@@ -160,7 +162,7 @@ namespace PirateCraft
           Padding=0,
           Border=0,
           Margin=0,
-          ColorMul = new vec4(1,1)
+          MultiplyColor = new vec4(1,1)
         },
         new UiStyle(UiStyleName.MenuItem, UiStyleName.Label)
         {

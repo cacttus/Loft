@@ -61,22 +61,22 @@ namespace PirateCraft
       AddEvent(UiEventId.Mouse_Enter, (e) =>
       {
         _hasFocus = true;
-        Style.ColorMul = new vec4(1.08f, 1.0f);
+        Style.MultiplyColor = new vec4(1.08f, 1.0f);
       });
       AddEvent(UiEventId.Mouse_Leave, (e) =>
       {
         _hasFocus = false;
-        Style.ColorMul = new vec4(1.0f, 1.0f);
+        Style.MultiplyColor = new vec4(1.0f, 1.0f);
       });
       AddEvent(UiEventId.LmbPress, (e) =>
       {
         _hasClickFocus = true;
-        Style.ColorMul = new vec4(0.82f, 1.0f);
+        Style.MultiplyColor = new vec4(0.82f, 1.0f);
       });
       AddEvent(UiEventId.LmbRelease, (e) =>
       {
         _hasClickFocus = false;
-        Style.ColorMul = new vec4(1.1f, 1.0f);
+        Style.MultiplyColor = new vec4(1.0f, 1.0f);
       });
     }
   }
@@ -124,7 +124,7 @@ namespace PirateCraft
         item.Style.BorderRight = 16;
         item.Style.BorderRightColor = vec4.rgba_ub(250, 250, 250);
       }
-      if (this._parentMenuItem != null && !(this._parentMenuItem is UiToolbarButton))
+      if (item._parentMenuItem != null && !(item._parentMenuItem is UiToolbarButton) && (_contextMenu == null || _contextMenu.Children == null || _contextMenu.Children.Count == 0))
       {
         item.Style.BorderLeft = 0;
       }
@@ -167,8 +167,8 @@ namespace PirateCraft
     private void Init()
     {
       this.Style.DisplayMode = UiDisplayMode.Inline;
-      this.Style.BorderLeft = 1;
-      this.Style.BorderRight = 1;
+      this.Style.BorderLeft = 2;
+      this.Style.BorderRight = 2;
       this.Style.BorderColor = vec4.rgba_ub(190, 190, 190);
 
       this.Style.SizeModeWidth = UiSizeMode.Expand;
@@ -176,10 +176,8 @@ namespace PirateCraft
       this.Style.PositionMode = UiPositionMode.Static;
       this.Style.MaxWidth = 500;
       this.Style.MinWidth = 0;
-      this.Style.MarginTop = 6;
-      this.Style.MarginBot = 6;
-      this.Style.MarginLeft = 20;
-      this.Style.MarginRight = 20;
+      this.Style.MarginTop = this.Style.MarginBot = 6;
+      this.Style.MarginLeft = this.Style.MarginRight = 20;
       this.Style.Padding = 0;
 
       var that = this;
@@ -262,7 +260,7 @@ namespace PirateCraft
             }
             else
             {
-              _contextMenu.Style.Top = this.FinalQuad.Top;
+              _contextMenu.Style.Top = this.FinalQuad.Top - 2;
               _contextMenu.Style.Left = Parent.FinalQuad.Right;
             }
             _contextMenu.Show();
@@ -284,27 +282,31 @@ namespace PirateCraft
       this.Name = "_lblToast";
       //toast at the top corner
       this.Text = text;
-      this.Style.Margin = 5;
-      this.Style.PadRight = 7;
-      this.Style.PadTop = 7;
-      this.Style.PadBot = 7;
-      this.Style.PadLeft = 7;
-      this.Style.FontSize = 28;
+      this.Style.Margin = 20;
+      this.Style.MarginLeft = this.Style.MarginRight = 60;
+      this.Style.PadTop = this.Style.PadBot = 4;
+      this.Style.PadLeft = this.Style.PadRight = 30;
+      this.Style.FontSize = 16;
       this.Style.PositionMode = UiPositionMode.Static;
       this.Style.TextAlign = UiAlignment.Center;
       this.Style.Alignment = UiAlignment.Right;
+      this.Style.BorderRadius = 2;
+      this.Style.Border = 2;
+      this.Style.BorderColor = vec4.rgba_ub(230, 230, 230, 180);
 
+      RemoveEvents(UiEventId.Mouse_Enter);
       Click((e) =>
       {
-        vec4 c = this.Style._props.Color;
-        this.Animate(UiPropName.Color, new vec4(c.r,c.g,c.b, 0), 200, 0);
+        double d = this.Style._props.Opacity;
+        this.Animate(UiPropName.Opacity, 0, 200);
       });
     }
     public void Show(string text)
     {
+
       this.Text = text;
-        vec4 c = this.Style._props.Color;
-        this.Animate(UiPropName.Color, new vec4(c.r,c.g,c.b, 1), 90, 0);
+      double d = this.Style._props.Opacity;
+      this.Animate(UiPropName.Opacity, 1, 90);
     }
   }
   public class UiToolbarButton : UiMenuItem
@@ -322,15 +324,6 @@ namespace PirateCraft
       this.Style.BorderLeft = 0;
       this.Style.Border = 0;
       this.Style.Color = vec4.rgba_ub(240, 240, 240);
-      // this.Style.BorderTop = 1;
-      // this.Style.BorderTopColor = new vec4(1, 0, 0, 1);
-      // this.Style.BorderRight = 1;
-      // this.Style.BorderRightColor = new vec4(0, 1, 0, 1);
-      // this.Style.BorderBot = 1;
-      // this.Style.BorderBotColor = new vec4(0, 0, 1, 1);
-      // this.Style.BorderLeft = 1;
-      // this.Style.BorderLeftColor = new vec4(1, 1, 0, 1);
-      // this.Style.BorderRadius = 5;
 
       this.AddEvent(UiEventId.Mouse_Enter, (e) =>
       {
