@@ -96,13 +96,13 @@ namespace PirateCraft
     {
       Name = name;
     }
-    public void CreateNormalMap(bool generateMipmaps, TexFilter texFilter, bool tryTextureAlbedoIfImageAlbedoNotFound = false)
+    public void CreateNormalMap(bool generateMipmaps, TexFilter texFilter, float strength = 0.5f, bool tryTextureAlbedoIfImageAlbedoNotFound = false)
     {
       //TODO: implement tryTextureAlabedo, load from GPU, then FLIP
       Gu.Log.Debug("..Creating Normal Map.");
       if (Imgs.TryGetValue(PBRTextureInput.Albedo, out Image img))
       {
-        var normal = img.CreateNormalMap(false);
+        var normal = img.CreateNormalMap(false, strength);
         Imgs.Add(PBRTextureInput.Normal, normal);
         var txNormal = new Texture(normal, generateMipmaps, texFilter);
         Texs.Add(PBRTextureInput.Normal, txNormal);
@@ -185,10 +185,10 @@ namespace PirateCraft
     [DataMember] private vec4 _baseColor = new vec4(1, 1, 1, 1);
     [DataMember] private float _roughness = 0.5f;
     [DataMember] private float _metallic = 0.0f;
-    [DataMember] private float _specular = 0.5f;
+    [DataMember] private float _specular = 0.0f;//for now this is blinn phong spec pwoer
     [DataMember] private float _indexOfRefraction = 1;//1.45
     [DataMember] private bool _flat = false;
-    private GpuMaterial _gpuMaterial = default(GpuMaterial);
+    public GpuMaterial _gpuMaterial = new GpuMaterial();//default(GpuMaterial);
     public glTFLoader.Schema.Material.AlphaModeEnum AlphaMode = glTFLoader.Schema.Material.AlphaModeEnum.BLEND;
     //**TODO: alpha is actually in the GpuRenderState
 

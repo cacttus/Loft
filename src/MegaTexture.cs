@@ -553,33 +553,26 @@ namespace PirateCraft
     }
   }//MtImageLoader
 
-  //[StructLayout(LayoutKind.Sequential)]
   public class MtCachedCharData
   {
+    //caches the result of stbtt_GetPackedChar
     //This is a cached char that has all its information pre-computed from stb
     public int patchTexture_Width;
     public int patchTexture_Height;
     public int code;
     public vec2 uv0;
     public vec2 uv1;
-    public float width;
-    public float advance;
-    public float height;
-    public float top;
-    public float bot;
-    public float left;
-    public float right;
+    public float ch_advance;
+    public float ch_leftbearing;
+    public float ch_top;
+    public float ch_bot;
+    public float ch_left;
+    public float ch_right;
+    public float font_lineHeight;//copies of the font data
+    public float font_scale;
+    public float font_ascent;
+    public float font_descent;
 
-    public void ApplyScaling(float scale, out float gtop, out float gright, out float gbot, out float gleft, out float gwidth, out float gheight)
-    {
-      //Scale this Mipmap glyph.
-      gtop = top * scale;
-      gright = right * scale;
-      gbot = bot * scale;
-      gleft = left * scale;
-      gwidth = width * scale;
-      gheight = height * scale;
-    }
     public void Serialize(BinaryWriter bw)
     {
       bw.Write((Int32)patchTexture_Width);
@@ -587,13 +580,16 @@ namespace PirateCraft
       bw.Write((Int32)code);
       bw.Write((vec2)uv0);
       bw.Write((vec2)uv1);
-      bw.Write((Single)width);
-      bw.Write((Single)advance);
-      bw.Write((Single)height);
-      bw.Write((Single)top);
-      bw.Write((Single)bot);
-      bw.Write((Single)left);
-      bw.Write((Single)right);
+      bw.Write((Single)ch_advance);
+      bw.Write((Single)ch_top);
+      bw.Write((Single)ch_bot);
+      bw.Write((Single)ch_left);
+      bw.Write((Single)ch_right);
+      bw.Write((Single)font_lineHeight);
+      bw.Write((Single)font_scale);
+      bw.Write((Single)font_ascent);
+      bw.Write((Single)font_descent);
+
     }
     public void Deserialize(BinaryReader br, SerializedFileVersion version)
     {
@@ -602,13 +598,15 @@ namespace PirateCraft
       code = br.ReadInt32();
       uv0 = br.ReadVec2();
       uv1 = br.ReadVec2();
-      width = br.ReadSingle();
-      advance = br.ReadSingle();
-      height = br.ReadSingle();
-      top = br.ReadSingle();
-      bot = br.ReadSingle();
-      left = br.ReadSingle();
-      right = br.ReadSingle();
+      ch_advance = br.ReadSingle();
+      ch_top = br.ReadSingle();
+      ch_bot = br.ReadSingle();
+      ch_left = br.ReadSingle();
+      ch_right = br.ReadSingle();
+      font_lineHeight = br.ReadSingle();
+      font_scale = br.ReadSingle();
+      font_ascent = br.ReadSingle();
+      font_descent = br.ReadSingle();
     }
   }//MtCachedCharData
 
@@ -763,6 +761,9 @@ namespace PirateCraft
     private int _lineGap = 0;
     private int _padding = 1; //STB - "normally you want 1 for bilinear filtering"
 
+    public float Ascent { get { return (float)_ascent; } }
+    public float Descent { get { return (float)_descent; } }
+
     private List<MtFontPatchInfo> _fontPatchInfos = new List<MtFontPatchInfo>();
 
     //TODO:
@@ -807,7 +808,7 @@ namespace PirateCraft
         Gu.Log.Error("Error loading font " + this.MtFile.FileLoc, ex);
       }
     }
-    public float GetKernAdvanceWidth(MtFontPatchInfo patchInfo, float fontSize, int cCode, int cCodeNext)
+    public float GetKernAdvanceWidth(MtFontPatchInfo patchInfo, int cCode, int cCodeNext)
     {
       //Get an additional width to add or subtract for kerning.
       float fKern = 0.0f;
@@ -976,18 +977,18 @@ namespace PirateCraft
       //Image Width/Height maximum is computed automatically, however
       //it is almost ALWAYS too much space. So we must trim the image.
       int xchar = (int)Math.Ceiling(Math.Sqrt(_charCount));
-      int charsize = Gu.EngineConfig.MaxBakedCharSize;
+      int charHeight = Gu.EngineConfig.MaxBakedCharSize;
       int charPadding = _padding;
 
       for (int iTex = 0; iTex < Gu.c_intMaxWhileTrueLoopSmall; iTex++)
       {
-        int imageWidth = xchar * (charsize + charPadding * 2);
-        int imageHeight = xchar * (charsize + charPadding * 2);
+        int imageWidth = xchar * (charHeight + charPadding * 2);
+        int imageHeight = xchar * (charHeight + charPadding * 2);
         Gu.Assert(imageWidth < Gu.EngineConfig.MaxFontBitmapSize);
         Gu.Assert(imageHeight < Gu.EngineConfig.MaxFontBitmapSize);
 
         var charInfo = new StbTrueTypeSharp.StbTrueType.stbtt_packedchar[_charCount];
-        byte[] atlasData = ConstructBitmapForSize(imageWidth, imageHeight, charPadding, (float)charsize, charInfo);
+        byte[] atlasData = ConstructBitmapForSize(imageWidth, imageHeight, charPadding, (float)charHeight, charInfo);
 
         //Trim the font atlas, because it's friggin huge
         //TODO: Given the BitmapUsedHeight routine, we COULD pre-compute the OPTIMAL SQUARE texture size if we wanted to
@@ -1010,8 +1011,12 @@ namespace PirateCraft
           MtFile.Texs.Add(mt);
 
           MtFontPatchInfo f = new MtFontPatchInfo();
-          f.ScaleForPixelHeight = StbTrueTypeSharp.StbTrueType.stbtt_ScaleForPixelHeight(_fontInfo, (float)charsize);
-          f.BakedCharSize = charsize;
+          f.ScaleForPixelHeight = StbTrueTypeSharp.StbTrueType.stbtt_ScaleForPixelHeight(_fontInfo, (float)charHeight);
+          if (f.ScaleForPixelHeight == 0)
+          {
+            Gu.DebugBreak();
+          }
+          f.BakedCharSize = charHeight;
           f.TextureWidth = imageWidth;
           f.TextureHeight = usedHeight;
           f.CharInfo = charInfo;
@@ -1025,9 +1030,9 @@ namespace PirateCraft
           Gu.Log.Error("Failed to create font " + MtFile.FileLoc);
           break;
         }
-        charsize /= 2;
+        charHeight /= 2;
 
-        if (imageWidth < 64 || imageHeight < 64 || charsize < 8)
+        if (imageWidth < 64 || imageHeight < 64 || charHeight < 8)
         {
           break;
         }
@@ -1161,11 +1166,6 @@ namespace PirateCraft
           StbTrueTypeSharp.StbTrueType.stbtt_GetCodepointHMetrics(_fontInfo, cCode, &advWidth, &leftbearing);
         }
 
-        float advance = (float)advWidth * patchInfo.ScaleForPixelHeight;
-        float bearing = (float)leftbearing * patchInfo.ScaleForPixelHeight;
-        float ascent = (float)_ascent * patchInfo.ScaleForPixelHeight;
-        float descent = (float)_descent * patchInfo.ScaleForPixelHeight;
-        float lineHeight = ascent - descent + (float)_lineGap * patchInfo.ScaleForPixelHeight;
         // advanceWidth is the offset from the current horizontal position to the next horizontal position
         // leftSideBearing is the offset from the current horizontal position to the left edge of the character
         // ascent is the coordinate above the baseline the font extends; descent
@@ -1175,13 +1175,19 @@ namespace PirateCraft
         //   these are expressed in unscaled coordinates, so you must multiply by
         //   the scale factor for a given size
 
-        ccd.height = lineHeight;
-        ccd.width = (stbQuad.x1 - stbQuad.x0);
-        ccd.advance = advance;
-        ccd.left = stbQuad.x0;
-        ccd.top = stbQuad.y0;
-        ccd.right = stbQuad.x1;
-        ccd.bot = stbQuad.y1;
+        //copy the scaled font info
+        ccd.font_scale = patchInfo.ScaleForPixelHeight;
+        ccd.font_ascent = (float)_ascent;
+        ccd.font_descent = (float)_descent;
+        ccd.font_lineHeight = ((float)_ascent - (float)_descent + (float)_lineGap);
+
+        ccd.ch_leftbearing = (float)leftbearing;
+        ccd.ch_advance = (float)advWidth;
+        ccd.ch_left = stbQuad.x0;
+        ccd.ch_top = stbQuad.y0;
+        ccd.ch_right = stbQuad.x1;
+        ccd.ch_bot = stbQuad.y1;
+
         ccd.patchTexture_Height = patchInfo.TextureHeight;
         ccd.patchTexture_Width = patchInfo.TextureWidth;
 
@@ -1256,7 +1262,7 @@ namespace PirateCraft
     public string Name { get; private set; } = "";
     public static string GenExtension = ".mtgen";
     public List<MtFile> Files { get; private set; } = new List<MtFile>();//We need an ordered list for the disk cache. Keep a separate LUT to FileLoc, this is bc we call GetFont() a BOO BOO number of times which requires a fast LUT
-    
+
     #endregion
     #region Private Members
 
@@ -1276,15 +1282,17 @@ namespace PirateCraft
     private bool _generateMipmaps = false;
     private TexFilter _texFilter = TexFilter.Nearest;
     private bool _hasNormalMap = false;
+    private float _normalMapStrength = 0.0f;
     private int _defaultPixelSize = 0;
 
     #endregion
     #region Public: Methods
 
-    public MegaTex(string name, bool bCache, MtClearColor clearColor = MtClearColor.BlackNoAlpha, bool mipmaps = false, TexFilter filter = TexFilter.Nearest, bool createNormalMap = false, int defaultPixelSize = 3)
+    public MegaTex(string name, bool bCache, MtClearColor clearColor = MtClearColor.BlackNoAlpha, bool mipmaps = false, TexFilter filter = TexFilter.Nearest, float normalMapStrength = 0.0f, int defaultPixelSize = 3)
     {
       this.Name = name;
-      this._hasNormalMap = createNormalMap;
+      this._hasNormalMap = normalMapStrength > 0.0f;
+      this._normalMapStrength = normalMapStrength;
       this._clearColor = clearColor;
       this._generateMipmaps = mipmaps;
       this._texFilter = filter;
@@ -1298,7 +1306,7 @@ namespace PirateCraft
       {
         //Note: Default region will get skewed if texture filtering is enabled.
         var pixelBytes = Enumerable.Repeat((byte)255, defaultPixelSize * defaultPixelSize * 4).ToArray();
-        var dpImage = new Image(Gu.Lib.GetUniqueName(ResourceType.Image,c_strDefaultPixelName), defaultPixelSize, defaultPixelSize, pixelBytes, Image.ImagePixelFormat.RGBA32ub);
+        var dpImage = new Image(Gu.Lib.GetUniqueName(ResourceType.Image, c_strDefaultPixelName), defaultPixelSize, defaultPixelSize, pixelBytes, Image.ImagePixelFormat.RGBA32ub);
         var tp = AddResource(dpImage, 1);
       }
     }
@@ -1397,7 +1405,7 @@ namespace PirateCraft
         {
           if (!norm.Exists)
           {
-            output.CreateNormalMap(_generateMipmaps, _texFilter, false);
+            output.CreateNormalMap(_generateMipmaps, _texFilter, _normalMapStrength, false);
           }
           else
           {
@@ -1606,7 +1614,7 @@ namespace PirateCraft
         output.CreateTexture(PBRTextureInput.Albedo, master_albedo, this._generateMipmaps, this._texFilter, true);
         if (_hasNormalMap)
         {
-          output.CreateNormalMap(this._generateMipmaps, this._texFilter, false);
+          output.CreateNormalMap(this._generateMipmaps, this._texFilter, _normalMapStrength, false);
         }
       }
 
@@ -1663,7 +1671,7 @@ namespace PirateCraft
         Gu.Log.Debug("Loading MT cache file " + fn.QualifiedPath);
         if (!fn.Exists)
         {
-          Gu.BRThrowException($"{Name}: File {fn.QualifiedPath} does not exist.");
+          return YesItChanged($"{Name}: File {fn.QualifiedPath} does not exist.");
         }
         else
         {
@@ -1687,6 +1695,7 @@ namespace PirateCraft
       bw.Write((bool)_generateMipmaps);
       bw.Write((Int32)_texFilter);
       bw.Write((bool)_hasNormalMap);
+      bw.Write((float)_normalMapStrength);
       bw.Write((Int32)_defaultPixelSize);
       bw.Write((Int32)_iStartWH);
       bw.Write((Int32)_iGrowWH);
@@ -1707,10 +1716,18 @@ namespace PirateCraft
       _generateMipmaps = br.ReadBoolean();
       _texFilter = (TexFilter)br.ReadInt32();
       _hasNormalMap = br.ReadBoolean();
+      var normalMapStrength = br.ReadSingle();
+      if (_normalMapStrength != normalMapStrength)
+      {
+        Gu.BRThrowException("bnormal map strength");
+      }
+
       _defaultPixelSize = br.ReadInt32();
       _iStartWH = br.ReadInt32();
       _iGrowWH = br.ReadInt32();
       _genId = br.ReadUInt64();
+
+
 
       int count = br.ReadInt32();
       if (Files.Count != count)

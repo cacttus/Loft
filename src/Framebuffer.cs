@@ -22,6 +22,7 @@ namespace PirateCraft
     [Description("Pick")] Pick,
     [Description("Normal")] Normal,
     [Description("Position")] Position,
+    [Description("Material")] Material,
     [Description("Plane")] Plane,
     [Description("Effect")] Effect,
   }
@@ -32,6 +33,7 @@ namespace PirateCraft
     [Description("_ufMRT_Position")] Position,//these are tostring()'d so dont change
     [Description("_ufMRT_Pick")] Pick,
     [Description("_ufMRT_Depth")] Depth,
+    [Description("_ufMRT_Material")] Material,
   }
   public enum FramebufferState
   {

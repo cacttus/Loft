@@ -7,8 +7,8 @@ namespace PirateCraft{
     //
     //                  + Midngiht
 
-    private double DayLengthSeconds = 60;// 60.0f * 5.0f;
-    private double NightLengthSeconds = 60;//60.0f * 5.0f;
+    private double DayLengthSeconds = 60;//60;// 60.0f * 5.0f;
+    private double NightLengthSeconds = 60;//60;//60.0f * 5.0f;
 
     public double StarOrCloud_Blend { get; private set; } = 0; //1 = day,  -1 = night
 

@@ -44,15 +44,27 @@ namespace PirateCraft
 
     private void CreateLight()
     {
+      var sun = new WorldObject("sunlight");
+      sun.LookAtConstraint(new vec3(0,0,0));
+      sun.HasLight = true;
+      sun.LightType = LightType.Direction;//Direction is the object heading
+      sun.Position_Local = new vec3(10, 100, 10);
+      sun.LightRadius = 10000;
+      sun.LightPower = 100.0f;
+      sun.LightColor = new vec3(1,1,1);//Gu.World.WorldProps.DayNightCycle.SkyColor.ToVec3();//. new vec3(.9f, .8f, .1f);
+      Gu.World.AddObject(sun);
+
       var l = new WorldObject("pt");
+      l.LightType = LightType.Point;
       l.Position_Local = new vec3(0, 10, 0);
       l.HasLight = true;
       l.LightRadius = 50;
       l.LightPower = 0.75f;
-      l.LightColor = new vec3(.9f, .8f, .1f);
+      l.LightColor = new vec3(1, 1, 1);
       Gu.World.AddObject(l);
 
       l = new WorldObject("pt2");
+      l.LightType = LightType.Point;
       l.Position_Local = new vec3(-10, 10, -10);
       l.HasLight = true;
       l.LightRadius = 50;
@@ -61,6 +73,7 @@ namespace PirateCraft
       Gu.World.AddObject(l);
 
       l = new WorldObject("pt3");
+      l.LightType = LightType.Point;
       l.Position_Local = new vec3(10, 10, 10);
       l.HasLight = true;
       l.LightRadius = 50;
@@ -69,6 +82,7 @@ namespace PirateCraft
       Gu.World.AddObject(l);
 
       l = new WorldObject("pt4");
+      l.LightType = LightType.Point;
       l.Position_Local = new vec3(20, 10, 20);
       l.HasLight = true;
       l.LightRadius = 50;
@@ -176,8 +190,12 @@ namespace PirateCraft
         sun_mat.BaseColor = new vec4(.994f, .990f, .8f, 1);
         obj.Position_Local = new vec3(DayNightCycle.SkyRadius, 0, 0);
         obj.Rotation_Local = quat.fromAxisAngle(new vec3(0, 0, 1), (float)Math.PI / 2);
+        sun.LightColor = new vec3(1,1,1);// Gu.World.WorldProps.DayNightCycle.LightColor.ToVec3() ;//. new vec3(.9f, .8f, .1f);
       };
+
       sun_moon_empty.AddChild(sun);
+
+      // sun.LookAtConstraint(new vec3(0, 0, 0));
 
 
       var bloom_mat = sun_moon_mat.Clone() as Material;

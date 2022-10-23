@@ -1,5 +1,19 @@
-﻿Working On:
+﻿This Sprint: 
+  fixed inheriting non inheritable properties
+
+Working On:
+1022
+  goinhg to remove UISpan - it's causing problems
+    element padding passed in to layoutSpan and we add double padding due to htis.
+
+10/21
+  must move Camera3D to be main object in scene as it messes up the rotator
+
+  or, just fix mouse rotator to be ON the camera.
+
 10/20
+
+
   word wrap, 
   glyph props share/unify, 
   fix align
@@ -232,6 +246,8 @@ Roadmap:
 * Prototype Complete
 
 TODO list
+* Globs must inherit from world object and have the same edit properties of objects
+  Object Mode -> Glob edit mode -> 
 * Implement Prop Animation Timer in Gui2D to animate props on a timer, versus, all at once
 * Inheriting from parents is very annoying - remove parent inheritance
 

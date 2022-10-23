@@ -93,8 +93,9 @@ namespace PirateCraft
       //Create Camera
       var c = Gu.World.CreateCamera("cam-def-" + v.Name, v, vec3.Zero);
       c.Far = 4000.0f;
-      c.Position_Local = new vec3(0, .5f, 0);
+      c.Position_Local = new vec3(0, 16, -16);
       c.Rotation_Local = quat.fromAxisAngle(new vec3(-1, 0, 0), -MathUtils.M_PI / 8.0f);
+      c.AddComponent(new FPSInputComponent(v));
 
       if (Gu.Lib.TryLoadModel("cam", new FileLoc("camera.glb", FileStorage.Embedded), out var cmod))
       {
@@ -104,20 +105,22 @@ namespace PirateCraft
       }
 
       //Create View Player & Input (ViewPlayer)
-      var p = Gu.World.CreateAndAddObject("player-empty-" + v.Name, null, null);
-      p.Collides = false;
-      p.HasPhysics = true;
-      p.HasGravity = false;
-      p.Position_Local = new vec3(0, 16, -16);
-      p.AddChild(c);
-      p.AddComponent(new FPSInputComponent(v));
+      // var p = Gu.World.CreateAndAddObject("player-empty-" + v.Name, null, null);
+      // p.Collides = false;
+      // p.HasPhysics = true;
+      // p.HasGravity = false;
+      // p.Position_Local = new vec3(0, 16, -16);
+      // p.AddChild(c);
 
       var l = new WorldObject("player-light");
       l.HasLight = true;
       l.LightRadius = 50;
       l.LightPower = 0.75f;
+      l.LightColor = new vec3(1,1,1);
       l.Position_Local = new vec3(0, 0, 0);
-      p.AddChild(l);
+      c.AddChild(l);
+
+      Gu.World.AddObject(c);
 
       //Set the view Camera
       v.Camera = new WeakReference<Camera3D>(c);
@@ -320,10 +323,10 @@ namespace PirateCraft
       styles.AddRange(new List<UiStyle>() { });
       gui.StyleSheet.AddStyles(styles);
 
-      var background = new UiElement(UiStyleName.Panel, "pnlPanel");
+      var background = new UiPanel();
       gui.AddChild(background);
 
-      _info = new UiElement(UiStyleName.Label, Phrase.DebugInfoHeader);
+      _info = new UiLabel(Phrase.DebugInfoHeader);//UiElement(UiStyleName.Label, Phrase.DebugInfoHeader);
       background.AddChild(_info);
     }
     private void UpdateInfo()
@@ -484,8 +487,8 @@ namespace PirateCraft
       Title = "Slaver " + VersionId.ToString();
       Gu.WorldLoader = new WorldLoader(Gu.GetContextForWindow(this));
 
-//uh.
-      var w = Gu.WorldLoader.GoToWorld(new WorldInfo("MyWorld", new FileLoc("MyWorldScript.cs",FileStorage.Embedded), DELETE_WORLD_START_FRESH, 2));
+      //uh.
+      var w = Gu.WorldLoader.GoToWorld(new WorldInfo("MyWorld", new FileLoc("MyWorldScript.cs", FileStorage.Embedded), DELETE_WORLD_START_FRESH, 2));
 
 
       SetGameMode(Gu.World.GameMode);

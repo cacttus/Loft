@@ -40,7 +40,7 @@ namespace PirateCraft
     public MeshData? Mesh { get { return _meshView == null ? null : _meshView.MeshData; } set { SetMeshView(value); } }
     public MeshView? MeshView { get { return _meshView; } set { _meshView = value; } }
     public Material? Material { get { return _material; } set { _material = value; } }
-    public bool Hidden { get { return _hidden; } private set { _hidden = value; } }
+    public bool Visible { get { return _visible; } set { _visible = value; } }
     public bool Selectable { get { return _selectable; } set { _selectable = value; } }
     public bool IsSelected { get { return _selected; } set { _selected = value; } }//May not be necessary adds extra data, we can use flags or just use WorldEditor.SelectedObjects
     public bool IsPicked { get { return _picked; } set { _picked = value; } }//object is under the mouse cursor
@@ -84,7 +84,7 @@ namespace PirateCraft
     #endregion
     #region Protected: Members
 
-    [DataMember] protected bool _hidden = false;
+    [DataMember] protected bool _visible = true;
     [DataMember] protected bool _selectable = true;//TODO: these can be flags
     [DataMember] protected bool _selected = false;
     [DataMember] protected bool _pickable = true;
@@ -127,7 +127,7 @@ namespace PirateCraft
     {
       Gu.Assert(other != null);
       base.CopyFrom(other, shallow);
-      this._hidden = other._hidden;
+      this._visible = other._visible;
       this._selectable = other._selectable;
       this._selected = other._selected;
       this._pickable = other._pickable;
@@ -232,11 +232,11 @@ namespace PirateCraft
     public mat4 InverseBindMatrix { get { return _inverse_bind; } } // Skinned Inverse Bind
     public mat4 LocalMatrix { get { return _local; } set { _local = value; DecomposeLocalMatrix(); } }
 
-    public vec3 BasisX_World { get { return _basisX; } }
-    public vec3 BasisY_World { get { return _basisY; } }
-    public vec3 BasisZ_World { get { return _basisZ; } }
-    public vec3 ForwardNormalVector { get { return _basisZ; } }
-    public vec3 Heading { get { return _basisZ; } }
+    public vec3 BasisX_World { get { return _basisX_World; } }
+    public vec3 BasisY_World { get { return _basisY_World; } }
+    public vec3 BasisZ_World { get { return _basisZ_World; } }
+    public vec3 ForwardNormalVector { get { return _basisZ_World; } }
+    public vec3 Heading { get { return _basisZ_World; } }
 
     //Script system should be for this
     public Action<WorldObject>? OnUpdate { get; set; } = null;
@@ -308,6 +308,32 @@ namespace PirateCraft
     }
     public WeakReference<RenderView>? ExcludeFromRenderView { get { return _excludeFromRenderView; } set { _excludeFromRenderView = value; } }//DO NOT render in THIS context. Used for an FPS seeing other characters.
 
+    private vec3? _lookAtConstraint = null;
+
+    public void LookAtConstraint(vec3? p)
+    {
+      //set to null to disable.
+      _lookAtConstraint = p;
+    }
+
+    public bool IsActiveCamera()
+    {
+      //return true if is a camera and is rendering.
+      bool ret = false;
+      var ob = this as Camera3D;
+      if (ob != null)
+      {
+        if (ob.RenderView != null)
+        {
+          if (ob.RenderView.TryGetTarget(out var t))
+          {
+            ret = t.Enabled;
+          }
+        }
+      }
+      return ret;
+    }
+
     #endregion
     #region Private: Members
 
@@ -321,9 +347,9 @@ namespace PirateCraft
     [DataMember] private mat4 _local = mat4.Identity;
     [DataMember] private mat4 _bind = mat4.Identity;
     [DataMember] private mat4 _inverse_bind = mat4.Identity;
-    [DataMember] private vec3 _basisX = new vec3(1, 0, 0);
-    [DataMember] private vec3 _basisY = new vec3(0, 1, 0);
-    [DataMember] private vec3 _basisZ = new vec3(0, 0, 1);
+    [DataMember] private vec3 _basisX_World = new vec3(1, 0, 0);
+    [DataMember] private vec3 _basisY_World = new vec3(0, 1, 0);
+    [DataMember] private vec3 _basisZ_World = new vec3(0, 0, 1);
     [DataMember] private vec3 _positionWorld = vec3.Zero;
     [DataMember] private quat _rotationWorld = quat.Identity;
     [DataMember] private vec3 _scaleWorld = vec3.Zero;
@@ -373,7 +399,7 @@ namespace PirateCraft
     }
     public virtual void Update(World world, double dt, ref Box3f parentBoundBox)
     {
-      if (Hidden)
+      if (!Visible)
       {
         return;
       }
@@ -383,11 +409,17 @@ namespace PirateCraft
       ApplyConstraints();
       CompileLocalMatrix();
       ApplyParentMatrix();
+      //Hacking this in..
+      // if (_lookAtConstraint != null)
+      // {
+      //   vec3 t = _world.ExtractTranslation();
+      //   _world = _world * mat4.getLookAt(t, _lookAtConstraint.Value, _basisY_World).inverseOf();//why are matrix multiplies backwards 
+      // }
 
       //Basis calculuation must come after the world is computed
-      _basisX = (WorldMatrix * new vec4(1, 0, 0, 0)).xyz().normalized();
-      _basisY = (WorldMatrix * new vec4(0, 1, 0, 0)).xyz().normalized();
-      _basisZ = (WorldMatrix * new vec4(0, 0, 1, 0)).xyz().normalized();
+      _basisX_World = (WorldMatrix * new vec4(1, 0, 0, 0)).xyz().normalized();
+      _basisY_World = (WorldMatrix * new vec4(0, 1, 0, 0)).xyz().normalized();
+      _basisZ_World = (WorldMatrix * new vec4(0, 0, 1, 0)).xyz().normalized();
 
       DecomposeWorldMatrix();
 
@@ -517,9 +549,9 @@ namespace PirateCraft
       this._local = other._local;
       this._bind = other._bind;
       this._inverse_bind = other._inverse_bind;
-      this._basisX = other._basisX;
-      this._basisY = other._basisY;
-      this._basisZ = other._basisZ;
+      this._basisX_World = other._basisX_World;
+      this._basisY_World = other._basisY_World;
+      this._basisZ_World = other._basisZ_World;
       this._boundBoxMeshTransform = other._boundBoxMeshTransform;
       this._boundBoxAll = other._boundBoxAll;
       this._boundBoxMesh = other._boundBoxMesh;
@@ -983,6 +1015,9 @@ namespace PirateCraft
       mat4 mScl = mat4.getScale(Scale_Local);
       mat4 mRot = mat4.getRotation(Rotation_Local);
       mat4 mPos = mat4.getTranslation(Position_Local);
+
+
+
       _local = (mScl * mSclA) * (mRot * mRotA) * (mPos * mPosA);
     }
     private void DecomposeLocalMatrix()

@@ -68,7 +68,7 @@ namespace PirateCraft
       vec2 r = vec2.Zero;
       if (_camera != null && _camera.TryGetTarget(out Camera3D cam))
       {
-        if (cam.View != null && cam.View.TryGetTarget(out var view))
+        if (cam.RenderView != null && cam.RenderView.TryGetTarget(out var view))
         {
           float tanfov2 = MathUtils.tanf(cam.FOV / 2.0f);
           float ar = (float)view.Viewport.Width / (float)view.Viewport.Height;
@@ -82,7 +82,7 @@ namespace PirateCraft
     {
       if (_camera != null && _camera.TryGetTarget(out Camera3D cam))
       {
-        if (cam.View != null && cam.View.TryGetTarget(out var view))
+        if (cam.RenderView != null && cam.RenderView.TryGetTarget(out var view))
         {
           //Frustum
           float tanfov2 = MathUtils.tanf(cam.FOV / 2.0f);
@@ -110,7 +110,7 @@ namespace PirateCraft
       OOBox3f? ret = null;
       if (_camera != null && _camera.TryGetTarget(out var cam))
       {
-        if (cam.View != null && cam.View.TryGetTarget(out var view))
+        if (cam.RenderView != null && cam.RenderView.TryGetTarget(out var view))
         {
           float p0x = (float)p0.x / (float)view.Viewport.Width;
           float p1x = (float)p1.x / (float)view.Viewport.Width;
@@ -169,7 +169,7 @@ namespace PirateCraft
 
       if (_camera != null && _camera.TryGetTarget(out var cam))
       {
-        if (cam.View != null && cam.View.TryGetTarget(out var view))
+        if (cam.RenderView != null && cam.RenderView.TryGetTarget(out var view))
         {
           Line3f pt = new Line3f();
           float left_pct = (float)point_on_screen_topleftorigin.x / (float)view.Viewport.Width;
@@ -360,6 +360,7 @@ namespace PirateCraft
     }
     public void ToggleWireFrame()
     {
+      //This is old and not needed.
       if (_polygonMode == 0)
       {
         _view.PolygonMode = PolygonMode.Line;
@@ -445,7 +446,7 @@ namespace PirateCraft
       {
         if (Camera != null && Camera.TryGetTarget(out var c))
         {
-          c.View = new WeakReference<RenderView>(this);
+          c.RenderView = new WeakReference<RenderView>(this);
           SetModified();
         }
       }
@@ -474,6 +475,14 @@ namespace PirateCraft
 
           SetCurrent();
           ret = true;
+        }
+        else
+        {
+          Gu.Log.ErrorCycle("No camera was set for the view.", 300);
+          _renderFOV = (float)Math.PI / 6;
+          _renderNear = 1;
+          _renderFar = 1000;
+          ret = true;//continue so we can draw GUI
         }
       }
       return ret;
@@ -604,8 +613,10 @@ namespace PirateCraft
           }
           else
           {
-            Gu.Log.Error($"{Name} - Camera was null");
-            Gu.DebugBreak();
+            _gpuCamera._vViewPos = new vec3(0, 0, 0);
+            _gpuCamera._vViewDir = new vec3(-1, 0, 0);
+            _gpuCamera._m4View = mat4.Identity;
+            Gu.Log.ErrorCycle($"{Name} - Camera was null", 300);
           }
         }
         else
@@ -637,7 +648,7 @@ namespace PirateCraft
     public float Near { get { return _near; } set { _near = value; } }
     public float Far { get { return _far; } set { _far = value; } }
     public mat4 ViewMatrix { get { return _viewMatrix; } private set { _viewMatrix = value; } }
-    public WeakReference<RenderView> View { get; set; } = null;//This may be null if the camera is not being viewed.
+    public WeakReference<RenderView> RenderView { get; set; } = null;//This may be null if the camera is not being viewed.
 
     private mat4 _viewMatrix = mat4.Identity;
     private float _fov = MathUtils.ToRadians(70.0f);
@@ -648,7 +659,7 @@ namespace PirateCraft
     {
       _near = near;
       _far = far;
-      View = new WeakReference<RenderView>(rv);
+      RenderView = new WeakReference<RenderView>(rv);
       Frustum = new Frustum(this);
     }
     public override void Update(World world, double dt, ref Box3f parentBoundBox)

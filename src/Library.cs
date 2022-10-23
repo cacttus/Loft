@@ -771,7 +771,8 @@ namespace PirateCraft
           for (int ix = 0; ix < img.Width; ix++)
           {
             var p = img.GetPixel_RGBA32ub(ix, iy);
-            p.a = byte.MaxValue;
+            p.a =(byte)(Math.Clamp((float)p.a / 255.0f, 0,1) * 255.0f);// byte.MaxValue;
+
             img.SetPixel_RGBA32ub(ix, iy, p);
           }
         }

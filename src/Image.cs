@@ -269,7 +269,7 @@ namespace PirateCraft
     {
       return (col * items_per_row + row);
     }
-    public Image CreateNormalMap(bool isbumpmap, float depth_amount = 0.70f)/*testing*/
+    public Image CreateNormalMap(bool isbumpmap, float depth_amount = 0.70f)
     {
       //This is too slow for C# //TODO: put on GPU
       if (Data == null)
@@ -517,7 +517,7 @@ namespace PirateCraft
       float depth = 0;
       if (is_bump_map_pixel)
       {
-        //Use as bump map  depth
+        //Bump map->normal map conversion - Use as bump map  depth
         var pr = GetPixel_RGBA32ub(hwrap(x), vwrap(y)).r;
         var pg = GetPixel_RGBA32ub(hwrap(x), vwrap(y)).g;
         var pb = GetPixel_RGBA32ub(hwrap(x), vwrap(y)).b;

@@ -47,7 +47,7 @@ namespace PirateCraft
       m.AlbedoSlot.Texture = Gu.Lib.LoadTexture(RName.Tex2D_DefaultFailedTexture);
 
       m = Gu.Lib.LoadMaterial(RName.DebugDraw_Wireframe_FlatColor, Gu.Lib.LoadShader(RName.Shader_Wireframe));
-      m.GpuRenderState.Blend = false;
+      m.GpuRenderState.Blend = true;
       m.GpuRenderState.CullFace = false;
       m.GpuRenderState.DepthTest = true;
       m.Flat = true;

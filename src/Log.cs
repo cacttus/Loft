@@ -142,7 +142,7 @@ namespace PirateCraft
 
       return stackTrace;
     }
-    public void ErrorCycle(string s, int frames = 60)
+    public void ErrorCycle(string s, int frames = 120)
     {
       int md = (int)Gu.Context.FrameStamp % frames;
       if (md == 0)

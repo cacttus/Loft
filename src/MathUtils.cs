@@ -2662,7 +2662,7 @@ namespace PirateCraft
     public quat toQuat()
     {
       quat q = new quat();
-      mat3 m = this.transposed();//Testing to see if this is thr problem..it is -- fix this
+      mat3 m = this.transposed();//Testing to see if this is thr problem..it is -- fix this -- this requires matrices to be rewritten, they are backwards
 
       float tr = m._m11 + m._m22 + m._m33;
 
@@ -2699,62 +2699,6 @@ namespace PirateCraft
         q.z = 0.25f * S;
       }
 
-
-      //float s0, s1, s2;
-      //int k0, k1, k2, k3;
-      //float[] q1 = new float[4];
-      //if ((m._m11 + m._m22 + m._m33) > 0.0f)
-      //{
-      //   k0 = 3;
-      //   k1 = 2;
-      //   k2 = 1;
-      //   k3 = 0;
-      //   s0 = 1.0f;
-      //   s1 = 1.0f;
-      //   s2 = 1.0f;
-      //}
-      //else if ((m._m11 + m._m22 > 0.0f) && (m._m11 > m._m33))
-      //{
-      //   k0 = 0;
-      //   k1 = 1;
-      //   k2 = 2;
-      //   k3 = 3;
-      //   s0 = 1.0f;
-      //   s1 = -1.0f;
-      //   s2 = -1.0f;
-      //}
-      //else if (m._m22 > m._m33)
-      //{
-      //   k0 = 1;
-      //   k1 = 0;
-      //   k2 = 3;
-      //   k3 = 2;
-      //   s0 = -1.0f;
-      //   s1 = 1.0f;
-      //   s2 = -1.0f;
-      //}
-      //else
-      //{
-      //   k0 = 2;
-      //   k1 = 3;
-      //   k2 = 0;
-      //   k3 = 1;
-      //   s0 = -1.0f;
-      //   s1 = -1.0f;
-      //   s2 = 1.0f;
-      //}
-      //float t = (float)(s0 * m._m11 + s1 * m._m22 + s2 * m._m33 + 1.0f);
-      ////assert(t>=0.0);
-      ////if( t==0.0 ) t=1e-10f;
-      //float s = (float)((1.0 / Math.Sqrt(t)) * 0.5f);
-
-      //q1[k0] = s * t;
-
-      //q1[k1] = (float)((m._m12 - s2 * m._m21) * s);
-      //q1[k2] = (float)((m._m31 - s1 * m._m13) * s);
-      //q1[k3] = (float)((m._m23 - s0 * m._m32) * s);
-
-      //quat ret = new quat(q1[k0], q1[k1], q1[k2], q1[k3]);
       return q;
     }
     public override string ToString()
@@ -3212,7 +3156,7 @@ namespace PirateCraft
       var m = this.ToOpenTK();
       try
       {
-        m.Transpose();
+        m.Transpose();//matrices are backwards , multiply is backwards
         var x = m.Determinant;
         if (x != 0)
         {

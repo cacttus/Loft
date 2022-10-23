@@ -171,30 +171,47 @@ vec3 lightFragmentCookTorrence(in vec3 in_vpos, in vec4 in_albedo, in vec3 in_no
 
   return finalColor;
 }
-vec3 lightFragmentBlinnPhong(in vec3 in_vertex, in vec4 in_albedo, in vec3 in_normal) {
-    
+vec3 doBlinnPhong(in vec3 in_vertex, in vec3 in_albedo, in vec3 light_vector, in vec3 eye_vector, in vec3 in_normal, in vec3 vLightColor, float atten,  vec4 spec_color)
+{
+  //Blinn-Phong
+  vec3 half_vector = (light_vector + eye_vector) / length(light_vector + eye_vector);
+  float lambert = max(dot(light_vector, in_normal), 0.0);
+  float spec = pow(max(dot(normalize(light_vector + eye_vector), in_normal), 0.0), spec_color.w);
+  return (in_albedo * lambert + spec_color.xyz * spec) * vLightColor * atten;
+}
+vec3 lightFragmentBlinnPhong(in vec3 in_vertex, in vec4 in_albedo, in vec3 in_normal, vec4 spec_color) {
+  
+  vec3 eye_vector = normalize(_ufGpuCamera._vViewPos - in_vertex);
+
   vec3 finalColor = vec3(0,0,0);
 
   for(int iLight = 0; iLight <  _ufGpuWorld._iPointLightCount; iLight++) {
     vec3 vLightPos = _ufGpuPointLight[iLight]._pos;
     vec3 vLightColor = _ufGpuPointLight[iLight]._color;
+    float fLightPower = _ufGpuPointLight[iLight]._power+100;
+    float fLightRadius = _ufGpuPointLight[iLight]._radius;
 
-    vec3 eye_vector = normalize(_ufGpuCamera._vViewPos - in_vertex);
     vec3 light_vector = normalize(vLightPos - in_vertex);    
-    vec3 half_vector = (light_vector + eye_vector) / length(light_vector + eye_vector);
 
-    //Blinn-Phong
-    float lambert = max(dot(light_vector, in_normal), 0.0);
-    float spec = pow(max(dot(normalize(light_vector + eye_vector), in_normal), 0.0), 100);
-    vec3 specColor = vec3(1,1,1);
-
-    //Final
-    //We use this quadratic atten thing due to the way the light volumes are computed for visibility
     float atten=1;
-   // atten = attenuate_light_radius(in_vertex, _ufGpuPointLight[iLight]._pos, _ufGpuPointLight[iLight]._power-0.45, _ufGpuPointLight[iLight]._radius);
-    atten = attenuate_light_distance(in_vertex, _ufGpuPointLight[iLight]._pos, _ufGpuPointLight[iLight]._power+100, _ufGpuPointLight[iLight]._radius);
+    atten = attenuate_light_distance(in_vertex, vLightPos, fLightPower, fLightRadius);
 
-    finalColor += (in_albedo.rgb * lambert + specColor * spec) * vLightColor * atten;
+    finalColor += doBlinnPhong(in_vertex, in_albedo.rgb, light_vector, eye_vector, in_normal, vLightColor, atten,  spec_color);
+  }
+
+  for(int iLight = 0; iLight <  _ufGpuWorld._iDirLightCount; iLight++) 
+  {
+    vec3 vLightPos = _ufGpuDirLight[iLight]._pos;
+    vec3 vLightColor = _ufGpuDirLight[iLight]._color;
+    float fLightPower = _ufGpuDirLight[iLight]._power+100;
+    float fLightRadius = _ufGpuDirLight[iLight]._radius;
+
+    vec3 light_vector = -_ufGpuDirLight[iLight]._dir;    
+
+    float atten=1;
+    //atten = attenuate_light_distance(in_vertex, vLightPos, fLightPower, fLightRadius);
+
+    finalColor += doBlinnPhong(in_vertex, in_albedo.rgb, light_vector, eye_vector, in_normal, vLightColor, atten, spec_color) ;
   }
 
   finalColor += in_albedo.rgb* _ufGpuWorld._vAmbientColor * _ufGpuWorld._fAmbientIntensity;

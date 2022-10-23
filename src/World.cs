@@ -1293,6 +1293,7 @@ namespace PirateCraft
     private Material? _blockObjectMaterial = null;
     private double _autoSaveTimeoutSeconds = 5;
     private double _autoSaveTimeout = 0;
+    private WorldScript? _worldScript = null;
 
     #endregion
     #region Enter/Exit/Update
@@ -1323,8 +1324,7 @@ namespace PirateCraft
 
       LoadWorldScript();
     }
-    private WorldScript? _worldScript = null;
-    private void IterateObjectsSafe(Func<WorldObject, LambdaBool> f, bool iterateDeleted = false)
+    public void IterateRootObjectsSafe(Func<WorldObject, LambdaBool> f, bool iterateDeleted = false)
     {
       SceneRoot.IterateChildrenSafe(f, iterateDeleted);
     }
@@ -1382,7 +1382,7 @@ namespace PirateCraft
 
       Gu.Lib.Update(dt);
 
-      UpdateObjects(dt);
+      UpdateRootObjects(dt);
       CheckSaveWorld(dt);
 
       TopologizeGlobs();
@@ -1416,17 +1416,15 @@ namespace PirateCraft
     {
       if (rv.ViewMode != RenderViewMode.UIOnly)
       {
+        //Collect visible
+        _visibleStuff = _visibleStuff.ConstructIfNeeded();
+        _visibleStuff.Clear(rv);
+        _worldProps.ClearLights();
+
         if (rv.Camera != null && rv.Camera.TryGetTarget(out var cm))
         {
           cm.SanitizeTransform();
-
           BuildGrid(cm.Position_World, Info.GenerateDistance);
-
-          //Collect visible
-          _visibleStuff = _visibleStuff.ConstructIfNeeded();
-          _visibleStuff.Clear(rv);
-          _worldProps.ClearLights();
-
           CollectVisibleGlobs(rv, cm);
           CollectVisibleObjects(rv, cm);
         }
@@ -1820,7 +1818,7 @@ namespace PirateCraft
     public WorldObject? FindObject(string name)
     {
       WorldObject? ret = null;
-      IterateObjectsSafe((ob) =>
+      IterateRootObjectsSafe((ob) =>
       {
         if (ob.Name == name)
         {
@@ -1887,22 +1885,25 @@ namespace PirateCraft
 
       return ob;
     }
-    private void UpdateObjects(double dt)
+    private void UpdateRootObjects(double dt)
     {
       Box3f dummy = Box3f.Zero;
       dummy.genResetLimits();
       List<WorldObject> toRemove = new List<WorldObject>();
-      IterateObjectsSafe((ob) =>
+      IterateRootObjectsSafe((ob) =>
       {
         if (ob.State != WorldObjectState.Removed)
         {
-          //We could drop physics here if we wanted to
-          ob.Update(this, dt, ref dummy);
-
-          //This could be a component
-          if (ob.HasPhysics)
+          if (ob.Visible)
           {
-            UpdateObjectPhysics(ob, (float)dt);
+            //We could drop physics here if we wanted to
+            ob.Update(this, dt, ref dummy);
+
+            //This could be a component
+            if (ob.HasPhysics)
+            {
+              UpdateObjectPhysics(ob, (float)dt);
+            }
           }
         }
         else
@@ -2163,12 +2164,18 @@ namespace PirateCraft
               _visibleRenderGlobs.Add(kvp.Key, g);
               if (g.Opaque != null)
               {
-                _visibleStuff.AddObject(rv, g.Opaque);
+                if (Gu.Context.DebugDraw.ObjectRenderMode != DebugObjectRenderMode.Wire)
+                {
+                  _visibleStuff.AddObject(rv, g.Opaque);
+                }
                 DebugDrawObject(rv, g.Opaque);
               }
               if (g.Transparent != null)
               {
-                _visibleStuff.AddObject(rv, g.Transparent);
+                if (Gu.Context.DebugDraw.ObjectRenderMode != DebugObjectRenderMode.Wire)
+                {
+                  _visibleStuff.AddObject(rv, g.Transparent);
+                }
                 DebugDrawObject(rv, g.Transparent);
               }
             }
@@ -2185,37 +2192,49 @@ namespace PirateCraft
       Gu.Assert(ob != null);
 
       //TODO: fix this.
-      if (ob.ExcludeFromRenderView != null && ob.ExcludeFromRenderView.TryGetTarget(out var obrv))
-      {
-        if (obrv == rv)
-        {
-          return;
-        }
-      }
+      bool excluded = (ob.ExcludeFromRenderView != null) && ob.ExcludeFromRenderView.TryGetTarget(out var obrv) && (obrv == rv);
 
-      if (cam.Frustum.HasBox(ob.BoundBox))
+      if (ob.Visible && !excluded)
       {
-        if (ob.HasLight)
+        if (cam.Frustum.HasBox(ob.BoundBox))
         {
-          _worldProps.Lights.Add(ob);
-        }
-        if (ob.Mesh != null)
-        {
-          _visibleStuff.AddObject(rv, ob);
-          DebugDrawObject(rv, ob);
-          PickVisibleObject(ob);
-        }
-        else
-        {
-          NumCulledObjects++;
-        }
-      }
+          if (ob.HasLight)
+          {
+            if (ob.LightType == LightType.Point)
+            {
+              _worldProps.PointLights.Add(ob);
 
-      ob.IterateChildrenSafe((c) =>
-      {
-        CollectVisibleObjects(rv, cam, c);
-        return LambdaBool.Continue;
-      });
+            }
+            else if (ob.LightType == LightType.Direction)
+            {
+              _worldProps.DirLights.Add(ob);
+            }
+            else
+            {
+              Gu.BRThrowNotImplementedException();
+            }
+          }
+          if (ob.Mesh != null)
+          {
+            if (Gu.Context.DebugDraw.ObjectRenderMode != DebugObjectRenderMode.Wire)
+            {
+              _visibleStuff.AddObject(rv, ob);
+            }
+            DebugDrawObject(rv, ob);
+            PickVisibleObject(ob);
+          }
+          else
+          {
+            NumCulledObjects++;
+          }
+        }
+
+        ob.IterateChildrenSafe((c) =>
+        {
+          CollectVisibleObjects(rv, cam, c);
+          return LambdaBool.Continue;
+        });
+      }
     }
     private void PickVisibleObject(WorldObject ob)
     {
@@ -2333,7 +2352,7 @@ namespace PirateCraft
       {
         _visibleStuff.AddObject(rv, ob, Gu.Lib.LoadMaterial(RName.Material_DebugDraw_VertexNormals_FlatColor));
       }
-      if (Gu.Context.DebugDraw.DrawWireframeOverlay)
+      if (Gu.Context.DebugDraw.DrawWireframeOverlay || Gu.Context.DebugDraw.ObjectRenderMode == DebugObjectRenderMode.Wire)
       {
         _visibleStuff.AddObject(rv, ob, Gu.Lib.LoadMaterial(RName.DebugDraw_Wireframe_FlatColor));
       }
@@ -2432,12 +2451,13 @@ namespace PirateCraft
     private void CreateMaterials()
     {
       var maps = CreateAtlas();
-      var shader = Shader.DefaultObjectShader();// Gu.Resources.LoadShader("v_Glob", false, FileStorage.Embedded);
+      var shader = Shader.DefaultObjectShader();
       _worldMaterial_Op = new Material("worldMaterial_Op", shader, maps.Albedo, maps.Normal);
       _worldMaterial_Tp = new Material("worldMaterial_Tp", shader, maps.Albedo, maps.Normal);
       _worldMaterial_Tp.GpuRenderState.Blend = true;
       _worldMaterial_Tp.GpuRenderState.DepthTest = true;
       _worldMaterial_Tp.GpuRenderState.CullFace = false;
+      _worldMaterial_Op._gpuMaterial._vBlinnPhong_Spec = new vec4(0.59f,0.61f,0.61f, 170.0f);
 
       //Block Material
       _blockObjectMaterial = Gu.Lib.LoadMaterial("BlockObjectMaterial", Gu.Lib.LoadShader("v_v3n3x2_BlockObject_Instanced", "v_v3n3x2_BlockObject_Instanced", FileStorage.Embedded));
@@ -2456,7 +2476,7 @@ namespace PirateCraft
     {
       //Create the atlas.
       //Must be called after context is set.
-      _worldMegatex = new MegaTex("world-megatex", true, MegaTex.MtClearColor.DebugRainbow, true, TexFilter.Nearest, true);
+      _worldMegatex = new MegaTex("world-megatex", true, MegaTex.MtClearColor.DebugRainbow, true, TexFilter.Nearest, 0.45f);
 
       foreach (var resource in WorldStaticData.TileImages)
       {
@@ -2866,7 +2886,8 @@ namespace PirateCraft
       try
       {
         var enc = Encoding.GetEncoding("iso-8859-1");
-        if(!loc.ExistsOnDisk()){
+        if (!loc.ExistsOnDisk())
+        {
           loc.Create();
         }
         using (var fs = loc.OpenWrite())

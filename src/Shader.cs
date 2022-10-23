@@ -148,9 +148,11 @@ namespace PirateCraft
     public float _fPBR_specular = 0.5f;
     //
     public float _flat = 0;
-    public float _pad0 = 0;
     public float _pad1 = 0;
     public float _pad2 = 0;
+    public float _pad3 = 0;
+    //
+    public vec4 _vBlinnPhong_Spec = new vec4(.9f,.9f,.9f,1300);
   }
   [StructLayout(LayoutKind.Sequential)]
   public struct GpuDebug
@@ -450,11 +452,12 @@ namespace PirateCraft
     public vec3 Ambient { get { return _ambient; } set { _ambient = value; SetModified(); } }
     public float AmbientIntensity { get { return _ambientIntensity; } set { _ambientIntensity = value; SetModified(); } }
     public DayNightCycle DayNightCycle { get { return _dayNightCycle; } set { _dayNightCycle = value; SetModified(); } }
-    public ModifiedList<WorldObject> Lights { get { return _lights; } set { _lights = value; SetModified(); } }
+    public ModifiedList<WorldObject> PointLights { get { return _pointLights; } set { _pointLights = value; SetModified(); } }
+    public ModifiedList<WorldObject> DirLights { get { return _dirLights; } set { _dirLights = value; SetModified(); } }
     public GpuWorld GpuWorld { get { return _gpuWorld; } }
     public GpuDirLight[] GpuDirLights { get { return _gpuDirLights; } }
     public GpuPointLight[] GpuPointLights { get { return _gpuPointLights; } }
-    public GpuDebug GpuDebug { get; private set; } = new GpuDebug();//just set it directly
+    public GpuDebug GpuDebug = new GpuDebug();
 
     #endregion
     #region Private: Members
@@ -468,7 +471,8 @@ namespace PirateCraft
     private vec3 _ambient = new vec3(1, 1, 1);
     private float _ambientIntensity = 0.13f;
     private DayNightCycle _dayNightCycle = null;
-    private ModifiedList<WorldObject> _lights = new ModifiedList<WorldObject>();
+    private ModifiedList<WorldObject> _pointLights = new ModifiedList<WorldObject>();
+    private ModifiedList<WorldObject> _dirLights = new ModifiedList<WorldObject>();
     private GpuWorld _gpuWorld = new GpuWorld();
     private GpuDirLight[] _gpuDirLights = null;
     private GpuPointLight[] _gpuPointLights = null;
@@ -477,7 +481,8 @@ namespace PirateCraft
 
     public void ClearLights()
     {
-      _lights.Clear();
+      _pointLights.Clear();
+      _dirLights.Clear();
       SetModified();
     }
 
@@ -485,7 +490,7 @@ namespace PirateCraft
     public WorldProps(string name) : base(name) { }
     public void CompileGpuData()
     {
-      if (Modified || Lights.Modified || Gu.EngineConfig.Debug_AlwaysCompileAndReloadGpuUniformData)
+      if (Modified || PointLights.Modified || Gu.EngineConfig.Debug_AlwaysCompileAndReloadGpuUniformData)
       {
         _gpuWorld._fFogDamp = this._fogDamp;
         _gpuWorld._fFogBlend = this._fogBlend;
@@ -497,33 +502,19 @@ namespace PirateCraft
         _gpuWorld._iPointLightCount = 0;
         _gpuWorld._iDirLightCount = 0;
 
-        IterateLights((light) => { _gpuWorld._iPointLightCount++; }, (light) => { _gpuWorld._iDirLightCount++; });
-
-        _gpuPointLights = new GpuPointLight[_gpuWorld._iPointLightCount];
-        _gpuDirLights = new GpuDirLight[_gpuWorld._iDirLightCount];
-
-        IterateLights(
-          (light) =>
-          {
-            _gpuPointLights[light]._color = _lights[light].LightColor;
-            _gpuPointLights[light]._pos = _lights[light].Position_World;
-            _gpuPointLights[light]._power = _lights[light].LightPower;
-            _gpuPointLights[light]._radius = _lights[light].LightRadius;
-          },
-          (light) =>
-          {
-            _gpuDirLights[light]._color = _lights[light].LightColor;
-            _gpuDirLights[light]._dir = _lights[light].Heading;
-            _gpuDirLights[light]._pos = _lights[light].Position_World;
-            _gpuDirLights[light]._power = _lights[light].LightPower;
-            _gpuDirLights[light]._radius = _lights[light].LightRadius;
-            _gpuWorld._iDirLightCount++;
-          });
+        FillLights();
 
         //**Leave these as default
         //_gpuWorld._fHdrSampleExp = 1.1f;
         //_gpuWorld._fHdrGamma = 2.2f;
         //_gpuWorld._fHdrExposure = 1.1f;
+
+        if(_gpuWorld._iDirLightCount > 0){
+          _gpuWorld._fHdrExposure = 0.75f + 1.2f;  //for Sun the exposure must be brighter this is hard coded for now
+        }
+        else{
+          _gpuWorld._fHdrExposure = 0.65f; 
+        }
 
         _gpuWorld._iShadowBoxCount = 0;
         _gpuWorld._fTimeSeconds = (float)(Gu.Milliseconds() % 1000) / 1000.0f;
@@ -531,30 +522,35 @@ namespace PirateCraft
         _gpuWorld._fFocalRange = 25.0f;
 
         ClearModified();
-        Lights.Modified = false;
+        PointLights.Modified = false;
       }
     }
-    private void IterateLights(Action<int> point, Action<int> dir)
+    private void FillLights()
     {
-      if (_lights != null)
+      if (_pointLights != null)
       {
-        //foreach (var light in _lights)
-        for (int iLight = 0; iLight < _lights.Count; iLight++)
+        _gpuWorld._iPointLightCount = _pointLights.Count;
+        _gpuWorld._iDirLightCount = _dirLights.Count;
+        _gpuPointLights = new GpuPointLight[_gpuWorld._iPointLightCount];
+        _gpuDirLights = new GpuDirLight[_gpuWorld._iDirLightCount];
+
+        for (int pi = 0; pi < _pointLights.Count; pi++)
         {
-          var light = _lights[iLight];
-          if (light.LightType == LightType.Point)
-          {
-            point(iLight);
-          }
-          else if (light.LightType == LightType.Direction)
-          {
-            dir(iLight);
-          }
-          else
-          {
-            Gu.BRThrowNotImplementedException();
-          }
+          _gpuPointLights[pi]._color = _pointLights[pi].LightColor;
+          _gpuPointLights[pi]._pos = _pointLights[pi].Position_World;
+          _gpuPointLights[pi]._power = _pointLights[pi].LightPower;
+          _gpuPointLights[pi]._radius = _pointLights[pi].LightRadius;
         }
+
+        for (int di = 0; di < _dirLights.Count; di++)
+        {
+          _gpuDirLights[di]._color = _dirLights[di].LightColor;
+          _gpuDirLights[di]._dir = new vec3(-1.1f,-1,-1.1f).normalized();// _dirLights[di].Heading;
+          _gpuDirLights[di]._pos = _dirLights[di].Position_World;
+          _gpuDirLights[di]._power = _dirLights[di].LightPower;
+          _gpuDirLights[di]._radius = _dirLights[di].LightRadius;
+        }
+
       }
     }
   }

@@ -22,8 +22,10 @@ void main(void)
   mat3 tbn = mat3(_vsTangent, _vsNormal ,bitangent );
   vec3 final_normal = tbn * tx_normal;//normalize in the deferred step
 
+
   setOutput_Color(albedo);  
   setOutput_Pick(_vsPick);  
-  setOutput_Normal(vec4(final_normal, 1));  
+  setOutput_Normal(vec4(final_normal,0));  //w unused right now
   setOutput_Position(vec4(_vsVertex, _ufGpuMaterial._flat));   
+  setOutput_Material(_ufGpuMaterial._vBlinnPhong_Spec);   
 }   

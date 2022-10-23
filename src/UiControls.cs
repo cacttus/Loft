@@ -86,13 +86,14 @@ namespace PirateCraft
     private UiContextMenu _contextMenu = null;
     private bool _isTopLevel = true;
     private UiMenuItem? _parentMenuItem = null;
+    public UiMenuItem? ParentMenuItem { get { return _parentMenuItem; } }
 
     public UiMenuItem(Phrase p = Phrase.None) : this(Gu.Translator.Translate(p))
     {
     }
-    public UiMenuItem(string text, Action<UiEvent>? act = null) : base(UiStyleName.MenuItem, text)
+    public UiMenuItem(string text, Action<UiEvent>? act = null) : base(UiStyleName.Label, "")
     {
-      Init();
+      Init(text);
       if (act != null)
       {
         Click(act);
@@ -100,7 +101,11 @@ namespace PirateCraft
     }
     public UiMenuItem AddSubMenu(Phrase p)
     {
-      return AddMenuItemOrSubMenu(Gu.Translator.Translate(p), true, null);
+      return AddSubMenu(Gu.Translator.Translate(p));
+    }
+    public UiMenuItem AddSubMenu(String s)
+    {
+      return AddMenuItemOrSubMenu(s, true, null);
     }
     public UiMenuItem AddItem(Phrase p, Action<UiEvent>? click = null)
     {
@@ -108,8 +113,13 @@ namespace PirateCraft
     }
     public UiMenuItem AddItem(string text, Action<UiEvent>? click = null)
     {
-      //daisy chaining these.
       AddMenuItemOrSubMenu(text, false, click);
+      return this;
+    }
+    public UiMenuItem AddItem(string text, string shortcut, Action<UiEvent>? click = null)
+    {
+      var item =AddMenuItemOrSubMenu(text, false, click);
+      item.CreateShortcut(shortcut);
       return this;
     }
     public UiMenuItem AddMenuItemOrSubMenu(string text, bool submenu, Action<UiEvent>? click = null)
@@ -122,7 +132,7 @@ namespace PirateCraft
       if (submenu)
       {
         item.Style.BorderRight = 16;
-        item.Style.BorderRightColor = vec4.rgba_ub(250, 250, 250);
+        item.Style.BorderColorRight = vec4.rgba_ub(250, 250, 250);
       }
       if (item._parentMenuItem != null && !(item._parentMenuItem is UiToolbarButton) && (_contextMenu == null || _contextMenu.Children == null || _contextMenu.Children.Count == 0))
       {
@@ -164,21 +174,51 @@ namespace PirateCraft
         }
       }
     }
-    private void Init()
+    public void CreateShortcut(string text)
+    {
+      if (text != "")
+      {
+        var test_shortcut = new UiElement();
+        test_shortcut.Text = text;
+        test_shortcut.Style.PositionMode = UiPositionMode.Static;
+        test_shortcut.Style.SizeModeWidth = UiSizeMode.Shrink;
+        test_shortcut.Style.SizeModeHeight = UiSizeMode.Expand;
+        test_shortcut.Style.DisplayMode = UiDisplayMode.InlineNoWrap;
+        test_shortcut.Style.Alignment = UiAlignment.Right;
+        test_shortcut.Style.TextAlign = UiAlignment.Right;
+        test_shortcut.Style.Border = 0;
+        test_shortcut.Style.Margin = 0;
+        test_shortcut.Style.Padding = 0;
+        this.AddChild(test_shortcut);
+      }
+    }
+    protected UiElement _label;
+    private void Init(string text)
     {
       this.Style.DisplayMode = UiDisplayMode.Inline;
-      this.Style.BorderLeft = 2;
-      this.Style.BorderRight = 2;
+      this.Style.BorderLeft = 1;
+      this.Style.BorderRight = 1;
       this.Style.BorderColor = vec4.rgba_ub(190, 190, 190);
 
+      _label = new UiElement();
+      _label.Text = text;
+      _label.Style.SizeModeWidth = UiSizeMode.Shrink;
+      _label.Style.SizeModeHeight = UiSizeMode.Shrink;
+      _label.Style.PositionMode = UiPositionMode.Static;
+      _label.Style.DisplayMode = UiDisplayMode.InlineNoWrap;
+      _label.Style.MinWidth = 100;
+      _label.Style.Margin = _label.Style.Border = _label.Style.Padding =0;
+      this.AddChild(_label);
+
+      this.Style.FontSize = 16;
       this.Style.SizeModeWidth = UiSizeMode.Expand;
       this.Style.SizeModeHeight = UiSizeMode.Shrink;
       this.Style.PositionMode = UiPositionMode.Static;
-      this.Style.MaxWidth = 500;
+      this.Style.MaxWidth = 600;
       this.Style.MinWidth = 0;
-      this.Style.MarginTop = this.Style.MarginBot = 6;
-      this.Style.MarginLeft = this.Style.MarginRight = 20;
-      this.Style.Padding = 0;
+      this.Style.MarginTop = this.Style.MarginBot = 5;
+      this.Style.MarginLeft = this.Style.MarginRight = 10;
+      this.Style.Padding = 0;//Do not use padding
 
       var that = this;
       this.AddEvent(UiEventId.Lost_Press_Focus, (e) =>
@@ -260,7 +300,7 @@ namespace PirateCraft
             }
             else
             {
-              _contextMenu.Style.Top = this.FinalQuad.Top - 2;
+              _contextMenu.Style.Top = this.FinalQuad.Top - _contextMenu.Style._props.BorderTop;
               _contextMenu.Style.Left = Parent.FinalQuad.Right;
             }
             _contextMenu.Show();
@@ -271,6 +311,9 @@ namespace PirateCraft
   }
   public class UiLabel : UiControl
   {
+    public UiLabel(Phrase p) : this(Gu.Translator.Translate(p))
+    {
+    }
     public UiLabel(string text) : base(text)
     {
     }
@@ -316,6 +359,9 @@ namespace PirateCraft
     }
     public UiToolbarButton(string text) : base(text)
     {
+      if(this._label!=null){
+        this._label.Style.MinWidth = 0;
+      }
       //expand height, but set minimum height to be contents?
       this.Style.SizeModeHeight = UiSizeMode.Expand;
       this.Style.SizeModeWidth = UiSizeMode.Shrink;
@@ -324,6 +370,8 @@ namespace PirateCraft
       this.Style.BorderLeft = 0;
       this.Style.Border = 0;
       this.Style.Color = vec4.rgba_ub(240, 240, 240);
+      this.Style.MarginTop = this.Style.MarginBot = 5;
+      this.Style.MarginLeft = this.Style.MarginRight = 10;
 
       this.AddEvent(UiEventId.Mouse_Enter, (e) =>
       {
@@ -348,8 +396,19 @@ namespace PirateCraft
   {
     public override string NamingPrefix { get { return "tlb"; } }
 
-    public UiToolbar() : base(UiStyleName.Toolbar)
+    public UiToolbar() : base(UiStyleName.BaseControl)
     {
+      this.Style.MinWidth = 0;
+      this.Style.MinHeight = 20;
+      this.Style.MaxWidth = Gui2d.MaxSize;
+      this.Style.SizeModeWidth = UiSizeMode.Expand;
+      this.Style.SizeModeHeight = UiSizeMode.Shrink;
+      this.Style.MaxHeight = 60;
+      this.Style.Margin = 0;
+      this.Style.Padding = 0;
+      this.Style.BorderBot = 1;
+      this.Style.Color = vec4.rgba_ub(240, 240, 240);
+      this.Style.BorderColorBot = vec4.rgba_ub(110, 110, 110);
     }
 
     public UiMenuItem AddItem(UiMenuItem item)
@@ -362,14 +421,40 @@ namespace PirateCraft
   public class UiContextMenu : UiElement
   {
     public override string NamingPrefix { get { return "ctxm"; } }
-    public UiContextMenu() : base(UiStyleName.ContextMenu)
+    public UiContextMenu() : base(UiStyleName.Label)
     {
       this.Style.BorderColor = vec4.rgba_ub(190, 190, 190);
-      this.Style.BorderBot = 2;
-      this.Style.BorderTop = 2;
+      this.Style.Padding = 0;
+      this.Style.Margin = 0;
+      this.Style.Border = 0;
+      this.Style.BorderBot = 1;
+      this.Style.BorderTop = 1;
+      this.Style.Color = vec4.rgba_ub(245, 245, 245, 255);
+      this.Style.PositionMode = UiPositionMode.Absolute;
+      this.Style.FloatMode = UiFloatMode.Floating;
+      this.Style.MaxWidth = 500;
+      this.Style.MinWidth = 10;
+      this.Style.SizeModeWidth = UiSizeMode.Shrink;
+      //   this.Style.    //OverflowMode = UiOverflowMode.Show;
+      this.Style.SizeModeHeight = UiSizeMode.Shrink;
+      this.Style.MultiplyColor = new vec4(1, 1);
       //context menu should have no pad or margin and wont need events
     }
   }//cls
+
+  public class UiPanel : UiElement
+  {
+    public UiPanel()
+    {
+      this.Style.SizeModeWidth = UiSizeMode.Expand;
+      this.Style.SizeModeHeight = UiSizeMode.Expand;
+      this.Style.Padding = 0;
+      this.Style.Margin = 10;
+      this.Style.BorderRadius = 0;
+      this.Style.FontFace = FontFace.Calibri;
+      this.Style.FontSize = 16;
+    }
+  }
 
   public class UiWindow : UiElement
   {

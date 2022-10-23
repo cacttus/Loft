@@ -54,7 +54,7 @@ namespace PirateCraft
     public EventComponent(Action<WorldObject>? action, double tick_seconds, ActionRepeat repeat, ActionState start)
     {
       Action = action;
-      Timer = new DeltaTimer((long)(tick_seconds * 1000.0), repeat, start , null);
+      Timer = new DeltaTimer((long)(tick_seconds * 1000.0), repeat, start, null);
     }
     public override void OnCreate(WorldObject myObj)
     {
@@ -492,6 +492,8 @@ namespace PirateCraft
     }
     public override void OnCreate(WorldObject myObj)
     {
+      myObj.HasPhysics = true;
+      myObj.HasGravity = false;
     }
     public override void OnUpdate(double dt, WorldObject myObj)
     {
@@ -516,9 +518,9 @@ namespace PirateCraft
       //removing cammode for now
       // if (CamMode == FPSCamMode.Flying)
       // {
-      basis.x = cam.BasisX_World;
-      basis.y = cam.BasisY_World;
-      basis.z = cam.BasisZ_World;
+      basis.x = myObj.BasisX_World;
+      basis.y = myObj.BasisY_World;
+      basis.z = myObj.BasisZ_World;
       // }
       // else if (CamMode == FPSCamMode.Playing)
       // {
@@ -533,7 +535,7 @@ namespace PirateCraft
     }
     private void DoMouse(WorldObject obj, Camera3D cam, vec3basis basis)
     {
-      if (cam.View != null && cam.View.TryGetTarget(out var view))
+      if (cam.RenderView != null && cam.RenderView.TryGetTarget(out var view))
       {
         //Rotate Camera
         float width = view.Viewport.Width;
@@ -596,10 +598,10 @@ namespace PirateCraft
             quat qy = quat.fromAxisAngle(new vec3(0, 1, 0), (float)rotX).normalized();
             quat qx = quat.fromAxisAngle(new vec3(1, 0, 0), (float)rotY).normalized();
 
-            obj.Rotation_Local = qy;
+            obj.Rotation_Local = qy * qx;
             obj.SanitizeTransform();
-            cam.Rotation_Local = qx;
-            cam.SanitizeTransform();
+            //cam.Rotation_Local = qx;
+            //cam.SanitizeTransform();
 
             ms_move_editing_must_warp = true;
           }

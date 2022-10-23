@@ -585,6 +585,7 @@ namespace PirateCraft
       FramebufferAttachment position = new FramebufferAttachment("Position", RenderTargetType.Color, _deferredFBOWidth, _deferredFBOHeight, samples);
       FramebufferAttachment depth = new FramebufferAttachment("Depth", RenderTargetType.Depth, _deferredFBOWidth, _deferredFBOHeight, samples);
       FramebufferAttachment postprocess = new FramebufferAttachment("Postprocess", RenderTargetType.Color, _deferredFBOWidth, _deferredFBOHeight, samples);
+      FramebufferAttachment material = new FramebufferAttachment("Material", RenderTargetType.Color, _deferredFBOWidth, _deferredFBOHeight, samples);
 
       Gu.Log.Debug("[Renderer] Creating Pipeline");
 
@@ -597,6 +598,7 @@ namespace PirateCraft
           new PipelineAttachment(ShaderOutput.Pick, pick),
           new PipelineAttachment(ShaderOutput.Normal, normal),
           new PipelineAttachment(ShaderOutput.Position, position),
+          new PipelineAttachment(ShaderOutput.Material, material),
           new PipelineAttachment(ShaderOutput.Depth, depth)
         }, (rv) => { }, (rv) => { });
 
@@ -618,7 +620,9 @@ namespace PirateCraft
           new PipelineAttachment(ShaderInput.Color, color_df),
           new PipelineAttachment(ShaderInput.Normal, normal),
           new PipelineAttachment(ShaderInput.Position, position),
-          new PipelineAttachment(ShaderInput.Depth, depth) },
+          new PipelineAttachment(ShaderInput.Material, material),
+          new PipelineAttachment(ShaderInput.Depth, depth) ,
+          },
         new List<PipelineAttachment>() { new PipelineAttachment(ShaderOutput.Color, color_fw), }
         , (rv) => { }, (rv) => { },
         "v_v3x2_deferred"

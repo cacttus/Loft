@@ -4,6 +4,12 @@ using OpenTK.Graphics.OpenGL4;
 
 namespace PirateCraft
 {
+  public enum DebugObjectRenderMode{
+    Solid,//needs dir lights.
+    Wire,
+    Flat,//material preview
+    Material
+  }
   //Debug Draw with points or lines.
   public class DebugDraw
   {
@@ -15,7 +21,8 @@ namespace PirateCraft
     public bool DrawBoundBoxes { get; set; } = false;
     public bool DrawVertexAndFaceNormalsAndTangents { get; set; } = false;
     public bool DrawObjectBasis { get; set; } = false;
-    public bool DrawWireframeOverlay { get; set; } = false;
+    public bool DrawWireframeOverlay { get; set; } = false; //overlay, or base render.
+    public DebugObjectRenderMode ObjectRenderMode { get; set; } = DebugObjectRenderMode.Material;   
     
     public DebugDraw()
     {

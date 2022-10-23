@@ -11,26 +11,26 @@ namespace PirateCraft
 {
   public enum UiStyleName
   {
-     Inline ,
-     BaseControl ,
-     Label ,
-     DebugLabel ,
-     Panel ,
-     Button ,
-     Toolbar ,
-     StatusBar ,
-     ContextMenu ,
-     EditGuiRoot ,
-     VerticalBar ,
-     MenuItem ,
-     HBar ,
-     ToolbarButton ,
+    Inline,
+    BaseControl,
+    Label,
+    DebugLabel,
+    Panel,
+    Button,
+    Toolbar,
+    StatusBar,
+    ContextMenu,
+    EditGuiRoot,
+    VerticalBar,
+    MenuItem,
+    HBar,
+    ToolbarButton,
   }
   //Hard coded User interface stuff.
   //Gui build
   public class UiBuilder
   {
-  
+
     public static List<FileLoc> GetSharedGUIResources()
     {
       return new List<FileLoc>(){
@@ -85,111 +85,14 @@ namespace PirateCraft
           MarginTop = 1,
           MarginBot = 3,
         },
-        new UiStyle(UiStyleName.VerticalBar, UiStyleName.BaseControl)
-        {
-          SizeModeWidth = UiSizeMode.Shrink,
-          SizeModeHeight = UiSizeMode.Expand,
-          PositionMode = UiPositionMode.Static,
-          DisplayMode = UiDisplayMode.Inline,
-          Width = 1,
-          MarginTop= 2,
-          MarginBot= 2,
-          MarginLeft=2,
-          MarginRight=2,
-          Padding = 0,
-          Color = new vec4(0.6f, 0.6f, 0.6f, 0.8f),
-        },
-        new UiStyle(UiStyleName.HBar)
-        {
-          RenderMode = UiRenderMode.Color,
-          SizeModeWidth = UiSizeMode.Expand,
-          SizeModeHeight = UiSizeMode.Shrink,
-          PositionMode = UiPositionMode.Static,
-          DisplayMode = UiDisplayMode.Inline,
-          Height = 1,
-          MinHeight = 1,
-          MarginTop = 2,
-          MarginBot = 2,
-          MarginLeft = 2,
-          MarginRight = 2,
-          PadLeft = 2,
-          PadRight = 2,
-          Color = new vec4(0.6f, 0.6f, 0.6f, 1),
-        },
         new UiStyle(UiStyleName.DebugLabel, UiStyleName.Label)
         {
           MaxWidth = 500
           ,FontSize = 16
           ,DisplayMode = UiDisplayMode.Block
-          ,MarginLeft = 20
-          ,MarginRight = 40
-          ,PadLeft = 20
-          ,PadRight = 40
+          ,Margin = 5
+          ,Padding = 3
           , FontFace = FontFace.RobotoMono
-        },
-
-        new UiStyle(UiStyleName.Panel, UiStyleName.BaseControl)
-        {
-          SizeModeWidth = UiSizeMode.Expand,
-          SizeModeHeight = UiSizeMode.Expand,
-          Padding = 0,
-          Margin = 10,
-          BorderRadius = 0,
-          FontFace = FontFace.Calibri,
-          FontSize = 16
-        },
-        new UiStyle(UiStyleName.EditGuiRoot)
-        {
-          SizeModeWidth = UiSizeMode.Expand,
-          SizeModeHeight = UiSizeMode.Expand,
-          MinWidth = 0,
-          MinHeight = 0,
-          MaxWidth = Gui2d.MaxSize,
-          MaxHeight = Gui2d.MaxSize,
-          DisplayMode = UiDisplayMode.Inline,
-          PositionMode = UiPositionMode.Relative
-        },
-        new UiStyle(UiStyleName.ContextMenu, UiStyleName.Label)
-        {
-          Color = vec4.rgba_ub(245,245,245, 255),
-          PositionMode = UiPositionMode.Absolute,
-          FloatMode = UiFloatMode.Floating,
-          MaxWidth = 500,
-          MinWidth = 10,
-          SizeModeWidth = UiSizeMode.Shrink,
-          //OverflowMode = UiOverflowMode.Show,
-          SizeModeHeight = UiSizeMode.Shrink,
-          Padding=0,
-          Border=0,
-          Margin=0,
-          MultiplyColor = new vec4(1,1)
-        },
-        new UiStyle(UiStyleName.MenuItem, UiStyleName.Label)
-        {
-          SizeModeWidth = UiSizeMode.Expand,
-          SizeModeHeight = UiSizeMode.Shrink,
-          PositionMode = UiPositionMode.Static,
-          MaxWidth = 500,
-          MinWidth = 0,
-          MarginTop = 6,
-          MarginBot = 6,
-          MarginLeft = 20,
-          MarginRight = 20,
-          Padding=0,
-        },
-        new UiStyle(UiStyleName.Toolbar, UiStyleName.BaseControl)
-        {
-          MinWidth = 0,
-          MinHeight = 20,
-          MaxWidth = Gui2d.MaxSize,
-          SizeModeWidth = UiSizeMode.Expand,
-          SizeModeHeight = UiSizeMode.Shrink,
-          MaxHeight = 60,
-          Margin=0,
-          Padding=0,
-          BorderBot=1,
-          Color = vec4.rgba_ub(240,240,240),
-          BorderBotColor = vec4.rgba_ub(110,110,110)
         },
       };
     }
@@ -203,37 +106,94 @@ namespace PirateCraft
         ;
 
       toolbar.AddItem(new UiToolbarButton(Phrase.Edit))
-        .AddItem("Undo", e => Gu.World.Editor.DoEvent(WorldEditEvent.Edit_Undo))
-        .AddItem("Redo", e => Gu.World.Editor.DoEvent(WorldEditEvent.Edit_Redo))
-        .AddItem("Delete", e => Gu.World.Editor.DoEvent(WorldEditEvent.Edit_Delete))
+        .AddItem("Undo", "Ctrl+Z", e => Gu.World.Editor.DoEvent(WorldEditEvent.Edit_Undo))
+        .AddItem("Redo", "Ctrl+Shift+Z", e => Gu.World.Editor.DoEvent(WorldEditEvent.Edit_Redo))
+        .AddItem("Delete", "X", e => Gu.World.Editor.DoEvent(WorldEditEvent.Edit_Delete))
         ;
 
-string ipsum = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Id cursus metus aliquam eleifend mi. Cras ornare arcu dui vivamus arcu felis. Eu ultrices vitae auctor eu augue ut lectus arcu bibendum. Etiam tempor orci eu lobortis elementum nibh. Aliquet porttitor lacus luctus accumsan tortor posuere ac ut. Nulla aliquet enim tortor at auctor urna nunc. Ultricies lacus sed turpis tincidunt id aliquet. Elit pellentesque habitant morbi tristique senectus et netus. Ac turpis egestas integer eget aliquet nibh. Amet commodo nulla facilisi nullam vehicula ipsum a arcu cursus. Tellus in hac habitasse platea dictumst vestibulum rhoncus. Dis parturient montes nascetur ridiculus. Augue interdum velit euismod in pellentesque massa placerat duis. Consectetur adipiscing elit ut aliquam purus sit amet luctus venenatis. Egestas purus viverra accumsan in nisl nisi.";
-string ipsum_long = "Sodales ut etiam sit amet nisl purus in. Porta non pulvinar neque laoreet suspendisse interdum consectetur. Gravida arcu ac tortor dignissim. Nisl suscipit adipiscing"+
- "bibendum est ultricies integer quis auctor. Molestie at elementum eu facilisis sed odio morbi. Magna ac placerat vestibulum lectus mauris ultrices eros in cursus. Lacus laoreet non curabitur "+
- "gravida arcu ac. Est velit egestas dui id ornare arcu odio ut sem. Dictum varius duis at consectetur. Mus mauris vitae ultricies leo integer. Tellus orci ac auctor augue mauris augue neque gravida "+
- "in. Purus non enim praesent elementum facilisis leo vel fringilla est. Quam adipiscing vitae proin sagittis nisl rhoncus mattis rhoncus urna. Proin sagittis nisl "+
-"rhoncus mattis rhoncus. Velit scelerisque in dictum non. Tristique senectus et netus et. Egestas maecenas pharetra convallis posuere. Bibendum arcu vitae elementum curabitur."+
-"Turpis egestas maecenas pharetra convallis posuere morbi leo. Elit sed vulputate mi sit amet mauris commodo. Nulla facilisi morbi tempus iaculis urna id volutpat. Convallis posuere morbi leo"+
- "urna molestie at elementum. Nec dui nunc mattis enim ut. Pharetra sit amet aliquam id diam maecenas ultricies mi. Elementum curabitur vitae nunc sed velit dignissim. Nec ultrices dui sapien"+
-  "eget mi proin sed libero enim. Nibh cras pulvinar mattis nunc sed blandit libero volutpat sed. Sed augue lacus viverra vitae. Sed ullamcorper morbi tincidunt ornare massa eget egestas. Eget nunc "+
-  "scelerisque viverra mauris in. Maecenas volutpat blandit aliquam etiam. Sagittis vitae et leo duis. Vel orci porta non pulvinar. Praesent elementum facilisis leo vel fringilla.";
+      string ipsum = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Id cursus metus aliquam eleifend mi. Cras ornare arcu dui vivamus arcu felis. Eu ultrices vitae auctor eu augue ut lectus arcu bibendum. Etiam tempor orci eu lobortis elementum nibh. Aliquet porttitor lacus luctus accumsan tortor posuere ac ut. Nulla aliquet enim tortor at auctor urna nunc. Ultricies lacus sed turpis tincidunt id aliquet. Elit pellentesque habitant morbi tristique senectus et netus. Ac turpis egestas integer eget aliquet nibh. Amet commodo nulla facilisi nullam vehicula ipsum a arcu cursus. Tellus in hac habitasse platea dictumst vestibulum rhoncus. Dis parturient montes nascetur ridiculus. Augue interdum velit euismod in pellentesque massa placerat duis. Consectetur adipiscing elit ut aliquam purus sit amet luctus venenatis. Egestas purus viverra accumsan in nisl nisi.";
+      string ipsum_long = "Sodales ut etiam sit amet nisl purus in. Porta non pulvinar neque laoreet suspendisse interdum consectetur. Gravida arcu ac tortor dignissim. Nisl suscipit adipiscing" +
+       "bibendum est ultricies integer quis auctor. Molestie at elementum eu facilisis sed odio morbi. Magna ac placerat vestibulum lectus mauris ultrices eros in cursus. Lacus laoreet non curabitur " +
+       "gravida arcu ac. Est velit egestas dui id ornare arcu odio ut sem. Dictum varius duis at consectetur. Mus mauris vitae ultricies leo integer. Tellus orci ac auctor augue mauris augue neque gravida " +
+       "in. Purus non enim praesent elementum facilisis leo vel fringilla est. Quam adipiscing vitae proin sagittis nisl rhoncus mattis rhoncus urna. Proin sagittis nisl " +
+      "rhoncus mattis rhoncus. Velit scelerisque in dictum non. Tristique senectus et netus et. Egestas maecenas pharetra convallis posuere. Bibendum arcu vitae elementum curabitur." +
+      "Turpis egestas maecenas pharetra convallis posuere morbi leo. Elit sed vulputate mi sit amet mauris commodo. Nulla facilisi morbi tempus iaculis urna id volutpat. Convallis posuere morbi leo" +
+       "urna molestie at elementum. Nec dui nunc mattis enim ut. Pharetra sit amet aliquam id diam maecenas ultricies mi. Elementum curabitur vitae nunc sed velit dignissim. Nec ultrices dui sapien" +
+        "eget mi proin sed libero enim. Nibh cras pulvinar mattis nunc sed blandit libero volutpat sed. Sed augue lacus viverra vitae. Sed ullamcorper morbi tincidunt ornare massa eget egestas. Eget nunc " +
+        "scelerisque viverra mauris in. Maecenas volutpat blandit aliquam etiam. Sagittis vitae et leo duis. Vel orci porta non pulvinar. Praesent elementum facilisis leo vel fringilla.";
 
       toolbar.AddItem(new UiToolbarButton("Test"))
         .AddItem("Show Message Box", e => Gu.MessageBox("Guess what?", $"Calling you direct from 1-800-{e.Element._iPickId}"))
-        .AddItem("DO TOAST", e=> e.State.Gui?.RenderView?.Toast.Show("Hello world!"))
-        .AddSubMenu(Phrase.Atlas)
-          .AddItem("big toast", e=> e.State.Gui?.RenderView?.Toast.Show($"This is a particularly long toast:{ipsum}"))
-          .AddSubMenu(Phrase.Dark)
-            .AddItem(Phrase.CopyItem)
-            .AddItem(Phrase.NewProject)
-            .AddItem(Phrase.TileSize)
-            .AddSubMenu(Phrase.Version)
-              .AddSubMenu(Phrase.Info)
+        .AddSubMenu("toasts..")
+          .AddItem("do toast", (e) =>
+          {
+            e.State.Gui.RenderView.Toast.Style.FontSize = null;
+            e.State.Gui.RenderView.Toast.Style.Color = null;
+            e.State.Gui.RenderView.Toast.Style.FontColor = null;
+            e.State.Gui?.RenderView?.Toast.Show("Hello world!");
+          })
+          .AddItem("error toast", (e) =>
+          {
+            e.State.Gui.RenderView.Toast.Style.FontSize = null;
+            e.State.Gui.RenderView.Toast.Style.Color = new vec4(.9f, .3f, .4f, 1);
+            e.State.Gui.RenderView.Toast.Style.FontColor = new vec4(.991f, .979f, .899f, 1);
+            e.State.Gui?.RenderView?.Toast.Show("Error:\nSome really long error message:");
+          })
+          .AddItem("long toast", (e) =>
+          {
+
+            e.State.Gui.RenderView.Toast.Style.FontSize = null;
+            e.State.Gui.RenderView.Toast.Style.Color = null;
+            e.State.Gui.RenderView.Toast.Style.FontColor = null;
+            e.State.Gui?.RenderView?.Toast.Show($"{Gu.Translator.Translate(Phrase.LongText)}");
+          })
+          .AddItem("huge text toast", (e) =>
+          {
+            e.State.Gui.RenderView.Toast.Style.FontSize = 90;
+            e.State.Gui.RenderView.Toast.Style.Color = null;
+            e.State.Gui.RenderView.Toast.Style.FontColor = null;
+            e.State.Gui?.RenderView?.Toast.Show($"This is some HUGE text.\n0123456789");
+          })
+          .AddItem("5px toast", (e) =>
+          {
+            e.State.Gui.RenderView.Toast.Style.FontSize = 5;
+            e.State.Gui.RenderView.Toast.Style.Color = null;
+            e.State.Gui.RenderView.Toast.Style.FontColor = null;
+            e.State.Gui?.RenderView?.Toast.Show($"This is some smol text.\n0123456789");
+          })
+          .AddItem("8px bigger toast", (e) =>
+          {
+            e.State.Gui.RenderView.Toast.Style.FontSize = 8;
+            e.State.Gui.RenderView.Toast.Style.Color = null;
+            e.State.Gui.RenderView.Toast.Style.FontColor = null;
+            e.State.Gui?.RenderView?.Toast.Show($"This is some smol text.\n0123456789");
+          })
+          .AddItem("10px bigger toast", (e) =>
+          {
+            e.State.Gui.RenderView.Toast.Style.FontSize = 10;
+            e.State.Gui.RenderView.Toast.Style.Color = null;
+            e.State.Gui.RenderView.Toast.Style.FontColor = null;
+            e.State.Gui?.RenderView?.Toast.Show($"This is some smol text.\n0123456789");
+          })
+          .AddItem("12px bigger toast", (e) =>
+          {
+            e.State.Gui.RenderView.Toast.Style.FontSize = 12;
+            e.State.Gui.RenderView.Toast.Style.Color = null;
+            e.State.Gui.RenderView.Toast.Style.FontColor = null;
+            e.State.Gui?.RenderView?.Toast.Show($"This is some smol text.\n0123456789");
+          })
+            .ParentMenuItem
+            .AddSubMenu(Phrase.Atlas)
+              .AddSubMenu(Phrase.Dark)
+                .AddItem(Phrase.CopyItem)
+                .AddItem(Phrase.NewProject)
+                .AddItem(Phrase.TileSize)
                 .AddSubMenu(Phrase.Version)
-                  .AddItem(Phrase.AtlasParameters)
-                  .AddItem(Phrase.RemoveItem)
-                  ;
+                  .AddSubMenu(Phrase.Info)
+                    .AddSubMenu(Phrase.Version)
+                      .AddItem(Phrase.AtlasParameters)
+                      .AddItem(Phrase.RemoveItem)
+                      ;
 
       //*** Debug info panels
       rv.WorldDebugInfo = new UiElement(UiStyleName.DebugLabel);
@@ -248,12 +208,20 @@ string ipsum_long = "Sodales ut etiam sit amet nisl purus in. Porta non pulvinar
       rv.ControlsInfo.Visible = false;
 
       //Root the edit GUI so we can hide it.
-      var editgui_root = new UiElement(UiStyleName.EditGuiRoot);
+      var editgui_root = new UiElement();
+      editgui_root.Style.SizeModeWidth = UiSizeMode.Expand;
+      editgui_root.Style.SizeModeHeight = UiSizeMode.Expand;
+      editgui_root.Style.MinWidth = 0;
+      editgui_root.Style.MinHeight = 0;
+      editgui_root.Style.MaxWidth = Gui2d.MaxSize;
+      editgui_root.Style.MaxHeight = Gui2d.MaxSize;
+      editgui_root.Style.DisplayMode = UiDisplayMode.Inline;
+      editgui_root.Style.PositionMode = UiPositionMode.Relative;
       editgui_root.AddChild(toolbar);//testing all the jacked up chagnes
       editgui_root.AddChild(rv.WorldDebugInfo);
       editgui_root.AddChild(rv.GpuDebugInfo);
       editgui_root.AddChild(rv.ControlsInfo);
-      rv.Toast =new UiToast("this is toast");
+      rv.Toast = new UiToast("This is a toast!");
       editgui_root.AddChild(rv.Toast);
       //editgui_root.AddChild(TestTextAlign());
 
@@ -315,27 +283,27 @@ string ipsum_long = "Sodales ut etiam sit amet nisl purus in. Porta non pulvinar
       return testcont;
     }
 
-      // //testing new border stuff
-      // UiElement eee = new UiElement("testbor", null, "hElLo!");
-      // eee.Style.Width = 60;
-      // eee.Style.Height = 30;
-      // eee.Style.SizeModeWidth = UiSizeMode.Shrink;
-      // eee.Style.SizeModeHeight = UiSizeMode.Fixed;
-      // eee.Style.BorderRadius = 4;
-      // eee.Style.BorderTop = 5;
-      // eee.Style.DisplayMode = UiDisplayMode.Inline;
-      // eee.Style.BorderTopColor = new vec4(1, 0, 0, 1);
-      // eee.Style.BorderRight = 5;
-      // eee.Style.BorderRightColor = new vec4(0, 1, 0, 1);
-      // eee.Style.BorderBot = 5;
-      // eee.Style.BorderBotColor = new vec4(0, 0, 1, 1);
-      // eee.Style.BorderLeft = 5;
-      // eee.Style.BorderLeftColor = new vec4(1, 0, 1, 1);
-      // eee.Style.FontSize = 14;
-      // eee.Style.Padding = 0;
-      // eee.Style.PadLeft = 1;
-      // eee.Style.Margin = 0;
-      // toolbar.AddChild(eee);
+    // //testing new border stuff
+    // UiElement eee = new UiElement("testbor", null, "hElLo!");
+    // eee.Style.Width = 60;
+    // eee.Style.Height = 30;
+    // eee.Style.SizeModeWidth = UiSizeMode.Shrink;
+    // eee.Style.SizeModeHeight = UiSizeMode.Fixed;
+    // eee.Style.BorderRadius = 4;
+    // eee.Style.BorderTop = 5;
+    // eee.Style.DisplayMode = UiDisplayMode.Inline;
+    // eee.Style.BorderTopColor = new vec4(1, 0, 0, 1);
+    // eee.Style.BorderRight = 5;
+    // eee.Style.BorderRightColor = new vec4(0, 1, 0, 1);
+    // eee.Style.BorderBot = 5;
+    // eee.Style.BorderBotColor = new vec4(0, 0, 1, 1);
+    // eee.Style.BorderLeft = 5;
+    // eee.Style.BorderLeftColor = new vec4(1, 0, 1, 1);
+    // eee.Style.FontSize = 14;
+    // eee.Style.Padding = 0;
+    // eee.Style.PadLeft = 1;
+    // eee.Style.Margin = 0;
+    // toolbar.AddChild(eee);
 
 
   }//cls

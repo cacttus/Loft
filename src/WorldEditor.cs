@@ -248,7 +248,7 @@ namespace PirateCraft
       public float ConstraintZ;
       public vec3 Axis;
       public vec3 Origin;
-      public bool IsPlane=false;
+      public bool IsPlane = false;
       public ObjectXFormSpace(mat4 space, float cx, float cy, float cz, vec3 axis, vec3 origin, bool isplane)
       {
         Space = space;
@@ -257,7 +257,7 @@ namespace PirateCraft
         ConstraintZ = cz;
         Origin = origin;
         Axis = axis;
-        IsPlane=isplane;
+        IsPlane = isplane;
       }
     }
     public enum MoveRotateScale
@@ -383,7 +383,7 @@ namespace PirateCraft
       ObjectXFormSpace ret = null;
 
       var ob_origin = vec3.Zero;
-          bool plane = false;
+      bool plane = false;
       vec3 basisX = new vec3(1, 0, 0), basisY = new vec3(0, 1, 0), basisZ = new vec3(0, 0, 1);
       float cX = 1, cY = 1, cZ = 1;
       mat4 mspace = new mat4();
@@ -392,7 +392,7 @@ namespace PirateCraft
       if (space == XFormSpace.Free)
       {
         //"view" translation or "free"
-       // mspace = new mat4(new vec4(c.BasisX_World, 0), new vec4(-c.BasisZ_World, 0), new vec4(c.BasisY_World, 0), new vec4(0, 0, 0, 1));
+        // mspace = new mat4(new vec4(c.BasisX_World, 0), new vec4(-c.BasisZ_World, 0), new vec4(c.BasisY_World, 0), new vec4(0, 0, 0, 1));
         cX = cZ = 1;
         cY = 0;
         axis = _global_axis;
@@ -402,13 +402,13 @@ namespace PirateCraft
       {
         //local/global
 
-        if (_current_XForm == WorldEditEvent.MRS_TransformAxisX) { cX = 1; cY = 0; cZ = 0; axis = new vec3(1,0,0); plane = false;}
-        else if (_current_XForm == WorldEditEvent.MRS_TransformAxisY) { cX = 0; cY = 1; cZ = 0;  axis = new vec3(0,1,0); plane = false;}
-        else if (_current_XForm == WorldEditEvent.MRS_TransformAxisZ) { cX = 0; cY = 0; cZ = 1;  axis = new vec3(0,0,1); plane = false;}
+        if (_current_XForm == WorldEditEvent.MRS_TransformAxisX) { cX = 1; cY = 0; cZ = 0; axis = new vec3(1, 0, 0); plane = false; }
+        else if (_current_XForm == WorldEditEvent.MRS_TransformAxisY) { cX = 0; cY = 1; cZ = 0; axis = new vec3(0, 1, 0); plane = false; }
+        else if (_current_XForm == WorldEditEvent.MRS_TransformAxisZ) { cX = 0; cY = 0; cZ = 1; axis = new vec3(0, 0, 1); plane = false; }
 
-        else if (_current_XForm == WorldEditEvent.MRS_TransformPlaneX) { cX = 0; cY = 1; cZ = 1;  axis = new vec3(1,0,0); plane = true;}
-        else if (_current_XForm == WorldEditEvent.MRS_TransformPlaneY) { cX = 1; cY = 0; cZ = 1;  axis = new vec3(0,1,0); plane = true;}
-        else if (_current_XForm == WorldEditEvent.MRS_TransformPlaneZ) { cX = 1; cY = 1; cZ = 0;  axis = new vec3(0,0,1); plane = true;}
+        else if (_current_XForm == WorldEditEvent.MRS_TransformPlaneX) { cX = 0; cY = 1; cZ = 1; axis = new vec3(1, 0, 0); plane = true; }
+        else if (_current_XForm == WorldEditEvent.MRS_TransformPlaneY) { cX = 1; cY = 0; cZ = 1; axis = new vec3(0, 1, 0); plane = true; }
+        else if (_current_XForm == WorldEditEvent.MRS_TransformPlaneZ) { cX = 1; cY = 1; cZ = 0; axis = new vec3(0, 0, 1); plane = true; }
 
         if (space == XFormSpace.Global)
         {
@@ -416,7 +416,7 @@ namespace PirateCraft
         }
         else if (space == XFormSpace.Local)
         {
-          axis = (_lastMat[obi].inverseOf() * new vec4(axis,1)).toVec3().normalize();
+          axis = (_lastMat[obi].inverseOf() * new vec4(axis, 1)).toVec3().normalize();
           mspace = _lastMat[obi].toQuat().toMat4();
         }
       }
@@ -516,11 +516,11 @@ namespace PirateCraft
 
           var axis = (space.Space.Row1.xyz() * space.ConstraintX + space.Space.Row2.xyz() * space.ConstraintY + space.Space.Row3.xyz() * space.ConstraintZ).normalize();
           //float delta = CalcDelta(axis, space.Origin, screen_ray, space.ConstraintX, space.ConstraintY, space.ConstraintZ);
-float delta = 0;
+          float delta = 0;
           mat4 mn = mat4.Identity;
           if (this._type == MoveRotateScale.Move)
           {
-            delta = DoMove(space.Axis,space.Origin,space.IsPlane, screen_ray, space.ConstraintX,space.ConstraintY,space.ConstraintZ);
+            delta = DoMove(space.Axis, space.Origin, space.IsPlane, screen_ray, space.ConstraintX, space.ConstraintY, space.ConstraintZ);
             //p.Position = Translate(space.Axis, space.Origin, space.Plane, screen_ray);
           }
           if (this._type == MoveRotateScale.Rotate)
@@ -598,9 +598,9 @@ float delta = 0;
         vec3 pt_cur = vec3.Zero;
         vec3 pt_start = vec3.Zero;
         bool didhit = true;
-        didhit = didhit && pf.IntersectLine(_xform_mouseStartRay.Value.p0, _xform_mouseStartRay.Value.p1, out pt_start) ;
-        didhit = didhit && pf.IntersectLine(screen_ray.Value.p0, screen_ray.Value.p1, out  pt_cur) ;
-        if(didhit)
+        didhit = didhit && pf.IntersectLine(_xform_mouseStartRay.Value.p0, _xform_mouseStartRay.Value.p1, out pt_start);
+        didhit = didhit && pf.IntersectLine(screen_ray.Value.p0, screen_ray.Value.p1, out pt_cur);
+        if (didhit)
         {
           float len0 = (pt_cur - origin).len2();
           float len1 = (pt_start - origin).len2();
@@ -1235,12 +1235,15 @@ float delta = 0;
     Debug_UI_Toggle_ShowOverlay, Debug_UI_Toggle_DisableClip,
     Debug_ShowInfoWindow, Debug_ToggleShowConsole,
     Debug_ToggleDebugInfo, Debug_ToggleVSync, Debug_DrawBoundBoxes, Debug_DrawNormalsTangents, Debug_SaveFBOs,
-    Debug_DrawObjectBasis, Debug_ShowWireFrame, Debug_ShowWireFrame_Overlay,
-    Debug_UI_Toggle_DisableBorders,
-    Debug_UI_Toggle_DisableMargins,
-    Debug_UI_Toggle_DisablePadding,
+    Debug_DrawObjectBasis, Debug_ShowWireFrame_Legacy, Debug_Toggle_Wireframe_Overlay,
+    Debug_Toggle_RenderMode,
+    Debug_UI_Toggle_DisableBorders, Debug_UI_Toggle_DisableMargins, Debug_UI_Toggle_DisablePadding,
+
+    Object_Hide_Selected, Object_Unhide_All, Object_Isolate_Selected,
 
     Window_ToggleFullscreen,
+
+
 
     TestScript,
 
@@ -1273,7 +1276,9 @@ float delta = 0;
         //Debug
         new KeyCombo(Global, WorldEditEvent.Edit_ToggleGameMode, KeyMod.None, Keys.F1, ButtonState.Press),
         new KeyCombo(Global, WorldEditEvent.Debug_ToggleVSync, KeyMod.None, Keys.F2, ButtonState.Press),
-        new KeyCombo(Global, WorldEditEvent.Debug_ShowWireFrame_Overlay, KeyMod.None, Keys.F3, ButtonState.Press),
+        new KeyCombo(Global, WorldEditEvent.Debug_Toggle_RenderMode, KeyMod.None, Keys.F3, ButtonState.Press),
+        new KeyCombo(Global, WorldEditEvent.Debug_Toggle_RenderMode, KeyMod.None, Keys.Z, ButtonState.Press),
+        new KeyCombo(Global, WorldEditEvent.Debug_Toggle_Wireframe_Overlay, KeyMod.Shift, Keys.Z, ButtonState.Press),
         new KeyCombo(Global, WorldEditEvent.Debug_DrawBoundBoxes, KeyMod.None, Keys.F4, ButtonState.Press),
         new KeyCombo(Global, WorldEditEvent.Debug_DrawNormalsTangents, KeyMod.None, Keys.F5, ButtonState.Press),
         new KeyCombo(Global, WorldEditEvent.Debug_SaveFBOs, KeyMod.None, Keys.F6, ButtonState.Press),
@@ -1281,7 +1286,7 @@ float delta = 0;
         new KeyCombo(Global, WorldEditEvent.Debug_UI_Toggle_ShowOverlay, KeyMod.None, Keys.F9, ButtonState.Press),
         new KeyCombo(Global, WorldEditEvent.Window_ToggleFullscreen, KeyMod.None, Keys.F11, ButtonState.Press),
 
-        new KeyCombo(Global, WorldEditEvent.Debug_ShowWireFrame, KeyMod.Shift, Keys.F3, ButtonState.Press),
+        new KeyCombo(Global, WorldEditEvent.Debug_ShowWireFrame_Legacy, KeyMod.Shift, Keys.F3, ButtonState.Press),
         new KeyCombo(Global, WorldEditEvent.Debug_DrawObjectBasis, KeyMod.Shift, Keys.F4, ButtonState.Press),
         new KeyCombo(Global, WorldEditEvent.Debug_UI_Toggle_DisableClip, KeyMod.Shift, Keys.F10, ButtonState.Press),
 
@@ -1294,9 +1299,16 @@ float delta = 0;
         new KeyCombo(IsEditMode, WorldEditEvent.Edit_ToggleView3, KeyMod.None, Keys.D3, ButtonState.Press),
         new KeyCombo(IsEditMode, WorldEditEvent.Edit_ToggleView4, KeyMod.None, Keys.D4, ButtonState.Press),
 
+        new KeyCombo(IsEditMode, WorldEditEvent.Object_Hide_Selected, KeyMod.None, Keys.H, ButtonState.Press),
+        new KeyCombo(IsEditMode, WorldEditEvent.Object_Isolate_Selected, KeyMod.Shift, Keys.H, ButtonState.Press),
+        new KeyCombo(IsEditMode, WorldEditEvent.Object_Isolate_Selected, KeyMod.None, Keys.Slash, ButtonState.Press),
+        new KeyCombo(IsEditMode, WorldEditEvent.Object_Unhide_All, KeyMod.Alt, Keys.H, ButtonState.Press),
+
         //World 
         new KeyCombo(IsWorld, WorldEditEvent.Quit, KeyMod.Ctrl, Keys.Q),
         new KeyCombo(IsWorld, WorldEditEvent.Edit_SelectRegion, KeyMod.Any, MouseButton.Left, ButtonState.Press),
+        new KeyCombo(SelectRegion, WorldEditEvent.Edit_SelectRegionEnd, KeyMod.Any, MouseButton.Left, ButtonState.Release),
+        new KeyCombo(SelectRegion, WorldEditEvent.Cancel, Keys.Escape),
         new KeyCombo(IsWorld, WorldEditEvent.Edit_SelectAll, KeyMod.Ctrl, Keys.A),
         new KeyCombo(IsWorld, WorldEditEvent.Edit_DeselectAll, KeyMod.Alt, Keys.A),
         new KeyCombo(IsWorld, WorldEditEvent.Edit_MoveObjects, Keys.G),
@@ -1311,8 +1323,6 @@ float delta = 0;
         new KeyCombo(IsWorld, WorldEditEvent.Debug_MoveCameraToOrigin, Keys.O),
         new KeyCombo(IsWorld, WorldEditEvent.TestScript, KeyMod.CtrlShift, Keys.K),
 
-        new KeyCombo(SelectRegion, WorldEditEvent.Edit_SelectRegionEnd, KeyMod.Any, MouseButton.Left, ButtonState.Release),
-        new KeyCombo(SelectRegion, WorldEditEvent.Cancel, Keys.Escape),
 
         //GUI
         new KeyCombo(IsGUI, WorldEditEvent.Ui_MouseLeft, KeyMod.Any,  MouseButton.Left, ButtonState.Any),
@@ -1628,16 +1638,36 @@ float delta = 0;
             DoAction(new MoveRotateScaleAction(SelectedObjects, MoveRotateScaleAction.MoveRotateScale.Scale));
           }
         }
-        else if (code == WorldEditEvent.Debug_ShowWireFrame)
+        else if (code == WorldEditEvent.Debug_ShowWireFrame_Legacy)
         {
           if (Gu.TryGetSelectedViewOverlay(out var v))
           {
             v.ToggleWireFrame();
           }
         }
-        else if (code == WorldEditEvent.Debug_ShowWireFrame_Overlay)
+        else if (code == WorldEditEvent.Debug_Toggle_Wireframe_Overlay)
         {
           Gu.Context.DebugDraw.DrawWireframeOverlay = !Gu.Context.DebugDraw.DrawWireframeOverlay;
+        }
+        else if (code == WorldEditEvent.Debug_Toggle_RenderMode)
+        {
+          if (Gu.Context.DebugDraw.ObjectRenderMode == DebugObjectRenderMode.Wire)
+          {
+            Gu.Context.DebugDraw.ObjectRenderMode = DebugObjectRenderMode.Flat;
+          }
+          else if (Gu.Context.DebugDraw.ObjectRenderMode == DebugObjectRenderMode.Flat)
+          {
+            Gu.Context.DebugDraw.ObjectRenderMode = DebugObjectRenderMode.Material;
+          }
+          else if (Gu.Context.DebugDraw.ObjectRenderMode == DebugObjectRenderMode.Material)
+          {
+            Gu.Context.DebugDraw.ObjectRenderMode = DebugObjectRenderMode.Wire;
+          }
+          else
+          {
+            Gu.BRThrowNotImplementedException();
+          }
+
         }
         else if (code == WorldEditEvent.Edit_CloneSelected)
         {
@@ -1830,7 +1860,41 @@ float delta = 0;
             w.ToggleGameMode();
           }
         }
-
+        else if (code == WorldEditEvent.Object_Hide_Selected)
+        {
+          foreach (var ob in this.SelectedObjects)
+          {
+            if (!ob.IsActiveCamera())
+            {
+              ob.Visible = false;
+            }
+          }
+        }
+        else if (code == WorldEditEvent.Object_Isolate_Selected)
+        {
+          if (this.SelectedObjects.Count > 0)
+          {
+            Gu.World.IterateRootObjectsSafe((ob) =>
+            {
+              if (!this.SelectedObjects.Contains(ob))
+              {
+                if (!ob.IsActiveCamera())
+                {
+                  ob.Visible = false;
+                }
+              }
+              return LambdaBool.Continue;
+            });
+          }
+        }
+        else if (code == WorldEditEvent.Object_Unhide_All)
+        {
+          Gu.World.IterateRootObjectsSafe((ob) =>
+          {
+            ob.Visible = true;
+            return LambdaBool.Continue;
+          });
+        }
 
 
 
