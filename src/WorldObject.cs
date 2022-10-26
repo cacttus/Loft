@@ -27,6 +27,10 @@ namespace PirateCraft
       mat4 m = (mScl) * (mRot) * (mPos);
       return m;
     }
+    public PRS Clone()
+    {
+      return new PRS() { _rotation = this._rotation, _scale = this._scale, _position = this._position };
+    }
   }
   [DataContract]
   public class Drawable : DataBlock, ISerializeBinary, ICopy<Drawable>, IClone
@@ -46,6 +50,8 @@ namespace PirateCraft
     public bool IsPicked { get { return _picked; } set { _picked = value; } }//object is under the mouse cursor
     public bool IsActive { get { return _active; } set { _active = value; } }//object is active selected object.
     public uint PickId { get { return _pickId; } set { Gu.BRThrowException("PickId cannot be set on WorldObject."); } }
+    public Box3f BoundBox { get { return _boundBox; } } //Entire AABB, force fields, light area, with all meshes and children inside
+
     public bool Pickable
     {
       get
@@ -65,21 +71,6 @@ namespace PirateCraft
         _pickable = value;
       }
     }
-    public Box3f BoundBoxMeshBind
-    {
-      get
-      {
-        if (Mesh != null)
-        {
-          //TODO: - apply animation bind matrix
-          return Mesh.BoundBox_Extent;
-        }
-        else
-        {
-          return Box3f.Default; // No mesh, return 1,1,1
-        }
-      }
-    }
 
     #endregion
     #region Protected: Members
@@ -91,9 +82,10 @@ namespace PirateCraft
     [DataMember] protected bool _picked = false;
     [DataMember] protected bool _active = false;
     [DataMember] protected mat4 _world = mat4.Identity;
-    private uint _pickId = 0;//generated
     [DataMember] protected Material? _material = null;
     [DataMember] protected MeshView? _meshView = null;
+    [DataMember] protected Box3f _boundBox = Box3f.One;//contains all visible sub-objects
+    private uint _pickId = 0;//generated
 
     #endregion
     #region Public: Methods
@@ -211,10 +203,10 @@ namespace PirateCraft
 
     public WorldObjectState State { get { return _state; } set { _state = value; } }
     public bool TransformChanged { get { return _transformChanged; } private set { _transformChanged = value; } }
+    public bool CanDestroy { get { return _canDestroy; } set { _canDestroy = value; } }
 
-    public OOBox3f BoundBoxMeshTransform { get { return _boundBoxMeshTransform; } } //Transformed local mesh bound box
-    public Box3f BoundBoxMesh { get { return _boundBoxMesh; } } //Local Mesh only AABB.
-    public Box3f BoundBox { get { return _boundBoxAll; } } //Entire AABB, force fields, light area, with all meshes and children inside
+    public OOBox3f? BoundBoxMeshTransform { get { return _boundBoxMeshOO; } } //Transformed local mesh bound box
+    public Box3f? BoundBoxMesh { get { return _boundBoxMeshAA; } } //Local Mesh only AABB.
 
     public vec3 Position_Local { get { return _position; } set { _position = value; SetTransformChanged(); } }
     public quat Rotation_Local { get { return _rotation; } set { _rotation = value; SetTransformChanged(); } }//xyz,angle
@@ -316,24 +308,6 @@ namespace PirateCraft
       _lookAtConstraint = p;
     }
 
-    public bool IsActiveCamera()
-    {
-      //return true if is a camera and is rendering.
-      bool ret = false;
-      var ob = this as Camera3D;
-      if (ob != null)
-      {
-        if (ob.RenderView != null)
-        {
-          if (ob.RenderView.TryGetTarget(out var t))
-          {
-            ret = t.Enabled;
-          }
-        }
-      }
-      return ret;
-    }
-
     #endregion
     #region Private: Members
 
@@ -354,9 +328,8 @@ namespace PirateCraft
     [DataMember] private quat _rotationWorld = quat.Identity;
     [DataMember] private vec3 _scaleWorld = vec3.Zero;
     [DataMember] private vec4 _color = new vec4(1, 1, 1, 1);
-    [DataMember] private OOBox3f _boundBoxMeshTransform = new OOBox3f(new vec3(0, 0, 0), new vec3(1, 1, 1));//Transformed mesh
-    [DataMember] protected Box3f _boundBoxMesh = new Box3f(new vec3(0, 0, 0), new vec3(1, 1, 1));//(Transformed) Mesh only
-    [DataMember] protected Box3f _boundBoxAll = new Box3f(new vec3(0, 0, 0), new vec3(1, 1, 1));//Force field, Light Area, Sub-Meshes
+    [DataMember] private OOBox3f? _boundBoxMeshOO = null;//Transformed mesh
+    [DataMember] protected Box3f? _boundBoxMeshAA = null;//Bound box of this object with all base meshes
     [DataMember] private int _treeDepth = 0; //used to check for DAG cycles
     [DataMember] private bool _hasPhysics = false;
     [DataMember] private vec3 _velocity = new vec3(0, 0, 0);
@@ -369,6 +342,7 @@ namespace PirateCraft
     [DataMember] private vec3 _lightColor = vec3.One;
     [DataMember] private float _lightPower = 10;
     [DataMember] private LightType _lightType = LightType.Point;
+    [DataMember] private bool _canDestroy = true;
 
     //Refs
     [DataMember] private WorldObject? _parent = null;
@@ -397,7 +371,7 @@ namespace PirateCraft
       //For optimization, nothing shoudl be here. WorldObject is new'd a lot each frame      
       _color = Random.NextVec4(new vec4(0.2f, 0.2f, 0.2f, 1), new vec4(1, 1, 1, 1));
     }
-    public virtual void Update(World world, double dt, ref Box3f parentBoundBox)
+    public virtual void Update(double dt, ref Box3f parentBoundBox)
     {
       if (!Visible)
       {
@@ -423,11 +397,11 @@ namespace PirateCraft
 
       DecomposeWorldMatrix();
 
-      _boundBoxAll.genResetLimits();
+      _boundBox.genResetLimits();
       IterateChildrenSafe((child) =>
       {
         Gu.Assert(child != null);
-        child.Update(world, dt, ref _boundBoxAll);
+        child.Update(dt, ref _boundBox);
         return LambdaBool.Continue;
       });
       CalcBoundBox(ref parentBoundBox);
@@ -465,11 +439,11 @@ namespace PirateCraft
           _world = mat4.Identity;
         }
 
-        if (!_boundBoxAll._max.IsSane() || !_boundBoxAll._min.IsSane())
+        if (!_boundBox._max.IsSane() || !_boundBox._min.IsSane())
         {
           Gu.DebugBreak();
-          _boundBoxAll._max = new vec3(1, 1, 1);
-          _boundBoxAll._min = new vec3(0, 0, 0);
+          _boundBox._max = new vec3(1, 1, 1);
+          _boundBox._min = new vec3(0, 0, 0);
         }
       }
     }
@@ -552,9 +526,9 @@ namespace PirateCraft
       this._basisX_World = other._basisX_World;
       this._basisY_World = other._basisY_World;
       this._basisZ_World = other._basisZ_World;
-      this._boundBoxMeshTransform = other._boundBoxMeshTransform;
-      this._boundBoxAll = other._boundBoxAll;
-      this._boundBoxMesh = other._boundBoxMesh;
+      this._boundBox = other._boundBox;
+      this._boundBoxMeshOO = other._boundBoxMeshOO?.Clone();
+      this._boundBoxMeshAA = other._boundBoxMeshAA?.Clone();
       this._color = other._color;
       this._transformChanged = other._transformChanged;
       this._state = other._state;
@@ -703,50 +677,53 @@ namespace PirateCraft
     }
     public void CalcBoundBox(ref Box3f parent)
     {
-      _boundBoxMesh.genResetLimits();
       if (Mesh != null)
       {
-        _boundBoxMeshTransform = new OOBox3f(BoundBoxMeshBind._min, BoundBoxMeshBind._max);
+        if(_boundBoxMeshAA==null){
+          _boundBoxMeshAA = new Box3f();
+        }
+        _boundBoxMeshAA.genResetLimits();
+        
+        _boundBoxMeshOO = new OOBox3f(Mesh.BoundBox_Extent._min, Mesh.BoundBox_Extent._max);
         for (int vi = 0; vi < OOBox3f.VertexCount; ++vi)
         {
-          vec4 v = WorldMatrix * _boundBoxMeshTransform.Verts[vi].toVec4(1);
-          _boundBoxMeshTransform.Verts[vi] = v.xyz();
-          _boundBoxAll.genExpandByPoint(_boundBoxMeshTransform.Verts[vi]);
-          _boundBoxMesh.genExpandByPoint(_boundBoxMeshTransform.Verts[vi]);
+          vec4 v = WorldMatrix * _boundBoxMeshOO.Verts[vi].toVec4(1);
+          _boundBoxMeshOO.Verts[vi] = v.xyz();
+          _boundBoxMeshAA.genExpandByPoint(_boundBoxMeshOO.Verts[vi]);
+          _boundBox.genExpandByPoint(_boundBoxMeshOO.Verts[vi]);
+        }
+
+        VolumizeBoundBox(_boundBoxMeshAA);
+
+        if (!_boundBoxMeshAA.Validate(false, false))
+        {
+          Gu.Log.ErrorCycle($"'{this.Name}' BoundBox was invalid.");
+          Gu.DebugBreak();
         }
       }
       else
       {
-        _boundBoxAll.genExpandByPoint(Position_World);
-        _boundBoxMesh.genExpandByPoint(Position_World);
+        _boundBoxMeshAA = null;
+        _boundBoxMeshOO = null;
+        _boundBox.genExpandByPoint(Position_World);
       }
 
       if (HasLight)
       {
-        _boundBoxAll.genExpandByPoint(Position_Local - LightRadius);
-        _boundBoxAll.genExpandByPoint(Position_Local + LightRadius);
+        _boundBox.genExpandByPoint(Position_Local - LightRadius);
+        _boundBox.genExpandByPoint(Position_Local + LightRadius);
       }
 
-
-      VolumizeBoundBox(ref _boundBoxMesh);
-      VolumizeBoundBox(ref _boundBoxAll);
-
-      //So for now, I'm saying every object has a mesh of some kind. This makes things simpler.
-      //If you don't want to draw it set Visible=false.
-      //Bound boxes can be no voluem.. if a plane..
-      if (!_boundBoxAll.Validate(false, false))
-      {
-        Gu.Log.ErrorCycle($"'{this.Name}' BoundBox was invalid.");
-        Gu.DebugBreak();
-      }
-      if (!_boundBoxMesh.Validate(false, false))
+      //bound box can be just a point - but not invalid.
+      VolumizeBoundBox( _boundBox);
+      if (!_boundBox.Validate(false, false))
       {
         Gu.Log.ErrorCycle($"'{this.Name}' BoundBox was invalid.");
         Gu.DebugBreak();
       }
 
-      parent.genExpandByPoint(_boundBoxAll._min);
-      parent.genExpandByPoint(_boundBoxAll._max);
+      parent.genExpandByPoint(_boundBox._min);
+      parent.genExpandByPoint(_boundBox._max);
     }
     public void ApplyParentMatrix()
     {
@@ -981,7 +958,7 @@ namespace PirateCraft
       //   c.Apply(this);
       // }
     }
-    private void VolumizeBoundBox(ref Box3f b)
+    private void VolumizeBoundBox(Box3f b)
     {
       float epsilon = 0.01f;//float.Epsilon
       if (b._max.y - b._min.y == 0)

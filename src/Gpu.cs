@@ -102,19 +102,26 @@ namespace PirateCraft
   [DataContract]
   public class GpuRenderState : IClone, ICopy<GpuRenderState>
   {
+    public bool DepthTest { get { return _depthTestEnabled; } set { _depthTestEnabled = value; } }
+    public bool CullFace { get { return _cullFaceEnabled; } set { _cullFaceEnabled = value; } }
+    public bool ScissorTest { get { return _scissorTestEnabled; } set { _scissorTestEnabled = value; } }
+    public bool Blend { get { return _blendEnabled; } set { _blendEnabled = value; } }
+    public BlendingFactor BlendFactor { get { return _blendFactor; } set { _blendFactor = value; } }
+    public BlendEquationMode BlendFunc { get { return _blendFunc; } set { _blendFunc = value; } }
+    public FrontFaceDirection FrontFaceDirection { get { return _frontFaceDirection; } set { _frontFaceDirection = value; } }
+    public bool DepthMask { get { return _depthMask; } set { _depthMask = value; } }
+    public CullFaceMode CullFaceMode { get { return _cullFaceMode; } set { _cullFaceMode = value; } }
+
     //State switches to prevent unnecessary gpu context changes.
     [DataMember] private bool _depthTestEnabled = true;
     [DataMember] private bool _cullFaceEnabled = true;
     [DataMember] private bool _scissorTestEnabled = true;
     [DataMember] private bool _blendEnabled = false;
-    [DataMember] private BlendEquationMode _blendFuncLast = BlendEquationMode.FuncAdd;
-    [DataMember] private BlendEquationMode _blendFunc = BlendEquationMode.FuncAdd;
-    [DataMember] private BlendingFactor _blendFactorLast = BlendingFactor.OneMinusSrcAlpha;
     [DataMember] private BlendingFactor _blendFactor = BlendingFactor.OneMinusSrcAlpha;
-    private bool _scissorTestEnabledLast = false;
-    private bool _cullFaceEnabledLast = false;
-    private bool _depthTestEnabledLast = false;
-    private bool _blendEnabledLast = false;
+    [DataMember] private BlendEquationMode _blendFunc = BlendEquationMode.FuncAdd;
+    [DataMember] private FrontFaceDirection _frontFaceDirection = FrontFaceDirection.Ccw;
+    [DataMember] private bool _depthMask = true;//enable writing to depth bufer
+    [DataMember] private CullFaceMode _cullFaceMode = CullFaceMode.Back;
 
     public object? Clone(bool? shallow = true)
     {
@@ -125,92 +132,19 @@ namespace PirateCraft
     public void CopyFrom(GpuRenderState? from, bool? shallow = null)
     {
       Gu.Assert(from != null);
-      this._depthTestEnabledLast = from._depthTestEnabledLast;
       this._depthTestEnabled = from._depthTestEnabled;
-      this._cullFaceEnabledLast = from._cullFaceEnabledLast;
       this._cullFaceEnabled = from._cullFaceEnabled;
-      this._scissorTestEnabledLast = _scissorTestEnabledLast;
       this._scissorTestEnabled = from._scissorTestEnabled;
       this._blendEnabled = from._blendEnabled;
       this._blendFunc = from._blendFunc;
       this._blendFactor = from._blendFactor;
+      this._frontFaceDirection = from._frontFaceDirection;
+      this._depthMask = from._depthMask;
+      this._cullFaceMode = from._cullFaceMode;
     }
-
-    public bool CullFace { get { return _cullFaceEnabled; } set { _cullFaceEnabledLast = _cullFaceEnabled; _cullFaceEnabled = value; } }
-    public bool DepthTest { get { return _depthTestEnabled; } set { _depthTestEnabledLast = _depthTestEnabled; _depthTestEnabled = value; } }
-    public bool ScissorTest { get { return _scissorTestEnabled; } set { _scissorTestEnabledLast = _scissorTestEnabled; _scissorTestEnabled = value; } }
-    public bool Blend { get { return _blendEnabled; } set { _blendEnabledLast = _blendEnabled; _blendEnabled = value; } }
-    //public BlendEquationMode BlendFunc { get { return _blendFunc; } set { _blendFuncLast = _blendFunc; _blendFunc = value; } }
-    //public BlendingFactor BlendingFactor { get { return _blendFactor; } set { _blendFactorLast = _blendFactor;  _blendFactor = value; } }
-
     public void SetState()
     {
-      //if (_blendEnabled != _blendEnabledLast)
-      {
-        Gu.Assert(Gu.Context != null);
-        Gu.Assert(Gu.Context.Renderer != null);
-        Gu.Assert(Gu.Context.Renderer.CurrentStage != null);
-        if (Gu.Context.Renderer.CurrentStage.OutputFramebuffer != null)
-        {
-          Gu.Context.Renderer.CurrentStage.OutputFramebuffer.EnableBlend(_blendEnabled);
-        }
-        else
-        {
-          if (_blendEnabled)
-          {
-            GL.Enable(EnableCap.Blend);
-            GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
-          }
-          else
-          {
-            GL.Disable(EnableCap.Blend);
-          }
-        }
-      }
-      //if (_blendFunc != _blendFuncLast)
-      //{
-      //   if (_blendEnabled)
-      //   {
-      //      GL.Enable(EnableCap.Blend);
-      //   }
-      //   else
-      //   {
-      //      GL.Disable(EnableCap.Blend);
-      //   }
-      //}
-      if (_depthTestEnabled != _depthTestEnabledLast)
-      {
-        if (_depthTestEnabled)
-        {
-          GL.Enable(EnableCap.DepthTest);
-        }
-        else
-        {
-          GL.Disable(EnableCap.DepthTest);
-        }
-      }
-      if (_scissorTestEnabled != _scissorTestEnabledLast)
-      {
-        if (_scissorTestEnabled)
-        {
-          GL.Enable(EnableCap.ScissorTest);
-        }
-        else
-        {
-          GL.Disable(EnableCap.ScissorTest);
-        }
-      }
-      if (_cullFaceEnabled != _cullFaceEnabledLast)
-      {
-        if (_cullFaceEnabled)
-        {
-          GL.Enable(EnableCap.CullFace);
-        }
-        else
-        {
-          GL.Disable(EnableCap.CullFace);
-        }
-      }
+      Gu.Context.Gpu.SetState(this);
     }
   }
 
@@ -233,8 +167,10 @@ namespace PirateCraft
 
     public GPULog()
     {
+#if _DEBUG
       GL.Enable(EnableCap.DebugOutput);
       GL.Enable(EnableCap.DebugOutputSynchronous);
+#endif
     }
     public bool CheckErrors(bool bDoNotBreak, bool doNotLog)
     {
@@ -569,18 +505,28 @@ namespace PirateCraft
     public int MaxTextureImageUnits { get; private set; } = 0;
     public int[] MaxWorkGroupDims { get; private set; } = new int[3] { 0, 0, 0 };
 
-    //  public GpuRenderState GpuRenderState { get; set; } = new GpuRenderState();
     public int RenderThreadID { get; private set; } = -1;
 
     public GPUVendor Vendor = GPUVendor.Undefined;
     public string VendorString = "";
+
+    //control GPU state with minimal enable switching
+    private bool _cullFaceLast = false;
+    private CullFaceMode _cullFaceModeLast = CullFaceMode.Back;
+    private FrontFaceDirection _frontFaceDirectionLast = FrontFaceDirection.Ccw;
+    private bool _scissorTestLast = false;
+    private bool _depthTestLast = false;
+    private bool _blendLast = false;
+    private bool _depthMaskLast = true;
+    private BlendEquationMode _blendFuncLast = BlendEquationMode.FuncAdd;
+    private BlendingFactor _blendFactorLast = BlendingFactor.OneMinusSrcAlpha;
+
     public Gpu()
     {
       //Initializes gpu info
       RenderThreadID = Thread.CurrentThread.ManagedThreadId;
 
       ComputeGPULimitsOpenGL();
-
 
       VendorString = GL.GetString​(StringName.Vendor);
       if (VendorString.Contains("ATI")) { Vendor = GPUVendor.ATI; }
@@ -591,6 +537,107 @@ namespace PirateCraft
         Gu.BRThrowException("Invalid GPU vendor string: " + VendorString);
       }
     }
+    private bool testing__ = false;
+    public void SetState(GpuRenderState state, bool force = false)
+    {
+      if (testing__)
+      {
+        StringBuilder strState = new StringBuilder();
+        GpuDebugInfo.DebugGetLegacyViewAndMatrixStack(strState);
+        Gu.Log.Info(strState.ToString());
+        testing__ = false;
+      }
+      if (state.CullFace != _cullFaceLast || force)
+      {
+        if (state.CullFace)
+        {
+          GL.Enable(EnableCap.CullFace);
+        }
+        else
+        {
+          GL.Disable(EnableCap.CullFace);
+        }
+        _cullFaceLast = state.CullFace;
+      }
+      if (state.DepthTest != _depthTestLast || force)
+      {
+        if (state.DepthTest)
+        {
+          GL.Enable(EnableCap.DepthTest);
+        }
+        else
+        {
+          GL.Disable(EnableCap.DepthTest);
+        }
+        _depthTestLast = state.DepthTest;
+      }
+      if (state.ScissorTest != _scissorTestLast || force)
+      {
+        if (state.ScissorTest)
+        {
+          GL.Enable(EnableCap.ScissorTest);
+        }
+        else
+        {
+          GL.Disable(EnableCap.ScissorTest);
+        }
+        _scissorTestLast = state.ScissorTest;
+      }
+
+      if (state.CullFace)
+      {
+        if (state.CullFaceMode != _cullFaceModeLast || force)
+        {
+          GL.CullFace(state.CullFaceMode);
+          _cullFaceModeLast = state.CullFaceMode;
+        }
+        if (state.FrontFaceDirection != _frontFaceDirectionLast || force)
+        {
+          GL.FrontFace(state.FrontFaceDirection);
+          _frontFaceDirectionLast = state.FrontFaceDirection;
+        }
+      }
+
+      if (state.DepthTest)
+      {
+        if (state.DepthMask != _depthMaskLast || force)
+        {
+          GL.DepthMask(state.DepthMask);
+          _depthMaskLast = state.DepthMask;
+        }
+      }
+
+      if (state.Blend != _blendLast ||
+          state.BlendFactor != _blendFactorLast ||
+          state.BlendFunc != _blendFuncLast || force)
+      {
+        Gu.Assert(Gu.Context != null);
+        if (Gu.Context.Renderer != null &&
+            Gu.Context.Renderer.CurrentStage != null &&
+            Gu.Context.Renderer.CurrentStage.OutputFramebuffer != null)
+        {
+          if (state.Blend)
+          {
+            //Blending is now controlled per-framebuffer attachment
+            GL.Enable(EnableCap.Blend);
+            Gu.Context.Renderer.CurrentStage.OutputFramebuffer.SetBlendParams();
+
+            _blendFactorLast = state.BlendFactor;
+            _blendFuncLast = state.BlendFunc;
+          }
+          else
+          {
+            GL.Disable(EnableCap.Blend);
+          }
+
+          _blendLast = state.Blend;
+        }
+      }
+
+
+    }
+
+
     private void ComputeGPULimitsOpenGL()
     {
 
@@ -611,7 +658,6 @@ namespace PirateCraft
       // GL.GetInteger((GetIndexedPName)GLenum.GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0, MaxWorkGroupDims);
       // GL.GetInteger((GetIndexedPName)GLenum.GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0, MaxWorkGroupDims);
     }
-
     public static TextureUnit GetActiveTexture()
     {
       int tex_unit = 0;
@@ -752,7 +798,7 @@ namespace PirateCraft
         calculatedFmt = PixelFormat.Rgba;
         calculatedType = PixelType.UnsignedByte;
         bufsiz_bytes = w * h * 4;
-      }      
+      }
       else if (internalFormat == PixelInternalFormat.Rgba32f)
       {  //All color buffers
         calculatedFmt = PixelFormat.Rgba;
@@ -938,7 +984,7 @@ namespace PirateCraft
     }
     public static GPUBuffer CreateUniformBuffer<T>(string name, T[] items)
     {
-      return new GPUBuffer(name + "-ubo", null, BufferTarget.UniformBuffer, items.ElementSize(), items.Length, BufferUsageHint.StreamDraw, items);
+      return new GPUBuffer(name + "-ubo", null, BufferTarget.UniformBuffer, Marshal.SizeOf<T>(), items.Length, BufferUsageHint.StreamDraw, items);
     }
     public static GPUBuffer CreateUniformBuffer(string name, int item_size_bytes, int item_count)
     {
@@ -946,7 +992,7 @@ namespace PirateCraft
     }
     public static GPUBuffer CreateShaderStorageBuffer<T>(string name, T[] items)
     {
-      return new GPUBuffer(name + "-ssbo", null, BufferTarget.ShaderStorageBuffer, items.ElementSize(), items.Length, BufferUsageHint.StreamDraw, items);
+      return new GPUBuffer(name + "-ssbo", null, BufferTarget.ShaderStorageBuffer, Marshal.SizeOf<T>(), items.Length, BufferUsageHint.StreamDraw, items);
     }
     public static GPUBuffer CreateShaderStorageBuffer(string name, int item_size_bytes, int item_count)
     {
@@ -955,12 +1001,12 @@ namespace PirateCraft
     public static GPUBuffer CreateVertexBuffer<T>(string name, T[] verts)
     {
       Gu.Assert(verts != null);
-      return new GPUBuffer(name + "-vbo", GPUDataFormat.GetDataFormat<T>(), BufferTarget.ArrayBuffer, verts.ElementSize(), verts.Length, BufferUsageHint.StreamDraw, verts);
+      return new GPUBuffer(name + "-vbo", GPUDataFormat.GetDataFormat<T>(), BufferTarget.ArrayBuffer, Marshal.SizeOf<T>(), verts.Length, BufferUsageHint.StreamDraw, verts);
     }
     public static GPUBuffer CreateIndexBuffer<T>(string name, T[] inds)
     {
       Gu.Assert(inds != null);
-      return new GPUBuffer(name + "-ibo", GPUDataFormat.GetDataFormat<T>(), BufferTarget.ElementArrayBuffer, inds.ElementSize(), inds.Length, BufferUsageHint.StreamDraw, inds);
+      return new GPUBuffer(name + "-ibo", GPUDataFormat.GetDataFormat<T>(), BufferTarget.ElementArrayBuffer, Marshal.SizeOf<T>(), inds.Length, BufferUsageHint.StreamDraw, inds);
     }
 
     public class GPUMemInfo
@@ -1136,7 +1182,7 @@ namespace PirateCraft
     {
       return ((val > 0) ? ("Enabled") : ("Disabled"));
     }
-    private static void DebugGetLegacyViewAndMatrixStack(StringBuilder strState)
+    public static void DebugGetLegacyViewAndMatrixStack(StringBuilder strState)
     {
       int[] iScissorBox = new int[4];
       int[] iViewportBox = new int[4];
@@ -1152,11 +1198,11 @@ namespace PirateCraft
       Gpu.CheckGpuErrorsRt();
 
       GL.GetInteger(GetPName.CullFaceMode, out val);
-      strState.AppendLine("CullMode: " + EnabledString(val));
+      strState.AppendLine("CullMode: " + ((CullFaceMode)val).ToString());
       Gpu.CheckGpuErrorsRt();
 
       GL.GetInteger(GetPName.FrontFace, out val);
-      strState.AppendLine("FrontFace: " + EnabledString(val));
+      strState.AppendLine("FrontFace: " + ((FrontFaceDirection)val).ToString());
       Gpu.CheckGpuErrorsRt();
 
       GL.GetInteger(GetPName.DepthTest, out val);

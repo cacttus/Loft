@@ -190,7 +190,20 @@ namespace PirateCraft
     {
       get
       {
-        string fn = System.IO.Path.GetFileName(this.QualifiedPath);
+        string fn = "";
+        if (this.FileStorage == FileStorage.Embedded)
+        {
+          //embedded path filename will not work - must update raw path to be input file.
+          fn = RawPath;
+        }
+        else if (FileStorage == FileStorage.Disk)
+        {
+          fn = System.IO.Path.GetFileName(this.QualifiedPath);
+        }
+        else
+        {
+          Gu.BRThrowNotImplementedException();
+        }
         return fn;
       }
     }
@@ -868,6 +881,73 @@ namespace PirateCraft
 
       return ret;
     }
+
+    public static string Seconds_ToString_HMSU(double seconds, bool ms = false)
+    {
+      //seconds to string
+      // seconds = 71.33;
+      var ut = seconds;
+      string ret = "";
+      double weekd = 60 * 60 * 24 * 7;
+      double dayd = 60 * 60 * 24;
+      double hourd = 60 * 60;
+      double mind = 60;
+
+      var weeks = (int)Math.Floor(ut / weekd);
+      if (weeks < 1)
+      {
+        weeks = 0;
+      }
+      else
+      {
+        ut -= weeks * weekd;
+        ret += $" {(int)weeks}w";
+      }
+      var days = (int)Math.Floor(ut / dayd);
+      if (days < 1)
+      {
+        days = 0;
+      }
+      else
+      {
+        ut -= days * dayd;
+        ret += $" {(int)days}d";
+      }
+      var hours = (int)Math.Floor(ut / hourd);
+      if (hours < 1)
+      {
+        hours = 0;
+      }
+      else
+      {
+        ut -= hours * hourd;
+        ret += $" {(int)hours}h";
+      }
+      var mins = (int)Math.Floor(ut / mind);
+      if (mins < 1)
+      {
+        mins = 0;
+      }
+      else
+      {
+        ut -= mins * mind;
+        ret += $" {(int)mins}m";
+      }
+      var secs = (int)Math.Floor(ut);
+      if (secs < 1)
+      {
+        secs = 0;
+      }
+      else
+      {
+        ret += $" {(int)secs}s";
+      }
+
+      return ret.Trim();
+    }
+
+
+
   }
   public interface IClone
   {
@@ -1067,7 +1147,7 @@ namespace PirateCraft
   public class DeltaTimer : BaseTimer, IClone, ICopy<BaseTimer>
   {
     public double ElapsedSeconds { get; private set; } = 0;
-    public double PeriodSeconds {get; private set; }= 0;
+    public double PeriodSeconds { get; private set; } = 0;
 
     public DeltaTimer(long periodMS, ActionRepeat repeat, ActionState start, Action? act)
     : base(periodMS, repeat, start, act)
@@ -2311,15 +2391,73 @@ namespace PirateCraft
       Gu.BRThrowNotImplementedException();
     }
   }
+  public class GrowList<T>
+  {
+    //Used for UI since sorting isn't supported yet
+    public List<T> List = new List<T>();
+    public int Count { get { return _count; } }
+    private int _count = 0;
+    public int MaxCount { get; set; }
+
+    public GrowList(int max = 9999999)
+    {
+      MaxCount = max;
+    }
+    public T this[int k]
+    {
+      //operator[]
+      get
+      {
+        Gu.Assert(k < Count);
+        return List[k];
+      }
+      set
+      {
+        Gu.Assert(k < Count);
+        List[k] = value;
+      }
+    }
+    public T[] ToArray()
+    {
+      return List.GetRange(0, _count).ToArray();
+    }
+    public void Reset()
+    {
+      _count = 0;
+    }
+    public void Add(T item)
+    {
+      if (_count == List.Count)
+      {
+        if (_count >= MaxCount)
+        {
+          Gu.Log.Error($"grow list exceeded max count {MaxCount}");
+          Gu.DebugBreak();
+        }
+        else
+        {
+          List.Add(item);
+          _count++;
+        }
+      }
+      else
+      {
+        List[_count] = item;
+        _count++;
+      }
+    }
+  }
   public class ReverseGrowList<T>
   {
     //Used for UI since sorting isn't supported yet
     public List<T> List = new List<T>();
     public int Count { get { return List.Count - _countdown; } }
     private int _countdown = 0;
+    public int MaxCount { get; set; }
 
-    public ReverseGrowList()
+    public ReverseGrowList(int max = 999999)
     {
+      MaxCount = max;
     }
     public T[] ToArray()
     {
@@ -2335,8 +2473,9 @@ namespace PirateCraft
       if (_countdown == 0)
       {
         List.Insert(0, item);
-        if (List.Count > 99999)
+        if (List.Count > MaxCount)
         {
+          Gu.Log.Error($"reverse grow list exceeded max count {MaxCount}");
           Gu.DebugBreak();//forgot to call reset?
         }
       }

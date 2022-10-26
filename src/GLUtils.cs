@@ -1961,7 +1961,7 @@ namespace PirateCraft
     {
       StringBuilder sb = new StringBuilder();
 
-      sb.AppendLine($"GL Allocations:");
+      sb.AppendLine($"Allocations:");
       sb.AppendLine($"  CreateProgram     = {_dbg_count_CreateProgram}");
       sb.AppendLine($"  DeleteProgram     = {_dbg_count_DeleteProgram}");
       sb.AppendLine($"  CreateShader      = {_dbg_count_CreateShader}");

@@ -103,6 +103,8 @@ namespace PirateCraft
     RmbRelease,
     RmbUp,
 
+    LmbDrag,
+
     Mouse_Enter,
     Mouse_Move,//Mouse_Hover = Mouse_Move?
     Mouse_Leave,
@@ -110,7 +112,6 @@ namespace PirateCraft
     Lost_Press_Focus,
     Got_Press_Focus,
     Release_Press_Focus,
-
 
     Scrollbar_Pos_Change,
 
@@ -173,8 +174,6 @@ namespace PirateCraft
     , OverflowMode
     , SizeModeWidth
     , SizeModeHeight
-    , MinValue
-    , MaxValue
     , ZIndex
     , FloatMode
     , RenderMode
@@ -333,7 +332,8 @@ namespace PirateCraft
     }
     public void PollForEvents(Gui2d g)
     {
-      //Poll each frame, no timer. currently Press/Release are set on a single frame but if we catch press->up we could always send a release in between.
+      //Poll each frame
+      //  sends max 20 or so events to at most 2 objects, last/cur picked
       Gu.Assert(g != null);
       if (_events.Count >= c_iMaxEvents)
       {
@@ -396,7 +396,6 @@ namespace PirateCraft
           if (lb == ButtonState.Hold) { SendEvent(UiEventId.LmbHold, ecur); }
           if (lb == ButtonState.Release) { SendEvent(UiEventId.LmbRelease, ecur); }
         }
-        _eLast_Lmb = lb;
       }
       if (rb != _eLast_Rmb)
       {
@@ -407,7 +406,6 @@ namespace PirateCraft
           if (rb == ButtonState.Hold) { SendEvent(UiEventId.RmbHold, ecur); }
           if (rb == ButtonState.Release) { SendEvent(UiEventId.RmbRelease, ecur); }
         }
-        _eLast_Rmb = rb;
       }
 
       //move events
@@ -422,7 +420,16 @@ namespace PirateCraft
       if (ecur != null && elast == ecur && mpos != mlast)
       {
         SendEvent(UiEventId.Mouse_Move, ecur);
+
+        if ((_eLast_Lmb == ButtonState.Press || _eLast_Lmb == ButtonState.Hold) && (lb == ButtonState.Hold))
+        {
+          SendEvent(UiEventId.LmbDrag, ecur);
+        }
       }
+
+      //Update state after events are sent
+      _eLast_Lmb = lb;
+      _eLast_Rmb = rb;
 
       //send
       if (_new_events_frame.Count > 0)
@@ -449,81 +456,73 @@ namespace PirateCraft
       }
     }
   }
-  public class UiDragInfo
-  {
-    private bool _bDragStart = false;
-    private vec2 _vDragStart;
-    private WeakReference<UiElement> Target { get; set; } = null;
+  // public class UiDragInfo
+  // {
+  //   private bool _bDragStart = false;
+  //   private vec2 _vDragStart;
+  //   private WeakReference<UiElement> Target { get; set; } = null;
 
-    public UiDragInfo() { }
-    public void StartDrag(UiElement target, PCMouse ms)
-    {
-      if (target != null)
-      {
-        Target = new WeakReference<UiElement>(target);
-        _vDragStart = ms.Pos;
-        _bDragStart = true;
-      }
-    }
-    public void EndDrag()
-    {
-      Target = null;
-      _bDragStart = false;
-    }
-    public void UpdateDrag(PCMouse ms)
-    {
-      float mw = 1.0f / 1; // UiScreen::getDesignMultiplierW the design multiplier - this isntn't accounted for
-      float mh = 1.0f / 1; // UiScreen::getDesignMultiplierH the design multiplier - this isntn't accounted for
-      if (Target != null && Target.TryGetTarget(out var tar))
-      {
-        //Check for mouse delta to prevent unnecessary updates.
-        bool canDrag = false;
-        vec2 dp = ms.Pos - _vDragStart;
-        if (MathUtils.FuzzyEquals(dp.x, 0.0f) == false || MathUtils.FuzzyEquals(dp.y, 0.0f) == false)
-        {
-          canDrag = true;
-        }
-        else
-        {
-          canDrag = false;
-        }
-        if (canDrag)
-        {
-          //Multiply the distance by the design size.
-          dp.x *= mw;
-          dp.y *= mh;
+  //   public UiDragInfo() { }
+  //   public void StartDrag(UiElement target, PCMouse ms)
+  //   {
+  //     if (target != null)
+  //     {
+  //       Target = new WeakReference<UiElement>(target);
+  //       _vDragStart = ms.Pos;
+  //       _bDragStart = true;
+  //     }
+  //   }
+  //   public void EndDrag()
+  //   {
+  //     Target = null;
+  //     _bDragStart = false;
+  //   }
+  //   public void UpdateDrag(PCMouse ms)
+  //   {
+  //     float mw = 1.0f / 1; // UiScreen::getDesignMultiplierW the design multiplier - this isntn't accounted for
+  //     float mh = 1.0f / 1; // UiScreen::getDesignMultiplierH the design multiplier - this isntn't accounted for
+  //     if (Target != null && Target.TryGetTarget(out var tar))
+  //     {
+  //       //Check for mouse delta to prevent unnecessary updates.
+  //       bool canDrag = false;
+  //       vec2 dp = ms.Pos - _vDragStart;
+  //       if (MathUtils.FuzzyEquals(dp.x, 0.0f) == false || MathUtils.FuzzyEquals(dp.y, 0.0f) == false)
+  //       {
+  //         canDrag = true;
+  //       }
+  //       else
+  //       {
+  //         canDrag = false;
+  //       }
+  //       if (canDrag)
+  //       {
+  //         //Multiply the distance by the design size.
+  //         dp.x *= mw;
+  //         dp.y *= mh;
 
-          if (tar.DragFunc != null)
-          {
-            tar.DragFunc(dp);
-          }
+  //         if (tar.DragFunc != null)
+  //         {
+  //           tar.DragFunc(dp);
+  //         }
 
-          //Reset drag start
-          _vDragStart = ms.Pos;
-        }
-      }
-      else
-      {
-        Target = null;
-      }
+  //         //Reset drag start
+  //         _vDragStart = ms.Pos;
+  //       }
+  //     }
+  //     else
+  //     {
+  //       Target = null;
+  //     }
 
-    }
-  }
+  //   }
+  // }
   public class UiProps
   {
     //All styled properties of an element. 
     // All elements contain one properties class with all value type properties set to default (besides texture/font face, but they MUST be set).
     //
     public float Top = 0;
-    public float Left
-    {
-      get { return _Left; }
-      set
-      {
-        _Left = value;
-      }
-    }
-    private float _Left = 0;
+    public float Left = 0;
     public float MinWidth = 0;
     public float MinHeight = 0;
     public float MaxWidth = Gui2d.MaxSize;
@@ -563,8 +562,6 @@ namespace PirateCraft
     public UiOverflowMode OverflowMode = UiOverflowMode.Hide;
     public UiSizeMode SizeModeWidth = UiSizeMode.Expand;
     public UiSizeMode SizeModeHeight = UiSizeMode.Expand;
-    public double MinValue = 0;
-    public double MaxValue = 100;
     public float ZIndex = 0;
     public UiFloatMode FloatMode = UiFloatMode.None;
     public UiRenderMode RenderMode = UiRenderMode.None;
@@ -657,10 +654,7 @@ namespace PirateCraft
       {
         MaxHeight = MinHeight;
       }
-      if (!Gu.AssertDebug(MaxValue >= MinValue))
-      {
-        MaxValue = MinValue;
-      }
+
     }
     private static void CreateStaticFieldInfo()
     {
@@ -904,22 +898,8 @@ namespace PirateCraft
     //Manual setters.. these will cause this style class to own this property
     //**Note: Do not use nullable<> or ? types on class types here. This will return (null) even if the class type is set on the nullable boxer.
     //OK so you could actually just return _props.Top .. etc here, but for now we're doing this to simplify things (as they are written)
-    public float? Top
-    {
-      get { return (float?)GetClassProp(UiPropName.Top); }
-      set
-      {
-        SetProp(UiPropName.Top, (float?)value);
-      }
-    }
-    public float? Left
-    {
-      get { return (float?)GetClassProp(UiPropName.Left); }
-      set
-      {
-        SetProp(UiPropName.Left, (float?)value);
-      }
-    }
+    public float? Top { get { return (float?)GetClassProp(UiPropName.Top); } set { SetProp(UiPropName.Top, (float?)value); } }
+    public float? Left { get { return (float?)GetClassProp(UiPropName.Left); } set { SetProp(UiPropName.Left, (float?)value); } }
     public float? MinWidth { get { return (float?)GetClassProp(UiPropName.MinWidth); } set { SetProp(UiPropName.MinWidth, (float?)value); } }
     public float? MinHeight { get { return (float?)GetClassProp(UiPropName.MinHeight); } set { SetProp(UiPropName.MinHeight, (float?)value); } }
     public float? MaxWidth { get { return (float?)GetClassProp(UiPropName.MaxWidth); } set { SetProp(UiPropName.MaxWidth, (float?)value); } }
@@ -959,15 +939,12 @@ namespace PirateCraft
     public UiImageTiling? ImageTilingX { get { return (UiImageTiling?)GetClassProp(UiPropName.ImageTilingX); } set { SetProp(UiPropName.ImageTilingX, (UiImageTiling?)value); } }
     public UiImageTiling? ImageTilingY { get { return (UiImageTiling?)GetClassProp(UiPropName.ImageTilingY); } set { SetProp(UiPropName.ImageTilingY, (UiImageTiling?)value); } }
     public MtTex Texture { get { return (MtTex)GetClassProp(UiPropName.Texture); } set { SetProp(UiPropName.Texture, (MtTex)value); } }
-    public double? MaxValue { get { return (double?)GetClassProp(UiPropName.MaxValue); } set { SetProp(UiPropName.MaxValue, (double?)value); } }
-    public double? MinValue { get { return (double?)GetClassProp(UiPropName.MinValue); } set { SetProp(UiPropName.MinValue, (double?)value); } }
     public float? ZIndex { get { return (float?)GetClassProp(UiPropName.ZIndex); } set { SetProp(UiPropName.ZIndex, (float?)value); } }
     public UiFloatMode? FloatMode { get { return (UiFloatMode?)GetClassProp(UiPropName.FloatMode); } set { SetProp(UiPropName.FloatMode, (UiFloatMode?)value); } }
     public UiRenderMode? RenderMode { get { return (UiRenderMode?)GetClassProp(UiPropName.RenderMode); } set { SetProp(UiPropName.RenderMode, (UiRenderMode?)value); } }
     public UiAlignment? TextAlign { get { return (UiAlignment?)GetClassProp(UiPropName.TextAlign); } set { SetProp(UiPropName.TextAlign, (UiAlignment?)value); } }
     public UiAlignment? Alignment { get { return (UiAlignment?)GetClassProp(UiPropName.Alignment); } set { SetProp(UiPropName.Alignment, (UiAlignment?)value); } }
     public double? Opacity { get { return (double?)GetClassProp(UiPropName.Opacity); } set { SetProp(UiPropName.Opacity, (double?)value); } }
-
 
     #endregion
     #region Public: Methods
@@ -1322,7 +1299,7 @@ namespace PirateCraft
       {
         //Class value is being cleared
         return true;
-      }           
+      }
       else if (new_class_value != null && owned == false)
       {
         //Class value is unset, and we set a fresh value... definite change
@@ -1337,7 +1314,7 @@ namespace PirateCraft
           return true;
         }
       }
- 
+
       return false;
     }
     private void SetClassValueDirect(UiPropName p, object? value)
@@ -1394,38 +1371,31 @@ namespace PirateCraft
   public class UiQuads
   {
     //*render quad is the origin
-    public UiQuad _b2ClipQuad = new UiQuad();      // The clip quad - all floating and contained, elements and min/max w/h. *clip quad may not equal computed quad if there are floating elements
-    public UiQuad _b2LocalQuad = new UiQuad();      // local quad
-    public UiQuad _dbg_b2ContentQuad = new UiQuad();        // Final quad. content without margin /border
+    public UiQuad _b2ClipQuad = new UiQuad(); // all floating and contained, elements and min/max w/h. *clip quad may not equal computed quad if there are floating elements
+    public UiQuad _b2LocalQuad = new UiQuad(); // computed width/height of the container items parent-relative, and the Top/Left offset (if given)
+    public UiQuad _dbg_b2ContentQuad = new UiQuad();
     public UiQuad _dbg_b2PaddingQuad = new UiQuad();
-    public UiQuad _b2BorderQuad = new UiQuad();        // Final quad. content area + margin + border area
+    public UiQuad _b2BorderQuad = new UiQuad(); // Final quad. content area + margin + border area
     public vec2 ContentWH = new vec2(0, 0);
     public vec2 GlyphWH = new vec2(0, 0);//max width/height of all glyphs
     public vec2 OuterMaxWH = new vec2(0, 0);
     public vec2 InnerMaxWH = new vec2(0, 0);
   }
-  //UiGlyph to uielemnet
-  //uielement to UIBlock
   public abstract class UiBlock //base interface for for glyphs / eles
   {
-    //Essentially shared props between UiGlyph and UiElement
+    //interface between UiGlyph and UiElement
     public abstract float Left { get; }
     public abstract float Top { get; }
-    // public abstract float Width { get; }
-    // public abstract float Height { get; }    
     public abstract UiDisplayMode DisplayMode { get; }
     public virtual float WordWidth { get { return 0; } }
     public abstract vec4 GetPadding(UiDebugDraw dd);
-    //This exists so we can remove the complex UiElement stuff from glyphs ( takes up space , slow)
-    //Layout properties which determine lef/top/w/h
-    public UiQuads _quads = new UiQuads();//Quads are what is set during layout computation
+    public UiQuads _quads = new UiQuads();
   }
   public class UiGlyphChar
   {
     public UiQuad _glyphQuad;
     public vec4 _padding;
     public float _finalLineHeight;
-    //public UiQuads _quads = new UiQuads();//Quads are what is set during layout computation
     public MtCachedCharData? _cachedGlyph = null;//For glyphs
     public int _code;
   }
@@ -1437,53 +1407,27 @@ namespace PirateCraft
     public int _char = 0;
     public UiDisplayMode _displayMode = UiDisplayMode.Inline;//ok
     public float _wordWidth = 0;
+    public UiGlyphChar? _reference = null;
+
     public override float Left { get { return _left_off; } }
     public override float Top { get { return _top_off; } }
     public override float WordWidth { get { return _wordWidth; } }
-
-    // public override float Width { get{ return _quads._b2LocalQuad._width; } }
-    // public override float Height { get{ return _top_off; } }     
     public override UiDisplayMode DisplayMode { get { return _displayMode; } }
-    public override vec4 GetPadding(UiDebugDraw dd)
-    {
-      return _padding;
-    }
 
-
-    public UiGlyphChar? _reference = null;
     public UiGlyph(UiGlyphChar? dref)
     {
       _reference = dref;
     }
+    public override vec4 GetPadding(UiDebugDraw dd)
+    {
+      return _padding;
+    }
   }
-  // public class UiSpan
-  // {
-  //   //span of inline elements
-  //   public List<UiBlock> _blocks = new List<UiBlock>();
-  //   public float _top = 0;
-  //   public float _left = 0;
-  //   public float _width = 0;
-  //   public float _height = 0;
-  //   public UiDisplayMode _displayMode = UiDisplayMode.Inline;//ok
-  //   public UiSpan() { }
-  //   public UiSpan(UiBlock e, UiDisplayMode dm, UiDebugDraw dd)
-  //   {
-  //     var pad = e.GetPadding(dd);
-  //     _blocks = new List<UiBlock>() { e };
-  //     //add pad to element and glyph gets pad
-  //     _width = e._quads._b2LocalQuad._width + pad.left + pad.right;
-  //     _height = e._quads._b2LocalQuad._height + pad.top + pad.bot;
-  //     _displayMode = dm;
-  //   }
-  // }
   public class UiElement : UiBlock
   {
     #region Classes 
     private class UiCol
     {
-      //line column, left, center, or right
-      //public float _top = 0;//not null depending on UiBuildOrder
-      //public float _left = 0;
       public float _height = 0;
       public float _width = 0;
       public List<UiBlock> _eles = new List<UiBlock>();
@@ -1528,7 +1472,6 @@ namespace PirateCraft
     }
     public UiStyle Style
     {
-      // do not create a new style for glyphs
       get
       {
         if (_style == null)
@@ -1541,18 +1484,13 @@ namespace PirateCraft
       }
     }
     public bool Visible { get { return _visible; } set { _visible = value; } }// ** May be on style .. 
-    public bool DragEnabled { get { return _dragEnabled; } private set { _dragEnabled = value; } }
-
-    public Action<vec2>? DragFunc { get; private set; } = null;
     public Dictionary<UiEventId, List<UiAction>> Events { get { return _events; } set { _events = value; } }
     public List<UiElement>? Children { get { return _children; } }
     public UiQuad LocalQuad { get { return _quads._b2LocalQuad; } }
     public UiQuad ContentQuad { get { return _quads._dbg_b2ContentQuad; } }
     public UiQuad FinalQuad { get { return _quads._b2BorderQuad; } }
-    //public int TreeDepth { get { return _treeDepth; } }
     public UiElement? Parent { get { return _parent; } }
     public bool TopMost { get { return _topMost; } set { _topMost = value; } }
-
     public override float Left { get { return Style._props.Left; } }
     public override float Top { get { return Style._props.Top; } }
     public override UiDisplayMode DisplayMode { get { return Style._props.DisplayMode; } }
@@ -1561,23 +1499,21 @@ namespace PirateCraft
     #region Private: Members
 
     protected string _name = "";
-    protected UiStyle? _style = null;      //Inline style
+    protected UiStyle? _style = null;
     protected List<UiElement>? _children = null;
     private UiElement? _parent = null;
     private MtFontLoader? _cachedFont = null;//For labels that contain glyphs
-    Dictionary<int, UiGlyphChar> _glyphChars = null;//unicode->glyph
-    List<UiGlyph> _glyphs = null;//unicode->glyph
-
+    private Dictionary<int, UiGlyphChar> _glyphChars = null;
+    private List<UiGlyph> _glyphs = null;
     private static long s_idgen = 100;
     protected long _id = 0;
-    private vec2 _tileScale = new vec2(1, 1); //Scale if UiImageSizeMode is Tile
-    //private Quads _borderArea = null;
+    private vec2 _tileScale = new vec2(1, 1); //Texture Scale (UiImageSizeMode == Tile) this should be on the Props
     public uint _iPickId = 0;
     protected string _strText = "";
     private string _strTextLast = "";
     private bool _bMustRedoTextBecauseOfStyle = false;
     private Dictionary<UiEventId, List<UiAction>>? _events = null;
-    private int _treeDepth = -1; // tree depth / child depth when added
+    private int _treeDepth = -1;
     private int _defaultSortKey = 0;
 
     //Flags
@@ -1865,15 +1801,6 @@ namespace PirateCraft
     public void ClearChildren()
     {
       _children?.Clear();
-    }
-    public void EnableDrag(Action<vec2> func)
-    {
-      DragEnabled = true;
-      DragFunc = func;
-    }
-    public void DisableDrag()
-    {
-      DragEnabled = false;
     }
     public void DoMouseEvents(UiEvent e, bool iswindow = false)
     {
@@ -2477,8 +2404,17 @@ namespace PirateCraft
       //Position relative/float elements to absolute pixels
       if (this.Style._props.PositionMode == UiPositionMode.Relative || this.Style._props.PositionMode == UiPositionMode.Static)
       {
-        this._quads._b2BorderQuad._left = this._quads._b2LocalQuad._left;
-        this._quads._b2BorderQuad._top = this._quads._b2LocalQuad._top;
+        if (this.Style._props.PositionMode == UiPositionMode.Relative)
+        {
+          this._quads._b2BorderQuad._left = this._quads._b2LocalQuad._left = this.Left;
+          this._quads._b2BorderQuad._top = this._quads._b2LocalQuad._top = this.Top;
+        }
+        else if (this.Style._props.PositionMode == UiPositionMode.Static)
+        {
+          this._quads._b2BorderQuad._left = this._quads._b2LocalQuad._left;
+          this._quads._b2BorderQuad._top = this._quads._b2LocalQuad._top;
+        }
+
         if (_parent != null)
         {
           this._quads._b2BorderQuad._left += _parent._quads._b2BorderQuad._left;
@@ -3083,7 +3019,6 @@ namespace PirateCraft
     #endregion
     #region Private:Members
 
-    private UiDragInfo _dragInfo = new UiDragInfo();
     private vec2 _viewport_wh_last = new vec2(1, 1);
     private Gui2dShared _shared = null;
     //private GVertMap _gverts = new GVertMap();
@@ -3296,8 +3231,6 @@ namespace PirateCraft
       {
         Mesh = new MeshData(rv.Name + "gui-mesh", OpenTK.Graphics.OpenGL4.PrimitiveType.Points,
         Gpu.CreateVertexBuffer(rv.Name + "gui-mesh", _async_verts.ToArray()), null, false);
-        Mesh.DrawMode = DrawMode.Forward;
-        Mesh.DrawOrder = DrawOrder.Last;
       }
       else
       {
@@ -3385,6 +3318,8 @@ namespace PirateCraft
         Dummy.Material.GpuRenderState.DepthTest = false;
         Dummy.Material.GpuRenderState.Blend = true;
         Dummy.Material.AlbedoSlot.Texture = tx.Albedo;
+        Dummy.Material.DrawMode = DrawMode.Forward;
+        Dummy.Material.DrawOrder = DrawOrder.Last;
       }
       else
       {
@@ -3400,7 +3335,6 @@ namespace PirateCraft
     public Gui2dManager() : base("Gui2DManager")
     {
     }
-    //Shared GUI data for each context
     protected override Dictionary<ulong, Gui2dShared> CreateNew()
     {
       return new Dictionary<ulong, Gui2dShared>();

@@ -27,6 +27,7 @@ namespace PirateCraft
   {
     Forward,
     Deferred,
+    Debug,
     MaxDrawModes
   }
 
@@ -123,11 +124,27 @@ namespace PirateCraft
       vao.Bind();
 
       //*****
-      if (Gu.BreakRenderState || dbg_break_render)
+      if (Gu.Context.Renderer.CurrentStage != null &&
+         Gu.Context.Renderer.CurrentStage.PipelineStageEnum == PipelineStageEnum.Debug)
       {
-        GpuDebugInfo.DebugGetRenderState(true);
-        Gu.DebugBreak();
-        Gu.BreakRenderState = false;
+        Gu.Trap();
+      }
+      if (Gu.BreakRenderState || dbg_break_render || !String.IsNullOrEmpty(Gu.SaveRenderStateFile))
+      {
+        string rs = GpuDebugInfo.DebugGetRenderState(true, false, false);
+        if (!String.IsNullOrEmpty(Gu.SaveRenderStateFile))
+        {
+          //idk if this will work
+          //FileLoc fl = new FileLoc(Gu.SaveRenderStateFile, FileStorage.Disk);
+          //fl.WriteAllText(rs);
+          Gu.SaveRenderStateFile = "";
+        }
+        if (Gu.BreakRenderState || dbg_break_render)
+        {
+          Gu.Log.Info(rs);
+          Gu.DebugBreak();
+          Gu.BreakRenderState = false;
+        }
       }
       string n = "sky";
       if (_meshData.Name.ToLower().Contains(n))
@@ -152,7 +169,7 @@ namespace PirateCraft
         {
           //GL.DrawElementsInstancedBaseVertexBaseInstance()
           GL.DrawElementsInstanced(primType,
-            _count, 
+            _count,
             ibo.DrawElementsType,
             IntPtr.Zero + _start,
             instances.Length
@@ -195,7 +212,7 @@ namespace PirateCraft
             Gu.DebugBreak();
             Gu.Log.ErrorCycle("Instances were not specified for mesh " + this.Name);
             GL.DrawArrays(primType,
-              _start, 
+              _start,
               _count
               );
             Gpu.CheckGpuErrorsDbg();
@@ -291,6 +308,15 @@ namespace PirateCraft
       Gu.BRThrowNotImplementedException();
       base.Deserialize(br, version);
     }
+    public void ExpandCopyIndexes<T>(GrowList<T> inds)
+    {
+      Gu.Assert(_meshData!=null);
+      Gu.Assert(_meshData.HasIndexes);
+
+      _meshData.IndexBuffer.ExpandCopy(inds);
+      Start = 0;
+      Count = inds.Count;
+    }
 
   }
   [DataContract]
@@ -301,8 +327,6 @@ namespace PirateCraft
 
     #region Public: Members
 
-    public DrawMode DrawMode { get { return _drawMode; } set { _drawMode = value; } }
-    public DrawOrder DrawOrder { get { return _drawOrder; } set { _drawOrder = value; } }
     public bool BoundBoxComputed { get { return _boundBoxComputed; } private set { _boundBoxComputed = value; } }
     public Box3f BoundBox_Extent { get { return _boundBoxExtent; } } //Bond box of mesh extenss
     public PrimitiveType PrimitiveType { get { return _primitiveType; } }
@@ -331,23 +355,21 @@ namespace PirateCraft
     [DataMember] private bool _boundBoxComputed = false;
     [DataMember] private Box3f _boundBoxExtent = new Box3f();
     [DataMember] private PrimitiveType _primitiveType = PrimitiveType.Triangles;
-    [DataMember] private DrawMode _drawMode = DrawMode.Deferred;
-    [DataMember] private DrawOrder _drawOrder = DrawOrder.Mid; //This is a sloppy ordered draw routine to prevent depth test issues. In the future it goes away in favor of a nicer draw routine.
     [DataMember] private GPUBuffer _faceData = null;
 
     #endregion
     #region Public: Methods
 
     protected MeshData(string name) : base(name) { }//clone/copy
-    public MeshData(string name, PrimitiveType pt, GPUBuffer vertexBuffer, GPUBuffer faceData = null, bool computeBoundBox = true) :
+    public MeshData(string name, PrimitiveType pt, GPUBuffer vertexBuffer, GPUBuffer? faceData = null, bool computeBoundBox = true) :
       this(name, pt, new List<GPUBuffer> { vertexBuffer }, null, faceData, computeBoundBox)
     {
     }
-    public MeshData(string name, PrimitiveType pt, GPUBuffer vertexBuffer, GPUBuffer indexBuffer, GPUBuffer faceData = null, bool computeBoundBox = true) :
+    public MeshData(string name, PrimitiveType pt, GPUBuffer vertexBuffer, GPUBuffer indexBuffer, GPUBuffer? faceData = null, bool computeBoundBox = true) :
       this(name, pt, new List<GPUBuffer> { vertexBuffer }, indexBuffer, faceData, computeBoundBox)
     {
     }
-    public MeshData(string name, PrimitiveType pt, List<GPUBuffer> vertexBuffers, GPUBuffer indexBuffer, GPUBuffer faceData = null, bool computeBoundBox = true) :
+    public MeshData(string name, PrimitiveType pt, List<GPUBuffer> vertexBuffers, GPUBuffer indexBuffer, GPUBuffer? faceData = null, bool computeBoundBox = true) :
       this(name)
     {
       //Some checking

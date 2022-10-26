@@ -1153,11 +1153,17 @@ namespace PirateCraft
 
   public class VisibleStuff
   {
+    public Dictionary<RenderView, Dictionary<DrawMode, SortedDictionary<DrawOrder, DrawCall>>> Dict { get { return _dict; } }
+
     private int _dbg_added_objects = 0;
     private int _dbg_drawcall_count = 0;
     // massive friggin dict of dict of dict..Dictionary<RenderView, Dictionary<DrawMode, Dictionary<DrawOrder, Dictionary<Material, Dictionary<MeshView, List<Drawable>>>>>>
     private Dictionary<RenderView, Dictionary<DrawMode, SortedDictionary<DrawOrder, DrawCall>>> _dict =
      new Dictionary<RenderView, Dictionary<DrawMode, SortedDictionary<DrawOrder, DrawCall>>>();//View -> stage -> distance/draw order -> instances sorted by material/mesh
+
+    //easier than iterating that massive thing above
+    public Dictionary<RenderView, HashSet<Glob>> VisibleGlobs { get; private set; } = new Dictionary<RenderView, HashSet<Glob>>();
+    public Dictionary<RenderView, HashSet<WorldObject>> VisibleObjects { get; private set; } = new Dictionary<RenderView, HashSet<WorldObject>>();
 
     public void Clear(RenderView rv)
     {
@@ -1168,16 +1174,29 @@ namespace PirateCraft
         stageDist.Clear();
       }
 
+
+      if (VisibleGlobs.TryGetValue(rv, out var glist))
+      {
+        glist.Clear();
+      }
+      if (VisibleObjects.TryGetValue(rv, out var oblist))
+      {
+        oblist.Clear();
+      }
+
+
       _dbg_drawcall_count = 0;
       _dbg_added_objects = 0;
     }
-    public void AddObject(RenderView rv, Drawable ob, Material? customMaterial = null)
+    public void AddObject(RenderView rv, Drawable ob, Material? customMaterial = null, Glob? isGlob = null)
     {
       Gu.Assert(ob != null);
       if (ob.Mesh == null)
       {
         return;
       }
+
+      var the_mat = customMaterial != null ? customMaterial : ob.Material;
 
       _dict = _dict.ConstructIfNeeded();
 
@@ -1189,20 +1208,48 @@ namespace PirateCraft
       }
 
       SortedDictionary<DrawOrder, DrawCall>? distCall = null;
-      if (!stageDist.TryGetValue(ob.Mesh.DrawMode, out distCall))
+      if (!stageDist.TryGetValue(the_mat.DrawMode, out distCall))
       {
         distCall = new SortedDictionary<DrawOrder, DrawCall>();
-        stageDist.Add(ob.Mesh.DrawMode, distCall);
+        stageDist.Add(the_mat.DrawMode, distCall);
       }
 
       DrawCall? call = null;
-      if (!distCall.TryGetValue(ob.Mesh.DrawOrder, out call))
+      if (!distCall.TryGetValue(the_mat.DrawOrder, out call))
       {
         call = new DrawCall();
-        distCall.Add(ob.Mesh.DrawOrder, call);
+        distCall.Add(the_mat.DrawOrder, call);
       }
 
       call.AddVisibleObject(ob, customMaterial);
+
+      //add to the flat list as well.
+      if (isGlob != null)
+      {
+        HashSet<Glob>? hs = new HashSet<Glob>();
+        if (!VisibleGlobs.TryGetValue(rv, out hs))
+        {
+          hs = new HashSet<Glob>();
+          VisibleGlobs.Add(rv, hs);
+        }
+        hs.Add(isGlob);
+      }
+      else if (ob is WorldObject)
+      {
+        var obb = ob as WorldObject;
+        HashSet<WorldObject>? hs = new HashSet<WorldObject>();
+        if (!VisibleObjects.TryGetValue(rv, out hs))
+        {
+          hs = new HashSet<WorldObject>();
+          VisibleObjects.Add(rv, hs);
+        }
+        hs.Add(obb);
+      }
+      else
+      {
+        //the object is a drawable, probably a glob or debug object, etc
+      }
+
       _dbg_added_objects++;
     }
     public void Draw(RenderView rv, DrawMode dm, WorldProps wp)
@@ -1213,6 +1260,11 @@ namespace PirateCraft
 
       if (_dict.TryGetValue(rv, out var modes))
       {
+
+        if (dm == DrawMode.Debug && modes.Keys.Contains(dm))
+        {
+          Gu.Trap();
+        }
         if (modes.TryGetValue(dm, out var orders))
         {
           foreach (var order_call in orders)
@@ -1269,12 +1321,6 @@ namespace PirateCraft
     private WorldEditor? _worldEditor = null;
     [DataMember] private WorldInfo? _worldInfo = null;
     [DataMember] private WorldObject _sceneRoot = new WorldObject("Scene_Root");
-    private long _lastShellIncrementTimer_ms = 0;
-    private long _lastShellIncrementTimer_ms_Max = 500;
-    private WorldObject dummy = new WorldObject("dummy_beginrender");
-    private WorldObject? _debugDrawLines = null;
-    private WorldObject? _debugDrawPoints = null;
-    private WorldObject? _debugDrawTris = null;
 
     //There is no need for ivec3 here.
     //we should sort all objects by distance.
@@ -1412,8 +1458,47 @@ namespace PirateCraft
     #endregion
     #region Topology
 
+    public void Pick()
+    {
+      //Pick objects at start of frame, *relying on the previous culled collection 
+      if (Gu.TryGetSelectedView(out var rv))
+      {
+        if (Gu.Context.Renderer.Picker.PickedObjectFrame == null)
+        {
+          if (_visibleStuff.VisibleGlobs.TryGetValue(rv, out var gs))
+          {
+            foreach (var g in gs)
+            {
+              PickVisibleGlob(g);
+              if (Gu.Context.Renderer.Picker.PickedObjectFrame != null)
+              {
+                break;
+              }
+            }
+          }
+        }
+        if (Gu.Context.Renderer.Picker.PickedObjectFrame == null)
+        {
+          if (_visibleStuff.VisibleObjects.TryGetValue(rv, out var obs))
+          {
+            foreach (var ob in obs)
+            {
+              PickVisibleObject(ob);
+              if (Gu.Context.Renderer.Picker.PickedObjectFrame != null)
+              {
+                break;
+              }
+            }
+          }
+        }
+      }
+
+    }
+
     public void BuildAndCull(RenderView rv)
     {
+      Gu.Assert(rv != null);//must have RV
+
       if (rv.ViewMode != RenderViewMode.UIOnly)
       {
         //Collect visible
@@ -1421,13 +1506,14 @@ namespace PirateCraft
         _visibleStuff.Clear(rv);
         _worldProps.ClearLights();
 
-        if (rv.Camera != null && rv.Camera.TryGetTarget(out var cm))
-        {
-          cm.SanitizeTransform();
-          BuildGrid(cm.Position_World, Info.GenerateDistance);
-          CollectVisibleGlobs(rv, cm);
-          CollectVisibleObjects(rv, cm);
-        }
+        rv.Camera.SanitizeTransform();
+        BuildGrid(rv.Camera.Position_World, Info.GenerateDistance);
+        CollectVisibleGlobs(rv, rv.Camera);
+        CollectVisibleObjects(rv, rv.Camera);
+        Editor.CollectVisibleObjects(rv);
+
+        //Must come after editor it modifies this
+        rv.Overlay.BuildDebugDrawMeshes(_visibleStuff);
       }
       if (rv.ViewMode != RenderViewMode.WorldOnly && rv.Gui != null)
       {
@@ -1609,8 +1695,7 @@ namespace PirateCraft
                 Gpu.CreateShaderStorageBuffer(name, faces.ToArray()),
                 true
               );
-        g.Opaque.Mesh.DrawOrder = DrawOrder.Mid;
-        g.Opaque.Mesh.DrawMode = DrawMode.Deferred;
+
 
         _renderGlobs.Add(g.Pos, g);
       }
@@ -1790,31 +1875,6 @@ namespace PirateCraft
     #endregion
     #region Objects
 
-    public Glob GetGlobForPoint(vec3 pt, GlobArray? ga = null)
-    {
-      if (ga != null)
-      {
-        foreach (var ng in ga.GlobsC27)
-        {
-          if (ng != null)
-          {
-            if (Info.GetGlobBoxGlobalI3(ng.Pos).containsPointBottomLeftInclusive(pt))
-            {
-              return ng;
-            }
-          }
-        }
-      }
-      else
-      {
-        var i3 = Info.R3GlobaltoI3Glob(pt);
-        if (_globs.TryGetValue(i3, out var outg))
-        {
-          return outg;
-        }
-      }
-      return null;
-    }
     public WorldObject? FindObject(string name)
     {
       WorldObject? ret = null;
@@ -1828,14 +1888,6 @@ namespace PirateCraft
         return LambdaBool.Continue;
       });
       return ret;
-    }
-    public Camera3D CreateCamera(string name, RenderView rv, vec3 pos)
-    {
-      Camera3D c = new Camera3D(name, rv);
-      c.Position_Local = pos;
-      Box3f dummy = Box3f.Zero;
-      c.Update(this, 0, ref dummy);
-      return c;
     }
     public WorldObject CreateObject(string name, MeshData mesh, Material material, vec3 pos = default(vec3))
     {
@@ -1859,7 +1911,7 @@ namespace PirateCraft
       wo.State = WorldObjectState.Removed;
       _worldEditor.Edited = true;
     }
-    public WorldObject AddObject(WorldObject ob)
+    public WorldObject AddObject(WorldObject ob, bool defaultBox = true)
     {
       //Add object to the scene root
       if (ob == null)
@@ -1869,13 +1921,16 @@ namespace PirateCraft
         return null;
       }
 
-      if (ob.Mesh == null)
+      if (defaultBox)
       {
-        ob.Mesh = MeshData.DefaultBox;
-      }
-      if (ob.Material == null)
-      {
-        ob.Material = Material.DefaultObjectMaterial;
+        if (ob.Mesh == null)
+        {
+          ob.Mesh = MeshData.DefaultBox;
+        }
+        if (ob.Material == null)
+        {
+          ob.Material = Material.DefaultObjectMaterial;
+        }
       }
 
       SceneRoot.AddChild(ob);
@@ -1897,7 +1952,7 @@ namespace PirateCraft
           if (ob.Visible)
           {
             //We could drop physics here if we wanted to
-            ob.Update(this, dt, ref dummy);
+            ob.Update(dt, ref dummy);
 
             //This could be a component
             if (ob.HasPhysics)
@@ -2136,11 +2191,14 @@ namespace PirateCraft
       ret._t1 = ret._t2 = 9999;
       return ret;
     }
+
+    #endregion
+    #region Culling / View
+
     private void CollectVisibleObjects(RenderView rv, Camera3D cm)
     {
       NumCulledObjects = 0;
       CollectVisibleObjects(rv, cm, SceneRoot);
-      AddDebugDrawObjects(rv);
     }
     private void CollectVisibleGlobs(RenderView rv, Camera3D cam)
     {
@@ -2160,21 +2218,20 @@ namespace PirateCraft
           {
             if (g.HasMeshData())
             {
-              PickVisibleGlob(g);
               _visibleRenderGlobs.Add(kvp.Key, g);
               if (g.Opaque != null)
               {
-                if (Gu.Context.DebugDraw.ObjectRenderMode != DebugObjectRenderMode.Wire)
+                if (rv.Overlay.ObjectRenderMode != ObjectRenderMode.Wire)
                 {
-                  _visibleStuff.AddObject(rv, g.Opaque);
+                  _visibleStuff.AddObject(rv, g.Opaque, null, g);
                 }
                 DebugDrawObject(rv, g.Opaque);
               }
               if (g.Transparent != null)
               {
-                if (Gu.Context.DebugDraw.ObjectRenderMode != DebugObjectRenderMode.Wire)
+                if (rv.Overlay.ObjectRenderMode != ObjectRenderMode.Wire)
                 {
-                  _visibleStuff.AddObject(rv, g.Transparent);
+                  _visibleStuff.AddObject(rv, g.Transparent, null, g);
                 }
                 DebugDrawObject(rv, g.Transparent);
               }
@@ -2196,7 +2253,7 @@ namespace PirateCraft
 
       if (ob.Visible && !excluded)
       {
-        if (cam.Frustum.HasBox(ob.BoundBox))
+        if (cam==ob || cam.Frustum.HasBox(ob.BoundBox))
         {
           if (ob.HasLight)
           {
@@ -2214,14 +2271,18 @@ namespace PirateCraft
               Gu.BRThrowNotImplementedException();
             }
           }
+          if (ob is Camera3D)
+          {
+            var c = ob as Camera3D;
+            rv.Overlay.DrawFrustum(c.Frustum, 2);
+          }
           if (ob.Mesh != null)
           {
-            if (Gu.Context.DebugDraw.ObjectRenderMode != DebugObjectRenderMode.Wire)
+            if (rv.Overlay.ObjectRenderMode != ObjectRenderMode.Wire)
             {
               _visibleStuff.AddObject(rv, ob);
             }
             DebugDrawObject(rv, ob);
-            PickVisibleObject(ob);
           }
           else
           {
@@ -2284,16 +2345,6 @@ namespace PirateCraft
       }
 
     }
-    private void CheckSaveWorld(double dt)
-    {
-      _autoSaveTimeout += dt;
-      if (_autoSaveTimeout > _autoSaveTimeoutSeconds || _worldEditor.Edited)
-      {
-        SaveWorld();
-        _autoSaveTimeout = 0;
-        _worldEditor.Edited = false;
-      }
-    }
 
     #endregion
     #region Rendering
@@ -2308,11 +2359,15 @@ namespace PirateCraft
       {
         _visibleStuff.Draw(rv, DrawMode.Forward, _worldProps);
       }
+      else if (stage == PipelineStageEnum.Debug)
+      {
+        _visibleStuff.Draw(rv, DrawMode.Debug, _worldProps);
+      }
     }
     private void DebugDrawObject(RenderView rv, Drawable ob)
     {
       var wo = (ob as WorldObject);
-      if (Gu.Context.DebugDraw.DrawBoundBoxes)
+      if (rv.Overlay.DrawBoundBoxes)
       {
         if (wo != null)
         {
@@ -2320,11 +2375,14 @@ namespace PirateCraft
           vec4 aabb_color = new vec4(.8194f, .0134f, .2401f, 1);
           vec4 obb_color = new vec4(.9192f, .8793f, .9131f, 1);
 
-          Gu.Context.DebugDraw.Box(wo.BoundBoxMeshTransform, obb_color);
-          Gu.Context.DebugDraw.Box(wo.BoundBox, aabb_color);
+          if (wo.BoundBoxMeshTransform != null)
+          {
+            rv.Overlay.Box(wo.BoundBoxMeshTransform, obb_color);
+          }
+          rv.Overlay.Box(wo.BoundBox, aabb_color);
         }
       }
-      if (Gu.Context.DebugDraw.DrawObjectBasis)
+      if (rv.Overlay.DrawObjectBasis)
       {
         vec3 ob_pos;
         vec3 basisX, basisY, basisZ;
@@ -2344,85 +2402,17 @@ namespace PirateCraft
         }
 
         //Basis lines / basis matrix WORLD
-        Gu.Context.DebugDraw.Line(ob_pos, ob_pos + basisX, new vec4(1, 0, 0, 1));
-        Gu.Context.DebugDraw.Line(ob_pos, ob_pos + basisY, new vec4(0, 1, 0, 1));
-        Gu.Context.DebugDraw.Line(ob_pos, ob_pos + basisZ, new vec4(0, 0, 1, 1));
+        rv.Overlay.Line(ob_pos, ob_pos + basisX, new vec4(1, 0, 0, 1));
+        rv.Overlay.Line(ob_pos, ob_pos + basisY, new vec4(0, 1, 0, 1));
+        rv.Overlay.Line(ob_pos, ob_pos + basisZ, new vec4(0, 0, 1, 1));
       }
-      if (Gu.Context.DebugDraw.DrawVertexAndFaceNormalsAndTangents)
+      if (rv.Overlay.DrawVertexAndFaceNormalsAndTangents)
       {
         _visibleStuff.AddObject(rv, ob, Gu.Lib.LoadMaterial(RName.Material_DebugDraw_VertexNormals_FlatColor));
       }
-      if (Gu.Context.DebugDraw.DrawWireframeOverlay || Gu.Context.DebugDraw.ObjectRenderMode == DebugObjectRenderMode.Wire)
+      if (rv.Overlay.DrawWireframeOverlay || rv.Overlay.ObjectRenderMode == ObjectRenderMode.Wire)
       {
         _visibleStuff.AddObject(rv, ob, Gu.Lib.LoadMaterial(RName.DebugDraw_Wireframe_FlatColor));
-      }
-    }
-    private void AddDebugDrawObjects(RenderView rv)
-    {
-      if (Gu.Context.DebugDraw.LinePoints.Count > 0)
-      {
-        //  GL.LineWidth(1.0f);//TODO: - this is now invalid
-        Gpu.CheckGpuErrorsDbg();
-        if (_debugDrawLines == null)
-        {
-          _debugDrawLines = CreateObject("debug_lines", null, Gu.Lib.LoadMaterial(RName.Material_DebugDrawMaterial));
-
-          _debugDrawLines.Mesh = new MeshData("debug_lines", PrimitiveType.Lines,
-            Gpu.CreateVertexBuffer("debug_lines", Gu.Context.DebugDraw.LinePoints.ToArray()),
-            Gpu.CreateIndexBuffer("debug_lines", Gu.Context.DebugDraw.LineInds.ToArray()),
-            null, false);
-        }
-        else
-        {
-          _debugDrawLines.Mesh.VertexBuffers[0].ExpandBuffer(Gu.Context.DebugDraw.LinePoints.Count);
-          _debugDrawLines.Mesh.VertexBuffers[0].CopyToGPU(GpuDataPtr.GetGpuDataPtr(Gu.Context.DebugDraw.LinePoints.ToArray()));
-          _debugDrawLines.Mesh.IndexBuffer.ExpandBuffer(Gu.Context.DebugDraw.LineInds.Count);
-          _debugDrawLines.Mesh.IndexBuffer.CopyToGPU(GpuDataPtr.GetGpuDataPtr(Gu.Context.DebugDraw.LineInds.ToArray()));
-          _debugDrawLines.MeshView.Start = 0;
-          _debugDrawLines.MeshView.Count = Gu.Context.DebugDraw.LineInds.Count;
-        }
-        _visibleStuff.AddObject(rv, _debugDrawLines);
-      }
-      if (Gu.Context.DebugDraw.Points.Count > 0)
-      {
-        // GL.PointSize(5);//TODO: - this is now invalid
-        Gpu.CheckGpuErrorsDbg();
-        if (_debugDrawPoints == null)
-        {
-          _debugDrawPoints = CreateObject("debug_points", null, Gu.Lib.LoadMaterial(RName.Material_DebugDrawMaterial));
-          _debugDrawPoints.Mesh = new MeshData("debug_points", PrimitiveType.Points,
-            Gpu.CreateVertexBuffer("debug_points", Gu.Context.DebugDraw.Points.ToArray()),
-            null, false);
-        }
-        else
-        {
-          _debugDrawPoints.Mesh.VertexBuffers[0].ExpandBuffer(Gu.Context.DebugDraw.Points.Count);
-          _debugDrawPoints.Mesh.VertexBuffers[0].CopyToGPU(GpuDataPtr.GetGpuDataPtr(Gu.Context.DebugDraw.Points.ToArray()));
-          _debugDrawPoints.MeshView.Start = 0;
-          _debugDrawPoints.MeshView.Count = Gu.Context.DebugDraw.Points.Count;
-        }
-        _visibleStuff.AddObject(rv, _debugDrawPoints);
-      }
-      if (Gu.Context.DebugDraw.TriPoints.Count > 0)
-      {
-        //   GL.PointSize(1);//TODO: - this is now invalid
-        //  GL.LineWidth(1);
-        Gpu.CheckGpuErrorsDbg();
-        if (_debugDrawTris == null)
-        {
-          _debugDrawTris = CreateObject("debug_tris", null, Gu.Lib.LoadMaterial(RName.Material_DebugDrawMaterial));
-          _debugDrawTris.Mesh = new MeshData("debug_tris", PrimitiveType.Triangles,
-            Gpu.CreateVertexBuffer("debug_tris", Gu.Context.DebugDraw.TriPoints.ToArray()),
-            null, false);
-        }
-        else
-        {
-          _debugDrawTris.Mesh.VertexBuffers[0].ExpandBuffer(Gu.Context.DebugDraw.TriPoints.Count);
-          _debugDrawTris.Mesh.VertexBuffers[0].CopyToGPU(GpuDataPtr.GetGpuDataPtr(Gu.Context.DebugDraw.TriPoints.ToArray()));
-          _debugDrawTris.MeshView.Start = 0;
-          _debugDrawTris.MeshView.Count = Gu.Context.DebugDraw.TriPoints.Count;
-        }
-        _visibleStuff.AddObject(rv, _debugDrawTris);
       }
     }
     public List<WorldObject> GetAllVisibleRootObjects()
@@ -2453,11 +2443,19 @@ namespace PirateCraft
       var maps = CreateAtlas();
       var shader = Shader.DefaultObjectShader();
       _worldMaterial_Op = new Material("worldMaterial_Op", shader, maps.Albedo, maps.Normal);
+      _worldMaterial_Op._gpuMaterial._vBlinnPhong_Spec = new vec4(0.59f, 0.61f, 0.61f, 170.0f);
+      _worldMaterial_Op.DrawOrder = DrawOrder.Mid;
+      _worldMaterial_Op.DrawMode = DrawMode.Deferred;
+      _worldMaterial_Op.GpuRenderState.Blend = false;
+      _worldMaterial_Op.GpuRenderState.DepthTest = true;
+      _worldMaterial_Op.GpuRenderState.CullFace = true;
+
       _worldMaterial_Tp = new Material("worldMaterial_Tp", shader, maps.Albedo, maps.Normal);
       _worldMaterial_Tp.GpuRenderState.Blend = true;
       _worldMaterial_Tp.GpuRenderState.DepthTest = true;
       _worldMaterial_Tp.GpuRenderState.CullFace = false;
-      _worldMaterial_Op._gpuMaterial._vBlinnPhong_Spec = new vec4(0.59f,0.61f,0.61f, 170.0f);
+      _worldMaterial_Tp.DrawOrder = DrawOrder.Mid;
+      _worldMaterial_Tp.DrawMode = DrawMode.Deferred;
 
       //Block Material
       _blockObjectMaterial = Gu.Lib.LoadMaterial("BlockObjectMaterial", Gu.Lib.LoadShader("v_v3n3x2_BlockObject_Instanced", "v_v3n3x2_BlockObject_Instanced", FileStorage.Embedded));
@@ -2622,6 +2620,51 @@ namespace PirateCraft
       }
       return false;
     }
+    public Glob GetGlobForPoint(vec3 pt, GlobArray? ga = null)
+    {
+      if (ga != null)
+      {
+        foreach (var ng in ga.GlobsC27)
+        {
+          if (ng != null)
+          {
+            if (Info.GetGlobBoxGlobalI3(ng.Pos).containsPointBottomLeftInclusive(pt))
+            {
+              return ng;
+            }
+          }
+        }
+      }
+      else
+      {
+        var i3 = Info.R3GlobaltoI3Glob(pt);
+        if (_globs.TryGetValue(i3, out var outg))
+        {
+          return outg;
+        }
+      }
+      return null;
+    }
+
+    #endregion
+    #region Files / Saving
+
+    private void CheckSaveWorld(double dt)
+    {
+      _autoSaveTimeout += dt;
+      if (_autoSaveTimeout > _autoSaveTimeoutSeconds || _worldEditor.Edited)
+      {
+        SaveWorld();
+        _autoSaveTimeout = 0;
+        _worldEditor.Edited = false;
+      }
+    }
+    private FileLoc GetTileFile(TileImage img)
+    {
+      WorldStaticData.TileImages.TryGetValue(img, out var loc);
+      Gu.Assert(loc != null);
+      return loc;
+    }
     private string GetWorldFileName()
     {
       string worldfile = Info.Name + ".world";
@@ -2643,16 +2686,6 @@ namespace PirateCraft
       SetGlob(gpos, g);
 
       return g;
-    }
-
-    #endregion
-    #region Files
-
-    private FileLoc GetTileFile(TileImage img)
-    {
-      WorldStaticData.TileImages.TryGetValue(img, out var loc);
-      Gu.Assert(loc != null);
-      return loc;
     }
     private void InitWorldDiskFile(bool delete_world_start_fresh)
     {

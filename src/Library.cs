@@ -26,7 +26,9 @@ namespace PirateCraft
     public static string Tex2D_DefaultBlackPixelNoAlpha = "Tex2D_DefaultBlackPixelNoAlpha";
     public static string Tex2D_DefaultNormalPixel = "Tex2D_DefaultNormalPixel";
 
-    public static string Shader_DebugDraw = "Shader_DebugDraw";
+    public static string Shader_DebugDraw_Lines = "Shader_DebugDraw_Lines";
+    public static string Shader_DebugDraw_Points = "Shader_DebugDraw_Points";
+    public static string Shader_DebugDraw_Tris = "Shader_DebugDraw_Tris";
     public static string Shader_Wireframe = "Shader_Wireframe";
     public static string Shader_GuiShader = "Shader_GuiShader";
     public static string Shader_DefaultObjectShader = "Shader_DefaultObjectShader";
@@ -37,7 +39,9 @@ namespace PirateCraft
     public static string Material_DefaultFlatColorMaterial = "Material_DefaultFlatColorMaterial";
     public static string Material_DefaultObjectMaterial = "Material_DefaultObjectMaterial";
     public static string Material_DebugDraw_VertexNormals_FlatColor = "Material_DebugDraw_VertexNormals_FlatColor";
-    public static string Material_DebugDrawMaterial = "Material_DebugDrawMaterial";
+    public static string Material_DebugDrawMaterial_Lines = "Material_DebugDrawMaterial_Lines";
+    public static string Material_DebugDrawMaterial_Points = "Material_DebugDrawMaterial_Points";
+    public static string Material_DebugDrawMaterial_Tris = "Material_DebugDrawMaterial_Tris";
     public static string DebugDraw_Wireframe_FlatColor = "DebugDraw_Wireframe_FlatColor";
 
     public static string Mesh_DefaultBox = "Mesh_DefaultBox";

@@ -1,8 +1,26 @@
-﻿This Sprint: 
-  fixed inheriting non inheritable properties
+﻿## THIS SPRINT:
+  Fixed GPU render state errors
+  Engine Config Saving via Newtonsoft JSON
+  Generic DebugDraw
+  World Editor drawing
+  Viewport Overlay
 
-Working On:
+
+## WORKING ON:
+ Transforms
+ Animation
+
+## NOTES:
+
+1023
+transofrms
+  it is impossible to debug all this without proper visual deubg
+    wide lines/oints
+    
 1022
+  Issue: Shortcut labels go outside bounds
+  Issue: clipping is not working
+
   goinhg to remove UISpan - it's causing problems
     element padding passed in to layoutSpan and we add double padding due to htis.
 
@@ -130,7 +148,7 @@ Working On:
   fix M/R/S action
   save/load/lib
 
-Bugs:
+## Bugs:
   * Library Dependencies must share pick ID with root node Gear -> root
   * Hide root node default box.
   * CRITICAL: slowdown issue - fps slows down .. some kind of serious issue
@@ -141,7 +159,7 @@ Bugs:
     either tie pickId to a RenderView, or, use a global pick id for all views.
     I like the first one.  (fixed?)
 
-Roadmap:
+## ROADMAP:
 * World Model 1 
   X Columns, menus, basic gen, gen flat, save world
   * Save / load assets (serialize) objects + world (phase 1)
@@ -245,12 +263,22 @@ Roadmap:
   * Knight Character
 * Prototype Complete
 
-TODO list
+
+## TODO list:
+* add obj hiding to edit history
+* Fix implementing "modified" update of all GpuData structures (optimization)
+* Fix "modified" in the UI (optimization)
+* Fix draw line / point v_line v_point- perspective distortion is causing them to not appear to be pixel lines with fixed width. they must not have perspective.
+* Multi Lang - multiple language support
+  * See the failed implementation of multilang in the project folder
+  * Change MegaTexture to compile any unicode point, 
+  * ZH, RSTU
+  * For multiple fonts figure out how to deserialize a class from this data
+  * UI - RTL text (implemented) - See Translator
 * Globs must inherit from world object and have the same edit properties of objects
   Object Mode -> Glob edit mode -> 
 * Implement Prop Animation Timer in Gui2D to animate props on a timer, versus, all at once
 * Inheriting from parents is very annoying - remove parent inheritance
-
 * XML for the UI - relies on Unified Diff
     * XDocument doc= XDocument.Parse("<e>this is some text<e Position=\"Fixed\" Background=\"image.png\"></e>some more text.<e Position=\"Fixed\">interior element with text</e></e>");
 * Unified UI
@@ -259,43 +287,16 @@ TODO list
 * LaunchFileWithSelectedShaderErrorLine (shaders & Scripts)
     * when an error occurs - launch the file in the editor.
 * Do away with generic shader names - files must exist, if they dont exist then it wont be reported if the shader still compiles.
-* Put line width / point size on Material (perhaps GPU state, or just a material param)
-  of course put functionality in to render these without compatibility profile
-    Ok so - we would put it on the material and have separate debug draw materials for line / point
-    Actually it would be a shader parameter
-      So we would need some kind of shader parameter interface.
-    Material{
-      LineWidth
-      PointSize
-    }
-    LineShader
-      _ufLineWidth
-    PointShader
-      _ufPointSize
-        ^^ point shader can be a more generic quad shader of some kind.
-
-    We may also be able to make this generic ..
-      One shader for lines/points with flat color (GL_POINTS, GL_LINES)
-        Not sure if this is possible.
-
-      Note it is all v_v3c4 for debug. - debug vert.
-
-
-
 * KeyMap - Read from file.
 * Optimized UI-ONLY Window Updates - 
     Prevent rendering to UI-only windows if the UI does not change, do not clear the buffer.
-* Move World Initialization to scripts.
+
   Sun/Moon and default object creation
 * Generic Texture - 
     Refactor the RenderTExture and Depth texture constructors in Texture - make generic, and fit with 2d, 3d, or make a 3d class
 * Memory growth bug, FPS drop bug
 * Mesh Pools.
-* GLYPHS - replace UiElement with Glyphs for chars
-* WORD WRAP - make word wrap work for labels.
-* Move the window debug keys (F1..) to KeyMaP
-* FIX CS Scripts 
-* Dir lights
+
 * BR_DYNAMIC_GLOB_LOADING Dynamic Glob loading from world file
 * Beam / BeamEdge /BeamVert as structs
   doing this will compact data by 400%
@@ -312,8 +313,18 @@ TODO list
 * Scrollbar for props window
 * Character model
 
+## DONE:
+ 
+X Put line width / point size on Material (perhaps GPU state, or just a material param)
+X Move World Initialization to scripts.
+X GLYPHS - replace UiElement with Glyphs for chars
+X WORD WRAP - make word wrap work for labels.
+X Move the window debug keys (F1..) to KeyMaP
+X FIX CS Scripts 
+X Dir lights
 
 
+## DESIGN / BRAIN DUMP
 edge vertex heights = height face height - less flexibility but way easier to code
 different - more difficult, could be several poly configurations on each face, 
 further we are going to allow for extruded height faces, and, the tesselation factor, 
@@ -666,7 +677,7 @@ doign away with the parameters
 
 worldobject is not a datablock. it uses mesh/material datablocks, we should change it to be more of an instance.
 
-shit..idk why not.. just serialize the whole friggin library into a file, then we can easily load shit without having to process it....hard
+..idk why not.. just serialize the whole friggin library into a file, then we can easily load  without having to process it....hard
   MeshData . serialize all the data
   Shader . serialize jsut the files
   AnimationData . keys .. serializer already written

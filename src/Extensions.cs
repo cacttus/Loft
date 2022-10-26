@@ -10,20 +10,6 @@ namespace PirateCraft
   //Extension methods - google what this is if you don't know
   public static class OtherExtensions
   {
-    public static int ElementSize<T>(this T[] data)
-    {
-      int size = 0;
-      int length = data.Length;
-      if (data.Length == 0)
-      {
-        size = 0;
-      }
-      else
-      {
-        size = Marshal.SizeOf(data[0]);
-      }
-      return size;
-    }
     public static List<int> AllIndexesOf(this string str, string value)
     {
       if (String.IsNullOrEmpty(value))

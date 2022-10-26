@@ -495,6 +495,14 @@ namespace PirateCraft
     [DataMember] public vec3 _v;
     [DataMember] public vec4 _c;
   }
+  [StructLayout(LayoutKind.Sequential)]
+  public struct v_debug_draw
+  {
+    [DataMember] public vec3 _v;
+    [DataMember] public vec4 _c;
+    [DataMember] public vec2 _size;
+    [DataMember] public vec3 _outl;//outline color
+  }  
   [DataContract]
   [StructLayout(LayoutKind.Sequential)]
   public struct v_v3n3x2t3u1

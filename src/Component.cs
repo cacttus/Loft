@@ -443,25 +443,9 @@ namespace PirateCraft
       Gu.BRThrowNotImplementedException();
     }
   }
-  public abstract class InputComponent : Component
-  {
-    protected RenderView View { get; set; } = null;
-    public InputComponent(RenderView win)
-    {
-      View = win;
-    }
-    public override void OnCreate(WorldObject myObj)
-    {
-    }
-    public override void OnUpdate(double dt, WorldObject myObj)
-    {
-    }
-    public override void OnDestroy(WorldObject myObj)
-    {
-    }
-  }
+
   [DataContract]
-  public class FPSInputComponent : InputComponent, ICopy<FPSInputComponent>, ISerializeBinary
+  public class FPSInputComponent : Component, ICopy<FPSInputComponent>, ISerializeBinary
   {
     public enum FPSCamMode
     {
@@ -483,13 +467,10 @@ namespace PirateCraft
     [DataMember] private double rotX = 0;
     [DataMember] private double rotY = 0;
 
-    private bool _isActiveView = false; //user pressed MMB, RMB, LMB in view
+    private RenderView _rv;
 
+    public FPSInputComponent(RenderView cam) { _rv = cam; }
 
-    public FPSInputComponent() : base(null) { }
-    public FPSInputComponent(RenderView view) : base(view)
-    {
-    }
     public override void OnCreate(WorldObject myObj)
     {
       myObj.HasPhysics = true;
@@ -501,17 +482,15 @@ namespace PirateCraft
       {
         return;
       }
-      if (View != Gu.Context.GameWindow.SelectedView)
+      if (!Gu.TryGetSelectedView(out var rv))
       {
         return;
       }
-      Camera3D cam = null;
-      if (!View.Camera.TryGetTarget(out cam))
+      if (_rv != rv)
       {
         return;
       }
-      base.OnUpdate(dt, myObj);
-
+      
       myObj.AirFriction = MaxAirFriction; //Movement Damping
 
       vec3basis basis = new vec3basis();
@@ -528,87 +507,84 @@ namespace PirateCraft
       //   basis.y = vec3.Zero; //no cheating
       //   basis.z = cam.BasisZ;
       // }
-      DoMouse(myObj, cam, basis);
+      DoMouse(myObj, _rv, basis);
     }
     public override void OnDestroy(WorldObject myObj)
     {
     }
-    private void DoMouse(WorldObject obj, Camera3D cam, vec3basis basis)
+    private void DoMouse(WorldObject obj, RenderView view, vec3basis basis)
     {
-      if (cam.RenderView != null && cam.RenderView.TryGetTarget(out var view))
+      //Rotate Camera
+      float width = view.Viewport.Width;
+      float height = view.Viewport.Height;
+      float mpx_rel = Gu.Context.PCMouse.Pos.x - view.Viewport.X;
+      float mpy_rel = Gu.Context.PCMouse.Pos.y - view.Viewport.Y;
+      vec2 mouse_delta_wh = new vec2(Gu.Context.PCMouse.PosDelta.x / view.Viewport.Width, Gu.Context.PCMouse.PosDelta.y / view.Viewport.Height);
+
+      bool ms_move_editing_must_warp = false;
+
+      //** Mimicking Blender Defaults ** 
+      if (Gu.Context.PCMouse.ScrollDelta.y != 0)
       {
-        //Rotate Camera
-        float width = view.Viewport.Width;
-        float height = view.Viewport.Height;
-        float mpx_rel = Gu.Context.PCMouse.Pos.x - view.Viewport.X;
-        float mpy_rel = Gu.Context.PCMouse.Pos.y - view.Viewport.Y;
-        vec2 mouse_delta_wh = new vec2(Gu.Context.PCMouse.PosDelta.x / view.Viewport.Width, Gu.Context.PCMouse.PosDelta.y / view.Viewport.Height);
+        obj.Position_Local += basis.z * Gu.Context.PCMouse.ScrollDelta.y * _scroll_zoom_meters_per_pixel;
+        ms_move_editing_must_warp = true;
+      }
+      if (Gu.Context.PCMouse.PressOrDown(MouseButton.Middle))
+      {
+        //Allow shift or control to affect speed instead, if WSAD is down.
+        bool bMoving = Gu.Context.PCKeyboard.PressOrDown(Keys.W) || Gu.Context.PCKeyboard.PressOrDown(Keys.S) || Gu.Context.PCKeyboard.PressOrDown(Keys.A) || Gu.Context.PCKeyboard.PressOrDown(Keys.D);
 
-        bool ms_move_editing_must_warp = false;
-
-        //** Mimicking Blender Defaults ** 
-        if (Gu.Context.PCMouse.ScrollDelta.y != 0)
+        if (!bMoving && (Gu.Context.PCKeyboard.PressOrDown(Keys.LeftShift) || Gu.Context.PCKeyboard.PressOrDown(Keys.RightShift)))
         {
-          obj.Position_Local += basis.z * Gu.Context.PCMouse.ScrollDelta.y * _scroll_zoom_meters_per_pixel;
+          //Pan
+          obj.Position_Local += basis.x * -mouse_delta_wh.x * _pan_meters_per_pixel;
+          obj.Position_Local += basis.y * mouse_delta_wh.y * _pan_meters_per_pixel;
           ms_move_editing_must_warp = true;
         }
-        if (Gu.Context.PCMouse.PressOrDown(MouseButton.Middle))
+        else if (!bMoving && (Gu.Context.PCKeyboard.PressOrDown(Keys.LeftControl) || Gu.Context.PCKeyboard.PressOrDown(Keys.RightControl)))
         {
-          //Allow shift or control to affect speed instead, if WSAD is down.
-          bool bMoving = Gu.Context.PCKeyboard.PressOrDown(Keys.W) || Gu.Context.PCKeyboard.PressOrDown(Keys.S) || Gu.Context.PCKeyboard.PressOrDown(Keys.A) || Gu.Context.PCKeyboard.PressOrDown(Keys.D);
+          //Zoom
+          obj.Position_Local += basis.z * -mouse_delta_wh.y * _zoom_meters_per_pixel;
+          ms_move_editing_must_warp = true;
+        }
+        else
+        {
+          DoMoveWSAD(obj, basis);
 
-          if (!bMoving && (Gu.Context.PCKeyboard.PressOrDown(Keys.LeftShift) || Gu.Context.PCKeyboard.PressOrDown(Keys.RightShift)))
+          //Rotate
+          rotX += Math.PI * 2 * mouse_delta_wh.x * _rotations_per_width * Gu.CoordinateSystemMultiplier;
+          if (rotX >= Math.PI * 2.0f)
           {
-            //Pan
-            obj.Position_Local += basis.x * -mouse_delta_wh.x * _pan_meters_per_pixel;
-            obj.Position_Local += basis.y * mouse_delta_wh.y * _pan_meters_per_pixel;
-            ms_move_editing_must_warp = true;
+            rotX = (float)(rotX % (Math.PI * 2.0f));
           }
-          else if (!bMoving && (Gu.Context.PCKeyboard.PressOrDown(Keys.LeftControl) || Gu.Context.PCKeyboard.PressOrDown(Keys.RightControl)))
+          if (rotX <= 0)
           {
-            //Zoom
-            obj.Position_Local += basis.z * -mouse_delta_wh.y * _zoom_meters_per_pixel;
-            ms_move_editing_must_warp = true;
+            rotX = (float)(rotX % (Math.PI * 2.0f));
           }
-          else
+
+          rotY += Math.PI * 2 * mouse_delta_wh.y * _half_rotations_per_height * Gu.CoordinateSystemMultiplier;
+          if (rotY >= Math.PI / 2)
           {
-            DoMoveWSAD(obj, basis);
-
-            //Rotate
-            rotX += Math.PI * 2 * mouse_delta_wh.x * _rotations_per_width * Gu.CoordinateSystemMultiplier;
-            if (rotX >= Math.PI * 2.0f)
-            {
-              rotX = (float)(rotX % (Math.PI * 2.0f));
-            }
-            if (rotX <= 0)
-            {
-              rotX = (float)(rotX % (Math.PI * 2.0f));
-            }
-
-            rotY += Math.PI * 2 * mouse_delta_wh.y * _half_rotations_per_height * Gu.CoordinateSystemMultiplier;
-            if (rotY >= Math.PI / 2)
-            {
-              rotY = Math.PI / 2 - 0.001f;
-            }
-            if (rotY <= -Math.PI / 2)
-            {
-              rotY = -Math.PI / 2 + 0.001f;
-            }
-
-            quat qy = quat.fromAxisAngle(new vec3(0, 1, 0), (float)rotX).normalized();
-            quat qx = quat.fromAxisAngle(new vec3(1, 0, 0), (float)rotY).normalized();
-
-            obj.Rotation_Local = qy * qx;
-            obj.SanitizeTransform();
-            //cam.Rotation_Local = qx;
-            //cam.SanitizeTransform();
-
-            ms_move_editing_must_warp = true;
+            rotY = Math.PI / 2 - 0.001f;
           }
-          if (ms_move_editing_must_warp)
+          if (rotY <= -Math.PI / 2)
           {
-            Gu.Context.PCMouse.WarpMouse(View, WarpMode.Wrap, 0.001f);
+            rotY = -Math.PI / 2 + 0.001f;
           }
+
+          quat qy = quat.fromAxisAngle(new vec3(0, 1, 0), (float)rotX).normalized();
+          quat qx = quat.fromAxisAngle(new vec3(1, 0, 0), (float)rotY).normalized();
+
+          obj.Rotation_Local = qy * qx;
+          obj.SanitizeTransform();
+          //cam.Rotation_Local = qx;
+          //cam.SanitizeTransform();
+
+          ms_move_editing_must_warp = true;
+        }
+        if (ms_move_editing_must_warp)
+        {
+          Gu.Context.PCMouse.WarpMouse(view, WarpMode.Wrap, 0.001f);
         }
       }
 
@@ -664,14 +640,14 @@ namespace PirateCraft
     }
     public override object? Clone(bool? shallow = null)
     {
-      return Gu.Clone<FPSInputComponent>(this);
+      Gu.BRThrowNotImplementedException();
+      return null;
     }
     public void CopyFrom(FPSInputComponent? other, bool? shallow = null)
     {
       Gu.Assert(other != null);
       this.rotX = other.rotX;
       this.rotY = other.rotY;
-      this.View = other.View;
     }
     public override void Serialize(BinaryWriter bw)
     {

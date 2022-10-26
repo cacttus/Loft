@@ -153,7 +153,9 @@ namespace PirateCraft
     public float Specular { get { return _specular; } set { _specular = value; SetModified(); } }
     public float IndexOfRefraction { get { return _indexOfRefraction; } set { _indexOfRefraction = value; SetModified(); } }
     public bool Flat { get { return _flat; } set { _flat = value; SetModified(); } }
-
+    public DrawMode DrawMode { get { return _drawMode; } set { _drawMode = value; } }
+    public DrawOrder DrawOrder { get { return _drawOrder; } set { _drawOrder = value; } }
+    
     //TODO: we can use PBRTextureARray here instead.
     public TextureSlot AlbedoSlot { get { return _textures[(int)PBRTextureInput.Albedo]; } private set { _textures[(int)PBRTextureInput.Albedo] = value; SetModified(); } }
     public TextureSlot NormalSlot { get { return _textures[(int)PBRTextureInput.Normal]; } private set { _textures[(int)PBRTextureInput.Normal] = value; SetModified(); } }
@@ -175,7 +177,6 @@ namespace PirateCraft
       }
     }
 
-
     #endregion
 
     #region Private:Members
@@ -188,6 +189,9 @@ namespace PirateCraft
     [DataMember] private float _specular = 0.0f;//for now this is blinn phong spec pwoer
     [DataMember] private float _indexOfRefraction = 1;//1.45
     [DataMember] private bool _flat = false;
+    [DataMember] private DrawMode _drawMode = DrawMode.Deferred;//Future TODO: - draw mode per each pipeline stage, if needed.
+    [DataMember] private DrawOrder _drawOrder = DrawOrder.Mid;
+
     public GpuMaterial _gpuMaterial = new GpuMaterial();//default(GpuMaterial);
     public glTFLoader.Schema.Material.AlphaModeEnum AlphaMode = glTFLoader.Schema.Material.AlphaModeEnum.BLEND;
     //**TODO: alpha is actually in the GpuRenderState
@@ -209,9 +213,9 @@ namespace PirateCraft
 
     #region Public: Methods
 
-    public override void GetSubResources(List<DataBlock?>deps )
+    public override void GetSubResources(List<DataBlock?> deps)
     {
-      Gu.Assert(deps!=null);
+      Gu.Assert(deps != null);
       base.GetSubResources(deps);
       deps.Add(_shader);
       foreach (var x in this._textures)
@@ -279,6 +283,8 @@ namespace PirateCraft
       this._textures = new List<TextureSlot>(other._textures);
       this._flat = other._flat;
       this.AlphaMode = other.AlphaMode;
+      this.DrawOrder = other.DrawOrder;
+      this.DrawMode = other.DrawMode;
     }
     public static Material DefaultFlatColor
     {

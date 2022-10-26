@@ -89,48 +89,13 @@ namespace PirateCraft
     {
       //Technically since this is a "world view" this should be on a separate window class that can view the world.
       var v = CreateRenderView(RenderViewMode.UIAndWorld, xy_pct, wh_pct);
-
-      //Create Camera
-      var c = Gu.World.CreateCamera("cam-def-" + v.Name, v, vec3.Zero);
-      c.Far = 4000.0f;
-      c.Position_Local = new vec3(0, 16, -16);
-      c.Rotation_Local = quat.fromAxisAngle(new vec3(-1, 0, 0), -MathUtils.M_PI / 8.0f);
-      c.AddComponent(new FPSInputComponent(v));
-
-      if (Gu.Lib.TryLoadModel("cam", new FileLoc("camera.glb", FileStorage.Embedded), out var cmod))
-      {
-        //sword.Rotation_Local *= quat.fromAxisAngle(new vec3(1, 0, 1).normalized(), MathUtils.M_PI_2 * 0.125f);
-        cmod.ExcludeFromRenderView = new WeakReference<RenderView>(v);
-        c.AddChild(cmod);
-      }
-
-      //Create View Player & Input (ViewPlayer)
-      // var p = Gu.World.CreateAndAddObject("player-empty-" + v.Name, null, null);
-      // p.Collides = false;
-      // p.HasPhysics = true;
-      // p.HasGravity = false;
-      // p.Position_Local = new vec3(0, 16, -16);
-      // p.AddChild(c);
-
-      var l = new WorldObject("player-light");
-      l.HasLight = true;
-      l.LightRadius = 50;
-      l.LightPower = 0.75f;
-      l.LightColor = new vec3(1,1,1);
-      l.Position_Local = new vec3(0, 0, 0);
-      c.AddChild(l);
-
-      Gu.World.AddObject(c);
-
-      //Set the view Camera
-      v.Camera = new WeakReference<Camera3D>(c);
-      OnCreateCamera(c);
+      v.CreateDefaultCamera();
     }
     public virtual void Load()
     {
       IsLoaded = true;
     }
-    public void CullAndPickAllViews()
+    public void CullAllViews()
     {
       if (RenderViews.Count == 0)
       {
@@ -144,8 +109,6 @@ namespace PirateCraft
 
         if (rv.Enabled)
         {
-          rv.SetCurrent();
-
           rv.Gui?.Update(Gu.Context.FrameDelta);
 
           Gu.World.BuildAndCull(rv);//Pick
@@ -157,17 +120,15 @@ namespace PirateCraft
     public void RenderAllViews()
     {
       Gu.Context.Renderer.BeginRenderToWindow();
-      foreach (var rv in this.RenderViews)
+      foreach (var rv in RenderViews)
       {
         if (rv.Enabled)
         {
           Gu.Assert(rv != null);
-          rv.SetCurrent();
           Gu.Context.Renderer.RenderViewToWindow(rv);
         }
       }
       Gu.Context.Renderer.EndRenderToWindow();
-      Gu.Context.DebugDraw.EndFrame();
       Gu.Context.GameWindow.Context.SwapBuffers();
       Gu.Context.Gpu.ExecuteCallbacks_RenderThread(Gu.Context);
     }
@@ -227,12 +188,10 @@ namespace PirateCraft
     protected override void OnMouseMove(MouseMoveEventArgs e)
     {
       base.OnMouseMove(e);
-      UpdateSelectedView();
     }
     protected override void OnFocusedChanged(FocusedChangedEventArgs e)
     {
       base.OnFocusedChanged(e);
-      UpdateSelectedView();
       if (this.IsFocused)
       {
         Gu.FocusedWindow = this;//user selected different window
@@ -242,7 +201,7 @@ namespace PirateCraft
         Gu.FocusedWindow = null;//user defocuesed the whole application
       }
     }
-    private void UpdateSelectedView()
+    public void UpdateSelectedView()
     {
       SelectedView = null;
       //pick the active view based on cursor location
@@ -269,16 +228,11 @@ namespace PirateCraft
     {
       //Called when a new render view is created, so you can set the Gui
     }
-    protected virtual void OnCreateCamera(Camera3D c)
-    {
-      //Called when a new camera is created
-    }
     protected virtual void CreateGUI2DEBUG(RenderView rv)
     {
     }
     public virtual void OnUpdateInput()
     {
-      UpdateSelectedView();
       if (!IsFocused)
       {
         return;
@@ -384,13 +338,11 @@ namespace PirateCraft
     private int meshIdx = 0;
     private const float scale = 0.75f; //RESOLUTION scale
     private NativeWindowSettings _ns = NativeWindowSettings.Default;
-
     private WorldObject pick = null;
     private WorldObject sword = null;
     private WorldObject left_hand = null;
     private WorldObject right_hand = null;
     private vec3 second_y_glob = new vec3(2.5f, 2.0f, 2.5f);
-
 
     #endregion
     #region Public:Methods
@@ -416,11 +368,7 @@ namespace PirateCraft
       build = "-d";
 #endif
       string appname = "Slaver" + build;
-      vec3 cpos = vec3.Zero;
-      if (rv.Camera != null && rv.Camera.TryGetTarget(out var cm))
-      {
-        cpos = cm.Position_World;
-      }
+      vec3 cpos = rv.Camera.Position_World;
 
       //UI Test
       if (rv.WorldDebugInfo != null && rv.WorldDebugInfo.Visible)
@@ -428,27 +376,29 @@ namespace PirateCraft
         var info = new System.Text.StringBuilder();
         info.AppendLine($"{appname} v{Gu.GetAssemblyVersion()} (Hide=F7)");
         info.AppendLine($"Window:{rv.Name}");
-        info.AppendLine($"  FPS:{StringUtil.FormatPrec(Gu.Context.FpsAvg, 1)} (vsync:{(VSync.ToString())})");
-        info.AppendLine($"  Mem:{StringUtil.FormatPrec(SystemInfo.BToMB(SystemInfo.MemUsedBytes), 2)}MB");
-        info.AppendLine($"  VMem:{StringUtil.FormatPrec(SystemInfo.BToMB(SystemInfo.VMemUsedBytes), 2)}MB");
-        info.AppendLine($"  View:{rv.Name}");
-        info.AppendLine($"  Mouse:{Gu.Context.PCMouse.Pos.ToString()}");
-        info.AppendLine($"  GLProfile:{Profile.ToString()}");
-        info.AppendLine($"  CamPos:{cpos.ToString(2)})");
+        info.AppendLine($" FPS:{StringUtil.FormatPrec(Gu.Context.FpsAvg, 1)} (vsync:{(VSync.ToString())})");
+        info.AppendLine($" Uptime:{StringUtil.Seconds_ToString_HMSU(Gu.Context.UpTime)}");
+        info.AppendLine($" Mem:{StringUtil.FormatPrec(SystemInfo.BToMB(SystemInfo.MemUsedBytes), 2)}MB");
+        info.AppendLine($" VMem:{StringUtil.FormatPrec(SystemInfo.BToMB(SystemInfo.VMemUsedBytes), 2)}MB");
+        info.AppendLine($" View:{rv.Name}");
+        info.AppendLine($" Mouse:{Gu.Context.PCMouse.Pos.ToString()}");
+        info.AppendLine($" GLProfile:{Profile.ToString()}");
+        info.AppendLine($" Camera:{cpos.ToString(2)} ");
+        info.AppendLine($"  FOV:{StringUtil.FormatPrec(MathUtils.ToDegrees(rv.Camera.FOV),0)}°,{StringUtil.FormatPrec(rv.Camera.Near,1)},{StringUtil.FormatPrec(rv.Camera.Far,1)},{rv.Camera.ProjectionMode.ToString()} ");
         info.AppendLine($"Render:");
-        info.AppendLine($"  DrawElements_Frame:{MeshView.dbg_numDrawElements_Frame}");
-        info.AppendLine($"  Arrays_Frame:{MeshView.dbg_numDrawArrays_Frame}");
-        info.AppendLine($"  OBs Culled:{Gu.World.NumCulledObjects}");
+        info.AppendLine($" DrawElements_Frame:{MeshView.dbg_numDrawElements_Frame}");
+        info.AppendLine($" Arrays_Frame:{MeshView.dbg_numDrawArrays_Frame}");
+        info.AppendLine($" OBs Culled:{Gu.World.NumCulledObjects}");
         info.AppendLine($"UI:");
-        info.AppendLine($"  update={rv.Gui?._dbg_UpdateMs}ms mesh={rv.Gui?._dbg_MeshMs}ms event={rv.Gui?._dbg_EventsMs}ms");
+        info.AppendLine($" update={rv.Gui?._dbg_UpdateMs}ms mesh={rv.Gui?._dbg_MeshMs}ms event={rv.Gui?._dbg_EventsMs}ms");
         info.AppendLine($"Scripts:");
-        info.AppendLine($"  bytes={CSharpScript.TotalLoadedScriptAssemblyBytes}");
+        info.AppendLine($" bytes={CSharpScript.TotalLoadedScriptAssemblyBytes}");
         info.AppendLine($"World:");
-        info.AppendLine($"  Globs: count={Gu.World.NumGlobs} visible={Gu.World.NumVisibleRenderGlobs}");
-        info.AppendLine($"  Picked:{Gu.Context.Renderer.Picker.PickedObjectName}");
-        info.AppendLine($"  Selected:{Gu.World.Editor.SelectedObjects.ToString()}");
+        info.AppendLine($" Globs: count={Gu.World.NumGlobs} visible={Gu.World.NumVisibleRenderGlobs}");
+        info.AppendLine($" Picked:{Gu.Context.Renderer.Picker.PickedObjectName}");
+        info.AppendLine($" Selected:{Gu.World.Editor.SelectedObjects.ToString()}");
         info.AppendLine($"Gpu:");
-        info.AppendLine($"  GPU Mem={Gu.Context.Gpu.GetMemoryInfo().ToString()}");
+        info.AppendLine($" GPU Mem={Gu.Context.Gpu.GetMemoryInfo().ToString()}");
 
         rv.WorldDebugInfo.Text = info.ToString();
       }
@@ -495,11 +445,6 @@ namespace PirateCraft
 
       CursorVisible = true;
     }
-    protected void OnCreateCamera(Camera3D c)
-    {
-      //CreateCrosshair(c);
-    }
-
     public void ToggleGameMode()
     {
       if (Gu.World.GameMode == GameMode.Edit)

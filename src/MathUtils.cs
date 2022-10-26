@@ -1764,10 +1764,10 @@ namespace PirateCraft
     [DataMember] public float z;
     [DataMember] public float w;
 
-    public float r { get { return x; } }
-    public float g { get { return y; } }
-    public float b { get { return z; } }
-    public float a { get { return w; } }
+    public float r { get { return x; } set { x = value; } }
+    public float g { get { return y; } set { y = value; } }
+    public float b { get { return z; } set { z = value; } }
+    public float a { get { return w; } set { w = value; } }
     public static vec4 rgba_ub(byte r, byte g, byte b, byte a = 255)
     {
       return new vec4(
@@ -2906,6 +2906,12 @@ namespace PirateCraft
 
       return this;
     }
+    public mat4 SetTranslation(vec3 v)
+    {
+      SetTranslation(v.x, v.y, v.z);
+
+      return this;
+    }
     public quat toQuat()
     {
       mat3 m = new mat3(this);
@@ -2960,15 +2966,19 @@ namespace PirateCraft
       if (viewport_w == 0)
       {
         viewport_w = 1;
+        Gu.DebugBreak();
       }
-      if (fov_radians > (float)Math.PI / 2.0f - e)
+      if (fov_radians > (float)Math.PI - e)
       {
-        fov_radians = (float)Math.PI / 2.0f - e;
+        fov_radians = (float)Math.PI - e;
+        Gu.DebugBreak();
       }
-      if (fov_radians < 1.0f + e)
+      if (fov_radians < e)
       {
-        fov_radians = 1.0f + e;
+        fov_radians = e;
+        Gu.DebugBreak();
       }
+
       float vpWidth_2 = (float)Math.Tan(fov_radians * (float)0.5f) * z_near;
       float arat_1 = viewport_h / viewport_w;  // 1 / (w/h)
       float vw = vpWidth_2;
@@ -3409,13 +3419,13 @@ namespace PirateCraft
       ret.z = _m43;
       return ret;
     }
-    public static mat4 getOrtho(float left, float right, float top, float bottom, float neard, float fard)
+    public static mat4 ortho(float left, float right, float top, float bottom, float neard, float fard)
     {
       mat4 mm = new mat4();
 
       float a1 = (float)2.0 / (right - left);
-      float a2 = (float)2.0 / (top - bottom);   //IDK WY
-      float a3 = (float)-2.0 / (fard - neard);  //IDK WY
+      float a2 = (float)2.0 / (top - bottom);
+      float a3 = (float)-2.0 / (fard - neard);
       float t1 = (right + left) / (right - left) * (float)-1.0;
       float t2 = (top + bottom) / (top - bottom) * (float)-1.0;
       float t3 = (fard + neard) / (fard - neard) * (float)-1.0;
@@ -4139,18 +4149,33 @@ namespace PirateCraft
 
   }
   [DataContract]
-  [StructLayout(LayoutKind.Sequential)]
-  public struct Box3f
+  public class Box3f
   {
     //Axis aligned bound box
-    [DataMember] public vec3 _min;
-    [DataMember] public vec3 _max;
-    public static Box3f Default { get { return new(new vec3(0, 0, 0), new vec3(1, 1, 1)); } }//Default 1,1,1
-    public static Box3f Zero { get { return new(new vec3(0, 0, 0), new vec3(0, 0, 0)); } }//Default 1,1,1
+    [DataMember] public vec3 _min = vec3.Zero;
+    [DataMember] public vec3 _max = vec3.Zero;
+
+    public static Box3f One { get { return new(new vec3(0, 0, 0), new vec3(1, 1, 1)); } }
+    public static Box3f Zero { get { return new(new vec3(0, 0, 0), new vec3(0, 0, 0)); } }
+    public static Box3f GenReset
+    {
+      get
+      {
+        var b = new Box3f();
+        b.genResetLimits();
+        return b;
+      }
+    }
+
+    public Box3f() { }
     public Box3f(in vec3 min, in vec3 max)
     {
       _min = min;
       _max = max;
+    }
+    public Box3f Clone()
+    {
+      return new Box3f(this._min, this._max);
     }
     public vec3 center()
     {
@@ -4248,14 +4273,6 @@ namespace PirateCraft
     }
     public static int nugs = 5;
     public static int maxnugs = 7;
-    /**
-    *   @fn RayIntersect
-    *   @brief Returns true if the given ray intersects this Axis aligned
-    *   BB volume.
-    *   @param bh - Reference to a BoxHit structure.
-    *   @prarm ray - The ray to test against the box.
-    *   @return true if ray intersects, false otherwise.
-    */
     public bool LineOrRayIntersectInclusive_EasyOut(in PickRay3D ray, ref BoxAAHit bh)
     {
       //ray can be a point, ray, or beam
@@ -4348,10 +4365,6 @@ namespace PirateCraft
         return _max;
       }
     }
-    //public vec3 ClosestPointToRay(PickRay3D ray)
-    //{
-
-    //}
     public bool nugs5(PickRay3D ray, ref BoxAAHit bh)
     {
       Gu.Assert(bh != null);
@@ -5223,14 +5236,15 @@ namespace PirateCraft
     }
   }
   [DataContract]
-  [StructLayout(LayoutKind.Sequential)]
-  public struct OOBox3f
+  public class OOBox3f
   {
     //Object oriented bound box
     //no order is specified here, but in this engine we use
     //   LeftBotNear,RBN,LTN,RTN,LBF,RBF,LTF,RTF,
     public const int VertexCount = 8;
+
     [DataMember] public vec3[] Verts = new vec3[VertexCount];
+
     public OOBox3f() { }
     public OOBox3f(vec3 i/*min*/, vec3 a/*max*/)
     {
@@ -5243,6 +5257,21 @@ namespace PirateCraft
       Verts[5] = new vec3(a.x, i.y, a.z);
       Verts[6] = new vec3(i.x, a.y, a.z);
       Verts[7] = new vec3(a.x, a.y, a.z);
+    }
+    public OOBox3f Clone()
+    {
+      var x = new OOBox3f();
+      x.Verts = new vec3[]{
+        Verts[0],
+        Verts[1],
+        Verts[2],
+        Verts[3],
+        Verts[4],
+        Verts[5],
+        Verts[6],
+        Verts[7],
+      };
+      return x;
     }
     public vec3 Center
     {

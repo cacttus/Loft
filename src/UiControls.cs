@@ -55,6 +55,8 @@ namespace PirateCraft
       this.Style.DisplayMode = UiDisplayMode.Inline;
       this.Style.OverflowMode = UiOverflowMode.Hide;
       this.Style.FloatMode = UiFloatMode.None;
+      this.Style.BorderColorLeft = this.Style.BorderColorBot = OffColor.Charcoal;
+      this.Style.BorderColorRight = this.Style.BorderColorTop = OffColor.VeryLightGray;
     }
     private void RegisterStyleEvents()
     {
@@ -118,7 +120,7 @@ namespace PirateCraft
     }
     public UiMenuItem AddItem(string text, string shortcut, Action<UiEvent>? click = null)
     {
-      var item =AddMenuItemOrSubMenu(text, false, click);
+      var item = AddMenuItemOrSubMenu(text, false, click);
       item.CreateShortcut(shortcut);
       return this;
     }
@@ -207,7 +209,7 @@ namespace PirateCraft
       _label.Style.PositionMode = UiPositionMode.Static;
       _label.Style.DisplayMode = UiDisplayMode.InlineNoWrap;
       _label.Style.MinWidth = 100;
-      _label.Style.Margin = _label.Style.Border = _label.Style.Padding =0;
+      _label.Style.Margin = _label.Style.Border = _label.Style.Padding = 0;
       this.AddChild(_label);
 
       this.Style.FontSize = 16;
@@ -359,7 +361,8 @@ namespace PirateCraft
     }
     public UiToolbarButton(string text) : base(text)
     {
-      if(this._label!=null){
+      if (this._label != null)
+      {
         this._label.Style.MinWidth = 0;
       }
       //expand height, but set minimum height to be contents?
@@ -403,14 +406,43 @@ namespace PirateCraft
       this.Style.MaxWidth = Gui2d.MaxSize;
       this.Style.SizeModeWidth = UiSizeMode.Expand;
       this.Style.SizeModeHeight = UiSizeMode.Shrink;
-      this.Style.MaxHeight = 60;
+      this.Style.MaxHeight = 200;
       this.Style.Margin = 0;
       this.Style.Padding = 0;
       this.Style.BorderBot = 1;
       this.Style.Color = vec4.rgba_ub(240, 240, 240);
       this.Style.BorderColorBot = vec4.rgba_ub(110, 110, 110);
-    }
 
+      var fsp = new UiElement();
+      fsp.Style.SizeModeHeight = UiSizeMode.Shrink;
+      fsp.Style.SizeModeWidth = UiSizeMode.Shrink;
+      fsp.Style.FontSize = 16;
+      fsp.Style.TextAlign = UiAlignment.Right;
+      fsp.Style.RenderMode = UiRenderMode.Color;
+      fsp.Text = "127";
+      fsp.Style.PadRight = 16;
+      fsp.Style.MarginRight = 16;
+      fsp.Style.PadTop = fsp.Style.PadBot = 3;
+      fsp.Style.Alignment = UiAlignment.Right;
+      fsp.Style.Border = 0;
+      fsp.Style.Margin = 0;
+
+      _timer = new System.Timers.Timer();
+      _timer.Interval = 520;
+      _timer.Elapsed += (e, x) =>
+      {
+        if (fsp != null && Gu.Context != null)
+        {
+          fsp.Text = StringUtil.FormatPrec(Gu.Context.FpsFrame, 1);
+
+        }
+      };
+      _timer.AutoReset = true;//run once, then reset if Repeat is set
+      _timer.Start();
+
+      this.AddChild(fsp);
+    }
+    System.Timers.Timer _timer;
     public UiMenuItem AddItem(UiMenuItem item)
     {
       Gu.Assert(item != null);
@@ -514,5 +546,176 @@ namespace PirateCraft
 
   }
 
+  public class UiSlider : UiControl
+  {
+    public double Value { get { return _value; } set { _value = value; UpdateValuesChanged(); } }
+    public double MinValue { get { return _minvalue; } set { _minvalue = value; UpdateValuesChanged(); } }
+    public double MaxValue { get { return _maxvalue; } set { _maxvalue = value; UpdateValuesChanged(); } }
+
+    private double _value = 0;
+    private double _minvalue = 0;
+    private double _maxvalue = 100;
+    private UiElement _lblMin;
+    private UiElement _lblMax;
+    private UiElement _lblVal;
+    private UiElement _thumb;
+    private Action<UiElement, double> _onValueChange;
+    private bool _ismaxmin = false;
+
+    private int _precision = 1;
+
+    public UiSlider(double leftval, double rightval, double defaultval, Action<UiElement, double> onValueChange)
+    {
+      //allow for left/right to be less or equal, not necessarily LTR
+      Gu.Assert(onValueChange != null);
+
+      _onValueChange = onValueChange;
+      _minvalue = leftval;
+      _maxvalue = rightval;
+      _value = defaultval;
+
+      Style.RenderMode = UiRenderMode.Color;
+      Style.SizeModeWidth = UiSizeMode.Fixed;
+      Style.SizeModeHeight = UiSizeMode.Shrink;
+      Style.Width = 200;
+      Style.MinHeight = 20;
+      Style.Margin = 2;
+      Style.Border = 2;
+      Style.BorderColorLeft = Style.BorderColorBot = OffColor.Charcoal;
+      Style.BorderColorRight = Style.BorderColorTop = OffColor.VeryLightGray;
+
+      var trackRow = new UiElement();
+      trackRow.Style.SizeModeWidth = UiSizeMode.Expand;
+      trackRow.Style.SizeModeHeight = UiSizeMode.Shrink;
+      trackRow.Style.MinHeight = 20;
+      trackRow.Style.MinWidth = 10;
+      trackRow.Style.Margin = trackRow.Style.Border = 0;
+      AddChild(trackRow);
+
+      var labelRow = new UiElement();
+      labelRow.Style.SizeModeWidth = UiSizeMode.Expand;
+      labelRow.Style.SizeModeHeight = UiSizeMode.Shrink;
+      labelRow.Style.MinHeight = 10;
+      labelRow.Style.MinWidth = 10;
+      labelRow.Style.Margin = labelRow.Style.Border = 0;
+      labelRow.Style.BorderTop = 1;
+      labelRow.Style.BorderColorTop = OffColor.VeryLightGray;
+      labelRow.Style.MarginLeft = labelRow.Style.MarginRight = 6;
+      AddChild(labelRow);
+
+      _lblMin = new UiLabel(leftval.ToString());
+      _lblMax = new UiLabel(rightval.ToString());
+      _lblVal = new UiLabel(defaultval.ToString());
+      _lblMin.Style.Alignment = UiAlignment.Left;
+      _lblMax.Style.Alignment = UiAlignment.Right;
+      _lblVal.Style.Alignment = UiAlignment.Center;
+      _lblMin.Style.FontSize = _lblMax.Style.FontSize = _lblVal.Style.FontSize = 10;
+      _lblMin.Style.FontColor = _lblMax.Style.FontColor = _lblVal.Style.FontColor = OffColor.MediumGray;
+
+      labelRow.AddChild(_lblMin);
+      labelRow.AddChild(_lblMax);
+      labelRow.AddChild(_lblVal);
+
+      _thumb = new UiControl();
+      _thumb.Style.SizeModeWidth = UiSizeMode.Fixed;
+      _thumb.Style.SizeModeHeight = UiSizeMode.Expand;
+      _thumb.Style.PositionMode = UiPositionMode.Relative;
+      _thumb.Style.RenderMode = UiRenderMode.Color;
+      _thumb.Style.MinHeight = 19;
+      _thumb.Style.Width = 12;
+      _thumb.Style.BorderLeft = _thumb.Style.BorderBot = 1;
+      _thumb.Style.BorderRight = _thumb.Style.BorderTop = 1;
+      _thumb.Style.BorderColorLeft = _thumb.Style.BorderColorBot = OffColor.Charcoal;
+      _thumb.Style.BorderColorRight = _thumb.Style.BorderColorTop = OffColor.VeryLightGray;
+      trackRow.AddChild(_thumb);
+
+      UpdateValuesChanged();
+
+      _thumb.AddEvent(UiEventId.LmbDrag, (e) =>
+      {
+
+        UpdateMovedThumb(e.State.MousePosCur.x - e.State.MousePosLast.x);
+      });
+    }
+    //_precision
+    private void UpdateValuesChanged()
+    {
+      if (_minvalue > _maxvalue)
+      {
+        var tmp = _minvalue;
+        _minvalue = _maxvalue;
+        _maxvalue = tmp;
+        _ismaxmin = !_ismaxmin;
+      }
+      _value = Math.Clamp(_value, _minvalue, _maxvalue);
+
+      if (_ismaxmin)
+      {
+        _lblMin.Text = StringUtil.FormatPrec(_maxvalue, _precision);
+        _lblMax.Text = StringUtil.FormatPrec(_minvalue, _precision);
+      }
+      else
+      {
+        _lblMax.Text = StringUtil.FormatPrec(_maxvalue, _precision);
+        _lblMin.Text = StringUtil.FormatPrec(_minvalue, _precision);
+      }
+
+      _lblVal.Text = StringUtil.FormatPrec(_value, _precision);
+
+      SetThumbToValue(_value);
+    }
+    private void SetThumbToValue(double value)
+    {
+      Gu.Assert(_thumb != null);
+      Gu.Assert(_lblVal != null);
+      Gu.Assert(_thumb.Parent != null);
+
+      double valw = _thumb.Parent._quads._b2BorderQuad._width - _thumb._quads._b2BorderQuad._width;
+
+      value = Math.Clamp(value, _minvalue, _maxvalue);
+
+      var pct = value / (_maxvalue - _minvalue);
+      if (_ismaxmin)
+      {
+        pct = 1 - pct;
+      }
+      _thumb.Style.Left = (float)(pct * valw);
+    }
+    private void UpdateMovedThumb(vec2 delta)
+    {
+      Gu.Assert(_thumb != null);
+      Gu.Assert(_lblVal != null);
+      Gu.Assert(_thumb.Parent != null);
+
+      _thumb.Style.Left = _thumb.Style._props.Left + delta.x;
+
+      double valw = _thumb.Parent._quads._b2BorderQuad._width - _thumb._quads._b2BorderQuad._width;
+
+      if (_thumb.Style.Left < 0)
+      {
+        _thumb.Style.Left = 0;
+      }
+      if (_thumb.Style.Left > valw)
+      {
+        _thumb.Style.Left = (float)valw;
+      }
+
+      double pct = (double)_thumb.Style._props.Left / valw;
+
+      if (_ismaxmin)
+      {
+        pct = 1 - pct;
+      }
+
+      _value = _minvalue + (_maxvalue - _minvalue) * pct;
+      _value = Math.Clamp(_value, _minvalue, _maxvalue);
+
+      _lblVal.Text = StringUtil.FormatPrec(_value, 1).ToString();
+
+      _onValueChange?.Invoke(this, Value);
+    }
+
+
+  }//slider
 
 }//ns

@@ -17,6 +17,7 @@ namespace PirateCraft
     [Description("DEF_PIPELINE_STAGE_FORWARD_BLIT")] ForwardBlit,
     [Description("DEF_PIPELINE_STAGE_SHADOW_DEPTH")] Shadow,
     [Description("DEF_PIPELINE_STAGE_EFFECT")] Effect,
+    [Description("DEF_PIPELINE_STAGE_DEBUG")] Debug,
     [Description("**MaxPipelineStages**")] MaxPipelineStages
   }
   public enum RendererState
@@ -76,26 +77,37 @@ namespace PirateCraft
     {
       get
       {
+        string ret = "";
         if (PickedObjectFrame == null)
         {
-          return "<None>";
+          ret = "<None>";
         }
-        else if (PickedObjectFrame is UiElement)
+        else
         {
-          return (PickedObjectFrame as UiElement).Name;
-        }
-        else if (PickedObjectFrame is Drawable)
-        {
-          if ((PickedObjectFrame as Drawable).MeshView != null)
+          if (PickedObjectFrame is UiElement)
           {
-            return (PickedObjectFrame as Drawable).MeshView.Name;
+            ret = (PickedObjectFrame as UiElement).Name;
           }
-          else
+          else if (PickedObjectFrame is WorldObject)
           {
-            return "Drawable (no mesh)";
+            ret = (PickedObjectFrame as WorldObject).Name;
+          }
+          
+          ret += $" ({PickedObjectFrame.GetType().Name})";
+
+          if (PickedObjectFrame is Drawable)
+          {
+            if ((PickedObjectFrame as Drawable).MeshView != null)
+            {
+              ret+= $" (Mesh:{(PickedObjectFrame as Drawable).MeshView.Name})";
+            }
+            else
+            {
+              return "Drawable (no mesh)";
+            }
           }
         }
-        return "<Unhandled object type>" + PickedObjectFrame.GetType().Name;
+        return ret;
       }
     }
 
@@ -314,8 +326,8 @@ namespace PirateCraft
     [DataMember] public List<PipelineAttachment> _outputs;
     [DataMember] public mat4? _blitMat;
     [DataMember] public PipelineStageEnum _pipelineStageEnum;
-    public Action<RenderView>? BeginRenderAction = null;
-    public Action<RenderView>? EndRenderAction = null;
+    //public Action<RenderView>? BeginRenderAction = null;
+    //public Action<RenderView>? EndRenderAction = null;
     public WorldObject? BlitObj = null;
     private ivec2 _size;
 
@@ -323,14 +335,11 @@ namespace PirateCraft
     public PipelineStage(PipelineStageEnum stage, ClearBufferMask mask, vec4 clear,
                           int defaultWidth, int defaultHeight,
                          List<PipelineAttachment> inputs, List<PipelineAttachment> outputs,
-                         Action<RenderView>? beginRenderAction = null, Action<RenderView>? endRenderAction = null,
-                         string? blit_shader = null, bool blend = false)
+                         string? blit_shader = null, bool blend_blitter = false)
     {
       _clearMask = mask;
       _clearColor = clear;
       _pipelineStageEnum = stage;
-      BeginRenderAction = beginRenderAction;
-      EndRenderAction = endRenderAction;
       _inputs = inputs;
       _outputs = outputs;
       _size = new ivec2(defaultWidth, defaultHeight);
@@ -351,7 +360,7 @@ namespace PirateCraft
 
       if (blit_shader.IsNotEmpty())
       {
-        MakeBlitter(blit_shader, blend);
+        MakeBlitter(blit_shader, blend_blitter);
       }
     }
     private void Validate(List<PipelineAttachment> inputs, List<PipelineAttachment> outputs)
@@ -455,7 +464,7 @@ namespace PirateCraft
         Gu.Assert(this.Inputs[i].ShaderInput != null);
         BlitObj.Material.Textures.Add(new TextureSlot(this.Inputs[i].Texture, this.Inputs[i].ShaderInput.Description(), i));
       }
-      BlitMat = mat4.getOrtho(0, width, 0, height, -1, 1);
+      BlitMat = mat4.ortho(0, width, 0, height, -1, 1);
     }
   }
 
@@ -511,15 +520,18 @@ namespace PirateCraft
       }
 
       //Enable some stuff.
-#if _DEBUG
-      GL.Enable(EnableCap.DebugOutput);
-#endif
-      GL.Enable(EnableCap.CullFace);
-      GL.FrontFace(FrontFaceDirection.Ccw);
-      GL.Enable(EnableCap.DepthTest);
-      GL.DepthMask(true);
-      GL.Disable(EnableCap.Blend);
-      GL.Disable(EnableCap.ScissorTest);
+      Gu.Context.Gpu.SetState(new GpuRenderState()
+      {
+        CullFace = true,
+        CullFaceMode = CullFaceMode.Back,
+        FrontFaceDirection = FrontFaceDirection.Ccw,
+        ScissorTest = true,
+        DepthTest = true,
+        Blend = false,
+        DepthMask = true,
+        BlendFunc = BlendEquationMode.FuncAdd,
+        BlendFactor = BlendingFactor.OneMinusSrcAlpha,
+      }, true);
 
       releaseFbosAndMesh();
 
@@ -599,8 +611,7 @@ namespace PirateCraft
           new PipelineAttachment(ShaderOutput.Normal, normal),
           new PipelineAttachment(ShaderOutput.Position, position),
           new PipelineAttachment(ShaderOutput.Material, material),
-          new PipelineAttachment(ShaderOutput.Depth, depth)
-        }, (rv) => { }, (rv) => { });
+          new PipelineAttachment(ShaderOutput.Depth, depth) });
 
       var outline = new PipelineStage(PipelineStageEnum.Effect,
         ClearBufferMask.None, new vec4(0, 0, 0, 0),
@@ -609,7 +620,6 @@ namespace PirateCraft
           new PipelineAttachment(ShaderInput.Pick, pick) },
         new List<PipelineAttachment>() {
           new PipelineAttachment(ShaderOutput.Color, color_df) },
-        (rv) => { }, (rv) => { },
         "v_v3x2_outline", true
       );
 
@@ -621,12 +631,20 @@ namespace PirateCraft
           new PipelineAttachment(ShaderInput.Normal, normal),
           new PipelineAttachment(ShaderInput.Position, position),
           new PipelineAttachment(ShaderInput.Material, material),
-          new PipelineAttachment(ShaderInput.Depth, depth) ,
-          },
-        new List<PipelineAttachment>() { new PipelineAttachment(ShaderOutput.Color, color_fw), }
-        , (rv) => { }, (rv) => { },
+          new PipelineAttachment(ShaderInput.Depth, depth) },
+        new List<PipelineAttachment>() {
+          new PipelineAttachment(ShaderOutput.Color, color_fw), },
         "v_v3x2_deferred"
        );
+
+      //detach pick buffer to render debug. render debug before UI
+      var debug = new PipelineStage(PipelineStageEnum.Debug,
+        ClearBufferMask.None, ClearColor,
+        _deferredFBOWidth, _deferredFBOHeight,
+        PipelineAttachment.NoFramebuffer,
+        new List<PipelineAttachment>() {
+          new PipelineAttachment(ShaderOutput.Color, color_fw),
+          new PipelineAttachment(ShaderOutput.Depth, depth) });
 
       var forward = new PipelineStage(PipelineStageEnum.Forward,
         ClearBufferMask.None, ClearColor,
@@ -635,8 +653,7 @@ namespace PirateCraft
         new List<PipelineAttachment>() {
           new PipelineAttachment(ShaderOutput.Color, color_fw),
           new PipelineAttachment(ShaderOutput.Pick, pick),
-          new PipelineAttachment(ShaderOutput.Depth, depth),
-        }, (rv) => { }, (rv) => { });
+          new PipelineAttachment(ShaderOutput.Depth, depth) });
 
       PickStage = forward.OutputFramebuffer;
 
@@ -644,8 +661,7 @@ namespace PirateCraft
         ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit, ClearColor,
         _windowWidth, _windowHeight,
         new List<PipelineAttachment>() { new PipelineAttachment(ShaderInput.Color, color_fw) },
-        PipelineAttachment.NoFramebuffer
-        , (rv) => { }, (rv) => { },
+        PipelineAttachment.NoFramebuffer,
         "v_v3x2_forward"
       );
 
@@ -654,6 +670,7 @@ namespace PirateCraft
         deferred,
         outline,
         deferredBlit,
+        debug,
         forward,
         forwardBlit
       };
@@ -732,9 +749,6 @@ namespace PirateCraft
             {
               CurrentStage = ps;
 
-              //Do some pre-render stuff
-              ps.BeginRenderAction?.Invoke(rv);
-
               Gu.World.RenderPipeStage(rv, CurrentStage.PipelineStageEnum);
 
               //If we are a blit stage, execute a blit.
@@ -756,7 +770,6 @@ namespace PirateCraft
               }
               SaveFBOsPostRender();
 
-              ps.EndRenderAction?.Invoke(rv);
               ps.EndRender();
               CurrentStage = null;
             }
@@ -793,8 +806,8 @@ namespace PirateCraft
       Gu.Assert(RenderState == RendererState.BeginView);
       RenderState = RendererState.EndView;
       rv.EndRender3D();
+      rv.Overlay.EndFrame();
       CurrentView = null;
-
       //PipelineStage = PipelineStageEnum.Unset;
     }
     private void CheckMultisampleParams(int samples)
@@ -864,18 +877,18 @@ namespace PirateCraft
     {
       //A default state for a view. The state will also change by shaders and pipeline stages
       Gpu.CheckGpuErrorsDbg();
-      GL.Enable(EnableCap.CullFace);
-      GL.CullFace(CullFaceMode.Back);
-      if (Gu.CoordinateSystem == CoordinateSystem.Lhs)
+      Gu.Context.Gpu.SetState(new GpuRenderState()
       {
-        GL.FrontFace(FrontFaceDirection.Cw);
-      }
-      else
-      {
-        GL.FrontFace(FrontFaceDirection.Ccw);
-      }
-      GL.Enable(EnableCap.DepthTest);
-      GL.Enable(EnableCap.ScissorTest);
+        CullFace = true,
+        CullFaceMode = CullFaceMode.Back,
+        FrontFaceDirection = FrontFaceDirection.Ccw,
+        ScissorTest = true,
+        DepthTest = true,
+        Blend = false,
+        DepthMask = true,
+        BlendFunc = BlendEquationMode.FuncAdd,
+        BlendFactor = BlendingFactor.OneMinusSrcAlpha,
+      }, true);
 
     }
     public HashSet<PipelineAttachment> GetAllUniqueAttachments()
@@ -897,10 +910,10 @@ namespace PirateCraft
     {
       if (_requestSaveFBOs || Gu.EngineConfig.Debug_SaveFBOsEveryFrame)
       {
-        SaveCurrentStageFBOsImmediately(CurrentStage.OutputFramebuffer);
+        SaveCurrentStageFBOsImmediately();
       }
     }
-    private void SaveCurrentStageFBOsImmediately(FramebufferGeneric fbo, string tag = "")
+    private void SaveCurrentStageFBOsImmediately()
     {
       string ctxName = Gu.Context.GameWindow.Name;
 
@@ -962,16 +975,19 @@ namespace PirateCraft
       //GetAllUniqueAttachments();
 
       //using input framebuffer as we call saveFBOs in the blit routine (which, uses inputs)
-      if (fbo != null)
+      if (CurrentStage != null)
       {
-        string prefix = Gu.GetFilenameDateTimeNOW() + " ctx-" + ctxName + " " + "view-" + CurrentView.Id + " " + fbo.Name + " " + tag;
-        foreach (var bind in fbo.Bindings)// atts)
+        string suffix = $" (ctx {ctxName}, view {CurrentView.Id}, date {Gu.GetFilenameDateTimeNOW()})";
+        int n = 0;
+        foreach (var output in CurrentStage.Outputs)// atts)
         {
-          var pTarget = bind.Attachment;
-          string fname = prefix + " " + pTarget.Texture.Name + " index-" + bind.LayoutIndex + ".png";//names may be the same
+          var pTarget = output.Attachment;
+          string fname = $"{((int)CurrentStage.PipelineStageEnum).ToString()}|{CurrentStage.PipelineStageEnum.ToString()}|{output.ShaderOutput.ToString()}|{n} {suffix}.png";//names may be the same
           fname = System.IO.Path.Combine(Gu.LocalTmpPath, fname);
           Library.SaveTexture(new FileLoc(fname, FileStorage.Disk), pTarget.Texture, true, true, -1, true);
           Gu.Log.Info("[Renderer] Screenshot '" + fname + "' saved");
+          n++;
+
         }
       }
     }

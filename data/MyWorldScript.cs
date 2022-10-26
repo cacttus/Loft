@@ -92,23 +92,22 @@ namespace PirateCraft
     }
     private void CreateCrosshair(Camera3D c)
     {
-      vec4 ch_c = new vec4(0.31f, 0, 0, .1f);
-      float size = 0.08f;
-      v_v3c4[] verts = new v_v3c4[] {
-           new v_v3c4() { _v = new vec3(-size, 0, 0), _c =  ch_c },
-           new v_v3c4() { _v = new vec3(size, 0, 0), _c =   ch_c },
-           new v_v3c4() { _v = new vec3(0, -size, 0), _c =  ch_c },
-           new v_v3c4() { _v = new vec3(0, size, 0), _c =   ch_c  }
-         };
-      WorldObject Crosshair = new WorldObject("crosshair");
-      Crosshair.Mesh = new MeshData("crosshair_mesh", PrimitiveType.Lines, Gpu.CreateVertexBuffer("crosshair", verts));
-      Crosshair.Mesh.DrawOrder = DrawOrder.Last;
-      Crosshair.Position_Local = new vec3(0, 0, 3);
-      Material crosshair_mat = new Material("crosshair", Shader.DefaultFlatColorShader());
-      crosshair_mat.GpuRenderState.DepthTest = false;//Disable depth test.
-      crosshair_mat.GpuRenderState.Blend = true;
-      Crosshair.Material = crosshair_mat;
-      c.AddChild(Crosshair);
+      // vec4 ch_c = new vec4(0.31f, 0, 0, .1f);
+      // float size = 0.08f;
+      // v_v3c4[] verts = new v_v3c4[] {
+      //      new v_v3c4() { _v = new vec3(-size, 0, 0), _c =  ch_c },
+      //      new v_v3c4() { _v = new vec3(size, 0, 0), _c =   ch_c },
+      //      new v_v3c4() { _v = new vec3(0, -size, 0), _c =  ch_c },
+      //      new v_v3c4() { _v = new vec3(0, size, 0), _c =   ch_c  }
+      //    };
+      // WorldObject Crosshair = new WorldObject("crosshair");
+      // Crosshair.Mesh = new MeshData("crosshair_mesh", PrimitiveType.Lines, Gpu.CreateVertexBuffer("crosshair", verts));
+      // Crosshair.Position_Local = new vec3(0, 0, 3);
+      // Material crosshair_mat = new Material("crosshair", Shader.DefaultFlatColorShader());
+      // crosshair_mat.GpuRenderState.DepthTest = false;//Disable depth test.
+      // crosshair_mat.GpuRenderState.Blend = true;
+      // Crosshair.Material = crosshair_mat;
+      // c.AddChild(Crosshair);
     }
     private void CreateSky()
     {
@@ -127,8 +126,8 @@ namespace PirateCraft
       var sky = Gu.World.CreateAndAddObject("sky", MeshGen.GenSphereResource("sky", DayNightCycle.SkyRadius, 128, 128, true, true), sky_mat);
       sky.Selectable = false;
       sky.Pickable = false;
-      sky.Mesh.DrawOrder = DrawOrder.First;
-      sky.Mesh.DrawMode = DrawMode.Deferred;
+      sky_mat.DrawOrder = DrawOrder.First;
+      sky_mat.DrawMode = DrawMode.Deferred;
       //sky.Constraints.Add(new FollowConstraint(Player, FollowConstraint.FollowMode.Snap)); ;
       sky.OnUpdate = (obj) =>
       {
@@ -141,11 +140,11 @@ namespace PirateCraft
           1
           );
 
-        if (Gu.TryGetSelectedViewCamera(out var cm))
-        {
-          var vp = cm.RootParent;
-          obj.Position_Local = vp.WorldMatrix.ExtractTranslation();
-        }
+        // if (Gu.TryGetSelectedViewCamera(out var cm))
+        // {
+        //   var vp = cm.RootParent;
+        //   obj.Position_Local = vp.WorldMatrix.ExtractTranslation();
+        // }
         //TODO:
         //sky_mat.SetUniform("_ufSkyBlend")
       };
@@ -157,11 +156,11 @@ namespace PirateCraft
         double ang = Gu.World.WorldProps.DayNightCycle.DayTime_Seconds / Gu.World.WorldProps.DayNightCycle.DayLength_Seconds * Math.PI * 2.0;
         obj.Rotation_Local = quat.fromAxisAngle(new vec3(0, 0, 1), (float)ang);
 
-        if (Gu.TryGetSelectedViewCamera(out var cm))
-        {
-          vec3 pe = cm.Position_World;//.WorldMatrix.ExtractTranslation();
-          obj.Position_Local = pe;
-        }
+        // if (Gu.TryGetSelectedViewCamera(out var cm))
+        // {
+        //   vec3 pe = cm.Position_World;//.WorldMatrix.ExtractTranslation();
+        //   obj.Position_Local = pe;
+        // }
       };
       sun_moon_empty.Persistence = DataPersistence.Temporary;
       Gu.World.AddObject(sun_moon_empty);
@@ -175,6 +174,8 @@ namespace PirateCraft
       sun_moon_mat.GpuRenderState.DepthTest = false;//Disable depth test.
       sun_moon_mat.GpuRenderState.CullFace = false;//Disable depth test.
       sun_moon_mat.GpuRenderState.Blend = false;
+      sun_moon_mat.DrawMode = DrawMode.Deferred;
+      sun_moon_mat.DrawOrder = DrawOrder.First;
 
       float sun_size = 13;
       float moon_size = 23;
@@ -183,7 +184,6 @@ namespace PirateCraft
       var sun_mat = sun_moon_mat.Clone() as Material;
       sun_mat.AlbedoSlot.Texture = tx_sun;
       var sun = Gu.World.CreateObject("sun", MeshGen.GenPlaneResource("sun", sun_size, sun_size), sun_mat);
-      sun.Mesh.DrawOrder = DrawOrder.First;
       sun.OnUpdate = (obj) =>
       {
         //All this stuff can be script.
@@ -201,7 +201,6 @@ namespace PirateCraft
       var bloom_mat = sun_moon_mat.Clone() as Material;
       bloom_mat.AlbedoSlot.Texture = tx_bloom;
       var sun_bloom = Gu.World.CreateObject("sun_bloom", MeshGen.GenPlaneResource("sun_bloom", sun_size, sun_size), bloom_mat);
-      sun_bloom.Mesh.DrawOrder = DrawOrder.First;
       sun_bloom.OnUpdate = (obj) =>
       {
         if (Gu.TryGetSelectedViewCamera(out var cm))
@@ -222,7 +221,6 @@ namespace PirateCraft
       var moon_mat = sun_moon_mat.Clone() as Material;
       moon_mat.AlbedoSlot.Texture = tx_moon;
       var moon = Gu.World.CreateObject("moon", MeshGen.GenPlaneResource("moon", moon_size, moon_size), moon_mat);
-      moon.Mesh.DrawOrder = DrawOrder.First;
       moon.OnUpdate = (obj) =>
       {
         //All this stuff can be script.
@@ -234,7 +232,6 @@ namespace PirateCraft
 
 
       var moon_bloom = Gu.World.CreateObject("moon_bloom", MeshGen.GenPlaneResource("moon_bloom", moon_size, moon_size), bloom_mat);
-      moon_bloom.Mesh.DrawOrder = DrawOrder.First;
       moon_bloom.OnUpdate = (obj) =>
       {
         //All this stuff can be script.

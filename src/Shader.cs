@@ -132,8 +132,13 @@ namespace PirateCraft
     //
     public float _fRenderWidth = 0;
     public float _fRenderHeight = 0;
-    public float _pad0 = 0;
-    public float _pad1 = 0;
+    public float _fZNear = 0;
+    public float _fZFar = 0;
+    //
+    public float _widthNear = 0;
+    public float _heightNear = 0;
+    public float _widthFar = 0;
+    public float _heightFar = 0;
   }
   [StructLayout(LayoutKind.Sequential)]
   public struct GpuMaterial
@@ -152,7 +157,7 @@ namespace PirateCraft
     public float _pad2 = 0;
     public float _pad3 = 0;
     //
-    public vec4 _vBlinnPhong_Spec = new vec4(.9f,.9f,.9f,1300);
+    public vec4 _vBlinnPhong_Spec = new vec4(.9f, .9f, .9f, 1300);
   }
   [StructLayout(LayoutKind.Sequential)]
   public struct GpuDebug
@@ -168,12 +173,14 @@ namespace PirateCraft
     public vec4 _vertexNormalColor = new vec4(0, 1, 1, 1);
     public vec4 _vertexBinormalColor = new vec4(1, 1, 0, 1);
     //
-    public float _normalLength = 0.1f;
-    public float _lineWidth = 0.1f;
-    public float _fWireframeCageDist = 0.002f; // % of 1 unit
-    public float _pad2 = 0.0f;
+    public float _normalLength = 0.3f;//for normals/tangents
+    public float _fWireframeCageDist = 0.002f; // extrusion of wireframe, % of 1 unit
+    public float pad0 = 0;
+    public float pad1 = 0;
     //
     public vec4 _wireframeColor = new vec4(.793f, .779f, .783f, 1);
+    //
+    public vec4 _color = new vec4(.894f, .894f, .890f, 0.759f);
   }
 
   #endregion
@@ -509,11 +516,13 @@ namespace PirateCraft
         //_gpuWorld._fHdrGamma = 2.2f;
         //_gpuWorld._fHdrExposure = 1.1f;
 
-        if(_gpuWorld._iDirLightCount > 0){
+        if (_gpuWorld._iDirLightCount > 0)
+        {
           _gpuWorld._fHdrExposure = 0.75f + 1.2f;  //for Sun the exposure must be brighter this is hard coded for now
         }
-        else{
-          _gpuWorld._fHdrExposure = 0.65f; 
+        else
+        {
+          _gpuWorld._fHdrExposure = 0.65f;
         }
 
         _gpuWorld._iShadowBoxCount = 0;
@@ -545,7 +554,7 @@ namespace PirateCraft
         for (int di = 0; di < _dirLights.Count; di++)
         {
           _gpuDirLights[di]._color = _dirLights[di].LightColor;
-          _gpuDirLights[di]._dir = new vec3(-1.1f,-1,-1.1f).normalized();// _dirLights[di].Heading;
+          _gpuDirLights[di]._dir = new vec3(-1.1f, -1, -1.1f).normalized();// _dirLights[di].Heading;
           _gpuDirLights[di]._pos = _dirLights[di].Position_World;
           _gpuDirLights[di]._power = _dirLights[di].LightPower;
           _gpuDirLights[di]._radius = _dirLights[di].LightRadius;
@@ -1281,7 +1290,6 @@ namespace PirateCraft
       if (StringUtil.IsNotEmpty(src_cpy))
       {
         var vars = ct.Renderer.DefaultControlVars.Clone(stage, stageindex, type);
-
 
         AddStructs(GpuShader.c_strGlobalStructsString, type, StructStorage.UniformBlock, vars.GlobalStructTypes, ref src_cpy);
         AddStructs(GpuShader.c_strInstanceDataStructString, type, StructStorage.UniformBlock, vars.InstanceDataStructTypes, ref src_cpy);

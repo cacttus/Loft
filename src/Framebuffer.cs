@@ -259,31 +259,28 @@ namespace PirateCraft
     {
       DeleteTargets();
     }
-    public void EnableBlend(bool enable)
+    public void SetBlendParams()
     {
-      if (enable)
-      {
-        GL.Enable(EnableCap.Blend);
+#if DEBUG
+      GL.GetInteger(GetPName.FramebufferBinding, out int fb);
+      Gu.Assert(this.GlId == fb);
+#endif
 
-        //I imagine we could just call blendfuncseparate when we begin frame one time by getting the enable cap and setting it back ..testing for now
-        try
-        {
-          foreach (var at in Bindings)
-          {
-            GL.BlendFuncSeparate(at.LayoutIndex, at.SrcRGB, at.DstRGB, at.SrcAlpha, at.DstAlpha);
-            Gpu.CheckGpuErrorsDbg();
-          }
-        }
-        catch (Exception ex)
-        {
-          Gu.Log.ErrorCycle("BlendFuncSeparate wasn't supported");
-          GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
-        }
-      }
-      else
+      //I imagine we could just call blendfuncseparate when we begin frame one time by getting the enable cap and setting it back ..testing for now
+      try
       {
-        GL.Disable(EnableCap.Blend);
+        foreach (var at in Bindings)
+        {
+          GL.BlendFuncSeparate(at.LayoutIndex, at.SrcRGB, at.DstRGB, at.SrcAlpha, at.DstAlpha);
+          Gpu.CheckGpuErrorsDbg();
+        }
       }
+      catch (Exception ex)
+      {
+        Gu.Log.ErrorCycle("BlendFuncSeparate wasn't supported");
+        GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+      }
+
     }
     public static ReadBufferMode AttachmentIndexToReadBufferMode(OpenTK.Graphics.OpenGL4.FramebufferAttachment attachmentIndex)
     {

@@ -1,6 +1,18 @@
 ﻿#include "v_global_outputs.glsl"
 
+
 //Global funcs
+vec3 pointOnLine(vec3 p0, vec3 p1, vec3 pt)
+{
+  //Returns closest point on this line.
+  vec3 dP = pt - p0;
+  vec3 dL = p1 - p0;
+  float dPdL = dot(dP,dL);
+  float dLdL = dot(dL,dL);
+  float t = -dPdL / dLdL;
+
+  return p0 + (p1-p0) * t;
+}
 float pointOnRay_t( vec3 a, vec3 p ) {
   vec3 AP = p - a;    
   vec3 AB = a*-1.0;    
@@ -9,6 +21,31 @@ float pointOnRay_t( vec3 a, vec3 p ) {
   float t = ap_ab / ab2;   
   return t;
 }
+mat4 get_ortho(float left, float right, float top, float bottom, float neard, float fard) {
+  //ortho matrix
+  float a1 = 2.0 / (right - left);
+  float a2 = 2.0 / (top - bottom);  
+  float a3 = -2.0 / (fard - neard); 
+  float t1 = - (right + left) / (right - left);
+  float t2 = - (top + bottom) / (top - bottom);
+  float t3 = - (fard + neard) / (fard - neard);
+
+  mat4 ret = mat4(
+    a1,  0,  0, t1, 
+     0, a2,  0, t2,
+     0,  0, a3, t3, 
+     0,  0,  0,  1
+  );
+  // mat4 ret = mat4(
+  //   a1,  0,  0, 0, 
+  //    0, a2,  0, 0,
+  //    0,  0, a3, 0, 
+  //   t1, t2, t3,  1
+  // );  
+  //ret = transpose(ret);
+
+  return ret;
+}
 
 #if defined(DEF_SHADER_STAGE_VERTEX) //|| defined(DEF_SHADER_STAGE_GEOMETRY) 
 
@@ -16,6 +53,111 @@ mat4 getPVMMatrix() {
   mat4 m = _ufGpuCamera._m4Projection * _ufGpuCamera._m4View * getModelMatrix();
   return m;
 }
+
+#elif defined(DEF_SHADER_STAGE_GEOMETRY)
+
+// void emitSimpleColoredLine(vec4 v0, vec4 v1, vec4 c) {
+//   gl_Position = v0;
+//   _colorGS = c;
+//   EmitVertex();
+//   gl_Position = v1;
+//   _colorGS = c;
+//   EmitVertex();
+//   EndPrimitive(); 
+// }
+// void emitColoredTri(vec3 v0, vec3 v1, vec3 v2, vec4 c0, vec4 c1, vec4 c2, mat4 proj_view_model) {
+//   gl_Position = proj_view_model * vec4(v0,1);
+//   _colorGS = c0;
+//   EmitVertex();
+//   gl_Position = proj_view_model * vec4(v1,1);
+//   _colorGS = c1;
+//   EmitVertex();
+//   gl_Position = proj_view_model * vec4(v2,1);
+//   _colorGS = c2;
+//   EmitVertex();
+//   EndPrimitive(); 
+// }
+// void emitColoredQuad(vec3 v0, vec3 v1, vec3 v2, vec3 v3, vec4 c0, vec4 c1, vec4 c2, vec4 c3, mat4 proj_view_model) {
+//   //CCW
+//   //2   3
+//   //  \
+//   //0   1
+//   emitColoredTri(v0, v1, v2, c0, c1, c2, proj_view_model);
+//   emitColoredTri(v1, v3, v2, c1, c3, c2, proj_view_model);
+// }
+// void emitWideLine_Color_Plane_3D(vec3 p0, vec3 p1, vec3 n, vec4 color, float line_width, mat4 proj_view_model, float left = 1, float right = 1) {
+//   //3D (world space) flat line
+//   //left/right - emits the wide line to the left, or right based on the left/right parameter
+//   //half = 1 if to emit on right and left of line
+//   //b0------------b1
+//   //^t    /        ^t
+//   //| /            |      
+//   //a0*__________*a1
+//   float lw_l = -line_width * 0.5f * left;
+//   float lw_r = line_width * 0.5f * right;
+//   vec3 t0 = cross(normalize(p1 - p0), n);
+
+//   vec3 n01 = normalize(p0-p1);
+//   vec3 n10 = normalize(p1-p0);
+
+//   vec3 a0 = p0 + t0 * lw_r;
+//   vec3 b0 = p0 + t0 * lw_l;
+//   vec3 a1 = p1 + t0 * lw_r;
+//   vec3 b1 = p1 + t0 * lw_l; 
+
+//   vec4 c1 = color * vec4(1,1,1,0.0);
+//   vec4 c0 = color;
+
+//   emitColoredQuad(b0, a0, b1, a1, c1, c0, c1, c0, proj_view_model);
+// }
+
+// void emitWideLine_Color_Plane_3D_Tri(vec3 p0, vec3 p1, vec3 p2, vec3 c, vec3 n, vec4 color, float line_width, mat4 proj_view_model) {
+//   //3D (world space) flat line
+//   //left/right - emits the wide line to the left, or right based on the left/right parameter
+//   //half = 1 if to emit on right and left of line
+//   //b0------------b1
+//   //^t    /        ^t
+//   //| /            |      
+//   //a0*__________*a1
+//   float lw = -line_width *0.5;
+
+//   vec3 t0 = cross(normalize(p1 - p0), n);
+//   vec3 a0 = p0;
+//   vec3 b0 = p0 + t0 * lw;
+//   vec3 a1 = p1;
+//   vec3 b1 = p1 + t0 * lw; 
+
+//   //fixing triangle joins: TODO:
+//   // vec3 l0a = p0 + (p1 - p0)/2;
+//   // vec3 l1a = p0 + (p2 - p0)/2;
+//   // float w0a = distance(l1a, l0a);
+//   // float wpw0a =  lw/(w0a);//w'/w0
+
+//   // float dp0 = length(c-p0);
+
+//   // vec3 l0b = p1 + (p0 - p1)/2;
+//   // vec3 l1b = p1 + (p2 - p1)/2;
+//   // float w0b = distance(l1b, l0b);
+//   // float wpw0b =  lw/(w0b);//w'/w0
+
+//   // float dp1 = length(c-p1);
+
+//   // vec3 c01 = pointOnLine(p0,p1,c);
+//   // vec3 c02 = pointOnLine(p1,p2,c);
+
+//   // //vec3 d = lw/length(c01-c02);
+//   // //;
+//   // //lw/length(c, c02);
+
+//   // vec3 dv0 = p0 + (c01 - p0) * lw/distance(c01, c) + t0 * lw;
+//   // vec3 dv1 = p1 + (c02 - p1) * lw/distance(c02, c) + t0 * lw;// (c - p1) * wpw0b*dp1;
+
+//   vec4 c1 = color;
+//   vec4 c0 = color;
+
+//   emitColoredQuad(b0, a0, b1, a1, c1, c0, c1, c0, proj_view_model);
+// }
+
 
 #elif defined(DEF_SHADER_STAGE_FRAGMENT)
 

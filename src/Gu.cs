@@ -74,6 +74,7 @@ namespace PirateCraft
 
     //Debug
     public static bool BreakRenderState = false;
+    public static string SaveRenderStateFile = "";
     private static bool SkipRequiredTests = false;
     public static bool AllowOpenTKFaults = false;
 
@@ -105,7 +106,7 @@ namespace PirateCraft
       Gu.Log.Info("CurrentDirectory =" + System.IO.Directory.GetCurrentDirectory());
 
       //Config
-      EngineConfig = new EngineConfig(new FileLoc("config.json", FileStorage.Embedded));
+      EngineConfig = EngineConfig.LoadEngineConfig(new FileLoc("config.json", FileStorage.Embedded));
 
       if (StringUtil.IsNotEmpty(EngineConfig.UserSavePath))
       {
@@ -180,6 +181,7 @@ namespace PirateCraft
             GlobalTimer.Update();
 
             //Update all windows Sync
+            //TODO: we should update the world main context first
             foreach (var win in wins)
             {
               Gu.SetContext(win);
@@ -198,17 +200,19 @@ namespace PirateCraft
                 win.OnUpdateInput();
               }
 
+              //user mouse moved now pick the back buffer
+              Gu.World.Pick();
+
               if (Gu.World.UpdateContext == Gu.Context)
               {
                 Gu.World.UpdateWorld(Gu.Context.FrameDelta);
-              }
-
-              win.CullAndPickAllViews();
-
-              if (Gu.World.UpdateContext == Gu.Context)
-              {
+     
                 Gu.World.UpdateWorldEditor(Gu.Context.FrameDelta);
               }
+
+              win.CullAllViews();//adds objects for rendering
+      
+              win.UpdateSelectedView();//must come after editor update
 
               //may end up being a problem.
               if (win.IsVisible && win.WindowState != WindowState.Minimized)
@@ -216,6 +220,7 @@ namespace PirateCraft
                 //Culling happens here.
                 win.RenderAllViews();
               }
+
             }
 
             //Update the picked object after all windows have used it.
@@ -732,7 +737,7 @@ namespace PirateCraft
     }
     public static bool TryGetSelectedView(out RenderView? view)
     {
-      //selected view - the view that the user is interacting with
+      //selected view - the view that is under the mouse cursor
       //active view - the view being rendered to/updated      
       //get renderview underneath mouse
       view = null;
@@ -775,13 +780,7 @@ namespace PirateCraft
       cam = null;
       if (TryGetSelectedView(out var vv))
       {
-        if (vv.Camera != null)
-        {
-          if (vv.Camera.TryGetTarget(out var cm))
-          {
-            cam = cm;
-          }
-        }
+        cam=vv.Camera;
       }
       return cam != null;
     }

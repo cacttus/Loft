@@ -18,7 +18,8 @@ namespace PirateCraft
   public enum ProjectionMode
   {
     Orthographic,
-    Perspective
+    Perspective,
+    //Oblique //not supported
   }
   public enum TransformSpace
   {

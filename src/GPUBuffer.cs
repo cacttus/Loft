@@ -45,6 +45,7 @@ namespace PirateCraft
     private BufferTarget _bufferTarget = BufferTarget.ArrayBuffer;
     private BufferRangeTarget? _rangeTarget = null;//For buffer block objects 
     protected bool _allocated = false;
+    private bool _initialized = false;
 
     #endregion
     #region Public: Static Methods
@@ -69,7 +70,6 @@ namespace PirateCraft
     private void Init(GPUDataFormat? fmt, BufferTarget t, int item_size_bytes, int itemCount, object? items = null)
     {
       //Gu.Assert(itemCount > 0, $"{Name}: Count was zero.");
-
       _bufferTarget = t;
       _format = fmt;
       _itemCount = itemCount;
@@ -107,6 +107,9 @@ namespace PirateCraft
           Gu.BRThrowException("Invalid element array buffer type.");
         }
       }
+
+      _initialized = true;
+
     }
     public override void Dispose_OpenGL_RenderThread()
     {
@@ -130,6 +133,13 @@ namespace PirateCraft
     {
       GL.BindBuffer(BufferTarget, 0);
       Gpu.CheckGpuErrorsDbg();
+    }
+    public void ExpandCopy<T>(GrowList<T> items)
+    {
+      //expand the size of this VBO to input data, if it is greater, and copy the input data to the VBO starting at the first index
+      Gu.Assert(items != null);
+      ExpandBuffer(items.Count);
+      CopyToGPU(GpuDataPtr.GetGpuDataPtr(items.ToArray()));
     }
     public GpuDataArray CopyFromGPU(int itemOffset = 0, int itemCount = -1, bool useMemoryBarrier = false)
     {

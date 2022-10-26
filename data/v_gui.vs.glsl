@@ -50,9 +50,9 @@ vec4 windowRect(in vec4 screen) {
   screen.y = screen.w;
   screen.w = tmp;
 
+  //[0,w] => [-0.5,0.5]
   screen.x = (screen.x - vx) / (vw / 2.0f) - 1.0f;
   screen.z = (screen.z - vx) / (vw / 2.0f) - 1.0f;
-
   screen.y = (screen.y - vy) / (vh / 2.0f) - 1.0f;
   screen.w = (screen.w - vy) / (vh / 2.0f) - 1.0f;
 

@@ -21,7 +21,6 @@ namespace PirateCraft
     public PCMouse PCMouse = new PCMouse();
     public FrameDataTimer ContextFrameTimer = new FrameDataTimer();
     public Renderer Renderer { get; private set; } = null;
-    public DebugDraw DebugDraw { get; private set; } = new DebugDraw();
     public WindowContext? SharedContext { get; private set; } = null;
 
     public WindowContext(string name, UiWindowBase g, WindowContext? shared = null)
