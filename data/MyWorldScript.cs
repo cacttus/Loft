@@ -45,13 +45,13 @@ namespace PirateCraft
     private void CreateLight()
     {
       var sun = new WorldObject("sunlight");
-      sun.LookAtConstraint(new vec3(0,0,0));
+      sun.LookAtConstraint(new vec3(0, 0, 0));
       sun.HasLight = true;
       sun.LightType = LightType.Direction;//Direction is the object heading
       sun.Position_Local = new vec3(10, 100, 10);
       sun.LightRadius = 10000;
       sun.LightPower = 100.0f;
-      sun.LightColor = new vec3(1,1,1);//Gu.World.WorldProps.DayNightCycle.SkyColor.ToVec3();//. new vec3(.9f, .8f, .1f);
+      sun.LightColor = new vec3(1, 1, 1);//Gu.World.WorldProps.DayNightCycle.SkyColor.ToVec3();//. new vec3(.9f, .8f, .1f);
       Gu.World.AddObject(sun);
 
       var l = new WorldObject("pt");
@@ -90,37 +90,18 @@ namespace PirateCraft
       l.LightColor = new vec3(1, 0, 1);
       Gu.World.AddObject(l);
     }
-    private void CreateCrosshair(Camera3D c)
-    {
-      // vec4 ch_c = new vec4(0.31f, 0, 0, .1f);
-      // float size = 0.08f;
-      // v_v3c4[] verts = new v_v3c4[] {
-      //      new v_v3c4() { _v = new vec3(-size, 0, 0), _c =  ch_c },
-      //      new v_v3c4() { _v = new vec3(size, 0, 0), _c =   ch_c },
-      //      new v_v3c4() { _v = new vec3(0, -size, 0), _c =  ch_c },
-      //      new v_v3c4() { _v = new vec3(0, size, 0), _c =   ch_c  }
-      //    };
-      // WorldObject Crosshair = new WorldObject("crosshair");
-      // Crosshair.Mesh = new MeshData("crosshair_mesh", PrimitiveType.Lines, Gpu.CreateVertexBuffer("crosshair", verts));
-      // Crosshair.Position_Local = new vec3(0, 0, 3);
-      // Material crosshair_mat = new Material("crosshair", Shader.DefaultFlatColorShader());
-      // crosshair_mat.GpuRenderState.DepthTest = false;//Disable depth test.
-      // crosshair_mat.GpuRenderState.Blend = true;
-      // Crosshair.Material = crosshair_mat;
-      // c.AddChild(Crosshair);
-    }
     private void CreateSky()
     {
       var that = this;
 
-      Texture? tx_sky = Gu.Lib.LoadTexture("tx_sky", new FileLoc("hdri_sky2.jpg", FileStorage.Embedded), true, TexFilter.Trilinear);
-      Texture? tx_sky_stars = Gu.Lib.LoadTexture("tx_sky_stars", new FileLoc("hdri_stars.jpg", FileStorage.Embedded), true, TexFilter.Trilinear);
-      Texture? tx_sun = Gu.Lib.LoadTexture("tx_sun", new FileLoc("tx64_sun.png", FileStorage.Embedded), true, TexFilter.Trilinear);
-      Texture? tx_moon = Gu.Lib.LoadTexture("tx_moon", new FileLoc("tx64_moon.png", FileStorage.Embedded), true, TexFilter.Trilinear);
-      Texture? tx_bloom = Gu.Lib.LoadTexture("tx_bloom", new FileLoc("bloom.png", FileStorage.Embedded), true, TexFilter.Trilinear);
-
-      //Sky
-      Material sky_mat = new Material("sky", Shader.DefaultObjectShader(), tx_sky);
+      Texture? tx_sky = new Texture("tx_sky", Gu.Lib.LoadImage(new FileLoc("hdri_sky2.jpg", FileStorage.Embedded)), true, TexFilter.Trilinear);
+      Texture? tx_sky_stars = new Texture("tx_sky_stars", Gu.Lib.LoadImage(new FileLoc("hdri_stars.jpg", FileStorage.Embedded)), true, TexFilter.Trilinear);
+      Texture? tx_sun = new Texture("tx_sun", Gu.Lib.LoadImage(new FileLoc("tx64_sun.png", FileStorage.Embedded)), true, TexFilter.Trilinear);
+      Texture? tx_moon = new Texture("tx_moon", Gu.Lib.LoadImage(new FileLoc("tx64_moon.png", FileStorage.Embedded)), true, TexFilter.Trilinear);
+      Texture? tx_bloom = new Texture("tx_bloom", Gu.Lib.LoadImage(new FileLoc("bloom.png", FileStorage.Embedded)), true, TexFilter.Trilinear);
+             
+      //Sky 
+      Material sky_mat = new Material("sky", Gu.Lib.GetShader(Rs.Shader.DefaultObjectShader), tx_sky);
       sky_mat.Flat = true;
       sky_mat.GpuRenderState.DepthTest = false;//Disable depth test.
       var sky = Gu.World.CreateAndAddObject("sky", MeshGen.GenSphereResource("sky", DayNightCycle.SkyRadius, 128, 128, true, true), sky_mat);
@@ -128,6 +109,7 @@ namespace PirateCraft
       sky.Pickable = false;
       sky_mat.DrawOrder = DrawOrder.First;
       sky_mat.DrawMode = DrawMode.Deferred;
+      
       //sky.Constraints.Add(new FollowConstraint(Player, FollowConstraint.FollowMode.Snap)); ;
       sky.OnUpdate = (obj) =>
       {
@@ -190,7 +172,7 @@ namespace PirateCraft
         sun_mat.BaseColor = new vec4(.994f, .990f, .8f, 1);
         obj.Position_Local = new vec3(DayNightCycle.SkyRadius, 0, 0);
         obj.Rotation_Local = quat.fromAxisAngle(new vec3(0, 0, 1), (float)Math.PI / 2);
-        sun.LightColor = new vec3(1,1,1);// Gu.World.WorldProps.DayNightCycle.LightColor.ToVec3() ;//. new vec3(.9f, .8f, .1f);
+        sun.LightColor = new vec3(1, 1, 1);// Gu.World.WorldProps.DayNightCycle.LightColor.ToVec3() ;//. new vec3(.9f, .8f, .1f);
       };
 
       sun_moon_empty.AddChild(sun);
@@ -251,29 +233,24 @@ namespace PirateCraft
     private void TestCreateDebugObjects()
     {
       //Textures
-      var grass = new FileLoc("grass_base.png", FileStorage.Embedded);
-      var gates = new FileLoc("gates.jpg", FileStorage.Embedded);
-      var brady = new FileLoc("brady.jpg", FileStorage.Embedded);
-      var zuck = new FileLoc("zuck.jpg", FileStorage.Embedded);
-      var mainch = new FileLoc("main char.png", FileStorage.Embedded);
-      Texture tx_peron = new Texture("tx_peron", Gu.Lib.LoadImage("tx_peron", mainch), true, TexFilter.Bilinear);
-      Texture tx_grass = new Texture("tx_grass", Gu.Lib.LoadImage("tx_grass", grass), true, TexFilter.Bilinear);
-      Texture tx_gates = new Texture("tx_gates", Gu.Lib.LoadImage("tx_gates", gates), true, TexFilter.Nearest);
-      Texture tx_zuck = new Texture("tx_zuck", Gu.Lib.LoadImage("tx_zuck", zuck), true, TexFilter.Bilinear);
-      Texture tx_brady = new Texture("tx_brady", Gu.Lib.LoadImage("tx_brady", brady), true, TexFilter.Trilinear);
+      Texture tx_peron = new Texture("tx_peron", Gu.Lib.LoadImage(new FileLoc("grass_base.png", FileStorage.Embedded)), true, TexFilter.Bilinear);
+      Texture tx_grass = new Texture("tx_grass", Gu.Lib.LoadImage(new FileLoc("gates.jpg", FileStorage.Embedded)), true, TexFilter.Bilinear);
+      Texture tx_gates = new Texture("tx_gates", Gu.Lib.LoadImage(new FileLoc("brady.jpg", FileStorage.Embedded)), true, TexFilter.Nearest);
+      Texture tx_zuck = new Texture("tx_zuck", Gu.Lib.LoadImage(new FileLoc("zuck.jpg", FileStorage.Embedded)), true, TexFilter.Bilinear);
+      Texture tx_brady = new Texture("tx_brady", Gu.Lib.LoadImage(new FileLoc("main char.png", FileStorage.Embedded)), true, TexFilter.Trilinear);
 
       //Objects
-      Gu.World.CreateAndAddObject("Grass-Plane.", MeshGen.GenPlaneResource("Grass-Plane", 10, 10), new Material("grass-plane", Shader.DefaultObjectShader(), tx_grass, null));
+      Gu.World.CreateAndAddObject("Grass-Plane.", MeshGen.GenPlaneResource("Grass-Plane", 10, 10), new Material("grass-plane", Gu.Lib.GetShader(Rs.Shader.DefaultObjectShader), tx_grass, null));
 
       //normal map test (slow)
       //new Texture2D(ResourceManager.LoadImage(brady).CreateNormalMap(false), true, TexFilter.Linear)
 
       //Gu.Debug_IntegrityTestGPUMemory();
 
-      testobjs[0] = new Material("sphere_rot", Shader.DefaultObjectShader(), tx_gates);
-      testobjs[1] = new Material("sphere_rot2", Shader.DefaultObjectShader(), tx_zuck);
+      testobjs[0] = new Material("sphere_rot", Gu.Lib.GetShader(Rs.Shader.DefaultObjectShader), tx_gates);
+      testobjs[1] = new Material("sphere_rot2", Gu.Lib.GetShader(Rs.Shader.DefaultObjectShader), tx_zuck);
       testobjs[1].Flat = true;
-      testobjs[2] = new Material("sphere_rot3", Shader.DefaultObjectShader(), tx_brady, null);
+      testobjs[2] = new Material("sphere_rot3", Gu.Lib.GetShader(Rs.Shader.DefaultObjectShader), tx_brady, null);
 
       Sphere_Rotate_Quat_Test = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test", MeshGen.GenSphereResource("Sphere_Rotate_Quat_Test", 1, 12, 12, true), testobjs[0]);
       Sphere_Rotate_Quat_Test2 = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test2", MeshGen.GenEllipsoid("Sphere_Rotate_Quat_Test2", new vec3(1f, 1, 1f), 32, 32, true), testobjs[1]);
@@ -283,9 +260,9 @@ namespace PirateCraft
       Sphere_Rotate_Quat_Test3.Position_Local = new vec3(3, 3, 0);
 
       //Test STB laoding EXR images.
-      Texture tx_exr = new Texture("tx_exr", Gu.Lib.LoadImage("tx_exr", new FileLoc("hilly_terrain_01_2k.hdr", FileStorage.Embedded)), true, TexFilter.Bilinear);
+      Texture tx_exr = new Texture("tx_exr", Gu.Lib.LoadImage(new FileLoc("hilly_terrain_01_2k.hdr", FileStorage.Embedded)), true, TexFilter.Bilinear);
       var exr_test = MeshGen.GenPlaneResource("tx_exr", 10, 10);
-      var exr_test_mat = new Material("plane", Shader.DefaultObjectShader(), tx_exr);
+      var exr_test_mat = new Material("plane", Gu.Lib.GetShader(Rs.Shader.DefaultObjectShader), tx_exr);
       var exr_test_ob = Gu.World.CreateAndAddObject("EXR test", exr_test, exr_test_mat);
       exr_test_ob.Position_Local = new vec3(10, 10, 5);
 
@@ -303,7 +280,7 @@ namespace PirateCraft
       Sphere_Rotate_Quat_Test.AddComponent(cmp);
 
       //Check to see if this uses the resource and not the real thing
-      var gearob = Gu.Lib.LoadModel(RName.WorldObject_Gear);
+      var gearob = Gu.Lib.GetModel(Rs.Model.Gear);
       Gu.World.AddObject(gearob);
       gearob.Position_Local = new vec3(4, 8, -4);
       if (gearob.Component<AnimationComponent>(out var x))
@@ -311,7 +288,7 @@ namespace PirateCraft
         x.Repeat = true;
         x.Play();
       }
-      var bare = Gu.Lib.LoadModel(RName.WorldObject_Barrel);
+      var bare = Gu.Lib.GetModel(Rs.Model.Barrel);
       Gu.World.AddObject(bare);
       bare.Position_Local = new vec3(-4, 8, -7);
     }

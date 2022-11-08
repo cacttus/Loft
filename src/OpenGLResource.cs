@@ -49,11 +49,13 @@ namespace PirateCraft
     protected string _name = "";
     public string Name { get { return _name; } }
 
+    protected virtual string DataPathName() { return "-obj"; }
+
     public OpenGLResource(string name) : base()
     {
       //The context that existed when this was created.
       Gu.Assert(Gu.Context != null);
-      _name = Library.MakeDatapathName(name, GetType());
+      _name = _name + DataPathName();
     }
     public void SetObjectLabel()
     {
@@ -88,7 +90,6 @@ namespace PirateCraft
       }
       if (ident != null)
       {
-        //var name = Lib.MakeDatapathName(this.Name, GetType());
         GL.ObjectLabel(ident.Value, _glId, _name.Length, _name);
       }
     }

@@ -617,18 +617,18 @@ namespace PirateCraft
       Gu.Assert(f >= 0 && f <= 1);
       return f * max;
     }
-    public void Edit_GenHills(float y_base_rel, float min_height, float max_height, bool rnadomJunk)
+    public void Edit_GenHills(float min_height, float max_height, bool rnadomJunk)
     {
       //TODO: generate linked topology
 
       var rimg = Image.RandomImage_R32f(BeamGrid.SizeX + 1, BeamGrid.SizeY + 1, new Minimax<float>(min_height, max_height)).CreateHeightMap(2, 1f, 2).Normalized_R32f();//+1 due to vertex, not beam
 
-      //ResourceManager.SaveImage(System.IO.Path.Combine(Gu.LocalTmpPath, "test-hm1a.png"), rimg.Convert(Img32.ImagePixelFormat.RGBA32ub, true), true);  
+      Lib.SaveImage(System.IO.Path.Combine(Gu.LocalTmpPath, "test-hm1a.png"), rimg.Convert(Image.ImagePixelFormat.RGBA32ub, true), true);  
 
       //we move from +x, +z, and do this in the grid too
       BeamGrid.Iterate((g, x, z) =>
       {
-        float max = _world.Info.GlobWidthY * 0.4f;
+        float max = _world.Info.GlobWidthY * 0.9f;
         //height
         ushort tl = _world.Info.ConvertHeight(SanitizeHeight(rimg.GetPixel_R32f(x, z + 1), max));
         ushort tr = _world.Info.ConvertHeight(SanitizeHeight(rimg.GetPixel_R32f(x + 1, z + 1), max));
@@ -651,7 +651,7 @@ namespace PirateCraft
         }
 
         BeamList b = new BeamList();
-        b.AddBeam(new Beam(new ushort[] { bs, bl, bs, br, bs, tl, bs, tr }));
+        b.AddBeam(new Beam(new ushort[] { (ushort)(bl/2), bl, (ushort)(br/2), br, (ushort)(tl/2), tl, (ushort)(tr/2), tr }));
         BeamGrid.Set(new ivec2(x, z), b);
 
         var bbbtest = BeamGrid.Get(new ivec2(x, z));
@@ -809,7 +809,7 @@ namespace PirateCraft
     [DataMember] public int LimitYAxisGeneration = 0;//0 = off, >0 - limit globs generated along Y axis (faster generation)
 
     //Serialized
-    [DataMember] public string Name { get; private set; } = Library.UnsetName;
+    [DataMember] public string Name { get; private set; } = Lib.UnsetName;
     [DataMember] public float HeightScale { get; private set; } = 0; // Height of a block relative to BlockSize
     [DataMember] public float WallXFactor { get; private set; } = 0.1f; // Width of a wall / [0,1] = % of BlockSize
     [DataMember] public float WallYFactor { get; private set; } = 0.1f; // 
@@ -1289,13 +1289,13 @@ namespace PirateCraft
     private const long c_lngAbandon_DeleteTime_DromeNode_ms = 1000 * 5; // * X seconds
     private const long c_lngAbandon_DeleteTime_Drome_ms = 1000 * 10; // Dromes stay in memory longer than their nodes. We need the scalar field data more often. When they are fully generated they can be discarded.
     private const int c_intMaxInitialGenerationWaitTime_ms = 1000 * 15;
-    private const string c_strSaveWorldVersion = "0.01";
-    private const string c_strSaveWorldHeader = "WorldFilev" + c_strSaveWorldVersion;
+
     private const int c_intDromeFileVersion = 1;
 
     #endregion
     #region Public:Members
 
+    public Dictionary<ivec3, Glob> Globs { get { return _globs; } }
     public WorldInfo Info { get { return _worldInfo; } }
     public WorldEditor Editor { get { return _worldEditor; } }
     public WorldObject SceneRoot { get { return _sceneRoot; } }
@@ -1318,9 +1318,9 @@ namespace PirateCraft
     #region Private: Members
 
     [DataMember] private GameMode _eGameMode = GameMode.Edit;
-    private WorldEditor? _worldEditor = null;
     [DataMember] private WorldInfo? _worldInfo = null;
-    [DataMember] private WorldObject _sceneRoot = new WorldObject("Scene_Root");
+    [DataMember] private WorldObject _sceneRoot;
+    private WorldEditor? _worldEditor = null;
 
     //There is no need for ivec3 here.
     //we should sort all objects by distance.
@@ -1337,7 +1337,7 @@ namespace PirateCraft
     private Material? _worldMaterial_Tp = null;
     private MegaTex? _worldMegatex = null;
     private Material? _blockObjectMaterial = null;
-    private double _autoSaveTimeoutSeconds = 5;
+    private double _autoSaveTimeoutSeconds = 30;
     private double _autoSaveTimeout = 0;
     private WorldScript? _worldScript = null;
 
@@ -1350,6 +1350,9 @@ namespace PirateCraft
     }
     public void Initialize(WorldInfo info)
     {
+      _sceneRoot = new WorldObject("Scene_Root");
+      Gu.Lib.Add(_sceneRoot);
+
       EmbeddedResources.BuildResources();
 
       _worldInfo = info;
@@ -1380,7 +1383,7 @@ namespace PirateCraft
 
       //this should be set via the script
       _worldProps.EnvironmentMap = new Texture("_worldProps.EnvironmentMap",
-        Gu.Lib.LoadImage("envmap", new FileLoc("hilly_terrain_01_2k.hdr", FileStorage.Embedded)), true, TexFilter.Nearest);
+        Gu.Lib.LoadImage(new FileLoc("hilly_terrain_01_2k.hdr", FileStorage.Embedded)), true, TexFilter.Nearest);
       _worldProps.DayNightCycle = new DayNightCycle();
       _worldProps.DayNightCycle.Update(0);
     }
@@ -1579,6 +1582,7 @@ namespace PirateCraft
       List<v_v3n3x2t3u1> verts = new List<v_v3n3x2t3u1>();
       List<ushort> inds = new List<ushort>();
 
+      //beam patches are calculating quads individually, which is causing incorrect normals.
       g.BeamGrid.Iterate((grid, x, z) =>
       {
         var beamlist = grid.Get(x, z);
@@ -1654,6 +1658,7 @@ namespace PirateCraft
               DoSideOrCap(iface, ce0_min, ce0_max, ce1_min, ce1_max, verts, inds, beam_origin, sideuv);
             }//do sides
 
+            //Do top
             vec2[] top_botuv = new vec2[] { new vec2(0, 0), new vec2(1, 1) };
             if (_blockTiles.TryGetValue(beam.Tiles[BeamFaceIndex.Top], out wt))
             {
@@ -1687,6 +1692,8 @@ namespace PirateCraft
         var vertsarr = verts.ToArray();
         var indsarr = inds.ToArray();
 
+      //TODO: supply adjacent tile info for adjacent normals.. or something
+      //normals are not correct because they are in quads - adjacent verts are not constructed in patches.
         var faces = MeshGen.ComputeNormalsAndTangents(vertsarr, indsarr.AsUIntArray(), true, true);
 
         g.Opaque.Mesh = new MeshData(name, PrimitiveType.Triangles,
@@ -1736,7 +1743,6 @@ namespace PirateCraft
       bool doe1 = ce1_min < ce1_max;
       bool isCap = ((iface == BeamFaceIndex.Top) || (iface == BeamFaceIndex.Bottom));
 
-      //Make sure edges are kosher
       if (doe0)
       {
         if (ce0_min >= ce0_max)
@@ -1925,16 +1931,16 @@ namespace PirateCraft
       {
         if (ob.Mesh == null)
         {
-          ob.Mesh = MeshData.DefaultBox;
+          ob.Mesh = Gu.Lib.GetMesh(Rs.Mesh.DefaultBox);
         }
         if (ob.Material == null)
         {
-          ob.Material = Material.DefaultObjectMaterial;
+          ob.Material = Gu.Lib.GetMaterial(Rs.Material.DefaultObjectMaterial);
         }
       }
 
       SceneRoot.AddChild(ob);
-      ob.OnAddedToScene?.Invoke(ob);
+    //  ob.OnAddedToScene?.Invoke(ob);
       ob.State = WorldObjectState.Active;
       _worldEditor.Edited = true;
 
@@ -2221,19 +2227,11 @@ namespace PirateCraft
               _visibleRenderGlobs.Add(kvp.Key, g);
               if (g.Opaque != null)
               {
-                if (rv.Overlay.ObjectRenderMode != ObjectRenderMode.Wire)
-                {
-                  _visibleStuff.AddObject(rv, g.Opaque, null, g);
-                }
-                DebugDrawObject(rv, g.Opaque);
+                AddDrawable(rv, g.Opaque, g);
               }
               if (g.Transparent != null)
               {
-                if (rv.Overlay.ObjectRenderMode != ObjectRenderMode.Wire)
-                {
-                  _visibleStuff.AddObject(rv, g.Transparent, null, g);
-                }
-                DebugDrawObject(rv, g.Transparent);
+                AddDrawable(rv, g.Transparent, g);
               }
             }
           }
@@ -2244,6 +2242,86 @@ namespace PirateCraft
         }
       }
     }
+    private void AddDrawable(RenderView rv, Drawable ob, Glob? g = null)
+    {
+      Gu.Assert(ob != null);
+
+      //draw for render mode
+      Material mat = null;
+      if (rv.Overlay.ObjectRenderMode == ObjectRenderMode.Solid)
+      {
+        mat = Gu.Lib.GetMaterial(Rs.Material.DebugDraw_Solid_FlatColor);
+      }
+      else if (rv.Overlay.ObjectRenderMode == ObjectRenderMode.Wire)
+      {
+        mat = Gu.Lib.GetMaterial(Rs.Material.DebugDraw_Wireframe_FlatColor);
+        _worldProps.GpuDebug._wireframeColor = new vec4(.193f, .179f, .183f, 1);
+      }
+      else if (rv.Overlay.ObjectRenderMode == ObjectRenderMode.Textured)
+      {
+        mat = ob.Material;
+        mat.Flat = true;
+      }
+      else if (rv.Overlay.ObjectRenderMode == ObjectRenderMode.Rendered)
+      {
+        mat = ob.Material;
+        mat.Flat = false;
+      }
+      else
+      {
+        Gu.BRThrowNotImplementedException();
+      }
+      _visibleStuff.AddObject(rv, ob, mat, g);
+
+      //wireframe overlay
+      if (rv.Overlay.DrawWireframeOverlay && rv.Overlay.ObjectRenderMode != ObjectRenderMode.Wire)
+      {
+        if (rv.Overlay.ObjectRenderMode == ObjectRenderMode.Solid)
+        {
+          _worldProps.GpuDebug._wireframeColor = new vec4(.193f, .179f, .183f, 1);
+        }
+        else
+        {
+          _worldProps.GpuDebug._wireframeColor = new vec4(.793f, .779f, .783f, 1);
+        }
+        _visibleStuff.AddObject(rv, ob, Gu.Lib.GetMaterial(Rs.Material.DebugDraw_Wireframe_FlatColor), g);
+      }
+
+      //Bound boxes
+      if (rv.Overlay.DrawBoundBoxesAndGizmos)
+      {
+        if ((ob as WorldObject) != null && (ob as WorldObject).BoundBoxMeshTransform != null)
+        {
+          var wo = (ob as WorldObject);
+          vec4 obb_color = new vec4(.9192f, .8793f, .9131f, 1);
+          rv.Overlay.Box(wo.BoundBoxMeshTransform, obb_color);
+        }
+
+        vec4 aabb_color = new vec4(.8194f, .0134f, .2401f, 1);
+        rv.Overlay.Box(ob.BoundBox, aabb_color);
+      }
+      //Basis
+      if (rv.Overlay.DrawObjectBasis)
+      {
+        vec3 ob_pos;
+        vec3 basisX, basisY, basisZ;
+
+        ob_pos = ob.WorldMatrix.ExtractTranslation();
+        basisX = (ob.WorldMatrix * new vec4(1, 0, 0, 0)).xyz.normalized();
+        basisY = (ob.WorldMatrix * new vec4(0, 1, 0, 0)).xyz.normalized();
+        basisZ = (ob.WorldMatrix * new vec4(0, 0, 1, 0)).xyz.normalized();
+
+        //Basis lines / basis matrix WORLD
+        rv.Overlay.Line(ob_pos, ob_pos + basisX, new vec4(1, 0, 0, 1));
+        rv.Overlay.Line(ob_pos, ob_pos + basisY, new vec4(0, 1, 0, 1));
+        rv.Overlay.Line(ob_pos, ob_pos + basisZ, new vec4(0, 0, 1, 1));
+      }
+      if (rv.Overlay.DrawVertexAndFaceNormalsAndTangents)
+      {
+        _visibleStuff.AddObject(rv, ob, Gu.Lib.GetMaterial(Rs.Material.DebugDraw_VertexNormals_FlatColor));
+      }
+
+    }
     private void CollectVisibleObjects(RenderView rv, Camera3D cam, WorldObject ob)
     {
       Gu.Assert(ob != null);
@@ -2253,7 +2331,7 @@ namespace PirateCraft
 
       if (ob.Visible && !excluded)
       {
-        if (cam==ob || cam.Frustum.HasBox(ob.BoundBox))
+        if (cam == ob || cam.Frustum.HasBox(ob.BoundBox))
         {
           if (ob.HasLight)
           {
@@ -2271,18 +2349,21 @@ namespace PirateCraft
               Gu.BRThrowNotImplementedException();
             }
           }
-          if (ob is Camera3D)
+          //if (rv.Overlay.DrawBoundBoxesAndGizmos)
           {
-            var c = ob as Camera3D;
-            rv.Overlay.DrawFrustum(c.Frustum, 2);
+            //dont draw frustum fro the active camera veiwport.
+            if (ob is Camera3D)
+            {
+              if (rv.Camera != ob)
+              {
+                var c = ob as Camera3D;
+                rv.Overlay.DrawFrustum(c.Frustum, 2);
+              }
+            }
           }
           if (ob.Mesh != null)
           {
-            if (rv.Overlay.ObjectRenderMode != ObjectRenderMode.Wire)
-            {
-              _visibleStuff.AddObject(rv, ob);
-            }
-            DebugDrawObject(rv, ob);
+            AddDrawable(rv, ob);
           }
           else
           {
@@ -2364,57 +2445,7 @@ namespace PirateCraft
         _visibleStuff.Draw(rv, DrawMode.Debug, _worldProps);
       }
     }
-    private void DebugDrawObject(RenderView rv, Drawable ob)
-    {
-      var wo = (ob as WorldObject);
-      if (rv.Overlay.DrawBoundBoxes)
-      {
-        if (wo != null)
-        {
-          Gu.Assert(ob != null);
-          vec4 aabb_color = new vec4(.8194f, .0134f, .2401f, 1);
-          vec4 obb_color = new vec4(.9192f, .8793f, .9131f, 1);
 
-          if (wo.BoundBoxMeshTransform != null)
-          {
-            rv.Overlay.Box(wo.BoundBoxMeshTransform, obb_color);
-          }
-          rv.Overlay.Box(wo.BoundBox, aabb_color);
-        }
-      }
-      if (rv.Overlay.DrawObjectBasis)
-      {
-        vec3 ob_pos;
-        vec3 basisX, basisY, basisZ;
-        if (wo == null)
-        {
-          ob_pos = ob.WorldMatrix.ExtractTranslation();
-          basisX = (ob.WorldMatrix * new vec4(1, 0, 0, 0)).xyz().normalized();
-          basisY = (ob.WorldMatrix * new vec4(0, 1, 0, 0)).xyz().normalized();
-          basisZ = (ob.WorldMatrix * new vec4(0, 0, 1, 0)).xyz().normalized();
-        }
-        else
-        {
-          ob_pos = wo.Position_World;
-          basisX = wo.BasisX_World;
-          basisY = wo.BasisY_World;
-          basisZ = wo.BasisZ_World;
-        }
-
-        //Basis lines / basis matrix WORLD
-        rv.Overlay.Line(ob_pos, ob_pos + basisX, new vec4(1, 0, 0, 1));
-        rv.Overlay.Line(ob_pos, ob_pos + basisY, new vec4(0, 1, 0, 1));
-        rv.Overlay.Line(ob_pos, ob_pos + basisZ, new vec4(0, 0, 1, 1));
-      }
-      if (rv.Overlay.DrawVertexAndFaceNormalsAndTangents)
-      {
-        _visibleStuff.AddObject(rv, ob, Gu.Lib.LoadMaterial(RName.Material_DebugDraw_VertexNormals_FlatColor));
-      }
-      if (rv.Overlay.DrawWireframeOverlay || rv.Overlay.ObjectRenderMode == ObjectRenderMode.Wire)
-      {
-        _visibleStuff.AddObject(rv, ob, Gu.Lib.LoadMaterial(RName.DebugDraw_Wireframe_FlatColor));
-      }
-    }
     public List<WorldObject> GetAllVisibleRootObjects()
     {
 
@@ -2441,7 +2472,7 @@ namespace PirateCraft
     private void CreateMaterials()
     {
       var maps = CreateAtlas();
-      var shader = Shader.DefaultObjectShader();
+      var shader = Gu.Lib.GetShader(Rs.Shader.DefaultObjectShader);
       _worldMaterial_Op = new Material("worldMaterial_Op", shader, maps.Albedo, maps.Normal);
       _worldMaterial_Op._gpuMaterial._vBlinnPhong_Spec = new vec4(0.59f, 0.61f, 0.61f, 170.0f);
       _worldMaterial_Op.DrawOrder = DrawOrder.Mid;
@@ -2458,7 +2489,7 @@ namespace PirateCraft
       _worldMaterial_Tp.DrawMode = DrawMode.Deferred;
 
       //Block Material
-      _blockObjectMaterial = Gu.Lib.LoadMaterial("BlockObjectMaterial", Gu.Lib.LoadShader("v_v3n3x2_BlockObject_Instanced", "v_v3n3x2_BlockObject_Instanced", FileStorage.Embedded));
+      _blockObjectMaterial = new Material("BlockObjectMaterial", new Shader("v_v3n3x2_BlockObject_Instanced", "v_v3n3x2_BlockObject_Instanced", FileStorage.Embedded));
     }
     private void DefineWorldTiles()
     {
@@ -2655,6 +2686,7 @@ namespace PirateCraft
       if (_autoSaveTimeout > _autoSaveTimeoutSeconds || _worldEditor.Edited)
       {
         SaveWorld();
+
         _autoSaveTimeout = 0;
         _worldEditor.Edited = false;
       }
@@ -2665,15 +2697,11 @@ namespace PirateCraft
       Gu.Assert(loc != null);
       return loc;
     }
-    private string GetWorldFileName()
-    {
-      string worldfile = Info.Name + ".world";
-      return System.IO.Path.Combine(Gu.SavePath, worldfile);
-    }
-    private string GetObjectsFileName()
-    {
-      return GetWorldFileName() + ".objects";
-    }
+
+    // private string GetObjectsFileName()
+    // {
+    //   return GetWorldFileName() + ".objects";
+    // }
     private Glob LoadGlobOrSetEmpty(ivec3 gpos)
     {
       //Basically this is designed to load globs from the file where needed however that is
@@ -2707,148 +2735,17 @@ namespace PirateCraft
         SaveWorld();
       }
     }
-    public bool SaveWorld()
+    private void SaveWorld()
     {
-      string worldfn = GetWorldFileName();
-      try
-      {
-        if (!System.IO.Directory.Exists(Gu.SavePath))
-        {
-          System.IO.Directory.CreateDirectory(Gu.SavePath);
-        }
-
-        var enc = Encoding.GetEncoding("iso-8859-1");
-        using (var fs = System.IO.File.OpenWrite(worldfn))
-        {
-          using (var bwFile = new System.IO.BinaryWriter(fs, enc))
-          {
-            bwFile.Write((string)c_strSaveWorldHeader);
-
-            SerializeTools.SerializeEverything(bwFile, this);
-
-            bwFile.Write((Int32)_globs.Count);//ivec3
-            foreach (var g in _globs)
-            {
-              bwFile.Write(g.Key);//ivec3
-              if (g.Value != null)
-              {
-                bwFile.Write(true);
-                SerializeTools.SerializeBlock(g.Value.Name, bwFile, false, (b) =>
-                {
-                  g.Value.Serialize(b.Writer);
-                });
-              }
-              else
-              {
-                bwFile.Write(false);
-              }
-            }
-
-            //   Gu.Log.Warn(("TODO:save obvjects"));
-            //   bwFile.Write((Int32)_objects.Count);//ivec3
-            //   foreach (var ob in this._objects)
-            //   {
-            //     SerializeTools.SerializeBlock(ob.Value.Name, bwFile, false, (b) =>
-            //     {
-            //       ob.Value.Serialize(b.Writer);//get key from ob.Name
-            //     });
-            //   }
-            // }
-
-          }
-        }
-
-        //build table with object ids
-
-
-        //TODO: fix up data sources so that we do not serialize data classes
-        //Note: Img32 Data is not being serialized
-
-
-
-        // var s = SerializeTools.SerializeJSON(this, true);
-        // new FileLoc(GetObjectsFileName(), FileStorage.Disk).WriteAllText(s);
-        // var ob = JsonConvert.DeserializeObject(s);
-
-
-        // using (var fs2 = System.IO.File.OpenWrite())
-        // {
-        //   JsonSerializer.SerializeToUtf8Bytes(data,
-        //             new JsonSerializerOptions { WriteIndented = false, IgnoreNullValues = true });
-
-        //   var bf = new BinaryFormatter();
-        //   bf.Serialize(fs2, this);
-        // }
-
-      }
-      catch (Exception ex)
-      {
-        Gu.Log.Error($"Failed to load world file{worldfn}", ex);
-        return false;
-      }
-      return true;
+      WorldFile w = new WorldFile();
+      w.SaveWorld(this);
     }
-
     private bool TryLoadWorld()
     {
       return false;
-
-      string worldfn = GetWorldFileName();
-      var enc = Encoding.GetEncoding("iso-8859-1");
-
-      try
-      {
-        if (!System.IO.File.Exists(worldfn))
-        {
-          return false;
-        }
-        SerializedFileVersion version = new SerializedFileVersion(1000);
-        using (var fs = System.IO.File.OpenRead(worldfn))
-        using (var br = new System.IO.BinaryReader(fs, enc))
-        {
-          string h = br.ReadString();
-          if (h != c_strSaveWorldHeader)
-          {
-            Gu.BRThrowException("World header '" + h + "' does not match current header version '" + c_strSaveWorldHeader + "'");
-          }
-
-          SerializeTools.DeserializeBlock(br, (b) => { Info.Deserialize(b.Reader, version); });
-
-          var gcount = br.ReadInt32();//ivec3
-          for (int i = 0; i < gcount; i++) //foreach (var g in _globs)
-          {
-            ivec3 gp = br.ReadIVec3();// bw.Write(g.Key);//ivec3
-            bool exist = br.ReadBoolean();
-            Glob g = new Glob(this, gp);
-            if (exist)
-            {
-              SerializeTools.DeserializeBlock(br, (b) =>
-              {
-                g.Deserialize(b.Reader, version);
-              });
-            }
-            SetGlob(gp, g);
-          }
-
-          var obcount = br.ReadInt32();//ivec3
-          for (int i = 0; i < obcount; ++i)
-          {
-            WorldObject wo = new WorldObject(Library.UnsetName);
-            SerializeTools.DeserializeBlock(br, (b) =>
-            {
-              wo.Deserialize(b.Reader, version);
-            });
-            AddObject(wo);
-          }
-
-          _worldEditor.Edited = false;//This will be set, unset it.
-        }
-      }
-      catch (Exception ex)
-      {
-        Gu.Log.Error($"Failed to load world file{worldfn}", ex);
-        return false;
-      }
+      WorldFile w = new WorldFile();
+      w.LoadWorld(this);
+      _worldEditor.Edited = false;//This will be set, unset it.
       return true;
     }
 
@@ -2896,7 +2793,7 @@ namespace PirateCraft
       b.iterate((x, y, z, dbgcount) =>
       {
         var g = new Glob(Gu.World, new ivec3(x, y, z));
-        g.Edit_GenHills(0, Gu.World.Info.BlockSizeY, Gu.World.Info.BlockSizeY * 5, true);
+        g.Edit_GenHills(Gu.World.Info.BlockSizeY, Gu.World.Info.BlockSizeY * 2, true);
         Gu.World.SetGlob(g.Pos, g);
         return LambdaBool.Continue;
       }, false);

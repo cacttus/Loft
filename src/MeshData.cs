@@ -39,6 +39,9 @@ namespace PirateCraft
       GL.BindVertexArray(_glId);
       SetObjectLabel();
     }
+
+    protected override string DataPathName() { return "-vao" + base.DataPathName(); }
+
     public void Bind()
     {
       //Note the vertex array must be bound before this works.
@@ -75,7 +78,7 @@ namespace PirateCraft
   }
 
   [DataContract]
-  public class MeshView : DataBlock, IClone, ICopy<MeshView>, ISerializeBinary
+  public class MeshView : DataBlock
   {
     // @class MeshView
     // @brief Subset of mesh
@@ -284,33 +287,18 @@ namespace PirateCraft
       }
       return ele_count;
     }
-    public object? Clone(bool? shallow = null)
+    public MeshView Clone()
     {
-      var other = new MeshView();
-      other.CopyFrom(this, shallow);
-      return other;
-    }
-    public void CopyFrom(MeshView? other, bool? shallow = null)
-    {
-      Gu.Assert(other != null);
-      base.CopyFrom(other);
-      this._meshData = other._meshData;
-      this._start = other._start;
-      this._count = other._count;
-    }
-    public override void Serialize(BinaryWriter bw)
-    {
-      Gu.BRThrowNotImplementedException();
-      base.Serialize(bw);
-    }
-    public override void Deserialize(BinaryReader br, SerializedFileVersion version)
-    {
-      Gu.BRThrowNotImplementedException();
-      base.Deserialize(br, version);
+      return new MeshView()
+      {
+        _meshData = this._meshData,
+        _start = this._start,
+        _count = this._count,
+      };
     }
     public void ExpandCopyIndexes<T>(GrowList<T> inds)
     {
-      Gu.Assert(_meshData!=null);
+      Gu.Assert(_meshData != null);
       Gu.Assert(_meshData.HasIndexes);
 
       _meshData.IndexBuffer.ExpandCopy(inds);
@@ -320,7 +308,7 @@ namespace PirateCraft
 
   }
   [DataContract]
-  public class MeshData : OpenGLContextDataManager<VertexArrayObject>, IClone, ICopy<MeshData>
+  public class MeshData : OpenGLContextDataManager<VertexArrayObject>
   {
     // @class MeshData
     // @brief Manages mesh data and meshes among GL contexts.
@@ -334,28 +322,17 @@ namespace PirateCraft
     public GPUBuffer IndexBuffer { get { return _indexBuffer; } }
     public GPUBuffer FaceData { get { return _faceData; } private set { _faceData = value; } }
     public bool HasIndexes { get { return _indexBuffer != null; } }
-    public static MeshData DefaultBox
-    {
-      get
-      {
-        if (_defaultBox == null)
-        {
-          _defaultBox = Gu.Lib.LoadMesh(RName.Mesh_DefaultBox, new MeshGenBoxParams() { _w = 1, _h = 1, _d = 1 });
-        }
-        return _defaultBox;
-      }
-    }
 
     #endregion
     #region Private: Members
 
     private static MeshData? _defaultBox = null;
     [DataMember] private GPUBuffer _indexBuffer = null;
+    [DataMember] private GPUBuffer _faceData = null;
     [DataMember] private List<GPUBuffer> _vertexBuffers = null;
     [DataMember] private bool _boundBoxComputed = false;
     [DataMember] private Box3f _boundBoxExtent = new Box3f();
     [DataMember] private PrimitiveType _primitiveType = PrimitiveType.Triangles;
-    [DataMember] private GPUBuffer _faceData = null;
 
     #endregion
     #region Public: Methods
@@ -394,31 +371,18 @@ namespace PirateCraft
         ComputeBoundBox();
       }
     }
-    public object? Clone(bool? shallow = null)
+    public MeshData Clone()
     {
-      var other = new MeshData(this.Name);
-      other.CopyFrom(this, shallow);
+      var other = (MeshData)this.MemberwiseClone();
+
+      other._indexBuffer = this._indexBuffer.Clone();
+      other._faceData = this._faceData.Clone();
+      other._vertexBuffers = new List<GPUBuffer>();
+      foreach (var vb in this._vertexBuffers)
+      {
+        other._vertexBuffers.Add(vb.Clone());
+      }
       return other;
-    }
-    public void CopyFrom(MeshData? other, bool? shallow = null)
-    {
-      Gu.Assert(other != null);
-      base.CopyFrom(other);
-
-      //TODO: clone the index / vbo and vao
-      this.Name = other.Name;
-      if (shallow != null && shallow.Value == true)
-      {
-        this._indexBuffer = other._indexBuffer;
-        this._vertexBuffers = new List<GPUBuffer>(other._vertexBuffers);
-      }
-      else
-      {
-        Gu.BRThrowNotImplementedException();
-      }
-      this._boundBoxExtent = other._boundBoxExtent;
-      this._primitiveType = other._primitiveType;
-
     }
 
     #endregion
@@ -470,60 +434,28 @@ namespace PirateCraft
     {
       Gu.Assert(b != null);
       Gu.Assert(b.Format != null);
-      int voff = b.Format.GetComponentOffset(ShaderVertexType.v3, 1);
-      if (voff >= 0)
-      {
-        var vertexes = b.CopyFromGPU();
 
-        unsafe
+      VertexPointer verts = new VertexPointer(b.CopyFromGPU(), b.Format);
+
+      //Test
+
+      if (HasIndexes)
+      {
+        VertexPointer inds = new VertexPointer(_indexBuffer.CopyFromGPU(), _indexBuffer.Format);
+        for (int ii = 0; ii < inds.Length; ii++)
         {
-          //Yeah, this is fun. Loop verts / indexes by casting bytes.
-          fixed (byte* vbarr = vertexes.Bytes)
-          {
-            if (HasIndexes)
-            {
-              var indexes = _indexBuffer.CopyFromGPU();
-              fixed (byte* ibarr = indexes.Bytes)
-              {
-                for (int ii = 0; ii < indexes.Count; ++ii)
-                {
-                  int index = 0;
-                  if (indexes.ItemSizeBytes == 2)
-                  {
-                    index = Convert.ToInt32(*((ushort*)(ibarr + ii * indexes.ItemSizeBytes)));
-                  }
-                  else if (indexes.ItemSizeBytes == 4)
-                  {
-                    index = *((int*)(ibarr + ii * indexes.ItemSizeBytes));
-                  }
-                  else
-                  {
-                    Gu.BRThrowException("Invalid index type.");
-                  }
-                  if (index >= vertexes.Count)
-                  {
-                    Gu.BRThrowException("Index outside range.");
-                  }
-                  vec3 vv = *((vec3*)(vbarr + index * vertexes.ItemSizeBytes + voff));
-                  _boundBoxExtent.genExpandByPoint(vv);
-                }
-              }
-            }
-            else
-            {
-              for (int vi = 0; vi < vertexes.Count; ++vi)
-              {
-                vec3 vv = *((vec3*)(vbarr + vi * vertexes.ItemSizeBytes + voff));
-                _boundBoxExtent.genExpandByPoint(vv);
-              }
-            }//if hasindexes
-          }//fixed
-        }//unsafe
+          int off = (int)inds[ii].index;
+          _boundBoxExtent.genExpandByPoint(verts[off]._v);
+        }
       }
       else
       {
-        Gu.Log.Warn("Could not compute bound box for mesh " + this.Name + " No default position data supplied.");
+        for (int vi = 0; vi < verts.Length; vi++)
+        {
+          _boundBoxExtent.genExpandByPoint(verts[vi]._v);
+        }
       }
+
     }
 
     #endregion

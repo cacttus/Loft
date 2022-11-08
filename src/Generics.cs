@@ -949,14 +949,6 @@ namespace PirateCraft
 
 
   }
-  public interface IClone
-  {
-    public object? Clone(bool? shallow = null);
-  }
-  public interface ICopy<T>
-  {
-    public abstract void CopyFrom(T? other, bool? shallow = null);
-  }
   public interface IMutableState
   {
     public bool Modified { get; }
@@ -1092,7 +1084,7 @@ namespace PirateCraft
       Modified = true;
     }
   }
-  public class BaseTimer : IClone, ICopy<BaseTimer>
+  public class BaseTimer
   {
     public long PeriodMS { get { return _periodMS; } private set { _periodMS = value; } }
     public ActionState State { get { return _state; } private set { _state = value; } }
@@ -1132,19 +1124,12 @@ namespace PirateCraft
       Stop();
       Start();
     }
-    public virtual object? Clone(bool? shallow = null)
+    public BaseTimer Clone()
     {
-      return Gu.Clone<BaseTimer>(this);
-    }
-    public void CopyFrom(BaseTimer? d, bool? shallow = null)
-    {
-      Gu.Assert(d != null);
-      this._state = d._state;
-      this._action = d._action;
-      this._repeat = d._repeat;
+      return (BaseTimer)this.MemberwiseClone();
     }
   }
-  public class DeltaTimer : BaseTimer, IClone, ICopy<BaseTimer>
+  public class DeltaTimer : BaseTimer
   {
     public double ElapsedSeconds { get; private set; } = 0;
     public double PeriodSeconds { get; private set; } = 0;
@@ -1175,15 +1160,9 @@ namespace PirateCraft
       }
       return fires;
     }
-    public override object? Clone(bool? shallow = null)
+    public DeltaTimer Clone()
     {
-      return Gu.Clone<BaseTimer>(this);
-    }
-    public void CopyFrom(DeltaTimer? d, bool? shallow = null)
-    {
-      Gu.Assert(d != null);
-      this.ElapsedSeconds = d.ElapsedSeconds;
-      this.PeriodSeconds = d.PeriodSeconds;
+      return (DeltaTimer)this.MemberwiseClone();
     }
   }
   public class AsyncTimer : BaseTimer
@@ -2262,135 +2241,6 @@ namespace PirateCraft
       _flags = br.ReadUInt16();
     }
   }//cl
-  public class RefList<T> : IClone, ICopy<RefList<T>>, IEnumerable<T> where T : DataBlock
-  {
-    public List<DataRef<T>> _items = new List<DataRef<T>>();
-    public int Count { get { return _items.Count; } }
-    public T? First()
-    {
-      var item = _items.First();
-      Gu.Assert(item != null);
-      return item.Get;
-    }
-    public void AddRef(DataRef<T> x)
-    {
-      _items.Add(x);
-    }
-    public void Add(T x)
-    {
-      _items.Add(x.GetRef<T>());
-    }
-    public T this[int k]
-    {
-      //operator[]
-      get
-      {
-        return _items.ElementAt(k).Get;
-      }
-      set
-      {
-        _items[k] = value.GetRef<T>();
-      }
-    }
-    public bool Remove(T val)
-    {
-      if (_items.Count == 0)
-      {
-        return false;
-      }
-      for (int i = _items.Count - 1; i >= 0; i--)
-      {
-        Gu.Assert(_items[i] != null);
-        if (_items[i]._ref == val)
-        {
-          _items.RemoveAt(i);
-          return true;
-        }
-      }
-      return false;
-    }
-    public void Clear()
-    {
-      _items.Clear();
-    }
-    public IEnumerator<T> GetEnumerator()
-    {
-      foreach (var x in _items)
-      {
-        yield return x.Get;
-      }
-    }
-    IEnumerator IEnumerable.GetEnumerator()
-    {
-      foreach (var x in _items)
-      {
-        yield return x.Get;
-      }
-    }
-    public object? Clone(bool? shallow = null)
-    {
-      return Gu.Clone<RefList<T>>(this);
-    }
-    public void CopyFrom(RefList<T>? other, bool? shallow = null)
-    {
-      Gu.Assert(other != null);
-      this._items = new List<DataRef<T>>(other._items);
-    }
-    public void Serialize(BinaryWriter bw)
-    {
-      //Ok so Action() can't be serialized, this is a problem. Maybe we add a quick LUA script hting..ughhh
-      Gu.BRThrowNotImplementedException();
-    }
-    public void Deserialize(BinaryReader br, SerializedFileVersion version)
-    {
-      Gu.BRThrowNotImplementedException();
-    }
-  }
-  public class DataRef<T> : IClone, ICopy<DataRef<T>>, ISerializeBinary where T : DataBlock
-  {
-    //This would be a much more compact DataRef than the other, assuming it would work
-    public object? _ref = null;
-    public DataRef() { }
-    public DataRef(UInt64 id)
-    {
-      _ref = id;
-    }
-    public DataRef(T? val)
-    {
-      _ref = val;
-    }
-    public T? Get
-    {
-      get
-      {
-        //C# version of a pointer fix-up. Box the loaded object as UInt64, then look it up when referenced.
-        // if (_ref is UInt64)
-        // {
-        //   _ref = Gu.Lib.GetOrLoadExistingResource((UInt64)_ref);
-        //   Gu.Assert(_ref != null);
-        // }
-        Gu.BRThrowNotImplementedException();
-        return _ref as T;
-      }
-    }
-    public object? Clone(bool? shallow = null)
-    {
-      return Gu.Clone<DataRef<T>>(this);
-    }
-    public void CopyFrom(DataRef<T>? other, bool? shallow = null)
-    {
-      Gu.Assert(other != null);
-      this._ref = other._ref;
-    }
-    public void Serialize(BinaryWriter bw)
-    {
-      Gu.BRThrowNotImplementedException();
-    }
-    public void Deserialize(BinaryReader bw, SerializedFileVersion version)
-    {
-      Gu.BRThrowNotImplementedException();
-    }
-  }
   public class GrowList<T>
   {
     //Used for UI since sorting isn't supported yet

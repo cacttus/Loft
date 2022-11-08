@@ -1,16 +1,46 @@
-﻿## THIS SPRINT:
-  Fixed GPU render state errors
-  Engine Config Saving via Newtonsoft JSON
-  Generic DebugDraw
-  World Editor drawing
-  Viewport Overlay
-
-
+﻿
 ## WORKING ON:
  Transforms
  Animation
 
 ## NOTES:
+1107
+  fixed xforms
+
+1030
+  fixed solid shade bug - DrawMode == Deferred
+  investigate topology normals error
+
+1026
+  Register on scene attach
+    
+    Worldobject.material = new material(new shader()) // shader will get registered  when OB is attached to scene.
+      
+    World.AddObject(ob)
+    >>
+      if(!ob is registered)
+        Register(ob) //recursively register all resources
+        >>
+          Find object by id
+            if object id == id, && object == stored object
+              dont register - this is an instance
+
+  m = new Material("mat")
+  Lib.Add(m)
+
+  wo.Material = Lib.LoadMaterial("mat") << the named loaders are necessary. but we have no need to dupe the object ctors 
+
+  World.AddObject(wo)
+    Register(wo)
+      find ob by id
+        name does not have to equal name if id is unique
+          if id==id && name!=name
+            ob is an instance of the same data object with new name.
+      exist? - instance - no uid, no name
+      material
+
+  Load embedded resource anywhere.
+  bool Lib.Load(string name, out obj) - load object from existing - no constructor copying.
 
 1023
 transofrms
@@ -149,6 +179,8 @@ transofrms
   save/load/lib
 
 ## Bugs:
+  * Topology - bottom topo is incorrect -underneath terrain
+  * Topology normals are incorrect - ComputeNormalsTangents - the quad tops / sides verts are not linked
   * Library Dependencies must share pick ID with root node Gear -> root
   * Hide root node default box.
   * CRITICAL: slowdown issue - fps slows down .. some kind of serious issue
@@ -188,7 +220,7 @@ transofrms
         * Select object -> Path Dialog -> "Edit Path", "Add Path"
           <- Combo Box, Window
         -> Click to edit path. 
-        -> Add path point.
+        -> Add path point.  
     * Cinematic System / World Activity 
       * Go To World (World Model 2)
       * click character -> click to make path -> save path (in order) < Path System
@@ -794,3 +826,72 @@ then
  //6.1 Expand clipquad and renderquad while laying out - max = superclip
  //7 Layout floats
  //7.1 expand clipquad only    
+
+
+
+   Resource Promotion
+  The purpose of this system is to determine what gets a unique ID, and name, and what we check for,
+  because temps don't need to get unique ids as -- this would require running registration logic for thousands of temps
+  per frame. Temps are constructor objects, new WorldObject, new Shader().. -e.g. not deserialized or loaded from an external file.
+  Saving requires us to call temp.PromoteResource() - and this is called by the system in various places.
+    We instruct the library when we want to hang on to a resource by promoting the resource
+  to a savable state, and ensuring it:
+    1 has a unique ID, id is valid
+    2 unique name
+    3 has a data source of some kind attached
+    4 sub-resources for loaded/generated items are not registered
+    5 is not already a resource 
+ when the resource is removed from the scene we just keep it around..
+  sub - sub-resource (object->material->texture->image)
+  UTable - unique name table for global resources --on GU.lib
+  RTable - resource local table -- on datasource
+  DS - data source
+    Namespaces
+      temp - none 
+      scene - UT only - created in the application/script
+      libroot - root library object - RT and UT - generated/loaded
+      libdep - RT only - generated/loaded
+    Serialization Types
+      temp - not saved, can be promoted
+      scene - all nodes saved
+      libroot - data source saved
+      libdep - not saved, cannot be promoted, but can be clone()'d
+    Conditions
+      libadd 
+        if sub is lib - no change, do not traverse children
+        if sub is scene - error - must clone resource to add to library
+        if sub is temp -  set DS (for all) - if no DS - then is raw
+                          if is root resource
+                            set lib - item will exist in UTable
+                            gets uid/uname (creteresrouce)
+                          else
+                            set libdep
+                            rname from DataSource RTable (must be unique within resource context) - usually loaded from file.
+                            if has no DS - raw serialized
+                            if has DS - not serialized
+      sceneadd
+        if lib - no change, do not traverse
+        if scene - error - sub-object already added to scene, should not be possible
+        if temp - set to scene, make uid (createresource) for all temp sub-items
+      sceneremove
+        if sub is lib - no change
+        if sub is scene - remove uid/un 
+        if sub is temp - error
+      libremove
+        if sub is lib - remove uid/un
+        if sub is scene - error
+        if sub is temp - error
+Overview
+  Resource library saves resource generators, and loaders (data sources)
+    -> unique ID, uname
+    LoadModel, LoadImage, LoadTexture, LoadMaterial, LoadShader, LoadMesh
+    -> creates a new shader if the UName does not exist
+    -> if uname does exist, load the DS->
+      IF -> parameters are the same (DataSource::Equals)
+      ELSE -> destroy the DS, create a new DS with the changed parameters, **keep the existing name/ID
+  Temps:
+    Temporary data created through constructors are not saved, unless created through Load* attached to a worldobject node
+      Material() Shader() Texture() Image() MeshData()..
+      So to update an image/shader etc - create with Load* 
+    Ok so what about WorldObject?
+      -> Saved only when attached to the scene, or, marked as a library item.

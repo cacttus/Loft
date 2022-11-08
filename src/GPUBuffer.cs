@@ -67,6 +67,9 @@ namespace PirateCraft
       _usageHint = hint;
       Init(fmt, t, item_size_bytes, itemCount, items);
     }
+
+    protected override string DataPathName() { return "-buf" + base.DataPathName(); }
+
     private void Init(GPUDataFormat? fmt, BufferTarget t, int item_size_bytes, int itemCount, object? items = null)
     {
       //Gu.Assert(itemCount > 0, $"{Name}: Count was zero.");
@@ -118,6 +121,13 @@ namespace PirateCraft
         GT.DeleteBuffer(_glId);
       }
     }
+    public GPUBuffer Clone()
+    {
+      var b = (GPUBuffer)this.MemberwiseClone();
+      var data = this.CopyFromGPU();
+      b.CopyToGPU(data);
+      return b;
+    }
     public bool Bind()
     {
       // if (!GL.IsBuffer(_glId))
@@ -141,15 +151,9 @@ namespace PirateCraft
       ExpandBuffer(items.Count);
       CopyToGPU(GpuDataPtr.GetGpuDataPtr(items.ToArray()));
     }
-    public GpuDataArray CopyFromGPU(int itemOffset = 0, int itemCount = -1, bool useMemoryBarrier = false)
+    public GpuDataPtr CopyFromGPU(int itemOffset = 0, int itemCount = -1, bool useMemoryBarrier = false)
     {
-      //TODO: this is super slow, we can use Marshal.Copy(IntPtr, IntPtr[] to be faster, and also template this method)
       //Copies GPU data into a temporary byte array.
-      //GpuDataArray is a kind of proxy class that munges data into a managed byte array.
-
-      //**TODO: fix this to use GpuDataPtr and raw copy - Get rid of GpuDataArray
-      GpuDataArray d = null;
-
       int offsetBytes = itemOffset * _itemSizeBytes;
       int lengthBytes = (itemCount <= -1) ? (_itemCount * _itemSizeBytes) : ((int)itemCount * _itemSizeBytes);
 
@@ -159,21 +163,19 @@ namespace PirateCraft
       }
 
       Bind();
+      IntPtr pt = GL.MapBufferRange(BufferTarget, (IntPtr)offsetBytes, (IntPtr)lengthBytes, BufferAccessMask.MapReadBit);
+      Gpu.CheckGpuErrorsDbg();
+      if (pt == IntPtr.Zero)
       {
-        IntPtr pt = GL.MapBufferRange(BufferTarget, (IntPtr)offsetBytes, (IntPtr)lengthBytes, BufferAccessMask.MapReadBit);
-        Gpu.CheckGpuErrorsDbg();
-        if (pt == IntPtr.Zero)
-        {
-          Gu.BRThrowException("Failed to map OpenGL Buffer.");
-        }
-        byte[] managedArray = new byte[lengthBytes];
-        Marshal.Copy(pt, managedArray, 0, (int)lengthBytes);
-        GL.UnmapBuffer(BufferTarget);
-        d = new GpuDataArray(_itemSizeBytes, _itemCount, managedArray);
+        Gu.BRThrowException("Failed to map OpenGL Buffer.");
       }
+      byte[] managedArray = new byte[lengthBytes];
+      Marshal.Copy(pt, managedArray, 0, (int)lengthBytes);
+      GL.UnmapBuffer(BufferTarget);
+      GpuDataPtr ret = new GpuDataPtr(_itemSizeBytes, _itemCount, managedArray);
       Unbind();
 
-      return d;
+      return ret;
     }
     public bool CopyToGPU(GpuDataPtr src, int srcOff = 0, int dstOff = 0, int item_count = -1, bool useMemoryBarrier = false)
     {

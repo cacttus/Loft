@@ -18,14 +18,24 @@ namespace PirateCraft
     c3, c4, //color
     n3, //vertex normal
     x2, //texcoord
-    f3, //face normal
-    t3, //vertex tangent
+    fn, //face normal
+    vt, //vertex tangent
     gl_InstanceID, gl_InstanceIndex, //gl stuff
 
     // The following are not built-in types but still have identifiers
-    u1, u2, u3,//uint
-    i1, i2, i3,//int
-    m2, m3, m4,//matrix
+    Float,
+    Double,
+    Byte,
+    UByte,
+    Short,
+    UShort,
+    Int,
+    UInt,
+    Vec2, Vec3, Vec4,
+    iVec2, iVec3, iVec4,
+    uVec2, uVec3, uVec4,
+    dVec2, dVec3, dVec4,
+    Mat2, Mat3, Mat4,
   }
 
   #endregion
@@ -52,7 +62,7 @@ namespace PirateCraft
     [DataMember] public int _lutIndex = 0;
     [DataMember] public int _byteOffset = 0;
     [DataMember] public int _attribLocation = 0;
-    [DataMember] public string _name = Library.UnsetName;
+    [DataMember] public string _name = Lib.UnsetName;
   }
   [DataContract]
   public class GPUDataFormat : NamedObject
@@ -110,7 +120,8 @@ namespace PirateCraft
 
       Gu.Assert(dataType.IsValueType, $"'{Name}': must be a value type.");
 
-      if (!TryAddComponent(dataType.Name, dataType, 1))
+      //Try  add the value type e.g. vec3, short.., if fail, parse components as struct
+      if (!TryAddComponent(dataType, 1, null))
       {
         var fieldFlags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public;
         var vtx_comps = dataType.GetFields(fieldFlags);
@@ -126,7 +137,7 @@ namespace PirateCraft
           }
           Gu.Assert(comp_fields != null);
 
-          if (!TryAddComponent(vtx_comp.Name, vtx_comp.FieldType, comp_fields.Length))
+          if (!TryAddComponent(vtx_comp.FieldType, comp_fields.Length, vtx_comp.Name))
           {
             Gu.Log.Error($"Could not find component '{vtx_comp.ToString()}'");
             Gu.DebugBreak();
@@ -202,38 +213,43 @@ namespace PirateCraft
     #endregion
     #region Private: Methods
 
-    private bool TryAddComponent(string type_or_field_name, Type comp, int comp_count)
+    private bool TryAddComponent(Type comp, int comp_count, string? field_name)
     {
+      //Return false if the component is not present.. this may be a struct.
       VertexAttribPointerType? ftype = null;
       VertexAttribIntegerType? itype = null;
       VertexAttribDoubleType? dtype = null;
 
+      ShaderVertexType ctype = ShaderVertexType.Undefined;
+
+      //parse regular data format (vec3,float..) then try to parse the "special" field (vert, color, normal..)
+
       //float
-      if (comp == typeof(Single)) { ftype = VertexAttribPointerType.Float; }
-      else if (comp == typeof(vec2)) { ftype = VertexAttribPointerType.Float; }
-      else if (comp == typeof(vec3)) { ftype = VertexAttribPointerType.Float; }
-      else if (comp == typeof(vec4)) { ftype = VertexAttribPointerType.Float; }
-      else if (comp == typeof(mat2)) { ftype = VertexAttribPointerType.Float; }
-      else if (comp == typeof(mat3)) { ftype = VertexAttribPointerType.Float; }
-      else if (comp == typeof(mat4)) { ftype = VertexAttribPointerType.Float; }
+      if (comp == typeof(Single)) { ftype = VertexAttribPointerType.Float; ctype = ShaderVertexType.Float; }
+      else if (comp == typeof(vec2)) { ftype = VertexAttribPointerType.Float; ctype = ShaderVertexType.Vec2; }
+      else if (comp == typeof(vec3)) { ftype = VertexAttribPointerType.Float; ctype = ShaderVertexType.Vec3; }
+      else if (comp == typeof(vec4)) { ftype = VertexAttribPointerType.Float; ctype = ShaderVertexType.Vec4; }
+      else if (comp == typeof(mat2)) { ftype = VertexAttribPointerType.Float; ctype = ShaderVertexType.Mat2; }
+      else if (comp == typeof(mat3)) { ftype = VertexAttribPointerType.Float; ctype = ShaderVertexType.Mat3; }
+      else if (comp == typeof(mat4)) { ftype = VertexAttribPointerType.Float; ctype = ShaderVertexType.Mat4; }
       //int
-      else if (comp == typeof(byte)) { itype = VertexAttribIntegerType.Byte; }
-      else if (comp == typeof(sbyte)) { itype = VertexAttribIntegerType.UnsignedByte; }
-      else if (comp == typeof(short)) { itype = VertexAttribIntegerType.Short; }
-      else if (comp == typeof(ushort)) { itype = VertexAttribIntegerType.UnsignedShort; }
-      else if (comp == typeof(int)) { itype = VertexAttribIntegerType.Int; }
-      else if (comp == typeof(uint)) { itype = VertexAttribIntegerType.UnsignedInt; }
-      else if (comp == typeof(ivec2)) { itype = VertexAttribIntegerType.Int; }
-      else if (comp == typeof(ivec3)) { itype = VertexAttribIntegerType.Int; }
-      else if (comp == typeof(ivec4)) { itype = VertexAttribIntegerType.Int; }
-      else if (comp == typeof(uvec2)) { itype = VertexAttribIntegerType.UnsignedInt; }
-      else if (comp == typeof(uvec3)) { itype = VertexAttribIntegerType.UnsignedInt; }
-      else if (comp == typeof(uvec4)) { itype = VertexAttribIntegerType.UnsignedInt; }
+      else if (comp == typeof(byte)) { itype = VertexAttribIntegerType.Byte; ctype = ShaderVertexType.Byte; }
+      else if (comp == typeof(sbyte)) { itype = VertexAttribIntegerType.UnsignedByte; ctype = ShaderVertexType.UByte; }
+      else if (comp == typeof(short)) { itype = VertexAttribIntegerType.Short; ctype = ShaderVertexType.Short; }
+      else if (comp == typeof(ushort)) { itype = VertexAttribIntegerType.UnsignedShort; ctype = ShaderVertexType.UShort; }
+      else if (comp == typeof(int)) { itype = VertexAttribIntegerType.Int; ctype = ShaderVertexType.Int; }
+      else if (comp == typeof(uint)) { itype = VertexAttribIntegerType.UnsignedInt; ctype = ShaderVertexType.UInt; }
+      else if (comp == typeof(ivec2)) { itype = VertexAttribIntegerType.Int; ctype = ShaderVertexType.iVec2; }
+      else if (comp == typeof(ivec3)) { itype = VertexAttribIntegerType.Int; ctype = ShaderVertexType.iVec3; }
+      else if (comp == typeof(ivec4)) { itype = VertexAttribIntegerType.Int; ctype = ShaderVertexType.iVec4; }
+      else if (comp == typeof(uvec2)) { itype = VertexAttribIntegerType.UnsignedInt; ctype = ShaderVertexType.uVec2; }
+      else if (comp == typeof(uvec3)) { itype = VertexAttribIntegerType.UnsignedInt; ctype = ShaderVertexType.uVec3; }
+      else if (comp == typeof(uvec4)) { itype = VertexAttribIntegerType.UnsignedInt; ctype = ShaderVertexType.uVec4; }
       //double
-      else if (comp == typeof(Double)) { dtype = VertexAttribDoubleType.Double; }
-      else if (comp == typeof(dvec2)) { dtype = VertexAttribDoubleType.Double; }
-      else if (comp == typeof(dvec3)) { dtype = VertexAttribDoubleType.Double; }
-      else if (comp == typeof(dvec4)) { dtype = VertexAttribDoubleType.Double; }
+      else if (comp == typeof(Double)) { dtype = VertexAttribDoubleType.Double; ctype = ShaderVertexType.Double; }
+      else if (comp == typeof(dvec2)) { dtype = VertexAttribDoubleType.Double; ctype = ShaderVertexType.dVec2; }
+      else if (comp == typeof(dvec3)) { dtype = VertexAttribDoubleType.Double; ctype = ShaderVertexType.dVec3; }
+      else if (comp == typeof(dvec4)) { dtype = VertexAttribDoubleType.Double; ctype = ShaderVertexType.dVec4; }
       else
       {
         return false;
@@ -241,13 +257,26 @@ namespace PirateCraft
 
       int byte_size = Marshal.SizeOf(comp);
 
-      ShaderVertexType ctype = TryParseShaderInputType(type_or_field_name, comp_count);
+      if (field_name != null)
+      {
+        var specialtyp = TryParseSpecialInputType(field_name, comp_count);
+        if (specialtyp != ShaderVertexType.Undefined)
+        {
+          ctype = specialtyp;
+        }
+      }
+      else
+      {
+        field_name = comp.Name;
+      }
 
-      AddComponent_Ordered(type_or_field_name, comp_count, byte_size, ftype, itype, dtype, ctype);
+      Gu.Assert(ctype != ShaderVertexType.Undefined);
+
+      AddComponent_Ordered(field_name, comp_count, byte_size, ftype, itype, dtype, ctype);
 
       return true;
     }
-    private ShaderVertexType TryParseShaderInputType(string name, int comp_count)
+    private ShaderVertexType TryParseSpecialInputType(string name, int comp_count)
     {
       //Parse system user type.
       //Kind of a hacky way to map vertex parameters to shader inputs.
@@ -273,7 +302,7 @@ namespace PirateCraft
           }
         }
 
-        var type_str = name.Substring(1, 1); //v,f,c,
+        var type_str = name.Substring(1, 1); //v,f,c, => i2, v3, c4, m4, S2 .. etc
         if (type_str == "v" && comp_count == 2) { res = ShaderVertexType.v2; }
         else if (type_str == "v" && comp_count == 3) { res = ShaderVertexType.v3; }
         else if (type_str == "v" && comp_count == 4) { res = ShaderVertexType.v4; }
@@ -281,19 +310,10 @@ namespace PirateCraft
         else if (type_str == "c" && comp_count == 4) { res = ShaderVertexType.c4; }
         else if (type_str == "n" && comp_count == 3) { res = ShaderVertexType.n3; }
         else if (type_str == "x" && comp_count == 2) { res = ShaderVertexType.x2; }
-        else if (type_str == "f" && comp_count == 3) { res = ShaderVertexType.f3; }
-        else if (type_str == "t" && comp_count == 3) { res = ShaderVertexType.t3; }
+        else if (type_str == "f" && comp_count == 3) { res = ShaderVertexType.fn; }
+        else if (type_str == "t" && comp_count == 3) { res = ShaderVertexType.vt; }
         else if (type_str == "y" && comp_count == 3) { res = ShaderVertexType.gl_InstanceID; }//never gonna remember this
         else if (type_str == "Y" && comp_count == 3) { res = ShaderVertexType.gl_InstanceIndex; }
-        else if (type_str == "u" && comp_count == 1) { res = ShaderVertexType.u1; }
-        else if (type_str == "u" && comp_count == 2) { res = ShaderVertexType.u2; }
-        else if (type_str == "u" && comp_count == 3) { res = ShaderVertexType.u3; }
-        else if (type_str == "i" && comp_count == 1) { res = ShaderVertexType.i1; }
-        else if (type_str == "i" && comp_count == 2) { res = ShaderVertexType.i2; }
-        else if (type_str == "i" && comp_count == 3) { res = ShaderVertexType.i3; }
-        else if (type_str == "m" && comp_count == 4) { res = ShaderVertexType.m2; }
-        else if (type_str == "m" && comp_count == 9) { res = ShaderVertexType.m3; }
-        else if (type_str == "m" && comp_count == 16) { res = ShaderVertexType.m4; }
 
       }
 
@@ -372,8 +392,8 @@ namespace PirateCraft
 
   public class VertexPointer
   {
-    //Generic vertex class
-    //Allows us to pass around any vertex array.
+    //Generic vertex manipulation class
+    //Allows us to pass around any vertex array and manipulate data (c++)
     //ex: we have 2 verts: v_v3x2n3 and v_v3c2t3x2n3c4.. this will let us get , for example, v3 and n3 from both in the same method.
     // The class will throw an exception if you try to access a component that does not exist on the type. 
     // ** Be careful, Intellisense may be wrong!
@@ -382,19 +402,21 @@ namespace PirateCraft
     public class VertexPointerOffset
     {
       public VertexPointer Pointer;
-      public int Index { get; private set; }
-      public VertexPointerOffset(VertexPointer v, int index)
+      public int ArrayIndex { get; private set; }
+      public VertexPointerOffset(VertexPointer v, int arridx)
       {
         Pointer = v;
-        Index = index;
+        ArrayIndex = arridx;
       }
       //The 01 methods are for 01 data.
-      public vec3 _v { get { return Pointer.GetValue<vec3>(ShaderVertexType.v3, 1, Index); } set { Pointer.SetValue<vec3>(ShaderVertexType.v3, 1, Index, value); } }
-      public vec3 _n { get { return Pointer.GetValue<vec3>(ShaderVertexType.n3, 1, Index); } set { Pointer.SetValue<vec3>(ShaderVertexType.n3, 1, Index, value); } }
-      public vec3 _t { get { return Pointer.GetValue<vec3>(ShaderVertexType.t3, 1, Index); } set { Pointer.SetValue<vec3>(ShaderVertexType.t3, 1, Index, value); } }
-      public vec2 _x { get { return Pointer.GetValue<vec2>(ShaderVertexType.x2, 1, Index); } set { Pointer.SetValue<vec2>(ShaderVertexType.x2, 1, Index, value); } }
-      public vec2 _x2 { get { return Pointer.GetValue<vec2>(ShaderVertexType.x2, 2, Index); } set { Pointer.SetValue<vec2>(ShaderVertexType.x2, 2, Index, value); } }
-      public uint _u { get { return Pointer.GetValue<uint>(ShaderVertexType.u1, 1, Index); } set { Pointer.SetValue<uint>(ShaderVertexType.u1, 1, Index, value); } }
+      public vec3 _v { get { return Pointer.GetValue<vec3>(ShaderVertexType.v3, 1, ArrayIndex); } set { Pointer.SetValue<vec3>(ShaderVertexType.v3, 1, ArrayIndex, value); } }
+      public vec3 _n { get { return Pointer.GetValue<vec3>(ShaderVertexType.n3, 1, ArrayIndex); } set { Pointer.SetValue<vec3>(ShaderVertexType.n3, 1, ArrayIndex, value); } }
+      public vec3 _t { get { return Pointer.GetValue<vec3>(ShaderVertexType.vt, 1, ArrayIndex); } set { Pointer.SetValue<vec3>(ShaderVertexType.vt, 1, ArrayIndex, value); } }
+      public vec2 _x { get { return Pointer.GetValue<vec2>(ShaderVertexType.x2, 1, ArrayIndex); } set { Pointer.SetValue<vec2>(ShaderVertexType.x2, 1, ArrayIndex, value); } }
+      public vec2 _x2 { get { return Pointer.GetValue<vec2>(ShaderVertexType.x2, 2, ArrayIndex); } set { Pointer.SetValue<vec2>(ShaderVertexType.x2, 2, ArrayIndex, value); } }
+      public uint _u { get { return Pointer.GetValue<uint>(ShaderVertexType.UInt, 1, ArrayIndex); } set { Pointer.SetValue<uint>(ShaderVertexType.UInt, 1, ArrayIndex, value); } }
+      //index buffer index
+      public uint index { get { return Pointer.GetIndex(ArrayIndex); } set { Pointer.SetIndex(ArrayIndex, value); } }
     }
 
     #endregion
@@ -402,7 +424,6 @@ namespace PirateCraft
 
     public GPUDataFormat Format { get; private set; } = null;
     public object Verts { get; private set; } = null;
-    public int BufferSizeBytes { get; private set; } = 0;
     public int Length { get; private set; } = 0;
 
     #endregion
@@ -422,7 +443,72 @@ namespace PirateCraft
       Verts = verts;
       Format = GPUDataFormat.GetDataFormat(t.GetElementType());
       Length = (verts as Array).Length;
-      BufferSizeBytes = Format.VertexSizeBytes * Length;
+    }
+    public VertexPointer(GPUBuffer b) : this(b.CopyFromGPU(), b.Format)
+    {
+      FromGpuDataPtr(b.CopyFromGPU(), b.Format);
+    }
+    public VertexPointer(GpuDataPtr verts, GPUDataFormat format)
+    {
+      FromGpuDataPtr(verts, format);
+    }
+    private void FromGpuDataPtr(GpuDataPtr verts, GPUDataFormat format)
+    {
+      Gu.Assert(verts != null);
+      Gu.Assert(format != null);
+      Gu.Assert(verts.Data != null);
+      Gu.Assert(verts.Data is byte[]);
+      Verts = verts.Data;
+      Format = format;
+      Length = verts.Count;
+    }
+    public uint GetIndex(int arrindex)
+    {
+      uint ret = 0;
+      if (Format.Type == typeof(short))
+      {
+        ret = (uint)GetValue<short>(ShaderVertexType.Short, 1, arrindex);
+      }
+      else if (Format.Type == typeof(ushort))
+      {
+        ret = (uint)GetValue<ushort>(ShaderVertexType.UShort, 1, arrindex);
+      }
+      else if (Format.Type == typeof(int))
+      {
+        ret = (uint)GetValue<int>(ShaderVertexType.Int, 1, arrindex);
+      }
+      else if (Format.Type == typeof(uint))
+      {
+        ret = (uint)GetValue<uint>(ShaderVertexType.UInt, 1, arrindex);
+      }
+      else
+      {
+        Gu.BRThrowException("Invalid index format.");
+      }
+      return ret;
+    }
+    public void SetIndex(int arrindex, uint value)
+    {
+      if (Format.Type == typeof(short))
+      {
+        SetValue<short>(ShaderVertexType.Short, 1, arrindex, (short)value);
+      }
+      else if (Format.Type == typeof(ushort))
+      {
+        SetValue<ushort>(ShaderVertexType.UShort, 1, arrindex, (ushort)value);
+      }
+      else if (Format.Type == typeof(int))
+      {
+        SetValue<int>(ShaderVertexType.Int, 1, arrindex, (int)value);
+      }
+      else if (Format.Type == typeof(uint))
+      {
+        SetValue<uint>(ShaderVertexType.UInt, 1, arrindex, (uint)value);
+      }
+      else
+      {
+        Gu.BRThrowException("Invalid index format.");
+      }
     }
     public VertexPointerOffset this[int i]
     {
@@ -472,7 +558,6 @@ namespace PirateCraft
         Gu.Assert(cmp != null);
         int vsize = Format.VertexSizeBytes;
         int boff = cmp.ByteOffset;
-
         ret = (byte*)pt + offset * vsize + boff;
       }
       else
@@ -489,46 +574,32 @@ namespace PirateCraft
   #region Vertex Formats
 
   //note we removed std430 padding .. this is erroneous.. we need to fix it
-  [StructLayout(LayoutKind.Sequential)]
-  public struct v_v3c4
-  {
-    [DataMember] public vec3 _v;
-    [DataMember] public vec4 _c;
-  }
-  [StructLayout(LayoutKind.Sequential)]
-  public struct v_debug_draw
-  {
-    [DataMember] public vec3 _v;
-    [DataMember] public vec4 _c;
-    [DataMember] public vec2 _size;
-    [DataMember] public vec3 _outl;//outline color
-  }  
   [DataContract]
   [StructLayout(LayoutKind.Sequential)]
   public struct v_v3n3x2t3u1
   {
-    //Base object vertex, with picking<
+    //Default object vertex
     [DataMember] public vec3 _v;
     [DataMember] public vec3 _n;
     [DataMember] public vec2 _x;
     [DataMember] public vec3 _t;
-    public uint _u;//Face ID, note this is convenient just because we had a pad value.
+    [DataMember] public uint _u;//Face ID, note this is convenient just because we had a pad value.
   }
   [DataContract]
   [StructLayout(LayoutKind.Sequential)]
-  public struct v_v3n3x2u1
+  public struct v_debug_draw
   {
-    //GlobVert
-    [DataMember] public vec3 _v; //3   = 3
-    [DataMember] public vec3 _n; //3   = 9
-    [DataMember] public vec2 _x; //2   = 11
-    [DataMember] public uint _u; // 1  = 12  => 12%4=0
+    //debug vertex
+    [DataMember] public vec3 _v;
+    [DataMember] public vec4 _c;
+    [DataMember] public vec2 _size;
+    [DataMember] public vec3 _outl;//outline color
   }
   [StructLayout(LayoutKind.Sequential)]
   public struct v_v4v4v4v2u2v4v4
   {
-    //26 float = 96B
     //v_GuiVert
+    //26 float = 96B
     [DataMember] public vec4 _rect;
     [DataMember] public vec4 _clip;
     [DataMember] public vec4 _tex;

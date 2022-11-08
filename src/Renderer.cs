@@ -452,10 +452,11 @@ namespace PirateCraft
       //Blitter: Instead of drawing objects this stage will draw a full screen quad with a custom shader (deferred/forward/effect)
       Gu.Assert(Inputs.Count > 0);
       string names = $"Shader_{generic_name}";
-      BlitObj = new WorldObject(Library.MakeDatapathName(names, typeof(WorldObject)));
-      BlitObj.MeshView = new MeshView(MeshGen.CreateScreenQuadMesh(Library.MakeDatapathName(names, typeof(MeshData)), width, height));
-      BlitObj.Material = new Material(Library.MakeDatapathName(names, typeof(Material)),
-      Gu.Lib.LoadShader(Library.MakeDatapathName(names, typeof(Shader)), generic_name, FileStorage.Embedded));
+      BlitObj = new WorldObject($"{names}-wo");
+      BlitObj.MeshView = new MeshView(MeshGen.CreateScreenQuadMesh($"{names}-mesh", width, height));
+      
+      BlitObj.Material = new Material($"{names}-mat", new Shader($"{names}-shr", generic_name, FileStorage.Embedded));
+
       BlitObj.Material.GpuRenderState.CullFace = false;
       BlitObj.Material.GpuRenderState.DepthTest = false;
       BlitObj.Material.GpuRenderState.Blend = blend;
@@ -984,7 +985,7 @@ namespace PirateCraft
           var pTarget = output.Attachment;
           string fname = $"{((int)CurrentStage.PipelineStageEnum).ToString()}|{CurrentStage.PipelineStageEnum.ToString()}|{output.ShaderOutput.ToString()}|{n} {suffix}.png";//names may be the same
           fname = System.IO.Path.Combine(Gu.LocalTmpPath, fname);
-          Library.SaveTexture(new FileLoc(fname, FileStorage.Disk), pTarget.Texture, true, true, -1, true);
+          Lib.SaveTexture(new FileLoc(fname, FileStorage.Disk), pTarget.Texture, true, true, -1, true);
           Gu.Log.Info("[Renderer] Screenshot '" + fname + "' saved");
           n++;
 

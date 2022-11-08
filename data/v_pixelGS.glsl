@@ -13,14 +13,8 @@ vec4 clip_to_screen(vec4 p) {
   vec2 rwh = vec2(_ufGpuCamera._vWindowViewport.z, 
                   _ufGpuCamera._vWindowViewport.w);
 
-  // float vx = _ufGpuCamera._vWindowViewport.x;
-  // float vy = _ufGpuCamera._vWindowViewport.y;
-  // float vw = _ufGpuCamera._vWindowViewport.z;
-  // float vh = _ufGpuCamera._vWindowViewport.w;
-
-  //screen.x = (screen.x - vx) / (vw / 2.0f) - 1.0f;
-  //screen.y = (screen.y - vy) / (vh / 2.0f) - 1.0f;
-
+  //**NOTE: this does not put the screen origin in top 
+  // 1 - p.y for top origin
   p.xyz /= p.w;
   p.xy = (p.xy + 1.0) * rwh * 0.5;
 

@@ -1242,7 +1242,7 @@ namespace PirateCraft
     }
     public UiStyle Clone()
     {
-      UiStyle ret = new UiStyle(this.Name + Library.CopyName, this._superStylesNames);
+      UiStyle ret = new UiStyle(this.Name + Lib.CopyName, this._superStylesNames);
       ret._props = _props.Clone();
       ret._eles = null;
       ret._bMustCompile = true;
@@ -2194,7 +2194,7 @@ namespace PirateCraft
               vc._rbr_rbl = new vec4(0, 0, 0, 0);
               vc._quadrant = new vec3(0, 0, 999);
               ComputeVertexGlyphTCoord(ref vc, glyph._reference._cachedGlyph, adjust);
-              SetVertexPickAndColor(ref vc, new vec4(Style._props.FontColor.xyz(), Style._props.FontColor.w * (float)Style._props.Opacity), pickId);
+              SetVertexPickAndColor(ref vc, new vec4(Style._props.FontColor.xyz, Style._props.FontColor.w * (float)Style._props.Opacity), pickId);
               verts.Add(vc);//This is because of the new sorting issue
             }
           }
@@ -2532,7 +2532,7 @@ namespace PirateCraft
       ComputeVertexTexcoord(ref vc, tex, Style._props.ImageTilingX, Style._props.ImageTilingY, adjust);
 
       vec4 cmul = Style._props.Color * Style._props.MultiplyColor;
-      SetVertexPickAndColor(ref vc, new vec4(cmul.xyz(), cmul.w * (float)Style._props.Opacity).Clamp(0.0f, 1.0f), rootPickId);
+      SetVertexPickAndColor(ref vc, new vec4(cmul.xyz, cmul.w * (float)Style._props.Opacity).Clamp(0.0f, 1.0f), rootPickId);
       all_verts.Add(vc);//This is because of the new sorting issue
 
       //TODO: border radius is still broken 
@@ -2602,7 +2602,7 @@ namespace PirateCraft
       vb._quadrant = quadrant;
       SetVertexRasterArea(ref vb, in borderquad, in b2ClipRect, dd);
       ComputeVertexTexcoord(ref vb, defaultPixel, UiImageTiling.Expand, UiImageTiling.Expand, 0);
-      SetVertexPickAndColor(ref vb, new vec4(bodfercolor.xyz(), bodfercolor.w * (float)Style._props.Opacity), rootPickId);
+      SetVertexPickAndColor(ref vb, new vec4(bodfercolor.xyz, bodfercolor.w * (float)Style._props.Opacity), rootPickId);
       all_verts.Add(vb);//This is because of the new sorting issue
     }
     private void ComputeVertexTexcoord(ref v_v4v4v4v2u2v4v4 vc, MtTex pTex, UiImageTiling xtile, UiImageTiling ytile, float adjust)
@@ -2921,7 +2921,7 @@ namespace PirateCraft
     private FileLoc _location = null;
     private Dictionary<string, UiStyle> Styles = new Dictionary<string, UiStyle>();
     private List<string> _errors = new List<string>();
-    public string Name { get; private set; } = Library.UnsetName;
+    public string Name { get; private set; } = Lib.UnsetName;
 
     public UiStyleSheet(FileLoc loc)
     {
@@ -3298,7 +3298,7 @@ namespace PirateCraft
     // public UiStyleSheet StyleSheet { get; private set; } = null;
     public Drawable Dummy { get; private set; } = null;
     public MegaTex MegaTex { get; private set; } = null;
-    public string Name { get; private set; } = Library.UnsetName;
+    public string Name { get; private set; } = Lib.UnsetName;
 
     public Gui2dShared(string name, List<FileLoc> resources)
     {
@@ -3312,7 +3312,7 @@ namespace PirateCraft
 
       if (tx != null)
       {
-        var shader = Gu.Lib.LoadShader(RName.Shader_GuiShader);
+        var shader = Gu.Lib.GetShader(Rs.Shader.GuiShader);
         Dummy = new WorldObject("gui");
         Dummy.Material = new Material("GuiMT", shader);
         Dummy.Material.GpuRenderState.DepthTest = false;
@@ -3342,7 +3342,7 @@ namespace PirateCraft
     public Gui2dShared GetOrCreateGui2d(string name, List<FileLoc> resources)
     {
       var qualifiedPaths = resources.ConvertAll((x) => { return x.QualifiedPath; });
-      var hash = Gu.HashStringArray(qualifiedPaths);
+      var hash = Hash.HashStringArray(qualifiedPaths);
 
       Gui2dShared? g = null;
       var dict = GetDataForContext(Gu.Context);

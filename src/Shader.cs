@@ -725,6 +725,7 @@ namespace PirateCraft
     private string _errors = "";
     private bool _success = false;
     public ShaderType ShaderType { get; private set; } = ShaderType.VertexShader;
+
     public ShaderStage(string name, ShaderType tt, string src) : base(name)
     {
       Gpu.CheckGpuErrorsRt();
@@ -749,6 +750,9 @@ namespace PirateCraft
       _success = (stat == (int)GLenum.GL_TRUE);
       Gpu.CheckGpuErrorsRt();
     }
+   
+    protected override string DataPathName() { return "-shs" + base.DataPathName(); }
+        
     public override void Dispose_OpenGL_RenderThread()
     {
       if (GL.IsShader(_glId))
@@ -775,6 +779,7 @@ namespace PirateCraft
     //public string Name { get; private set; } = "unset";
     public string Value { get; private set; } = "unset";
     public ActiveUniformType Type { get; private set; } = ActiveUniformType.Int;
+    protected override string DataPathName() { return "-shu" + base.DataPathName(); }
 
     public ShaderUniform(int location, int u_size, ActiveUniformType u_type, string u_name, bool active)
       : base(u_name, active, u_size)
@@ -812,6 +817,7 @@ namespace PirateCraft
     base(name, iBlockIndex, iBindingIndex, iBufferByteSize, active)
     {
     }
+    protected override string DataPathName() { return "-ubo" + base.DataPathName(); }
     public override GPUBuffer GetOrCreateBuffer(int size)
     {
       Gu.Assert(size <= SizeBytes);
@@ -828,6 +834,7 @@ namespace PirateCraft
     base(name, iBlockIndex, iBindingIndex, iBufferByteSize, active)
     {
     }
+    protected override string DataPathName() { return "-ssb" + base.DataPathName(); }
     public override GPUBuffer GetOrCreateBuffer(int size)
     {
       Gu.Assert(size <= SizeBytes);
@@ -887,6 +894,8 @@ namespace PirateCraft
 
     #endregion
     #region Private: Members
+    
+    protected override string DataPathName() { return "-shr" + base.DataPathName(); }
 
     private List<ShaderStage> _stages = null;
     private List<ShaderAttrib> _attribs = new List<ShaderAttrib>();
@@ -2087,7 +2096,7 @@ namespace PirateCraft
         uniqueFiles.Add(loc, new ShaderSrc(loc));
       }
 
-      string file_text = Library.ReadTextFile(loc, true);
+      string file_text = Lib.ReadTextFile(loc, true);
       string[] lines = file_text.Split("\n");
       int iLine = 0;
       for (iLine = 0; iLine < lines.Length; iLine++)
@@ -2345,22 +2354,6 @@ namespace PirateCraft
     private bool _isFS = false;
     private bool _isGS = false;
     private bool _isCompute = false;
-
-    #endregion
-    #region Public: Static methods
-
-    public static Shader DefaultFlatColorShader()
-    {
-      return Gu.Lib.LoadShader(RName.Shader_DefaultFlatColorShader);
-    }
-    public static Shader DefaultObjectShader()
-    {
-      return Gu.Lib.LoadShader(RName.Shader_DefaultObjectShader);
-    }
-    public static Shader DefaultBillboardPoints()
-    {
-      return Gu.Lib.LoadShader(RName.Shader_DefaultBillboardPoints);
-    }
 
     #endregion
     #region Public: Methods  

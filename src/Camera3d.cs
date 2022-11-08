@@ -201,19 +201,30 @@ namespace PirateCraft
       pt_ret = pt;
       return pt_ret;
     }
-    public vec3? WorldToScreen(vec3 v)
+    public vec2 WorldToScreen_Window(vec3 v)
     {
-      //Project point in world onto screen
+      //Project point in world onto screen in window coords
+      // ** also converts y to top left origin instead of bot left
+      var x = _camera.ViewMatrix * _camera.ProjMatrix * new vec4(v, 1);
+      x.x /= x.w;
+      x.y /= x.w;
+      vec2 scyup = (x.xy + 1.0f) / 2.0f;
+      scyup.y = 1.0f - scyup.y;
+      scyup *= new vec2(_camera.Viewport.Width, _camera.Viewport.Height);
+      return scyup;
+    }
+    public vec3 WorldToScreen_3D(vec3 v)
+    {
+      Gu.BRThrowNotImplementedException();
+      //Project point in world onto screen in 3D
       //Note point may not be within the frustum.
-      vec3 campos = _camera.Position_World;
-
-      float t = 0;
-      if (_planes[fp_near].IntersectLine(v, campos, out t))
-      {
-        vec3 ret = campos + (v - campos) * t;
-        return ret;
-      }
-      return null;
+      // float d = _camera.BasisZ_World.dot(_points[fpt_ntl]);
+      // float dist = _camera.BasisZ_World.dot(v) - d;
+      // vec3 r = v - _camera.BasisZ_World * dist;
+      //FOr some reason matrix mul is correct and not in shader. wonder why.
+      //var x = _camera.ViewMatrix * _camera.ProjMatrix * new vec4(v, 1);
+      //return r;
+      return new vec3(0, 0, 0);
     }
     public bool HasBox(in Box3f pCube)
     {

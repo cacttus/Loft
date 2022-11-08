@@ -2,6 +2,31 @@
 
 namespace PirateCraft
 {
+  public enum WorldObjectCloneMode
+  {
+    Instance, //reference to the data
+    Copy //copy everything
+  }
+  public class Model : WorldObject
+  {
+    //i cant think of a reason for this, but it seems to make sense as
+    //we would need to root all the WorldObject's in a loaded model anyway - so we need
+    //to create a WorldObject node anyway - but what is the purpose of a subclass?
+    //a WO is a model simply by the fact that it has a GLTFFile DataSource
+    //if we just return a WO scene it would be ok, but it isn't a "model" per se
+    //so what to do? i don't know. - 
+    //this clss may go away eventually
+
+    protected Model() { }
+    public Model(string name) : base(name) { }
+
+    //todo:
+    //a base class that handles GLTF laoding - basically a data source for GLTF
+    //has its own scnee.
+    // WorldObject _modelRoot - 
+
+  }
+
   public enum WorldObjectState
   {
     Created,
@@ -33,7 +58,7 @@ namespace PirateCraft
     }
   }
   [DataContract]
-  public class Drawable : DataBlock, ISerializeBinary, ICopy<Drawable>, IClone
+  public class Drawable : DataBlock
   {
     //@class Drawable
     //@desc  Lightweight version of WorldObject (matrix+mesh+material)
@@ -109,34 +134,9 @@ namespace PirateCraft
       deps.Add(_meshView);
       deps.Add(_material);
     }
-    public object? Clone(bool? shallow = null)
+    public Drawable Clone()
     {
-      Drawable w = new Drawable();
-      w.CopyFrom(this, shallow);
-      return w;
-    }
-    public void CopyFrom(Drawable? other, bool? shallow = null)
-    {
-      Gu.Assert(other != null);
-      base.CopyFrom(other, shallow);
-      this._visible = other._visible;
-      this._selectable = other._selectable;
-      this._selected = other._selected;
-      this._pickable = other._pickable;
-      this._picked = other._picked;
-      this._active = other._active;
-      this._pickId = Gu.Context.Renderer.Picker.GenPickId();
-      this._world = other._world;
-      if (shallow == null || (shallow != null && shallow == true))
-      {
-        this._meshView = other._meshView;
-        this._material = other._material;
-      }
-      else
-      {
-        if (other._meshView != null) { this._meshView = (MeshView)other._meshView.Clone(false); }
-        if (other._material != null) { this._material = (Material)other._material.Clone(false); }
-      }
+      return (Drawable)this.MemberwiseClone();
     }
     public virtual void Pick()
     {
@@ -196,7 +196,7 @@ namespace PirateCraft
 
   }//cls
   [DataContract]
-  public class WorldObject : Drawable, ISerializeBinary, ICopy<WorldObject>, IClone
+  public class WorldObject : Drawable
   {
     // main object that stores matrix for pos/rot/scale, and components for mesh, sound, script .. GameObject ..
     #region Public: Members
@@ -211,6 +211,9 @@ namespace PirateCraft
     public vec3 Position_Local { get { return _position; } set { _position = value; SetTransformChanged(); } }
     public quat Rotation_Local { get { return _rotation; } set { _rotation = value; SetTransformChanged(); } }//xyz,angle
     public vec3 Scale_Local { get { return _scale; } set { _scale = value; SetTransformChanged(); } }
+
+    //technically you can set the world PRS just multiply by world^-1 (possibly parent, not sure)
+    //then set the local PRS
 
     public vec3 Position_World { get { return _positionWorld; } private set { _positionWorld = value; } }
     public quat Rotation_World { get { return _rotationWorld; } private set { _rotationWorld = value; } }
@@ -232,8 +235,10 @@ namespace PirateCraft
 
     //Script system should be for this
     public Action<WorldObject>? OnUpdate { get; set; } = null;
-    public Action<WorldObject>? OnAddedToScene { get; set; } = null;
-    public Action<WorldObject>? OnDestroyed { get; set; } = null;
+    //public Action<WorldObject>? OnAddedToScene { get; set; } = null;
+    //public Action<WorldObject>? OnDestroyed { get; set; } = null;
+
+    public IObjectScript? Script { get { return _script; } set { _script = value; } }
 
     public bool HasPhysics { get { return _hasPhysics; } set { _hasPhysics = value; } }
     public vec3 Velocity { get { return _velocity; } set { _velocity = value; } }
@@ -348,7 +353,8 @@ namespace PirateCraft
     [DataMember] private WorldObject? _parent = null;
     [DataMember] private List<WorldObject>? _children = null;//new List<DataReference<WorldObject>>();
     [DataMember] private List<Component>? _components = null;//new List<DataReference<Component>>();
-    [DataMember] private List<Constraint>? _constraints = null;//new List<DataReference<Constraint>>();
+    //[DataMember] private List<Constraint>? _constraints = null;//new List<DataReference<Constraint>>();
+    [DataMember] private IObjectScript? _script = null;
 
     //Temps/generated
     private WorldObjectState _state = WorldObjectState.Created;
@@ -391,9 +397,9 @@ namespace PirateCraft
       // }
 
       //Basis calculuation must come after the world is computed
-      _basisX_World = (WorldMatrix * new vec4(1, 0, 0, 0)).xyz().normalized();
-      _basisY_World = (WorldMatrix * new vec4(0, 1, 0, 0)).xyz().normalized();
-      _basisZ_World = (WorldMatrix * new vec4(0, 0, 1, 0)).xyz().normalized();
+      _basisX_World = (WorldMatrix * new vec4(1, 0, 0, 0)).xyz.normalized();
+      _basisY_World = (WorldMatrix * new vec4(0, 1, 0, 0)).xyz.normalized();
+      _basisZ_World = (WorldMatrix * new vec4(0, 0, 1, 0)).xyz.normalized();
 
       DecomposeWorldMatrix();
 
@@ -499,83 +505,36 @@ namespace PirateCraft
 
       if (_children != null) deps.AddRange(_children);
       if (_components != null) deps.AddRange(_components);
-      if (_constraints != null) deps.AddRange(_constraints);
+      //if (_constraints != null) deps.AddRange(_constraints);
     }
-    public object? Clone(bool? shallow = null)
+    public WorldObject Clone()
     {
-      WorldObject w = new WorldObject();
-      w.CopyFrom(this, shallow);
-      return w;
-    }
-    public void CopyFrom(WorldObject? other, bool? shallow = null)
-    {
-      Gu.Assert(other != null);
-      base.CopyFrom(other, shallow);
+      /*
+      update nov 2022
+      all components get copied for now
+      mesh+mat get referenced and must be set manually
+      */
+      WorldObject other = (WorldObject)this.MemberwiseClone();
 
-      this._rotation = other._rotation;
-      this._scale = other._scale;
-      this._position = other._position;
-      this._animatedRotation = other._animatedRotation;
-      this._animatedScale = other._animatedScale;
-      this._animatedPosition = other._animatedPosition;
-      //this._parent = _parent; //Do not clone
-      this._world = other._world;
-      this._local = other._local;
-      this._bind = other._bind;
-      this._inverse_bind = other._inverse_bind;
-      this._basisX_World = other._basisX_World;
-      this._basisY_World = other._basisY_World;
-      this._basisZ_World = other._basisZ_World;
-      this._boundBox = other._boundBox;
-      this._boundBoxMeshOO = other._boundBoxMeshOO?.Clone();
-      this._boundBoxMeshAA = other._boundBoxMeshAA?.Clone();
-      this._color = other._color;
-      this._transformChanged = other._transformChanged;
-      this._state = other._state;
-      //this._treeDepth = other._treeDepth; //Do not clone
-      this.OnUpdate = other.OnUpdate;
-      this.OnAddedToScene = other.OnAddedToScene;
-      this.OnDestroyed = other.OnDestroyed;
-      this._hasPhysics = other._hasPhysics;
-      this._velocity = other._velocity;
-      this._resting = other._resting;
-      this._hasGravity = other._hasGravity;
-      this._collides = other._collides;
-      this._airFriction = other._airFriction;
-      this._hasLight = other._hasLight;
-      this._lightRadius = other._lightRadius;
-      this._lightColor = other._lightColor;
-      this._lightPower = other._lightPower;
-      this._lightType = other._lightType;
-
-      //Create an instance copy of the data blocks.
-      if (shallow == null || (shallow != null && shallow == true))
+      if (other._components != null)
       {
-        this._components = other._components;
-        this._constraints = other._constraints;
+        this._components = new List<Component>();
+        other.IterateComponentsSafe((c) =>
+        {
+          _components.Add((Component)c.Clone());
+          return LambdaBool.Continue;
+        });
       }
-      else
-      {
-        if (other._components != null)
-        {
-          this._components = new List<Component>();
-          other.IterateComponentsSafe((c) =>
-          {
-            _components.Add((Component)c.Clone());
-            return LambdaBool.Continue;
-          });
-        }
-        if (other._constraints != null)
-        {
+      // if (other._constraints != null)
+      // {
 
-          this._constraints = new List<Constraint>();
-          other.IterateComponentsSafe((c) =>
-          {
-            _constraints.Add((Constraint)c.Clone());
-            return LambdaBool.Continue;
-          });
-        }
-      }
+      //   this._constraints = new List<Constraint>();
+      //   other.IterateComponentsSafe((c) =>
+      //   {
+      //     _constraints.Add((Constraint)c.Clone());
+      //     return LambdaBool.Continue;
+      //   });
+      // }
 
       IterateChildrenSafe((ch) =>
       {
@@ -583,6 +542,8 @@ namespace PirateCraft
         this.AddChild(wo);
         return LambdaBool.Continue;
       });
+
+      return other;
     }
     public void Remove()
     {
@@ -679,16 +640,17 @@ namespace PirateCraft
     {
       if (Mesh != null)
       {
-        if(_boundBoxMeshAA==null){
+        if (_boundBoxMeshAA == null)
+        {
           _boundBoxMeshAA = new Box3f();
         }
         _boundBoxMeshAA.genResetLimits();
-        
+
         _boundBoxMeshOO = new OOBox3f(Mesh.BoundBox_Extent._min, Mesh.BoundBox_Extent._max);
         for (int vi = 0; vi < OOBox3f.VertexCount; ++vi)
         {
           vec4 v = WorldMatrix * _boundBoxMeshOO.Verts[vi].toVec4(1);
-          _boundBoxMeshOO.Verts[vi] = v.xyz();
+          _boundBoxMeshOO.Verts[vi] = v.xyz;
           _boundBoxMeshAA.genExpandByPoint(_boundBoxMeshOO.Verts[vi]);
           _boundBox.genExpandByPoint(_boundBoxMeshOO.Verts[vi]);
         }
@@ -715,7 +677,7 @@ namespace PirateCraft
       }
 
       //bound box can be just a point - but not invalid.
-      VolumizeBoundBox( _boundBox);
+      VolumizeBoundBox(_boundBox);
       if (!_boundBox.Validate(false, false))
       {
         Gu.Log.ErrorCycle($"'{this.Name}' BoundBox was invalid.");
@@ -766,10 +728,10 @@ namespace PirateCraft
     {
       _components?.IterateSafe(act);
     }
-    public void IterateConstraintsSafe(Func<Constraint, LambdaBool> act)
-    {
-      _constraints?.IterateSafe(act);
-    }
+    // public void IterateConstraintsSafe(Func<Constraint, LambdaBool> act)
+    // {
+    //   _constraints?.IterateSafe(act);
+    // }
     public void IterateChildrenSafe(Func<WorldObject, LambdaBool> act, bool iterateDeleted = false)
     {
       _children?.IterateSafe((ob) =>
@@ -804,118 +766,34 @@ namespace PirateCraft
       }
       return null;
     }
-    public void Serialize(BinaryWriter bw)
+    public PRS PRS_Local
     {
-      base.Serialize(bw);
-      Gu.BRThrowNotImplementedException();
-
-      // //Serializable
-      // bw.Write((quat)_rotation);
-      // bw.Write((vec3)_scale);
-      // bw.Write((vec3)_position);
-      // bw.Write((quat)_animatedRotation);
-      // bw.Write((vec3)_animatedScale);
-      // bw.Write((vec3)_animatedPosition);
-      // bw.Write((mat4)_world);
-      // bw.Write((mat4)_local);
-      // bw.Write((mat4)_bind);
-      // bw.Write((mat4)_inverse_bind);
-      // bw.Write((vec3)_basisX);
-      // bw.Write((vec3)_basisY);
-      // bw.Write((vec3)_basisZ);
-      // bw.Write((vec3)_positionWorld);
-      // bw.Write((quat)_rotationWorld);
-      // bw.Write((vec3)_scaleWorld);
-      // bw.Write((vec4)_color);
-      // bw.Write((OOBox3f)_boundBoxTransform);
-      // bw.Write((Box3f)_boundBox);
-      // bw.Write((Boolean)_pickable);
-      // bw.Write((Boolean)_selectable);
-      // bw.Write((Boolean)_hidden);
-      // bw.Write((Int32)_treeDepth);
-      // bw.Write((vec3)_velocity);
-      // bw.Write((Boolean)_resting);
-      // bw.Write((Boolean)_hasGravity);
-      // bw.Write((Boolean)_collides);
-      // bw.Write((Single)_airFriction);
-      // bw.Write((Boolean)_hasPhysics);
-
-      // SerializeTools.SerializeDataBlockRef(bw, _meshData);
-      // SerializeTools.SerializeDataBlockRef(bw, _material);
-
-      // SerializeTools.SerializeDataBlockRefList(bw, _components);
-      // SerializeTools.SerializeDataBlockRef(bw, _parent);
-      // SerializeTools.SerializeDataBlockRefList(bw, _children);
-
-    }//Serialize
-    public void Deserialize(BinaryReader br, SerializedFileVersion version)
-    {
-      base.Deserialize(br, version);
-      Gu.BRThrowNotImplementedException();
-      // //Serializable
-      // _rotation = br.ReadQuat();
-      // _scale = br.ReadVec3();
-      // _position = br.ReadVec3();
-      // _animatedRotation = br.ReadQuat();
-      // _animatedScale = br.ReadVec3();
-      // _animatedPosition = br.ReadVec3();
-      // _world = br.ReadMat4();
-      // _local = br.ReadMat4();
-      // _bind = br.ReadMat4();
-      // _inverse_bind = br.ReadMat4();
-      // _basisX = br.ReadVec3();
-      // _basisY = br.ReadVec3();
-      // _basisZ = br.ReadVec3();
-      // _positionWorld = br.ReadVec3();
-      // _rotationWorld = br.ReadQuat();
-      // _scaleWorld = br.ReadVec3();
-      // _color = br.ReadVec4();
-      // _boundBoxTransform = br.ReadOOBox3f();
-      // _boundBox = br.ReadBox3f();
-      // _pickable = br.ReadBoolean();
-      // _selectable = br.ReadBoolean();
-      // _hidden = br.ReadBoolean();
-      // _treeDepth = br.ReadInt32();
-      // _velocity = br.ReadVec3();
-      // _resting = br.ReadBoolean();
-      // _hasGravity = br.ReadBoolean();
-      // _collides = br.ReadBoolean();
-      // _airFriction = br.ReadSingle();
-      // _hasPhysics = br.ReadBoolean();
-
-      // _meshData = SerializeTools.DeserializeRef<MeshData>(br);
-      // _material = SerializeTools.DeserializeRef<Material>(br);
-
-      // _components = SerializeTools.DeserializeRefList<Component>(br, version);
-      // _parent = SerializeTools.DeserializeRef<WorldObject>(br);
-      // _children = SerializeTools.DeserializeRefList<WorldObject>(br, version);
-
-    }//deserialze
-    public PRS GetPRS_Local()
-    {
-      return new PRS()
+      get
       {
-        Position = this.Position_Local,
-        Rotation = this.Rotation_Local,
-        Scale = this.Scale_Local,
-      };
-    }
-    public void SetPRS_Local(PRS p)
-    {
-      if (p.Position != null)
-      {
-        this.Position_Local = p.Position.Value;
+        return new PRS()
+        {
+          Position = this.Position_Local,
+          Rotation = this.Rotation_Local,
+          Scale = this.Scale_Local,
+        };
       }
-      if (p.Rotation != null)
+      set
       {
-        this.Rotation_Local = p.Rotation.Value;
-      }
-      if (p.Scale != null)
-      {
-        this.Scale_Local = p.Scale.Value;
+        var p = value;
+        if (p.Position != null)
+        {
+          this.Position_Local = p.Position.Value;
+        }
+        if (p.Rotation != null)
+        {
+          this.Rotation_Local = p.Rotation.Value;
+        }
+        if (p.Scale != null)
+        {
+          this.Scale_Local = p.Scale.Value;
+        }
       }
     }
-
     #endregion
     #region Private: Methods
 
@@ -993,8 +871,6 @@ namespace PirateCraft
       mat4 mRot = mat4.getRotation(Rotation_Local);
       mat4 mPos = mat4.getTranslation(Position_Local);
 
-
-
       _local = (mScl * mSclA) * (mRot * mRotA) * (mPos * mPosA);
     }
     private void DecomposeLocalMatrix()
@@ -1003,8 +879,8 @@ namespace PirateCraft
       vec4 pw;
       vec4 sw;
       LocalMatrix.decompose(out pw, out tmprot, out sw);
-      _position = pw.xyz();
-      _scale = sw.xyz();
+      _position = pw.xyz;
+      _scale = sw.xyz;
       _rotation = tmprot.toQuat();
       SetTransformChanged();
     }
@@ -1016,8 +892,8 @@ namespace PirateCraft
       vec4 pw;
       vec4 sw;
       WorldMatrix.decompose(out pw, out tmprot, out sw);
-      _positionWorld = pw.xyz();
-      _scaleWorld = sw.xyz();
+      _positionWorld = pw.xyz;
+      _scaleWorld = sw.xyz;
       _rotationWorld = tmprot.toQuat();
     }
 

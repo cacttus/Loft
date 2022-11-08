@@ -52,7 +52,7 @@ namespace PirateCraft
         Gu.DebugBreak();
       }
       var d = Create(name);
-      d.PromoteResource(ResourcePromotion.DataSource, this);
+      d.DataSource = this;
       this._state = LoadState.Loaded;
       return d;
     }
@@ -192,7 +192,7 @@ namespace PirateCraft
     protected override DataBlock? Create(string name)
     {
       _image = LoadImageFile(name);
-      _image?.PromoteResource(ResourcePromotion.DataSource, this);
+      _image.DataSource = this;
       return _image;
     }
     protected override void Destroy()
@@ -220,9 +220,11 @@ namespace PirateCraft
     }
     private static Image? ImageLoadFailed_GetDefault(string rawpath, Exception ex)
     {
+
       Gu.Log.Error("failed to load image: ", ex);
       Gu.DebugBreak();
-      return Gu.Lib.LoadImage(RName.Tex2D_DefaultFailedTexture);
+      return null;
+      //return Gu.Lib.LoadImage(Rs.Tex2D.DefaultFailedTexture);
     }
     private static Image.ImagePixelFormat ProcessImage(StbImageSharp.ImageResult image)
     {
@@ -297,10 +299,10 @@ namespace PirateCraft
       _objects = LoadObjects(File, _flipTris);
       foreach (var ob in _objects)
       {
-        ob.PromoteResource(ResourcePromotion.DataSource, this);
+        ob.DataSource = this;
       }
       Gu.Assert(_objects != null);
-      WorldObject wo = new WorldObject(objName);
+      Model wo = new Model(objName);
       foreach (var ob in _objects)
       {
         wo.AddChild(ob);
@@ -376,7 +378,7 @@ namespace PirateCraft
             vec4 rot = new vec4(node.Rotation);
             vec3 scale = new vec3(node.Scale);
             WorldObject wo = new WorldObject(Gu.Lib.GetUniqueName(ResourceType.WorldObject, node.Name));
-            wo.Position_Local = trans;
+            wo.Position_Local = trans;  
             wo.Rotation_Local = new quat(rot.x, rot.y, rot.z, rot.w);
             wo.Scale_Local = scale;
             wo.LoaderTempData = (object)node;
@@ -887,7 +889,7 @@ namespace PirateCraft
           var mat = myModel.Materials[ind];
           if (mat != null)
           {
-            root.Material = new Material(Gu.Lib.GetUniqueName(ResourceType.Material, mat.Name), Shader.DefaultObjectShader());
+            root.Material = new Material(Gu.Lib.GetUniqueName(ResourceType.Material, mat.Name), Gu.Lib.GetShader(Rs.Shader.DefaultObjectShader));
 
             if (mat.OcclusionTexture != null)
             {
@@ -929,7 +931,7 @@ namespace PirateCraft
 
       if (root.Material == null)
       {
-        root.Material = Gu.Lib.LoadMaterial(RName.Material_DefaultObjectMaterial);
+        root.Material = Gu.Lib.GetMaterial(Rs.Material.DefaultObjectMaterial);
       }
     }
     private static void LoadGLTFTexture(glTFLoader.Schema.Gltf myModel, glTFLoader.Schema.Material mat, byte[] gltf_data, int tind, WorldObject root, TextureSlot slot)
@@ -962,7 +964,7 @@ namespace PirateCraft
           {
             var p = System.IO.Path.Combine(Gu.LocalTmpPath, name + ".png");
             Gu.Log.Debug("Saving debug image " + p.ToString());
-            Library.SaveImage(p, m, true);
+            Lib.SaveImage(p, m, true);
           }
 #endif
           if (md_img.Name.ToLower().Contains("bump"))
@@ -974,7 +976,7 @@ namespace PirateCraft
             {
               var p = System.IO.Path.Combine(Gu.LocalTmpPath, name + ".png");
               Gu.Log.Debug("Saving debug image " + p.ToString());
-              Library.SaveImage(p, m, true);
+              Lib.SaveImage(p, m, true);
             }
 #endif
           }
@@ -1139,7 +1141,7 @@ namespace PirateCraft
     protected override DataBlock? Create(string name)
     {
       _meshData = _params.Generate(name);
-      _meshData.PromoteResource(ResourcePromotion.DataSource, this);
+      _meshData.DataSource = this;
       return _meshData;
     }
     protected override void Destroy()
@@ -1246,7 +1248,7 @@ namespace PirateCraft
 
       GenEllipsoid(out verts, out inds, radius, slices, stacks, smooth, flip_tris);
 
-      var fd = MeshGen.ComputeNormalsAndTangents(verts, inds.AsUIntArray());
+      var fd = MeshGen.ComputeNormalsAndTangents(verts, inds.AsUIntArray(), false, true);
 
       return new MeshData(name, PrimitiveType.Triangles,
         Gpu.CreateVertexBuffer(name, verts),
@@ -1301,10 +1303,10 @@ namespace PirateCraft
           if (smooth)
           {
             //TODO:
-            // verts[vind + 0]._n = verts[vind + 0]._v.normalized();
-            // verts[vind + 1]._n = verts[vind + 1]._v.normalized();
-            // verts[vind + 2]._n = verts[vind + 2]._v.normalized();
-            // verts[vind + 3]._n = verts[vind + 3]._v.normalized();
+            verts[vind + 0]._n = verts[vind + 0]._v.normalized();
+            verts[vind + 1]._n = verts[vind + 1]._v.normalized();
+            verts[vind + 2]._n = verts[vind + 2]._v.normalized();
+            verts[vind + 3]._n = verts[vind + 3]._v.normalized();
           }
           else
           {

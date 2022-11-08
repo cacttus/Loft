@@ -14,384 +14,69 @@ namespace PirateCraft
     Loaded,
     LoadFailed
   }
-  public class RName
+  public class Rs
   {
-    public static string Image_DefaultNormalPixelZUp = "Image_DefaultNormalPixelZUp";
-    public static string Image_DefaultNormalPixelYUp = "Image_DefaultNormalPixelYUp";
-    public static string Image_DefaultFailedPixel = "Image_DefaultFailedPixel";
-    public static string Image_DefaultWhitePixel = "Image_DefaultWhitePixel";
-
-    public static string Tex2D_DefaultFailedTexture = "DefaultFailedTexture";
-    public static string Tex2D_DefaultWhitePixel = "Tex2D_DefaultWhitePixel";
-    public static string Tex2D_DefaultBlackPixelNoAlpha = "Tex2D_DefaultBlackPixelNoAlpha";
-    public static string Tex2D_DefaultNormalPixel = "Tex2D_DefaultNormalPixel";
-
-    public static string Shader_DebugDraw_Lines = "Shader_DebugDraw_Lines";
-    public static string Shader_DebugDraw_Points = "Shader_DebugDraw_Points";
-    public static string Shader_DebugDraw_Tris = "Shader_DebugDraw_Tris";
-    public static string Shader_Wireframe = "Shader_Wireframe";
-    public static string Shader_GuiShader = "Shader_GuiShader";
-    public static string Shader_DefaultObjectShader = "Shader_DefaultObjectShader";
-    public static string Shader_DefaultFlatColorShader = "Shader_DefaultFlatColorShader";
-    public static string Shader_DefaultBillboardPoints = "Shader_DefaultBillboardPoints";
-    public static string Shader_VertexFaceNormals = "Shader_VertexFaceNormals";
-
-    public static string Material_DefaultFlatColorMaterial = "Material_DefaultFlatColorMaterial";
-    public static string Material_DefaultObjectMaterial = "Material_DefaultObjectMaterial";
-    public static string Material_DebugDraw_VertexNormals_FlatColor = "Material_DebugDraw_VertexNormals_FlatColor";
-    public static string Material_DebugDrawMaterial_Lines = "Material_DebugDrawMaterial_Lines";
-    public static string Material_DebugDrawMaterial_Points = "Material_DebugDrawMaterial_Points";
-    public static string Material_DebugDrawMaterial_Tris = "Material_DebugDrawMaterial_Tris";
-    public static string DebugDraw_Wireframe_FlatColor = "DebugDraw_Wireframe_FlatColor";
-
-    public static string Mesh_DefaultBox = "Mesh_DefaultBox";
-
-    public static string WorldObject_Camera = "WorldObject_Camera";
-    public static string WorldObject_Gear = "WorldObject_Gear";
-    public static string WorldObject_Barrel = "WorldObject_Barrel";
-  }
-
-
-  public class ResourceType
-  {
-    //must come at top
-    private static Dictionary<Type, ResourceType> _resourceTypesArray = new Dictionary<Type, ResourceType>();
-
-
-    public static ResourceType GpuTexture = new ResourceType("GpuTexture", typeof(GpuTexture), "-gputx");
-    public static ResourceType GPUBuffer = new ResourceType("GPUBuffer", typeof(GPUBuffer), "-gpubf");
-    public static ResourceType ShaderStage = new ResourceType("ShaderStage", typeof(ShaderStage), "-shrst");
-    public static ResourceType OpenGLResource = new ResourceType("OpenGLResource", typeof(OpenGLResource), "-glrsc");
-    public static ResourceType FramebufferGeneric = new ResourceType("FramebufferGeneric", typeof(FramebufferGeneric), "-fbgen");
-    public static ResourceType ContextShader = new ResourceType("ContextShader", typeof(GpuShader), "-shrct");
-    public static ResourceType ShaderDataBlock = new ResourceType("ShaderDataBlock", typeof(ShaderDataBlock), "-sdb");
-    public static ResourceType ShaderUniform = new ResourceType("ShaderUniform", typeof(ShaderUniform), "-su");
-    public static ResourceType ShaderUniformBlock = new ResourceType("ShaderUniformBlock", typeof(ShaderUniformBlock), "-shrbo");
-    public static ResourceType ShaderMemoryBlock = new ResourceType("ShaderMemoryBlock", typeof(ShaderMemoryBlock), "-shrmb");
-    public static ResourceType ShaderStorageBlock = new ResourceType("ShaderStorageBlock", typeof(ShaderStorageBlock), "-shrsb");
-    public static ResourceType VertexArrayObject = new ResourceType("VertexArrayObject", typeof(VertexArrayObject), "-vao");
-
-    //This must be the concrete (final) class of the given resource
-    //Type names can change, which is why we are using constant values.
-    public static ResourceType Undefined = new ResourceType("Undefined", typeof(DataBlock), "-undf");
-
-    public static ResourceType MeshContextManager = new ResourceType("MeshContextManager", typeof(OpenGLContextDataManager<VertexArrayObject>), "-ctmgrm");
-    public static ResourceType ShaderContextManager = new ResourceType("ShaderContextManager", typeof(OpenGLContextDataManager<Dictionary<int, GpuShader>>), "-ctmgrs");
-    public static ResourceType TextureContextManager = new ResourceType("TextureContextManager", typeof(OpenGLContextDataManager<GpuTexture>), "-ctmgrt");
-
-    public static ResourceType CSharpScript = new ResourceType("CSharpScript", typeof(CSharpScript), "-csscript");
-
-    public static ResourceType Image = new ResourceType("Image", typeof(Image), "-image");
-    public static ResourceType ImageGenerator = new ResourceType("ImageGenerator", typeof(ImageGen), "-imagegen");
-    public static ResourceType ImageFile = new ResourceType("ImageFile", typeof(ImageFile), "-imagefile");
-    public static ResourceType Texture = new ResourceType("Texture", typeof(Texture), "-texture");
-    public static ResourceType Material = new ResourceType("Material", typeof(Material), "-mat");
-
-    public static ResourceType Shader = new ResourceType("Shader", typeof(Shader), "-shr");
-    public static ResourceType GLSLFile = new ResourceType("GLSLFile", typeof(ShaderDataSource), "-glslfile");
-
-    public static ResourceType MeshView = new ResourceType("MeshView", typeof(MeshView), "-mviw");
-    public static ResourceType MeshData = new ResourceType("MeshData", typeof(MeshData), "-mesh");
-    public static ResourceType MeshDataLoader = new ResourceType("MeshDataLoader", typeof(MeshDataLoader), "-meshld");
-    public static ResourceType GLTFFile = new ResourceType("GLTFFile", typeof(GLTFFile), "-gltffile");
-
-    public static ResourceType Drawable = new ResourceType("Drawable", typeof(Drawable), "-dbj");
-    public static ResourceType WorldObject = new ResourceType("WorldObject", typeof(WorldObject), "-obj");
-    public static ResourceType CameraObject = new ResourceType("CameraObject", typeof(Camera3D), "-cam");
-
-    public static ResourceType FPSInputComponent = new ResourceType("FPSInputComponent", typeof(FPSInputComponent), "-fpscmp");
-    public static ResourceType EventComponent = new ResourceType("EventComponent", typeof(EventComponent), "-eventcmp");
-    public static ResourceType AnimationComponent = new ResourceType("AnimationComponent", typeof(AnimationComponent), "-animcmp");
-
-    public static ResourceType AnimationLoader = new ResourceType("AnimationLoader", typeof(AnimationLoader), "-animld");
-    public static ResourceType AnimationData = new ResourceType("AnimationData", typeof(AnimationData), "-anim");
-
-    public static ResourceType WorldProps = new ResourceType("WorldProps", typeof(WorldProps), "-wprops");
-    //public static ResourceType RenderView = new ResourceType(81, typeof(RenderView), "renderview");
-    //public static ResourceType UiWindowBase = new ResourceType(82, typeof(UiWindowBase), "window");
-    //public static ResourceType MainWindow = new ResourceType(83, typeof(MainWindow), "mainwindow");
-    public static ResourceType Gui2dManager = new ResourceType("Gui2dManager", typeof(Gui2dManager), "-gui2d");
-
-    public static ResourceType? GetResourceType(Type dbb)
+    public class Image
     {
-      if (ResourceType.ResourceTypesArray.TryGetValue(dbb, out var rt))
-      {
-        return rt;
-      }
-      Gu.BRThrowException($"Resource type does not exist for type {dbb.ToString()}");
-      return null;
+      public static string DefaultNormalPixelZUp = "Image_DefaultNormalPixelZUp";
+      public static string DefaultNormalPixelYUp = "Image_DefaultNormalPixelYUp";
+      public static string DefaultFailedPixel = "Image_DefaultFailedPixel";
+      public static string DefaultWhitePixel = "Image_DefaultWhitePixel";
     }
-
-    private int _id = 0;
-    private Type? _classType = null;
-    private string _suffix = "";
-    private string _name = "";
-
-    public string Name { get { return _name; } }
-    public int ID { get { return _id; } }
-    public Type? ClassType { get { return _classType; } }
-    public string Suffix { get { return _suffix; } }
-    public static Dictionary<Type, ResourceType> ResourceTypesArray { get { return _resourceTypesArray; } }
-
-    public ResourceType(string name, Type classType, string suffix)
+    public class Tex2D
     {
-      _name = name;
-      _classType = classType;
-      _suffix = suffix;
-      _id = _name.GetHashCode();
-      //Make sure the enums are not duplicated
-      foreach (var rt in _resourceTypesArray)
-      {
-        Gu.Assert(rt.Value.ID != _id, $"Duplicate resource type ID '{_id}'");
-        Gu.Assert(rt.Value.ClassType != classType, $"Duplicate resource class type '{classType.ToString()}'");
-        Gu.Assert(rt.Value.Suffix != suffix, $"Duplicate resource suffix type '{suffix.ToString()}'");
-        Gu.Assert(rt.Value.Name != name, $"Duplicate resource suffix type '{suffix.ToString()}'");
-      }
-
-      _resourceTypesArray.Add(classType, this);
+      public static string DefaultFailedTexture = "DefaultFailedTexture";
+      public static string DefaultWhitePixel = "Tex2D_DefaultWhitePixel";
+      public static string DefaultBlackPixelNoAlpha = "Tex2D_DefaultBlackPixelNoAlpha";
+      public static string DefaultNormalPixel = "Tex2D_DefaultNormalPixel";
+    }
+    public class Shader
+    {
+      public static string DebugDraw_Lines = "Shader_DebugDraw_Lines";
+      public static string DebugDraw_Points = "Shader_DebugDraw_Points";
+      public static string DebugDraw_Tris = "Shader_DebugDraw_Tris";
+      public static string Wireframe = "Shader_Wireframe";
+      public static string Solid = "dbgSolid";
+      public static string GuiShader = "Shader_GuiShader";
+      public static string DefaultObjectShader = "Shader_DefaultObjectShader";
+      public static string DefaultFlatColorShader = "Shader_DefaultFlatColorShader";
+      public static string DefaultBillboardPoints = "Shader_DefaultBillboardPoints";
+      public static string VertexFaceNormals = "Shader_VertexFaceNormals";
+    }
+    public class Material
+    {
+      public static string DefaultObjectMaterial = "Material_DefaultObjectMaterial";
+      public static string DebugDraw_VertexNormals_FlatColor = "Material_DebugDraw_VertexNormals_FlatColor";
+      public static string DebugDrawMaterial_Lines = "Material_DebugDrawMaterial_Lines";
+      public static string DebugDrawMaterial_Points = "Material_DebugDrawMaterial_Points";
+      public static string DebugDrawMaterial_Tris = "Material_DebugDrawMaterial_Tris";
+      public static string DebugDraw_Wireframe_FlatColor = "DebugDraw_Wireframe_FlatColor";
+      public static string DebugDraw_Solid_FlatColor = "DebugDraw_Solid_FlatColor";
+    }
+    public class Mesh
+    {
+      public static string DefaultBox = "Mesh_DefaultBox";
+    }
+    public class Model
+    {
+      public static string Camera = "Camera";
+      public static string Gear = "Gear";
+      public static string Barrel = "Barrel";
     }
   }
-  [DataContract]
-  public class ResourceTable
+  public enum ResourceType
   {
-    #region Members
-
-    public static SerializedFileVersion c_fileVersion = new SerializedFileVersion(10000);
-
-    [DataMember] private Dictionary<UInt64, DataBlock> _resourcesById = new Dictionary<UInt64, DataBlock>();//mapped to uniqueid
-    private Dictionary<ResourceType, Dictionary<string, DataBlock>> _resourcesByTypeAndName = new Dictionary<ResourceType, Dictionary<string, DataBlock>>();
-
-    #endregion
-    #region Methods
-
-    // private void SaveResourceFile(FileMode savemode = FileMode.Text)
-    // {
-    //   CleanResources();
-    //   _resourcesById = _resourcesById.ConstructIfNeeded();
-    //   var fl = GetResourceFileLoc(savemode);
-    //   Gu.BackupFile(fl);
-
-    //   if (savemode == FileMode.Text)
-    //   {
-    //     string json = JsonConvert.SerializeObject(_resourcesById, Formatting.Indented);
-    //     fl.WriteAllText(json);
-    //   }
-    //   else
-    //   {
-    //     //This is not tested
-    //     Gu.MustTest();
-    //     var enc = Encoding.GetEncoding("iso-8859-1");
-    //     using (var fs = fl.OpenRead())
-    //     using (var bwFile = new System.IO.BinaryWriter(fs, enc))
-    //     {
-    //       SerializeTools.SerializeDictionary<UInt64, DataBlock>(bwFile, this._resourcesById);
-    //     }
-    //   }
-    // }
-
-    private static string ResourceMsg(DataBlock? d, string msg)
-    {
-      string n = d != null ? d.Name : "null block!";
-      string s = d != null ? d.ToString() : "null block!";
-      string m = $"{n}: {msg}\n  data:\n  {s}";
-      return m;
-    }
-    public static void ResourceError(DataBlock? d, string msg)
-    {
-      string m = ResourceMsg(d, msg);
-      Gu.Log.Error(m);
-      //   Gu.BRThrowException(m);
-    }
-    public static void ResourceWarning(DataBlock? d, string msg)
-    {
-      string m = ResourceMsg(d, msg);
-      Gu.Log.Warn(m);
-      Gu.DebugBreak();
-    }
-    public void IterateResource<T>(Func<T, LambdaBool> func) where T : DataBlock
-    {
-      var rt = ResourceType.GetResourceType(typeof(T));
-      if (_resourcesByTypeAndName.TryGetValue(rt, out var ob_by_name))
-      {
-        foreach (var name_ob in ob_by_name)
-        {
-          if (func((T)name_ob.Value) == LambdaBool.Break)
-          {
-            break;
-          }
-        }
-      }
-    }
-    public void CreateResource(DataBlock baseClass, string name)
-    {
-      var rsc = GetResourceByName(ResourceType.GetResourceType(baseClass.GetType()), name);
-      if (rsc != null)
-      {
-        Gu.BRThrowException(
-          $"Tried to create resource with duplicate name '{name}':\n {rsc.ToString()} \n"
-        + $" *Use GetUniqueName() to ensure unique name.\n");
-      }
-      //ResourceNode rn = new ResourceNode(name, baseClass.ResourceType, id);
-      //we have to add new resources being that, we need to know what id's/names are unique and not
-      AddResource(baseClass);
-      //type/file is only valid for type resources
-    }
-    public bool DeleteResource(DataBlock n)
-    {
-      Gu.Assert(n != null);
-      bool ret = true;
-      ret = ret && _resourcesById.Remove(n.UniqueID);
-      if (_resourcesByTypeAndName.TryGetValue(ResourceType.GetResourceType(n.GetType()), out var dict))
-      {
-        ret = ret && dict.Remove(n.Name);
-        if (dict.Count == 0)
-        {
-          _resourcesByTypeAndName.Remove(ResourceType.GetResourceType(n.GetType()));
-        }
-      }
-      else
-      {
-        ret = false;
-      }
-      if (ret == false)
-      {
-        Gu.Log.Error($"Failed to delete resource '{n.Name}', id='{n.UniqueID}'");
-      }
-      return ret;
-    }
-    public DataBlock? GetResourceByName(ResourceType type, string name)
-    {
-      Gu.Assert(_resourcesByTypeAndName != null);
-      DataBlock? ret = null;
-      if (_resourcesByTypeAndName.TryGetValue(type, out var file_res))
-      {
-        if (file_res.TryGetValue(name, out var val))
-        {
-          ret = val;
-        }
-      }
-      return ret;
-    }
-    public string GetUniqueName(ResourceType rt, string desired_name)
-    {
-      //Gew new unique name, and increment the name index, if present
-      //based on '-0' identifier, like Blender 
-      string final_name = desired_name;
-
-      if (_resourcesByTypeAndName.ContainsKey(rt))
-      {
-        int index = 1;
-        if (GetResourceNameIndex(final_name, out var name, out index))
-        {
-          final_name = name;
-          index = index + 1;
-        }
-
-        for (int ind = index; Gu.WhileTrueGuard(ind, Gu.c_intMaxWhileTrueLoop); ind++)
-        {
-          final_name = $"{desired_name}-{(ind)}"; //restart index if not found
-
-          var found = _resourcesByTypeAndName[rt].Keys.Where(x => x == final_name).FirstOrDefault();
-          if (found == null)
-          {
-            Gu.Log.Info($"Duplicate name '{desired_name}' found => renaming to '{final_name}'");
-            break;
-          }
-        }
-      }
-      return final_name;
-    }
-    public DataBlock? ChangeResourceName(string name, string value)
-    {
-      //TODO:
-      Gu.BRThrowNotImplementedException();
-
-      return null;
-    }
-    public DataBlock? GetResourceById(UInt64 id)
-    {
-      if (_resourcesById.TryGetValue(id, out var rsc))
-      {
-        return rsc;
-      }
-      return null;
-    }
-
-    public UInt64 GetNewUniqueId()
-    {
-      UInt64 id = Library.c_iIDStart;
-      if (_resourcesById.Count > 0)
-      {
-        id = _resourcesById.MaxBy(k => k.Key).Key + 1;
-        if (id == Library.c_iUntypedUnique)//unlikely
-        {
-          id += 1;
-        }
-      }
-      return id;
-    }
-    public void CleanResources()
-    {
-      //remove resources with empty refs
-      //_resourcesById = this._resourcesById.Where(x => x.Value.HasRef).ToDictionary(pair => pair.Key, pair => pair.Value);
-      //TODO:
-    }
-    private void AddResource(DataBlock res)
-    {
-      Gu.Assert(res != null);
-      //var rn = resource.Resource;
-
-      if (GetResourceById(res.UniqueID) != null)
-      {
-        Gu.Log.Error($"Duplicate: Resource type '{ResourceType.GetResourceType(res.GetType()).ToString()}' id '{res.UniqueID}' was already found in resource ID list: {res.ToString()}");
-        Gu.DebugBreak();
-      }
-      else
-      {
-        _resourcesById.Add(res.UniqueID, res);
-      }
-      if (GetResourceByName(ResourceType.GetResourceType(res.GetType()), res.Name) != null)
-      {
-        Gu.Log.Error($"Duplicate: Resource type '{ResourceType.GetResourceType(res.GetType()).ToString()}' id '{res.UniqueID}' was already found in resource ID list: {res.ToString()}");
-        Gu.DebugBreak();
-      }
-      else
-      {
-        var rt = ResourceType.GetResourceType(res.GetType());
-
-        Dictionary<string, DataBlock>? byname = null;
-        if (!_resourcesByTypeAndName.TryGetValue(rt, out byname))
-        {
-          byname = new Dictionary<string, DataBlock>();
-          _resourcesByTypeAndName.Add(rt, byname);
-        }
-        byname.Add(res.Name, res);
-      }
-    }
-    private bool GetResourceNameIndex(string desired_name, out string name_without_suffix, out int index)
-    {
-      //return true if we the name had a valid suffix, false otherwise
-      //Return suffix parts in the out params
-      index = 1;
-      name_without_suffix = desired_name;
-      var ind = desired_name.LastIndexOf('-');
-      if (ind >= 0)
-      {
-        var suffix = desired_name.Substring(ind, desired_name.Length - ind);
-        if (suffix.Length > 1)
-        {
-          var valuestr = suffix.Substring(1, suffix.Length - 1);
-          if (Int32.TryParse(valuestr, out var value_int))
-          {
-            name_without_suffix = desired_name.Substring(0, ind);
-            index = value_int;
-            return true;
-          }
-        }
-      }
-      return false;
-    }
-    #endregion
+    Undefined,
+    Shader,
+    MeshView,
+    MeshData,
+    Model,
+    WorldObject,
+    Material,
+    Image,
+    Texture,
+    Component,
+    Constraint,
   }
 
   [DataContract]
@@ -421,7 +106,7 @@ namespace PirateCraft
       //Registers a synchronous timer for each file type, not each file - to prevent too many timers
       // possibly, we could use a timer for each file, async, ect, but this neds to be tested
       // (see AsyncTimer)
-      Gu.Lib.AddDynamicLoader(this);
+      Lib.AddDynamicLoader(this);
     }
     public void CheckFilesChanged(bool initialCheck = false)
     {
@@ -456,8 +141,12 @@ namespace PirateCraft
 
 
   [DataContract]
-  public class Library : ResourceTable
+  public class Lib
   {
+    //Resource Database / asset manager / Library
+
+    #region Classes
+
     private class DynamicLoaderInfo
     {
       //update compiled things so we don't gotta compile and run again and we can easily see changes
@@ -497,43 +186,29 @@ namespace PirateCraft
         _timer.Update(dt);
       }
     }
-    //Resource Database / asset manager / Library
+    #endregion
     #region Constants
 
-    public const UInt64 NullID = 0;
+    public static SerializedFileVersion c_fileVersion = new SerializedFileVersion(10000);
+    public const UInt64 c_iNullID = 0;
+    public const UInt64 c_iIDStart = 2000; // prevent low ids for debugging
     public const string UnsetName = "<unset>";
     public const string CopyName = "-copy";
-    public const Int32 c_idTypeMultiplier = 1000000;
-    public const UInt64 c_iUntypedUnique = 9999999999999; //untyped
-    public const UInt64 c_iIDStart = 200; // prevent low ids for debugging
-    public const string ResourceFileNameText = "resources.json";
-    public const string ResourceFileNameBinary = "resources.dat";
 
     #endregion
     #region Members
 
+    private ulong _iMaxId = c_iIDStart;
+
+    private Dictionary<UInt64, DataBlock> _resourcesById = new Dictionary<UInt64, DataBlock>();
+    private Dictionary<ResourceType, Dictionary<string, DataBlock>> _resourcesByTypeAndName = new Dictionary<ResourceType, Dictionary<string, DataBlock>>();
     private float _checkForShaderFileChangeUpdatesTimeSeconds = 0.5f;
     private Dictionary<ulong, Dictionary<object, List<string>>> PointerFixUp = null;
-    //This is all temporary.
-    private Dictionary<Type, DynamicLoaderInfo> _dynamicLoaders = new Dictionary<Type, DynamicLoaderInfo>();
+    private static Dictionary<Type, DynamicLoaderInfo> _dynamicLoaders = new Dictionary<Type, DynamicLoaderInfo>();
 
-    public void AddDynamicLoader(DynamicFileLoader loader)
-    {
-      Gu.Assert(loader != null);
-      var t = loader.GetType();
-      List<WeakReference<DynamicFileLoader>>? outlist = null;
-      DynamicLoaderInfo? inf = null;
-      if (!_dynamicLoaders.TryGetValue(t, out inf))
-      {
-        inf = new DynamicLoaderInfo(t, loader.PollIntervalMs);
-        _dynamicLoaders.Add(t, inf);
-      }
-      inf.AddLoader(loader);
-    }
     #endregion
-    #region Methods
 
-    public Library()
+    public Lib()
     {
       //Clear temp, or cache directories if needed
       if (Gu.EngineConfig.ClearCacheOnStart)
@@ -588,31 +263,7 @@ namespace PirateCraft
       }
       fields.Add(field);
     }
-    public static string MakeDatapathName(string baseName, Type subclassType)
-    {
-      //The datapath name is mostly for debugging with OpenGL ObjectLabel on the Gpu.
-      string suffixname = baseName;
-      var rt = ResourceType.GetResourceType(subclassType);
-      suffixname += rt.Suffix;
-      var super = subclassType.BaseType;
-      if (super != null && super != typeof(System.Object) && super != typeof(HasGpuResources))
-      {
-        suffixname = MakeDatapathName(suffixname, super);
-      }
-      return suffixname;
-    }
-    private FileLoc GetResourceFileLoc(FileMode savemode)
-    {
-      string fn = "";
-      if (savemode == FileMode.Text) { fn = Library.ResourceFileNameText; }
-      else if (savemode == FileMode.Binary) { fn = Library.ResourceFileNameBinary; }
-      FileLoc fl = new FileLoc(Gu.SavePath, fn, FileStorage.Embedded);
-      if (!fl.Exists)
-      {
-        fl = new FileLoc(Gu.SavePath, fn, FileStorage.Disk);
-      }
-      return fl;
-    }
+
     public static string ReadTextFile(FileLoc loc, bool useDiskVersionIfAvailable)
     {
       //Returns empty string when failSilently is true.
@@ -775,7 +426,7 @@ namespace PirateCraft
           for (int ix = 0; ix < img.Width; ix++)
           {
             var p = img.GetPixel_RGBA32ub(ix, iy);
-            p.a =(byte)(Math.Clamp((float)p.a / 255.0f, 0,1) * 255.0f);// byte.MaxValue;
+            p.a = (byte)(Math.Clamp((float)p.a / 255.0f, 0, 1) * 255.0f);// byte.MaxValue;
 
             img.SetPixel_RGBA32ub(ix, iy, p);
           }
@@ -793,263 +444,296 @@ namespace PirateCraft
         }
       }
     }
-
-    //Load functions:
-    // Return the resource if it is already loaded
-    // Load the resource if it doesn't exist
-    // resources are identified by name
-    public bool TryLoadModel(string name, FileLoc loc, out WorldObject? model, bool fliptris = true)
+    public static void AddDynamicLoader(DynamicFileLoader loader)
     {
-      return TryLoad<WorldObject>(name, out model, () => { return LoadModel(name, loc, fliptris); });
+      Gu.Assert(loader != null);
+      var t = loader.GetType();
+      DynamicLoaderInfo? inf = null;
+      if (!_dynamicLoaders.TryGetValue(t, out inf))
+      {
+        inf = new DynamicLoaderInfo(t, loader.PollIntervalMs);
+        _dynamicLoaders.Add(t, inf);
+      }
+      inf.AddLoader(loader);
     }
-    public bool TryLoadImage(string name, FileLoc loc, out Image? image)
+    public bool DeleteResource(DataBlock n)
     {
-      return TryLoad<Image>(name, out image, () => { return LoadImage(name, loc); });
-    }
-    public bool TryLoadShader(string name, string generic_name, FileStorage storage, PrimitiveType? gsprimtype, out Shader? sh)
-    {
-      return TryLoad<Shader>(name, out sh, () => { return LoadShader(name, generic_name, storage, gsprimtype); });
-    }
-    public bool TryLoadMaterial(string name, Shader s, out Material? mat)
-    {
-      return TryLoad<Material>(name, out mat, () => { return LoadMaterial(name, s); });
-    }
-    public bool TryLoadTexture(string name, Image? img, bool mipmaps, TexFilter filter, out Texture? tex)
-    {
-      return TryLoad<Texture>(name, out tex, () => { return LoadTexture(name, img, mipmaps, filter); });
-    }
-    public bool TryLoadTexture(string name, FileLoc loc, bool mipmaps, TexFilter filter, out Texture? tex)
-    {
-      return TryLoad<Texture>(name, out tex, () => { return LoadTexture(name, loc, mipmaps, filter); });
-    }
-    public bool TryLoadMesh(string name, MeshGenParams p, out MeshData? mesh)
-    {
-      return TryLoad<MeshData>(name, out mesh, () => { return LoadMesh(name, p); });
-    }
-    //The methods below will throw if load fails
-    private T? LoadThing<T>(string name) where T : DataBlock
-    {
-      var rt = ResourceType.GetResourceType(typeof(T));
-      var rn = GetResourceByName(rt, name);
-
-      Gu.Assert(rn != null, $"Failed to load '{name}'");
-      Gu.Assert(rn is T, $"Resource '{name}' was not of type '{typeof(T).ToString()}'");
-      return rn as T;
-    }
-    public Image? LoadImage(string name)
-    {
-      return LoadThing<Image>(name);
-    }
-    public Texture? LoadTexture(string name)
-    {
-      return LoadThing<Texture>(name);
-    }
-    public Material? LoadMaterial(string name)
-    {
-      return LoadThing<Material>(name);
-    }
-    public Shader? LoadShader(string name)
-    {
-      return LoadThing<Shader>(name);
-    }
-    public WorldObject? LoadModel(string name)
-    {
-      return LoadThing<WorldObject>(name);
-    }
-    public MeshData? LoadMesh(string name)
-    {
-      return LoadThing<MeshData>(name);
-    }
-    public bool TryLoad<T>(string name, out T? outref, Func<T?> act) where T : DataBlock
-    {
+      Gu.Assert(n != null);
       bool ret = true;
-      outref = null;
-      try
+      ret = ret && _resourcesById.Remove(n.UniqueID);
+      if (_resourcesByTypeAndName.TryGetValue(n.ResourceType, out var dict))
       {
-        outref = act();
-      }
-      catch (Exception ex)
-      {
-        Gu.Log.Error($"Failed to load type '{typeof(T).ToString()}' name:'{name}'");
-        Gu.DebugBreak();
-      }
-      return ret;
-    }
-    public Image? LoadImage(string name, FileLoc loc)
-    {
-      Image? image = null;
-      var rn = GetResourceByName(ResourceType.WorldObject, name);
-      if (rn == null)
-      {
-        ImageFile f = new ImageFile(name, loc);
-        image = f.Load<Image>(name);
-      }
-      else
-      {
-        Gu.Assert(rn is Image);
-        return rn as Image;
-      }
-      return image;
-    }
-    public Texture? LoadTexture(string name, Image? img, bool mipmaps, TexFilter filter)
-    {
-      Texture? ret = null;
-      var rn = GetResourceByName(ResourceType.Texture, name);
-      if (rn == null)
-      {
-        ret = new Texture(name, img, mipmaps, filter);
-        RegisterResource(ret);
-        //ret.PromoteResource(ResourcePromotion.LibraryAdd, new SerializedDataSource(name));
-      }
-      else
-      {
-        Gu.Assert(rn is Texture);
-        return rn as Texture;
-      }
-      return ret;
-    }
-    public Texture? LoadTexture(string name, FileLoc loc, bool mipmaps, TexFilter filter)
-    {
-      Texture? ret = null;
-      var rn = GetResourceByName(ResourceType.Texture, name);
-      if (rn == null)
-      {
-        try
+        ret = ret && dict.Remove(n.Name);
+        if (dict.Count == 0)
         {
-          var img = LoadImage(name, loc);
-          Gu.Assert(img != null);
-          ret = new Texture(name, img, mipmaps, filter);
-          RegisterResource(ret);
-          //ret.PromoteResource(ResourcePromotion.LibraryAdd, new SerializedDataSource(name));
-        }
-        catch (Exception ex)
-        {
-          Gu.Log.Error($"Failed to load texture {name}", ex);
-          ret = LoadTexture(RName.Tex2D_DefaultFailedTexture);
+          _resourcesByTypeAndName.Remove(n.ResourceType);
         }
       }
       else
       {
-        Gu.Assert(rn is Texture);
-        return rn as Texture;
+        ret = false;
+      }
+      if (ret == false)
+      {
+        Gu.Log.Error($"Failed to delete resource '{n.Name}', id='{n.UniqueID}'");
       }
       return ret;
     }
-    public Material? LoadMaterial(string name, Shader s)
+    public DataBlock? GetResourceByName(ResourceType type, string name)
     {
-      Gu.Assert(s != null);
-      Material? ret = null;
-      var rn = GetResourceByName(ResourceType.Material, name);
-      if (rn == null)
+      Gu.Assert(_resourcesByTypeAndName != null);
+      DataBlock? ret = null;
+      if (_resourcesByTypeAndName.TryGetValue(type, out var file_res))
       {
-        ret = new Material(name, s);
-        RegisterResource(ret);
-        // ret.PromoteResource(ResourcePromotion.LibraryAdd, new SerializedDataSource(name));
-      }
-      else
-      {
-        Gu.Assert(rn is Material);
-        ret = rn as Material;
+        if (file_res.TryGetValue(name, out var val))
+        {
+          ret = val;
+        }
       }
       return ret;
     }
-    public Shader? LoadShader(string name, List<FileLoc> locs, PrimitiveType? gsprimtype = null)
+    public string GetUniqueName(ResourceType rt, string desired_name)
     {
-      Shader? ret = null;
-      var rn = GetResourceByName(ResourceType.Shader, name);
-      if (rn == null)
+      //Gew new unique name, and increment the name index, if present
+      //based on '-0' identifier, like Blender 
+      string final_name = desired_name;
+
+      if (_resourcesByTypeAndName.TryGetValue(rt, out var sdb))
       {
-        ret = new Shader(name, locs, gsprimtype);
-        RegisterResource(ret);
-        //  ret.PromoteResource(ResourcePromotion.LibraryAdd, new SerializedDataSource(name));
+        if (sdb.TryGetValue(desired_name, out var db))
+        {
+          int index = 1;
+          if (GetResourceNameIndex(final_name, out var name, out index))
+          {
+            final_name = name;
+            index = index + 1;
+          }
+
+          for (int ind = index; Gu.WhileTrueGuard(ind, Gu.c_intMaxWhileTrueLoop); ind++)
+          {
+            final_name = $"{desired_name}-{(ind)}"; //restart index if not found
+
+            var found = _resourcesByTypeAndName[rt].Keys.Where(x => x == final_name).FirstOrDefault();
+            if (found == null)
+            {
+              Gu.Log.Info($"Duplicate name '{desired_name}' found => renaming to '{final_name}'");
+              break;
+            }
+          }
+        }
       }
-      else
-      {
-        Gu.Assert(rn is Shader);
-        ret = rn as Shader;
-      }
-      return ret;
+      return final_name;
     }
-    public Shader? LoadShader(string name, string generic_name, FileStorage storage, PrimitiveType? gsprimtype = null)
+    public DataBlock? ChangeResourceName(string name, string value)
     {
-      Shader? ret = null;
-      var rn = GetResourceByName(ResourceType.Shader, name);
-      if (rn == null)
-      {
-        ret = new Shader(name, generic_name, storage, gsprimtype);
-        RegisterResource(ret);
-        //  ret.PromoteResource(ResourcePromotion.LibraryAdd, new SerializedDataSource(name));
-      }
-      else
-      {
-        Gu.Assert(rn is Shader);
-        ret = rn as Shader;
-      }
-      return ret;
+      //TODO:
+      Gu.BRThrowNotImplementedException();
+
+      return null;
     }
-    public MeshData? LoadMesh(string name, MeshGenParams p)
+    private DataBlock? GetResourceById(UInt64 id)
     {
-      MeshData? ret = null;
-      var rn = GetResourceByName(ResourceType.MeshData, name);
-      if (rn == null)
+      if (_resourcesById.TryGetValue(id, out var rsc))
       {
-        MeshGen mg = new MeshGen(name, p);
-        ret = mg.Load<MeshData>(name);
-        RegisterResource(ret);
-        // ret.PromoteResource(ResourcePromotion.LibraryAdd, new SerializedDataSource(name));
+        return rsc;
       }
-      else
-      {
-        Gu.Assert(rn is MeshData);
-        ret = rn as MeshData;
-      }
-      return ret;
+      return null;
     }
-    public WorldObject? LoadModel(string name, FileLoc loc, bool fliptris)
+    //at 1000 objs per second - 9 million years to wrap a ulong
+    public UInt64 GetUniqueId()
     {
-      WorldObject? ret = null;
-      var rn = GetResourceByName(ResourceType.WorldObject, name);
-      if (rn == null)
-      {
-        GLTFFile gf = new GLTFFile(name, loc, fliptris);
-        ret = gf.Load<WorldObject>(name);
-        RegisterResource(ret);
-        //  ret.PromoteResource(ResourcePromotion.LibraryAdd, new SerializedDataSource(name));
-      }
-      else
-      {
-        Gu.Assert(rn is WorldObject);
-        ret = rn as WorldObject;
-      }
-      return ret;
+      return _iMaxId++;
     }
-    // public CSharpScript? LoadScript(string name, FileLoc loc)
+    public void CleanResources()
+    {
+      //remove resources with empty refs
+      //_resourcesById = this._resourcesById.Where(x => x.Value.HasRef).ToDictionary(pair => pair.Key, pair => pair.Value);
+      //TODO:
+    }
+    public T AddE<T>(T res) where T : DataBlock
+    {
+      //add an embedded resource
+      //ensures we do not duplicate embedded resources on Build()
+      res.IsEmbedded = true;
+      Add(res);
+      return res;
+    }
+    public void Add(DataBlock res)
+    {
+      Gu.Assert(res != null);
+      if(res.Name==Rs.Model.Gear){
+        Gu.Trap();
+      }
+      if (res.ResourceType == ResourceType.Undefined)
+      {
+        res.ResourceType = GetResourceType(res.GetType());
+      }
+      Gu.Assert(res.ResourceType != ResourceType.Undefined);
+
+      if (res.IsEmbedded == false)
+      {
+        res.Name = GetUniqueName(res.ResourceType, res.Name);
+      }
+
+      Dictionary<string, DataBlock>? byname = null;
+      if (!_resourcesByTypeAndName.TryGetValue(res.ResourceType, out byname))
+      {
+        byname = new Dictionary<string, DataBlock>();
+        _resourcesByTypeAndName.Add(res.ResourceType, byname);
+      }
+      if(res.Name==Rs.Model.Gear){
+        Gu.Trap();
+      }
+      byname.Add(res.Name, res);
+    }
+    private bool GetResourceNameIndex(string desired_name, out string name_without_suffix, out int index)
+    {
+      //return true if we the name had a valid suffix, false otherwise
+      //Return suffix parts in the out params
+      index = 1;
+      name_without_suffix = desired_name;
+      var ind = desired_name.LastIndexOf('-');
+      if (ind >= 0)
+      {
+        var suffix = desired_name.Substring(ind, desired_name.Length - ind);
+        if (suffix.Length > 1)
+        {
+          var valuestr = suffix.Substring(1, suffix.Length - 1);
+          if (Int32.TryParse(valuestr, out var value_int))
+          {
+            name_without_suffix = desired_name.Substring(0, ind);
+            index = value_int;
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+    private string ResourceMsg(DataBlock? d, string msg)
+    {
+      string n = d != null ? d.Name : "null block!";
+      string s = d != null ? d.ToString() : "null block!";
+      string m = $"{n}: {msg}\n  data:\n  {s}";
+      return m;
+    }
+    public void ResourceError(DataBlock? d, string msg)
+    {
+      string m = ResourceMsg(d, msg);
+      Gu.Log.Error(m);
+      //   Gu.BRThrowException(m);
+    }
+    public void ResourceWarning(DataBlock? d, string msg)
+    {
+      string m = ResourceMsg(d, msg);
+      Gu.Log.Warn(m);
+      Gu.DebugBreak();
+    }
+
+    // private bool TryGet<T>(string name, out T? outref, ResourceType rt) where T : DataBlock
     // {
-    //   CSharpScript? ret = null;
-    //   var rn = GetResourceByName(ResourceType.WorldObject, name);
-    //   if (rn == null)
+    //   bool ret = true;
+    //   outref = null;
+    //   try
     //   {
-    //     CSharpScript s = new CSharpScript(loc);
-    //     //GLTFFile gf = new GLTFFile(name, loc, fliptris);
-    //     //ret = gf.Load<WorldObject>(name);
-    //     RegisterResource(ret);
-    //     //  ret.PromoteResource(ResourcePromotion.LibraryAdd, new SerializedDataSource(name));
+    //     outref = Get<T>(name, rt);
     //   }
-    //   else
+    //   catch (Exception ex)
     //   {
-    //     Gu.Assert(rn is CSharpScript);
-    //     ret = rn as CSharpScript;
+    //     Gu.Log.Error($"Failed to load type '{typeof(T).ToString()}' name:'{name}'");
+    //     Gu.DebugBreak();
     //   }
     //   return ret;
-    // }    
-    private void RegisterResource(DataBlock d)
+    // }
+    // public bool TryGetModel(string name, out WorldObject? model)
+    // {
+    //   return TryGet<WorldObject>(name, out model, ResourceType.Model);
+    // }
+    // public bool TryGetImage(string name, out Image? image)
+    // {
+    //   return TryGet<Image>(name, out image, ResourceType.Image);
+    // }
+    // public bool TryGetShader(string name, out Shader? sh)
+    // {
+    //   return TryGet<Shader>(name, out sh, ResourceType.Shader);
+    // }
+    // public bool TryGetMaterial(string name, out Material? mat)
+    // {
+    //   return TryGet<Material>(name, out mat, ResourceType.Material);
+    // }
+    // public bool TryGetTexture(string name, out Texture? tex)
+    // {
+    //   return TryGet<Texture>(name, out tex, ResourceType.MeshData);
+    // }
+    // public bool TryGetMesh(string name, out MeshData? mesh)
+    // {
+    //   return TryGet<MeshData>(name, out mesh, ResourceType.MeshData);
+    // }
+    private T Get<T>(string name, ResourceType rt) where T : DataBlock
     {
-      Gu.AssertDebug(d.UniqueID == Library.NullID);
-      d.UniqueID = GetNewUniqueId();
-      CreateResource(d, d.Name);
+      var rn = GetResourceByName(rt, name);
+      T r = rn as T;
+      if (r == null)
+      {
+        Gu.DebugBreak();
+      }
+      System.Diagnostics.Debug.Assert(r != null);
+      return r;
+    }
+    public Image GetImage(string name)
+    {
+      return Get<Image>(name, ResourceType.Image);
+    }
+    public Texture GetTexture(string name)
+    {
+      return Get<Texture>(name, ResourceType.Texture);
+    }
+    public Material GetMaterial(string name)
+    {
+      return Get<Material>(name, ResourceType.Material);
+    }
+    public Shader GetShader(string name)
+    {
+      return Get<Shader>(name, ResourceType.Shader);
+    }
+    public MeshData GetMesh(string name)
+    {
+      return Get<MeshData>(name, ResourceType.MeshData);
+    }
+    public Model GetModel(string name)
+    {
+      return Get<Model>(name, ResourceType.Model);
     }
 
-    #endregion
+    //only file references are what we "load" now
+    public Model LoadModel(string name, FileLoc loc, bool fliptris)
+    {
+      GLTFFile gf = new GLTFFile(name, loc, fliptris);
+      var ret = gf.Load<Model>(name);
+      return ret;
+    }
+    public Image LoadImage(FileLoc loc)
+    {
+      ImageFile f = new ImageFile(loc.FileName, loc);
 
+      //should throw..
+      var image = f.Load<Image>(loc.FileName);
+      return image;
+    }
+
+    private ResourceType GetResourceType(Type t)
+    {
+      if (t == typeof(MeshData)) { return ResourceType.MeshData; }
+      else if (t == typeof(Shader)) { return ResourceType.Shader; }
+      else if (t == typeof(MeshView)) { return ResourceType.MeshView; }
+      else if (t == typeof(Model)) { return ResourceType.Model; }
+      else if (t == typeof(WorldObject)) { return ResourceType.WorldObject; }
+      else if (t == typeof(Material)) { return ResourceType.Material; }
+      else if (t == typeof(Image)) { return ResourceType.Image; }
+      else if (t == typeof(Texture)) { return ResourceType.Texture; }
+      else if (t == typeof(Component)) { return ResourceType.Component; }
+      else if (t == typeof(Constraint)) { return ResourceType.Constraint; }
+      Gu.BRThrowNotImplementedException();
+      return ResourceType.Undefined;
+    }
   }
 }

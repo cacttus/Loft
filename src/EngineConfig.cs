@@ -24,6 +24,7 @@ namespace PirateCraft
     [DataMember(IsRequired = true)] public bool Debug_SaveAllFBOsEveryStageOfPipeline = false;
     [DataMember(IsRequired = true)] public bool Debug_SaveDebuggShaderSource = true;
     [DataMember(IsRequired = true)] public bool Debug_ShowFailedShaderSourceInVSCOode = true;
+    [DataMember(IsRequired = true)] public bool Debug_LogSerializationDetails = true;
 
     //Debug Configs
     [DataMember(IsRequired = true)] public bool UseLang_RU = true;//russian

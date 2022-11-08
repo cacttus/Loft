@@ -24,13 +24,13 @@ namespace PirateCraft{
     public dvec3 SkyColor;
     public dvec3 LightColor;
     //https://yorktown.cbe.wwu.edu/sandvig/shared/NetColors.aspx
-    private dvec3 Sky_NoonColor = new dvec3(vec4.FromHex("#FAFAD200").xyz());//Goldenrod
-    private dvec3 Sky_DuskColor = new dvec3(vec4.FromHex("#FF450000").xyz());//Gold FFD70000
-    private dvec3 Sky_DawnColor = new dvec3(vec4.FromHex("#FF450000").xyz());//Gold
-    private dvec3 Sky_MidnightColor = new dvec3(vec4.FromHex("#16163000").xyz());//Midnightblue
+    private dvec3 Sky_NoonColor = new dvec3(vec4.FromHex("#FAFAD200").xyz);//Goldenrod
+    private dvec3 Sky_DuskColor = new dvec3(vec4.FromHex("#FF450000").xyz);//Gold FFD70000
+    private dvec3 Sky_DawnColor = new dvec3(vec4.FromHex("#FF450000").xyz);//Gold
+    private dvec3 Sky_MidnightColor = new dvec3(vec4.FromHex("#16163000").xyz);//Midnightblue
 
-    private dvec3 Light_NoonColor = new dvec3(vec4.FromHex("#FAFAD200").xyz());//light goldenrod
-    private dvec3 Light_MidnightColor = new dvec3(vec4.FromHex("#E6E6FA00").xyz()); //a very faint lavender blue
+    private dvec3 Light_NoonColor = new dvec3(vec4.FromHex("#FAFAD200").xyz);//light goldenrod
+    private dvec3 Light_MidnightColor = new dvec3(vec4.FromHex("#E6E6FA00").xyz); //a very faint lavender blue
     private dvec3 Light_DuskColor { get { return (Light_NoonColor + Light_MidnightColor) * 0.5; } }//Gold FFD70000
     private dvec3 Light_DawnColor { get { return Light_DuskColor; } }//orangered
 

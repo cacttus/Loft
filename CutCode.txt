@@ -2253,7 +2253,7 @@ public class Drome : DromeNode
 //       //     {
 //       //       if (_defaultObjectMaterial == null)
 //       //       {
-//       //         _defaultObjectMaterial = new Material(System.Reflection.MethodBase.GetCurrentMethod().Name, Shader.DefaultObjectShader());
+//       //         _defaultObjectMaterial = new Material(System.Reflection.MethodBase.GetCurrentMethod().Name, Gu.Lib.GetShader(Rs.Shader.DefaultObjectShader));
 //       //         _defaultObjectMaterial.AlbedoSlot.Texture = Texture2D.Default1x1ColorPixel_RGBA32ub(new vec4ub(255, 0, 255, 255));
 //       //       }
 //       //       return _defaultObjectMaterial;
@@ -2453,7 +2453,7 @@ if model name exists
       //     {
       //       if (_defaultObjectMaterial == null)
       //       {
-      //         _defaultObjectMaterial = new Material(System.Reflection.MethodBase.GetCurrentMethod().Name, Shader.DefaultObjectShader());
+      //         _defaultObjectMaterial = new Material(System.Reflection.MethodBase.GetCurrentMethod().Name, Gu.Lib.GetShader(Rs.Shader.DefaultObjectShader));
       //         _defaultObjectMaterial.AlbedoSlot.Texture = Texture2D.Default1x1ColorPixel_RGBA32ub(new vec4ub(255, 0, 255, 255));
       //       }
       //       return _defaultObjectMaterial;

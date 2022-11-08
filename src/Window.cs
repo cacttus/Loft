@@ -28,7 +28,7 @@ namespace PirateCraft
     #region Private:Members
 
     private bool _isMain = false;
-    private string _name = Library.UnsetName;//NOT EQUAL TO TITLE
+    private string _name = Lib.UnsetName;//NOT EQUAL TO TITLE
     private List<RenderView> _renderViews = new List<RenderView>();
     private bool _isLoaded = false;
     private int _width = 1;//Do not use Size.X, Y There is currently an OpenTK bug where it does not update on Resize
@@ -392,7 +392,7 @@ namespace PirateCraft
         info.AppendLine($"UI:");
         info.AppendLine($" update={rv.Gui?._dbg_UpdateMs}ms mesh={rv.Gui?._dbg_MeshMs}ms event={rv.Gui?._dbg_EventsMs}ms");
         info.AppendLine($"Scripts:");
-        info.AppendLine($" bytes={CSharpScript.TotalLoadedScriptAssemblyBytes}");
+        info.AppendLine($" {StringUtil.FormatPrec((float)CSharpScript.TotalLoadedScriptAssemblyBytes/(float)(1024*1024),1)}MB");
         info.AppendLine($"World:");
         info.AppendLine($" Globs: count={Gu.World.NumGlobs} visible={Gu.World.NumVisibleRenderGlobs}");
         info.AppendLine($" Picked:{Gu.Context.Renderer.Picker.PickedObjectName}");

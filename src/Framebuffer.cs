@@ -44,7 +44,7 @@ namespace PirateCraft
   {
     public Texture Texture { get; set; } = null;
     public RenderTargetType TargetType { get; set; } = RenderTargetType.Color;
-    public string Name { get; private set; } = Library.UnsetName;
+    public string Name { get; private set; } = Lib.UnsetName;
 
     public bool IsMsaaEnabled
     {
@@ -255,6 +255,8 @@ namespace PirateCraft
       CheckFramebufferComplete();
     }
 
+    protected override string DataPathName() { return "-fbo" + base.DataPathName(); }
+   
     public override void Dispose_OpenGL_RenderThread()
     {
       DeleteTargets();

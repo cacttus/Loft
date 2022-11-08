@@ -11,6 +11,7 @@
   "Debug_SaveAllFBOsEveryStageOfPipeline": false,
   "Debug_SaveDebuggShaderSource": true,
   "Debug_ShowFailedShaderSourceInVSCOode": true,
+  "Debug_LogSerializationDetails": true,
   "UseLang_RU": true,
   "UseLang_ZH": true,
   "RenderDebug_ShowNormals": true,

@@ -111,7 +111,7 @@ namespace PirateCraft
   public class MtTex
   {
     //Note: this class is serialized make sure to serialize all data.
-    public string Name { get; private set; } = Library.UnsetName;
+    public string Name { get; private set; } = Lib.UnsetName;
     public WeakReference<MtNode> Node { get; set; } = null;  //mega texture node
     public int ShrinkPixels { get; private set; } = 0;
     public vec2 uv0 { get; set; } = vec2.Zero;
@@ -172,7 +172,7 @@ namespace PirateCraft
       //Used to check if the generated images (or, even images, but use mod dates for those pls) hvae changed
       Gu.Assert(_pImg != null);
       Gu.Assert(_pImg.Data != null);
-      ImageHash = Gu.HashByteArray(new List<byte[]> { _pImg.Data });
+      ImageHash = Hash.HashByteArray(new List<byte[]> { _pImg.Data });
     }
     public void Serialize(BinaryWriter bw)
     {
@@ -452,8 +452,7 @@ namespace PirateCraft
       }
       else
       {
-
-        Image? img = Gu.Lib.LoadImage(MtFile.FileLoc.QualifiedPath, MtFile.FileLoc);
+        Image? img = Gu.Lib.LoadImage(MtFile.FileLoc);
         Gu.Assert(img != null);
         var tx = new MtTex(img.Name, 0, MtFile.ShrinkPixelBorder);
         MtFile.Texs.Add(tx);
@@ -1004,7 +1003,7 @@ namespace PirateCraft
           {
             Gu.Log.Debug("Saving font...");
             string nmapname_dbg = System.IO.Path.Combine(Gu.LocalTmpPath, Gu.Context.Name + " mt_" + MtFile.FileLoc.FileName + "_font_" + iTex + ".png");
-            Library.SaveImage(nmapname_dbg, img, false);
+            Lib.SaveImage(nmapname_dbg, img, false);
           }
           MtTex mt = new MtTex();
           mt.SetImg(img);
@@ -1378,13 +1377,13 @@ namespace PirateCraft
       {
         output = RedoCompile();
         //[CONTEXT]_mt_[MEGATEX]_[albedo|normal].png
-        Library.SaveImage(_albedoLocStr, output.AlbedoImage, false);
+        Lib.SaveImage(_albedoLocStr, output.AlbedoImage, false);
         //Save to /tmp to see it upright
-        Library.SaveImage(MakeSaveTextureName(Gu.LocalTmpPath, "albedo"), output.AlbedoImage, false);
+        Lib.SaveImage(MakeSaveTextureName(Gu.LocalTmpPath, "albedo"), output.AlbedoImage, false);
         if (this._hasNormalMap)
         {
-          Library.SaveImage(_normLocStr, output.NormalImage, false);
-          Library.SaveImage(MakeSaveTextureName(Gu.LocalTmpPath, "normal"), output.NormalImage, false);
+          Lib.SaveImage(_normLocStr, output.NormalImage, false);
+          Lib.SaveImage(MakeSaveTextureName(Gu.LocalTmpPath, "normal"), output.NormalImage, false);
         }
         SaveCacheFile();
       }
@@ -1399,7 +1398,7 @@ namespace PirateCraft
         Gu.Assert(alb.Exists);
         Gu.Assert(!_hasNormalMap || (_hasNormalMap && norm.Exists));
 
-        var albedo = Gu.Lib.LoadImage(alb.QualifiedPath, alb);
+        var albedo = Gu.Lib.LoadImage(alb);
         output.CreateTexture(PBRTextureInput.Albedo, albedo, this._generateMipmaps, this._texFilter, true);
         if (this._hasNormalMap)
         {
@@ -1409,7 +1408,7 @@ namespace PirateCraft
           }
           else
           {
-            var normal = Gu.Lib.LoadImage(norm.QualifiedPath, norm);
+            var normal = Gu.Lib.LoadImage(norm);
             output.CreateTexture(PBRTextureInput.Normal, normal, this._generateMipmaps, this._texFilter, true);
           }
         }

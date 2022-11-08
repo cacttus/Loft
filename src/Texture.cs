@@ -23,6 +23,9 @@ namespace PirateCraft
     {
       this._glId = GT.GenTexture();
     }
+    
+    protected override string DataPathName() { return "-tex" + base.DataPathName(); }
+   
     public override void Dispose_OpenGL_RenderThread()
     {
       if (GL.IsTexture(GlId))

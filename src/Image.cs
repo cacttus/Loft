@@ -91,7 +91,7 @@ namespace PirateCraft
   }
 
   [DataContract]
-  public class Image : DataBlock, IClone, ICopy<Image>, ISerializeBinary
+  public class Image : DataBlock
   {
     //Note: this class initializes the data buffer when you create it. It requires a w/h
     public enum ImagePixelFormat
@@ -597,34 +597,16 @@ namespace PirateCraft
 
       this.Data = st;
     }
-    public object? Clone(bool? shallow = null)
+    public Image Clone()
     {
-      if (shallow != null && shallow == false)
+      Image other = (Image)this.MemberwiseClone();
+      if (_data != null)
       {
-        Gu.BRThrowException("Cannot shallow copy an Img32.");
+        other._data = new byte[_data.Length];
+        Buffer.BlockCopy(this._data, 0, other._data, 0, this._data.Length);
       }
-      Image other = new Image();
-      other.CopyFrom(this, shallow);
       return other;
     }
-    public void CopyFrom(Image? other, bool? shallow = null)
-    {
-      if (shallow != null && shallow == false)
-      {
-        Gu.BRThrowException("Cannot shallow copy an Img32.");
-      }
-      Gu.Assert(other != null);
-      base.CopyFrom(other, shallow);
-      this._width = other._width;
-      this._height = other._height;
-      this._format = other._format;
-      if (other._data != null)
-      {
-        this._data = new byte[other._data.Length];
-        Buffer.BlockCopy(other._data, 0, this._data, 0, other._data.Length);
-      }
-    }
-
 
   }
 }

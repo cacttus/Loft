@@ -18,6 +18,7 @@ namespace PirateCraft
 
     public int ItemSizeBytes { get; private set; } = 0;
     public int Count { get; private set; } = 0;
+    public object Data { get { return _pt; } }
 
     public static GpuDataPtr GetGpuDataPtr<T>(T[] data)
     {
@@ -61,47 +62,10 @@ namespace PirateCraft
       }
     }
   }
-  public class GpuDataArray
-  {
-    //Raw byte data from or to the GPU, with sizing information.
-    private bool _locked = false;
-    private GCHandle pinnedArray;
-
-    public byte[] Bytes { get; private set; } = null; // Managed Array
-
-    public int ItemSizeBytes { get; private set; } = 0;
-    public int Count { get; private set; } = 0;
-
-    public GpuDataArray(int itemSize, int count, byte[] pt)
-    {
-      ItemSizeBytes = itemSize;
-      Count = count;
-      Bytes = pt;
-    }
-    public IntPtr Lock()
-    {
-      _locked = true;
-      pinnedArray = GCHandle.Alloc(Bytes, GCHandleType.Pinned);
-      return pinnedArray.AddrOfPinnedObject();
-    }
-    public void Unlock()
-    {
-      pinnedArray.Free();
-      _locked = false;
-    }
-    ~GpuDataArray()
-    {
-      if (_locked)
-      {
-        Gu.Log.Error("Gpu Data array unmanaged handle wasn't freed. Must call Unlock().");
-        Gu.DebugBreak();
-      }
-    }
-  }
-
   [DataContract]
-  public class GpuRenderState : IClone, ICopy<GpuRenderState>
+  public class GpuRenderState
   {
+    //Stores rendering state flags for GPU prior to drawing.
     public bool DepthTest { get { return _depthTestEnabled; } set { _depthTestEnabled = value; } }
     public bool CullFace { get { return _cullFaceEnabled; } set { _cullFaceEnabled = value; } }
     public bool ScissorTest { get { return _scissorTestEnabled; } set { _scissorTestEnabled = value; } }
@@ -123,24 +87,9 @@ namespace PirateCraft
     [DataMember] private bool _depthMask = true;//enable writing to depth bufer
     [DataMember] private CullFaceMode _cullFaceMode = CullFaceMode.Back;
 
-    public object? Clone(bool? shallow = true)
+    public GpuRenderState Clone()
     {
-      GpuRenderState clone = new GpuRenderState();
-      clone.CopyFrom(this, shallow);
-      return clone;
-    }
-    public void CopyFrom(GpuRenderState? from, bool? shallow = null)
-    {
-      Gu.Assert(from != null);
-      this._depthTestEnabled = from._depthTestEnabled;
-      this._cullFaceEnabled = from._cullFaceEnabled;
-      this._scissorTestEnabled = from._scissorTestEnabled;
-      this._blendEnabled = from._blendEnabled;
-      this._blendFunc = from._blendFunc;
-      this._blendFactor = from._blendFactor;
-      this._frontFaceDirection = from._frontFaceDirection;
-      this._depthMask = from._depthMask;
-      this._cullFaceMode = from._cullFaceMode;
+      return (GpuRenderState)this.MemberwiseClone();
     }
     public void SetState()
     {
@@ -633,11 +582,7 @@ namespace PirateCraft
           _blendLast = state.Blend;
         }
       }
-
-
     }
-
-
     private void ComputeGPULimitsOpenGL()
     {
 
@@ -672,23 +617,6 @@ namespace PirateCraft
         return (T)Marshal.PtrToStructure((IntPtr)ptr, typeof(T));
       }
     }
-    // public static GpuDataArray SerializeGpuData<T>(T[] data) where T : struct
-    // {
-    //   //TODO:Duplicate REsourceManager.Serialize / Deserialize is essentially the same thing.
-    //   var size = Marshal.SizeOf(data[0]);
-
-    //   var bytes = new byte[size * data.Length];
-    //   var ptr = Marshal.AllocHGlobal(size);
-    //   for (int di = 0; di < data.Length; di++)
-    //   {
-    //     Marshal.StructureToPtr(data[di], ptr, false);
-    //     Marshal.Copy(ptr, bytes, di * size, size);
-    //   }
-    //   Marshal.FreeHGlobal(ptr);
-    //   GpuDataArray arr = new GpuDataArray(size, data.Length, bytes);
-
-    //   return arr;
-    // }
     public void Post_To_RenderThread(WindowContext wc, Action<WindowContext> a)
     {
       //This is super important for disposing Render (opengl) stuff.

@@ -14,7 +14,7 @@ namespace PirateCraft
   }
 
   [DataContract]
-  public class KeyframeBase : ISerializeBinary, IClone, ICopy<KeyframeBase>
+  public class KeyframeBase
   {
     [DataMember] private double _time = 0;
     [DataMember] public KeyframeInterpolation _interpolation = KeyframeInterpolation.Cubic;
@@ -23,31 +23,9 @@ namespace PirateCraft
     public KeyframeInterpolation Interpolation { get { return _interpolation; } set { _interpolation = value; } }
 
     public KeyframeBase() { }
-    public virtual object? Clone(bool? shallow = null)
-    {
-      KeyframeBase k = new KeyframeBase();
-      k.CopyFrom(this, shallow);
-      return k;
-    }
-    public void CopyFrom(KeyframeBase? other, bool? shallow = null)
-    {
-      Gu.Assert(other != null);
-      this._time = other._time;
-      this._interpolation = other._interpolation;
-    }
-    public virtual void Serialize(BinaryWriter bw)
-    {
-      bw.Write(Time);
-      bw.Write((Int32)Interpolation);
-    }
-    public virtual void Deserialize(BinaryReader br, SerializedFileVersion version)
-    {
-      Time = br.ReadDouble();
-      Interpolation = (KeyframeInterpolation)br.ReadInt32();
-    }
   }
   [DataContract]
-  public class Vec3Keyframe : KeyframeBase, ISerializeBinary, IClone, ICopy<Vec3Keyframe>
+  public class Vec3Keyframe : KeyframeBase
   {
     [DataMember] private vec3 _value = new vec3(0, 0, 0);
 
@@ -55,32 +33,14 @@ namespace PirateCraft
 
     public Vec3Keyframe() { }
     public Vec3Keyframe(double t, vec3 p, KeyframeInterpolation n) { Time = t; Value = p; Interpolation = n; }
-    public override object? Clone(bool? shallow = null)
+    public Vec3Keyframe Clone()
     {
-      Vec3Keyframe k = new Vec3Keyframe();
-      k.CopyFrom(this, shallow);
-      return k;
-    }
-    public void CopyFrom(Vec3Keyframe? other, bool? shallow = null)
-    {
-      Gu.Assert(other != null);
-      base.CopyFrom(other, shallow);
-      this._value = other._value;
-    }
-    public override void Serialize(BinaryWriter bw)
-    {
-      base.Serialize(bw);
-      bw.Write(Value);
-    }
-    public override void Deserialize(BinaryReader br, SerializedFileVersion version)
-    {
-      base.Deserialize(br, version);
-      Value = br.ReadVec3();
+      return (Vec3Keyframe)this.MemberwiseClone();
     }
 
   }
   [DataContract]
-  public class QuatKeyframe : KeyframeBase, ISerializeBinary, IClone, ICopy<QuatKeyframe>
+  public class QuatKeyframe : KeyframeBase
   {
     [DataMember] private quat _value = quat.identity();
 
@@ -88,32 +48,14 @@ namespace PirateCraft
 
     public QuatKeyframe() { }
     public QuatKeyframe(double t, quat r, KeyframeInterpolation n) { Time = t; Value = r; Interpolation = n; }
-    public override object? Clone(bool? shallow = null)
+    public QuatKeyframe Clone()
     {
-      QuatKeyframe k = new QuatKeyframe();
-      k.CopyFrom(this, shallow);
-      return k;
-    }
-    public void CopyFrom(QuatKeyframe? other, bool? shallow = null)
-    {
-      Gu.Assert(other != null);
-      base.CopyFrom(other, shallow);
-      this._value = other._value;
-    }
-    public override void Serialize(BinaryWriter bw)
-    {
-      base.Serialize(bw);
-      bw.Write(Value);
-    }
-    public override void Deserialize(BinaryReader br, SerializedFileVersion version)
-    {
-      base.Deserialize(br, version);
-      Value = br.ReadQuat();
+      return (QuatKeyframe)this.MemberwiseClone();
     }
   }
-
   [DataContract]
-  public class AnimationData : DataBlock, ISerializeBinary, IClone, ICopy<AnimationData> /*technically not a datablock, because this is generated from the .glb, however if we discard glb in hte future it would be*/
+  //technically not a datablock, because this is generated from the .glb, however if we discard glb in hte future it would be
+  public class AnimationData : DataBlock
   {
     //We may end up compressing the data blocks here.
     public AnimationData(string name) : base(name)
@@ -197,36 +139,17 @@ namespace PirateCraft
         ScaleChannel.Add(new Vec3Keyframe(time, scl.Value, sclInterp));
       }
     }
-    public object? Clone(bool? shallow = null)
+    public AnimationData Clone()
     {
-      AnimationData? k = new AnimationData();
-      k.CopyFrom(this, shallow);
+      AnimationData k = (AnimationData)this.MemberwiseClone();
+
+      //Deep copy refs.
+      if (_posChannel != null) { k._posChannel = new List<Vec3Keyframe>(_posChannel); }
+      if (_rotChannel != null) { k._rotChannel = new List<QuatKeyframe>(_rotChannel); }
+      if (_scaleChannel != null) { k._scaleChannel = new List<Vec3Keyframe>(_scaleChannel); }
+
       return k;
     }
-    public void CopyFrom(AnimationData? other, bool? shallow = null)
-    {
-      Gu.Assert(other != null);
-      base.CopyFrom(other, shallow);
-      if (other._posChannel != null) { this._posChannel = new List<Vec3Keyframe>(other._posChannel); }
-      if (other._rotChannel != null) { this._rotChannel = new List<QuatKeyframe>(other._rotChannel); }
-      if (other._scaleChannel != null) { this._scaleChannel = new List<Vec3Keyframe>(other._scaleChannel); }
-    }
-    public override void Serialize(BinaryWriter bw)
-    {
-      base.Serialize(bw);
-      SerializeTools.SerializeList<Vec3Keyframe>(bw, _posChannel);
-      SerializeTools.SerializeList<QuatKeyframe>(bw, _rotChannel);
-      SerializeTools.SerializeList<Vec3Keyframe>(bw, _scaleChannel);
-    }
-    public override void Deserialize(BinaryReader br, SerializedFileVersion version)
-    {
-      base.Deserialize(br, version);
-      _posChannel = SerializeTools.DeserializeList<Vec3Keyframe>(br, version);
-      _rotChannel = SerializeTools.DeserializeList<QuatKeyframe>(br, version);
-      _scaleChannel = SerializeTools.DeserializeList<Vec3Keyframe>(br, version);
-    }
-
-
   }
 
 }

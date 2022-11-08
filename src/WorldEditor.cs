@@ -214,7 +214,7 @@ namespace PirateCraft
   }
   public enum XFormSpace
   {
-    Global, Local, Free
+    Global, Local, View, FreeRotate
   }
   public class MoveRotateScaleAction : WorldObjectAction
   {
@@ -266,30 +266,41 @@ namespace PirateCraft
       Move, Rotate, Scale
     }
 
-    private XFormSpace _xFormSpace = XFormSpace.Free;//global/local transform blender: z->z /x->x etc
+    private XFormSpace _xFormSpace = XFormSpace.View;//global/local transform blender: z->z /x->x etc
     private MoveRotateScale _type = MoveRotateScale.Move;
-    private List<PRS> _prevPRS = null;
+    //global matrix - move or rotate object globally.
+    //multiply by inverse of parent world matrix
+    //move _ 
+    // project point onto ray or plane
+    // object world = proj point
+    //    set objects local position to this world position how
+    //      inverse of world matrix.
+    //  positions are easy what about scale/rot
+    //
+    // redo - set mat to prevworld
+    private List<mat4> _prevWorld;
+    private List<PRS> _prevPRS;
     private List<PRS> _nextPRS = null;
     private List<ObjectXFormSpace> _obj_xform = null;
     private vec2 _xform_MouseStart;
     private vec2 _mouse_wrapcount;
-    private Line3f? _xform_mouseStartRay = null;
-    private WorldEditEvent? _current_XForm = null;
+    private WorldEditEvent _current_XForm = WorldEditEvent.MRS_TransformView;
 
     public MoveRotateScaleAction(List<WorldObject> objs, MoveRotateScale type) : base(objs)
     {
       _type = type;
 
+      _prevWorld = new List<mat4>();
       _prevPRS = new List<PRS>();
       for (int i = 0; i < _objects.Count; ++i)
       {
         var w = _objects[i];
-        _prevPRS.Add(w.GetPRS_Local());
+        _prevWorld.Add(w.WorldMatrix);
+        _prevPRS.Add(w.PRS_Local);
       }
 
       _xform_MouseStart = Gu.Context.PCMouse.Pos;
       _mouse_wrapcount = new vec2(0, 0);
-      _xform_mouseStartRay = Gu.TryCastRayFromScreen(_xform_MouseStart);
 
       ComputeXFormSpace(Gu.World.Editor);
     }
@@ -297,23 +308,23 @@ namespace PirateCraft
     {
       return Update(editor, renderview, k, m);
     }
-    public override void Undo(WorldEditor editor)
-    {
-      Gu.Assert(_prevPRS != null && _prevPRS.Count == _objects.Count);
-      for (int i = 0; i < _objects.Count; ++i)
-      {
-        var w = _objects[i];
-        w.SetPRS_Local(_prevPRS[i]);
-      }
-      editor.UpdateSelectionOrigin();
-    }
     public override void Redo(WorldEditor editor)
     {
       Gu.Assert(_nextPRS != null && _nextPRS.Count == _objects.Count);
       for (int i = 0; i < _objects.Count; ++i)
       {
         var w = _objects[i];
-        w.SetPRS_Local(_nextPRS[i]);
+        w.PRS_Local = _nextPRS[i];
+      }
+      editor.UpdateSelectionOrigin();
+    }
+    public override void Undo(WorldEditor editor)
+    {
+      Gu.Assert(_prevPRS != null && _prevPRS.Count == _objects.Count);
+      for (int i = 0; i < _objects.Count; ++i)
+      {
+        var w = _objects[i];
+        w.PRS_Local = _prevPRS[i];
       }
       editor.UpdateSelectionOrigin();
     }
@@ -323,51 +334,23 @@ namespace PirateCraft
       {
         return WorldActionState.Cancel;
       }
-      return UpdateMove(editor, renderview, k, m);
+      UpdateMove(editor, renderview, k, m);
+      Redo(editor);
+      return WorldActionState.StillDoing;
     }
-    private void ToggleXFormSpace(WorldEditor e)
-    {
-      if (_xFormSpace == XFormSpace.Global)
-      {
-        _xFormSpace = XFormSpace.Local;
-      }
-      else if (_xFormSpace == XFormSpace.Local)
-      {
-        _xFormSpace = XFormSpace.Free;
-      }
-      else if (_xFormSpace == XFormSpace.Free)
-      {
-        _xFormSpace = XFormSpace.Global;
-      }
-    }
-    // private vec3 ComputeLocalObjectAxis(int obi, vec3 global_axis)
-    // {
-    //   vec3 locla = (_prevPRS[obi].invert() * global_axis.toVec4(1)).toVec3().normalize();
-    //   return locla;
-    // }
-    private vec3 _global_axis = vec3.Zero;
     private void ComputeXFormSpace(WorldEditor editor)
     {
-      Gu.Assert(Gu.World.Editor.SelectionOrigin != null);
-      // vec3 average_axis = new vec3(0, 0, 0);
-      // for (int obi = 0; obi < _objects.Count; obi++)
-      // {
-      //   average_axis += ComputeLocalObjectAxis(obi, _xform_global_axis);
-      // }
-      // average_axis = (average_axis / (float)_objects.Count).normalize();
-      if (_xFormSpace == XFormSpace.Free)
+      vec3 avgorigin = vec3.Zero;
+      for (int obi = 0; obi < _objects.Count; obi++)
       {
-        _global_axis = new vec3(0, 1, 0);
-        if (Gu.TryGetSelectedView(out var rv))
-        {
-          _global_axis = -rv.Camera.BasisZ_World; //"view" translation
-        }
+        avgorigin += _prevWorld[obi].ExtractTranslation();
       }
+      avgorigin /= (float)_objects.Count;
 
       _obj_xform = new List<ObjectXFormSpace>();
       for (int obi = 0; obi < _objects.Count; obi++)
       {
-        var xf = ComputeObjectXFormSpace(obi, _xFormSpace, editor.XFormOrigin, editor.SelectionOrigin.Value);
+        var xf = ComputeObjectXFormSpace(obi, _xFormSpace, editor.XFormOrigin, avgorigin);
         _obj_xform.Add(xf);
       }
     }
@@ -382,36 +365,34 @@ namespace PirateCraft
       mat4 mspace = new mat4();
       vec3 axis = new vec3(0, 1, 0);
 
-      if (space == XFormSpace.Free)
+      if (_current_XForm == WorldEditEvent.MRS_TransformView)
       {
-        //"view" translation or "free"
+        //"view" translation for rotate, scale, move (default)
         // mspace = new mat4(new vec4(c.BasisX_World, 0), new vec4(-c.BasisZ_World, 0), new vec4(c.BasisY_World, 0), new vec4(0, 0, 0, 1));
-        cX = cZ = 1;
-        cY = 0;
-        axis = _global_axis;
-        ob_origin = _prevPRS[obi].Position.Value;
+        cX = cZ = cY = 1;
+        if (Gu.TryGetSelectedView(out var rv))
+        {
+          axis = -rv.Camera.BasisZ_World; //"view" translation
+        }
+        ob_origin = _prevWorld[obi].ExtractTranslation();//Position.Value;
         plane = true;
       }
       else
       {
         //local/global
-
         if (_current_XForm == WorldEditEvent.MRS_TransformAxisX) { cX = 1; cY = 0; cZ = 0; axis = new vec3(1, 0, 0); plane = false; }
         else if (_current_XForm == WorldEditEvent.MRS_TransformAxisY) { cX = 0; cY = 1; cZ = 0; axis = new vec3(0, 1, 0); plane = false; }
         else if (_current_XForm == WorldEditEvent.MRS_TransformAxisZ) { cX = 0; cY = 0; cZ = 1; axis = new vec3(0, 0, 1); plane = false; }
-
         else if (_current_XForm == WorldEditEvent.MRS_TransformPlaneX) { cX = 0; cY = 1; cZ = 1; axis = new vec3(1, 0, 0); plane = true; }
         else if (_current_XForm == WorldEditEvent.MRS_TransformPlaneY) { cX = 1; cY = 0; cZ = 1; axis = new vec3(0, 1, 0); plane = true; }
         else if (_current_XForm == WorldEditEvent.MRS_TransformPlaneZ) { cX = 1; cY = 1; cZ = 0; axis = new vec3(0, 0, 1); plane = true; }
 
         if (space == XFormSpace.Global)
         {
-          // mspace = mat4.Identity;
         }
         else if (space == XFormSpace.Local)
         {
-          axis = (_prevPRS[obi].toMat4().inverseOf() * new vec4(axis, 1)).toVec3().normalize();
-          // mspace = _prevPRS[obi].toQuat().toMat4();
+          axis = (_prevWorld[obi].inverseOf() * new vec4(axis, 1)).toVec3().normalize();
         }
       }
 
@@ -421,7 +402,7 @@ namespace PirateCraft
       }
       else if (origin == XFormOrigin.Individual)
       {
-        ob_origin = _prevPRS[obi].Position.Value;
+        ob_origin = _prevWorld[obi].ExtractTranslation();
       }
       else
       {
@@ -446,19 +427,46 @@ namespace PirateCraft
         ComputeXFormSpace(editor);
       }
       else if (code == WorldEditEvent.MRS_TransformAxisX || code == WorldEditEvent.MRS_TransformAxisY || code == WorldEditEvent.MRS_TransformAxisZ ||
-                code == WorldEditEvent.MRS_TransformPlaneX || code == WorldEditEvent.MRS_TransformPlaneY || code == WorldEditEvent.MRS_TransformPlaneZ)
+               code == WorldEditEvent.MRS_TransformPlaneX || code == WorldEditEvent.MRS_TransformPlaneY || code == WorldEditEvent.MRS_TransformPlaneZ ||
+               code == WorldEditEvent.MRS_ToggleFreeRotate
+               )
       {
-        //move -> global, local free
-        //Rotate: Global->Local->free (also it is saved.)
-
-        if (_current_XForm == code || _current_XForm == null)//x->x
+        if (code == WorldEditEvent.MRS_ToggleFreeRotate && _current_XForm == WorldEditEvent.MRS_ToggleFreeRotate)
         {
-          ToggleXFormSpace(editor);
+          if (_type == MoveRotateScale.Rotate)
+          {
+            //r->r
+            _xFormSpace = XFormSpace.View;
+            _current_XForm = WorldEditEvent.MRS_TransformView;
+          }
         }
-        _current_XForm = code;
+        else if (_current_XForm == code || _current_XForm == WorldEditEvent.MRS_TransformView)
+        {
+          //x->x, y->y .. sh+x->x->..
+          if (_xFormSpace == XFormSpace.Global)
+          {
+            _xFormSpace = XFormSpace.Local;
+            _current_XForm = code;
+          }
+          else if (_xFormSpace == XFormSpace.Local)
+          {
+            _xFormSpace = XFormSpace.View;
+            _current_XForm = WorldEditEvent.MRS_TransformView;
+          }
+          else if (_xFormSpace == XFormSpace.View)
+          {
+            _xFormSpace = XFormSpace.Global;
+            _current_XForm = code;
+          }
+        }
+        else
+        {
+          _current_XForm = code;
+        }
 
         ComputeXFormSpace(editor);
       }
+
       else if (code == WorldEditEvent.Cancel)
       {
         return WorldActionState.Cancel;
@@ -474,12 +482,9 @@ namespace PirateCraft
 
       return WorldActionState.StillDoing;
     }
+    vec2 _mouse_wrapped;
     private Line3f? GetWrappedScreenRay(RenderView? renderview)
     {
-      if (Gu.Context.PCKeyboard.Press(Keys.B))
-      {
-        Gu.Trap();
-      }
       //update - wrap mouse - wrap and count wraps, then project into world.
       var vwrap = Gu.Context.PCMouse.WarpMouse(renderview, WarpMode.Wrap, 0.001f);
       if (vwrap != null)
@@ -487,217 +492,170 @@ namespace PirateCraft
         _mouse_wrapcount += vwrap.Value;
       }
 
-      var mouse_wrapped = Gu.Context.PCMouse.GetWrappedPosition(renderview, _mouse_wrapcount);
-      return Gu.TryCastRayFromScreen(mouse_wrapped);
+      _mouse_wrapped = Gu.Context.PCMouse.GetWrappedPosition(renderview, _mouse_wrapcount);
+      return Gu.TryCastRayFromScreen(_mouse_wrapped);
     }
-    private WorldActionState UpdateMove(WorldEditor editor, RenderView? rv, PCKeyboard k, PCMouse m)
+    private void UpdateMove(WorldEditor editor, RenderView? rv, PCKeyboard k, PCMouse m)
     {
+      var start_ray = Gu.TryCastRayFromScreen(_xform_MouseStart);
       var screen_ray = GetWrappedScreenRay(rv);
-      if (screen_ray != null)
+
+      if (screen_ray != null && start_ray != null)
       {
         Gu.Assert(_prevPRS != null);
         Gu.Assert(_objects.Count == _prevPRS.Count);
 
         _nextPRS = new List<PRS>();
+
         for (var obi = 0; obi < _prevPRS.Count; obi++)
         {
+          var obw = _prevWorld[obi];
+          var prsprev = _prevPRS[obi];
           var space = _obj_xform[obi];
 
-          //TODO: this should  not happen every frame, create a mesh
+          PRS pnew = new PRS();
+          pnew.Position = prsprev.Position;
+          pnew.Rotation = prsprev.Rotation;
+          pnew.Scale = prsprev.Scale;
 
-          PRS p = _prevPRS[obi].Clone();
-          if (this._type == MoveRotateScale.Move)
+          if (_type == MoveRotateScale.Move)
           {
-            p.Position = DoMove(_prevPRS[obi].Position.Value, space.Axis, space.Origin, space.IsPlane, screen_ray, rv);
+            var delta = GetMouseDeltaR3(space, start_ray.Value, screen_ray.Value);
+            pnew.Position += (delta.pcur - delta.pstart);
           }
-          if (this._type == MoveRotateScale.Rotate)
+          else if (_type == MoveRotateScale.Rotate)
           {
-            // mn = space.Space * quat.fromAxisAngle(axis, delta, false).toMat4() * _lastMat[obi];
+            if (_xFormSpace == XFormSpace.FreeRotate)
+            {
+              //TODO: - free rotate
+              //see Blender --> r->r
+              Gu.Trap();
+            }
+            else
+            {
+              var obp = rv.Camera.Frustum.WorldToScreen_Window(obw.ExtractTranslation());
+              var st = (_xform_MouseStart - obp).normalized();
+              var cr = (Gu.Context.PCMouse.Pos - obp).normalized();
+              var dotty = st.Dot(cr);
+              var perp = new vec2(-st.y, st.x);
+              float neg = perp.Dot(cr) > 0 ? 1 : -1;
+              float rot = (1.0f - (dotty + 1.0f) / 2.0f) * MathUtils.M_PI * neg;
+              pnew.Rotation *= quat.fromAxisAngle(space.Axis, rot, false);
+            }
           }
-          if (this._type == MoveRotateScale.Scale)
+          else if (_type == MoveRotateScale.Scale)
           {
-            //to scale local we need mat4 no?
-            // Either Premultiply or postmultiply
-            //local -> multiply the object's local matrix by the scale
-            //global -> multiply the object's global matrix by the scale
-            //[delta, 0 0, 0]
-            //[0 d 0, 0]
-            //[0 0 d, 0]
-            // scale *= Basisxyz * delta * constraint (0,1)
-            //pos += basisxyz * delta * constraint
-            //to do it we have a matrix in global coords, or local, like curently with the basis
-            //  the issue though is we need to figure out how to constrain one or more axes.. I guess that's easy - for scale set 1 for constrained axis..easy
-            //  we have to change PRS to use a matrix.
-            //  ok, then we can set the components by decomposing the matrix.
-            //  how to put one matrix in another space.. idk either A * B^-1..
-
-            //var ls = _lastMat[obi].Scale.Value;
-            //p.Scale = new vec3(ls.x * delta * space.ConstraintX, ls.y * delta * space.ConstraintY, ls.z * delta * space.ConstraintZ);
-            // var mmm = CSharpScript.Call("PRSScript.cs", null);
-            // if (mmm != null)
-            // {
-            //   mn = (mat4)mmm;
-            // }
-            // else
-            // {
-            //   mn = mat4.getScale(delta * space.ConstraintX + 1, delta * space.ConstraintY + 1, delta * space.ConstraintZ + 1) * _lastMat[obi];
-            // }
-
-            // if (space.Free)
-            // {
-            //   p.Scale = _lastPRS[obi].Scale * delta;
-            // }
-            // else if (space.Plane)
-            // {
-            //       if (this._current_XForm == WorldEditEvent.TransformPlaneX) { p.Scale = new vec3(ls.x, ls.y * delta, ls.z * delta); }
-            //       else if (this._current_XForm == WorldEditEvent.TransformPlaneY) { p.Scale = new vec3(ls.x * delta, ls.y, ls.z * delta); }
-            //       else if (this._current_XForm == WorldEditEvent.TransformPlaneZ) { p.Scale = new vec3(ls.x * delta, ls.y * delta, ls.z); }
-            //       else { Gu.BRThrowNotImplementedException(); }
-            // }
-            // else
-            // {
-            //   var ls = _lastPRS[obi].Scale.Value;
-            //   if (this._current_XForm == WorldEditEvent.TransformAxisX) { p.Scale = new vec3(ls.x * delta, ls.y, ls.z); }
-            //   else if (this._current_XForm == WorldEditEvent.TransformAxisY) { p.Scale = new vec3(ls.x, ls.y * delta, ls.z); }
-            //   else if (this._current_XForm == WorldEditEvent.TransformAxisZ) { p.Scale = new vec3(ls.x, ls.y, ls.z * delta); }
-            //   else { Gu.BRThrowNotImplementedException(); }
-            // }
-
+            var obp = rv.Camera.Frustum.WorldToScreen_Window(obw.ExtractTranslation());
+            var st = (_xform_MouseStart - obp);
+            var cr = (_mouse_wrapped - obp);
+            float del = (cr - obp).length() / (st - obp).length();
+            pnew.Scale *= new vec3(space.ConstraintX > 0 ? del : 1, space.ConstraintY > 0 ? del : 1, space.ConstraintZ > 0 ? del : 1);
           }
-          _nextPRS.Add(p);
+          _nextPRS.Add(pnew);
         }
 
-        Redo(editor);
       }
 
-      return WorldActionState.StillDoing;
 
     }//update
+
+    private vec3? dbd_mouse_ray_hit_st = null;
+    private vec3? dbd_mouse_ray_hit_cr = null;
+
     public override void CollectVisibleObjects(RenderView? rv)
     {
-      if (_mouse_ray_hit_pt != null)
+      Gu.Assert(rv != null);
+
+      if (dbd_mouse_ray_hit_st != null)
       {
-        rv.Overlay.Point(_mouse_ray_hit_pt.Value, OffColor.Magenta * 0.6f, 20);
+        rv.Overlay.Point(dbd_mouse_ray_hit_st.Value, OffColor.Magenta * 0.6f, 20);
       }
-      if (_mouse_ray_hit_pt2 != null)
+      if (dbd_mouse_ray_hit_cr != null)
       {
-        rv.Overlay.Point(_mouse_ray_hit_pt2.Value, OffColor.Pink * 0.6f, 20);
+        rv.Overlay.Point(dbd_mouse_ray_hit_cr.Value, OffColor.Pink * 0.6f, 20);
       }
 
-      vec4 c = new vec4(0.892, 0.890, 0.883, 0.8);
+      float zr = 0.0129f;
+      Line3f a_x = Line3f.Zero;
+      Line3f a_y = Line3f.Zero;
+      Line3f a_z = Line3f.Zero;
+      vec3 basisX = new vec3(1, 0, 0);
+      vec3 basisY = new vec3(0, 1, 0);
+      vec3 basisZ = new vec3(0, 0, 1);
+      vec4 cr = new vec4(0.8925f, zr, zr, 0.9152f);
+      vec4 cg = new vec4(zr, 0.8902f, zr, 0.9152f);
+      vec4 cb = new vec4(zr, zr, 0.8837f, 0.9152f);
+      float axlen = 100;
+      float linew = 4;
+      float pointw = 20;
 
       for (var obi = 0; obi < _prevPRS.Count; obi++)
       {
-        if (_current_XForm != null)
+        // var space = _obj_xform[obi];
+
+        if (_xFormSpace == XFormSpace.Local)
         {
-          if (_current_XForm.Value == WorldEditEvent.MRS_TransformPlaneX ||
-             _current_XForm.Value == WorldEditEvent.MRS_TransformAxisX)
-          {
-            c.g = c.b = 0.0129f;
-          }
-          else if (_current_XForm.Value == WorldEditEvent.MRS_TransformPlaneY ||
-             _current_XForm.Value == WorldEditEvent.MRS_TransformAxisY)
-          {
-            c.r = c.b = 0.0129f;
-          }
-          else if (_current_XForm.Value == WorldEditEvent.MRS_TransformPlaneZ ||
-             _current_XForm.Value == WorldEditEvent.MRS_TransformAxisZ)
-          {
-            c.r = c.g = 0.0129f;
-          }
+          basisX = (_prevWorld[obi] * new vec4(1, 0, 0, 0)).xyz.normalized();
+          basisY = (_prevWorld[obi] * new vec4(0, 1, 0, 0)).xyz.normalized();
+          basisZ = (_prevWorld[obi] * new vec4(0, 0, 1, 0)).xyz.normalized();
         }
+        var ob_pos = _prevWorld[obi].ExtractTranslation();
+        a_x = new Line3f(ob_pos - basisX * axlen, ob_pos + basisX * axlen);
+        a_y = new Line3f(ob_pos - basisY * axlen, ob_pos + basisY * axlen);
+        a_z = new Line3f(ob_pos - basisZ * axlen, ob_pos + basisZ * axlen);
 
-        var space = _obj_xform[obi];
-        rv.Overlay.Line(space.Origin + space.Axis * 100, space.Origin - space.Axis * 100, c, 7);
-
-
-        //**blah debug
-        if (asdfasdf != null)
-        {
-          rv.Overlay.Point(asdfasdf.Value, OffColor.LightGray * 0.6f, 20);
-          rv.Overlay.Point(asdfasdf3.Value, OffColor.Yellow * 0.6f, 20);
-          rv.Overlay.Line(asdfsadf.Value.p0, asdfsadf.Value.p1, OffColor.LightYellow, 20);
-          rv.Overlay.Line(sdf3sefd.Value.p0, sdf3sefd.Value.p1, OffColor.LightGreen, 20);
-        }
+        if (_current_XForm == WorldEditEvent.MRS_TransformAxisX) { rv.Overlay.Line(a_x.p0, a_x.p1, cr, linew); }
+        else if (_current_XForm == WorldEditEvent.MRS_TransformAxisY) { rv.Overlay.Line(a_y.p0, a_y.p1, cg, linew); }
+        else if (_current_XForm == WorldEditEvent.MRS_TransformAxisZ) { rv.Overlay.Line(a_z.p0, a_z.p1, cb, linew); }
+        else if (_current_XForm == WorldEditEvent.MRS_TransformPlaneX) { rv.Overlay.Line(a_y.p0, a_y.p1, cg, linew); rv.Overlay.Line(a_z.p0, a_z.p1, cb, linew); }
+        else if (_current_XForm == WorldEditEvent.MRS_TransformPlaneY) { rv.Overlay.Line(a_x.p0, a_x.p1, cr, linew); rv.Overlay.Line(a_z.p0, a_z.p1, cb, linew); }
+        else if (_current_XForm == WorldEditEvent.MRS_TransformPlaneZ) { rv.Overlay.Line(a_x.p0, a_x.p1, cr, linew); rv.Overlay.Line(a_y.p0, a_y.p1, cg, linew); }
 
       }
       base.CollectVisibleObjects(rv);
     }
-    vec3? _mouse_ray_hit_pt = null;
-    vec3? _mouse_ray_hit_pt2 = null;
-    vec3? asdfasdf = null;
-    vec3? asdfasdf3 = null;
-    Line3f? asdfsadf = null;
-    Line3f? sdf3sefd = null;
-
-    private vec3 DoMove(vec3 op, vec3 axis, vec3 origin, bool isplane, Line3f? cur_screen_ray, RenderView rv)
+    private class ProjDelta
     {
-      Gu.Assert(_xform_mouseStartRay != null);
-      Gu.Assert(cur_screen_ray != null);
-      vec3 newp = origin;
-      if (isplane)
+      public vec3 pstart = vec3.Zero;
+      public vec3 pcur = vec3.Zero;
+      public bool hit = true;
+    }
+    private ProjDelta GetMouseDeltaR3(ObjectXFormSpace xs, Line3f start_ray, Line3f cur_ray)
+    {
+      ProjDelta ret = new ProjDelta();
+      ret.hit = true;
+
+      if (xs.IsPlane)
       {
         //cast plane
-        Plane3f pf = new Plane3f(axis, origin);
+        Plane3f pf = new Plane3f(xs.Axis, xs.Origin);
         vec3 pt_cur = vec3.Zero;
-        //vec3 pt_start = vec3.Zero;
-        bool didhit = true;
-        //didhit = didhit && pf.IntersectLine(_xform_mouseStartRay.Value.p0, _xform_mouseStartRay.Value.p1, out pt_start);
-        didhit = didhit && pf.IntersectLine(cur_screen_ray.Value.p0, cur_screen_ray.Value.p1, out pt_cur);
-        if (didhit)
-        {
-          _mouse_ray_hit_pt = pt_cur;
+        vec3 pt_start = vec3.Zero;
 
-          newp = pt_cur;
+        ret.hit = ret.hit && pf.IntersectLine(start_ray.p0, start_ray.p1, out pt_start);
+        if (ret.hit)
+        {
+          ret.pstart = pt_start;
+        }
+        ret.hit = ret.hit && pf.IntersectLine(cur_ray.p0, cur_ray.p1, out pt_cur);
+        if (ret.hit)
+        {
+          ret.pcur = pt_cur;
         }
       }
       else
       {
-        //cast to the axis/line
-        //|(p0 + tv0)-(p1 + tv1)| = d(t)
-        //  p0-p1=p, v0-v1=v
-        //  => t^2(v.v) + 2t(p.v) + p.p = d(t)^2
-        //  A = v.v, B = 2p.v, C = p.p
-        //  => At^2 + Bt + C = d(t)^2
-        //  => dd/dt = 2At + B = 2d(t)
-        //  => dd/dt = At + B/2 = d(t)=0
-        //  => t = -B/2A
-        //  => t = -(p.v)/(v.v)
-        var s0_p0 = _xform_mouseStartRay.Value.p0;
-        var s0_v0 = (_xform_mouseStartRay.Value.p1 - _xform_mouseStartRay.Value.p0).normalize();//prevent  huge numbers
-
-        var s1_p0 = cur_screen_ray.Value.p0;
-        var s1_v0 = (cur_screen_ray.Value.p1 - cur_screen_ray.Value.p0).normalize();//prevent  huge numbers
-
-        var a_p = origin;
-        var a_v = axis;
-        vec3 tv, tp;
-        float t0, t1;
-
-        tv = (a_v - s0_v0);
-        tp = (a_p - s0_p0);
-        t0 = -tp.dot(tv) / tv.dot(tv);
-
-        tv = (a_v - s1_v0);
-        tp = (a_p - s1_p0);
-        t1 = -tp.dot(tv) / tv.dot(tv);
-
-        vec3 p0 = origin + axis * t0;
-        vec3 p1 = origin + axis * t1;
-
-        _mouse_ray_hit_pt = p0;
-        _mouse_ray_hit_pt2 = p1;
-
-        asdfasdf = s0_p0 + s0_v0 * t0;
-        asdfasdf3 = s1_p0 + s1_v0 * t1;
-
-        asdfsadf = new Line3f(s0_p0, s0_p0 + s0_v0 * 1000);
-        sdf3sefd = new Line3f(s1_p0, s1_p0 + s1_v0 * 1000);
-
-
-        newp = p1;
+        Line3f l = new Line3f(xs.Origin, xs.Origin + xs.Axis);
+        Line3f a = MathUtils.Closest_t_Lines(start_ray, l);
+        Line3f b = MathUtils.Closest_t_Lines(cur_ray, l);
+        ret.pstart = a.p1;
+        ret.pcur = b.p1;
       }
-      return newp;
+
+      dbd_mouse_ray_hit_st = ret.pstart;
+      dbd_mouse_ray_hit_cr = ret.pcur;
+
+      return ret;
     }
 
   }//cls
@@ -719,7 +677,7 @@ namespace PirateCraft
   }
   public class PrintMessageAction : WorldAction
   {
-    string _msg = Library.UnsetName;
+    string _msg = Lib.UnsetName;
     public PrintMessageAction(string message) { _msg = message; }
     public override bool IsHistoryAction { get { return false; } }
     public override WorldActionState Do(WorldEditor editor, RenderView? renderview, PCKeyboard k, PCMouse m)
@@ -848,7 +806,7 @@ namespace PirateCraft
       beam.GetTrianglesAndPlanes(out var tris, out var planes);
       vec4 c = new vec4(0.794, 0.814f, 0.893f, 0.245f); // color of selection area
 
-      if (rv.Overlay.DrawBoundBoxes)
+      if (rv.Overlay.DrawBoundBoxesAndGizmos)
       {
         foreach (var tr in tris)
         {
@@ -1093,7 +1051,7 @@ namespace PirateCraft
     public string Name { get { return _name; } }
     public Func<WorldEditor, object?, bool> Func { get { return _func; } }
 
-    [DataMember] private string _name = Library.UnsetName;
+    [DataMember] private string _name = Lib.UnsetName;
     [DataMember] private Func<WorldEditor, object?, bool> _func;
 
     public Type? ContextAction = null;
@@ -1241,6 +1199,8 @@ namespace PirateCraft
     Edit_ToggleView1, Edit_ToggleView2, Edit_ToggleView3, Edit_ToggleView4,
     Edit_ToggleGameMode,
 
+    MRS_TransformView,
+    MRS_ToggleFreeRotate,
     MRS_TransformAxisX, MRS_TransformAxisY, MRS_TransformAxisZ,
     MRS_TransformPlaneX, MRS_TransformPlaneY, MRS_TransformPlaneZ, MRS_TransformToggleOrigin,
 
@@ -1326,7 +1286,7 @@ namespace PirateCraft
         new KeyCombo(IsWorld, WorldEditEvent.Edit_SelectAll, KeyMod.Ctrl, Keys.A),
         new KeyCombo(IsWorld, WorldEditEvent.Edit_DeselectAll, KeyMod.Alt, Keys.A),
         new KeyCombo(IsWorld, WorldEditEvent.Edit_MoveObjects, Keys.G),
-        new KeyCombo(IsWorld, WorldEditEvent.Edit_ScaleObjects, KeyMod.CtrlShift, Keys.S),
+        new KeyCombo(IsWorld, WorldEditEvent.Edit_ScaleObjects, Keys.V),//V is scale --WSAD...
         new KeyCombo(IsWorld, WorldEditEvent.Edit_RotateObjects, Keys.R),
         new KeyCombo(IsWorld, WorldEditEvent.Edit_Delete, Keys.Delete),
         new KeyCombo(IsWorld, WorldEditEvent.Edit_Delete, Keys.X),
@@ -1344,6 +1304,7 @@ namespace PirateCraft
         new KeyCombo(IsGUI, WorldEditEvent.Ui_MouseMove, KeyMod.Any, UserGesture.MouseMove),
 
         //MRS
+        new KeyCombo(MoveRotScale, WorldEditEvent.MRS_ToggleFreeRotate, Keys.R),
         new KeyCombo(MoveRotScale, WorldEditEvent.MRS_TransformAxisX, Keys.X),
         new KeyCombo(MoveRotScale, WorldEditEvent.MRS_TransformAxisY, Keys.Y),
         new KeyCombo(MoveRotScale, WorldEditEvent.MRS_TransformAxisZ, Keys.Z),
@@ -1674,13 +1635,17 @@ namespace PirateCraft
           {
             if (rv.Overlay.ObjectRenderMode == ObjectRenderMode.Wire)
             {
-              rv.Overlay.ObjectRenderMode = ObjectRenderMode.Flat;
+              rv.Overlay.ObjectRenderMode = ObjectRenderMode.Solid;
             }
-            else if (rv.Overlay.ObjectRenderMode == ObjectRenderMode.Flat)
+            else if (rv.Overlay.ObjectRenderMode == ObjectRenderMode.Solid)
             {
-              rv.Overlay.ObjectRenderMode = ObjectRenderMode.Material;
+              rv.Overlay.ObjectRenderMode = ObjectRenderMode.Textured;
             }
-            else if (rv.Overlay.ObjectRenderMode == ObjectRenderMode.Material)
+            else if (rv.Overlay.ObjectRenderMode == ObjectRenderMode.Textured)
+            {
+              rv.Overlay.ObjectRenderMode = ObjectRenderMode.Rendered;
+            }
+            else if (rv.Overlay.ObjectRenderMode == ObjectRenderMode.Rendered)
             {
               rv.Overlay.ObjectRenderMode = ObjectRenderMode.Wire;
             }
@@ -1817,7 +1782,7 @@ namespace PirateCraft
         {
           if (Gu.TryGetSelectedView(out var rv))
           {
-            rv.Overlay.DrawBoundBoxes = !rv.Overlay.DrawBoundBoxes;
+            rv.Overlay.DrawBoundBoxesAndGizmos = !rv.Overlay.DrawBoundBoxesAndGizmos;
           }
         }
         else if (code == WorldEditEvent.Debug_DrawObjectBasis)

@@ -62,7 +62,10 @@ namespace PirateCraft
       }
     }
   }
+// public class ObjectScript : CSharpScript , IObjectScript
+// {
 
+// }
   public enum ScriptStatus
   {
     None,

@@ -55,22 +55,17 @@ namespace PirateCraft
       {
         if (_texType == PBRTextureInput.Normal)
         {
-          return Gu.Lib.LoadTexture(RName.Tex2D_DefaultNormalPixel);
+          return Gu.Lib.GetTexture(Rs.Tex2D.DefaultNormalPixel);
         }
         else if (_texType == PBRTextureInput.Pick)
         {
           //TODO: create default zero uint 
-          return Gu.Lib.LoadTexture(RName.Tex2D_DefaultBlackPixelNoAlpha);
+          return Gu.Lib.GetTexture(Rs.Tex2D.DefaultBlackPixelNoAlpha);
         }
-        return Gu.Lib.LoadTexture(RName.Tex2D_DefaultWhitePixel);
+        return Gu.Lib.GetTexture(Rs.Tex2D.DefaultWhitePixel);
       }
       else
       {
-        if (_texType == PBRTextureInput.Pick)
-        {
-          Gu.Trap();
-        }
-
         return Texture;
       }
     }
@@ -79,7 +74,7 @@ namespace PirateCraft
   public class PBRTextureArray
   {
     //Simply, an array of textures mapped to common PBR enums for convenience.
-    public string Name { get; private set; } = Library.UnsetName;
+    public string Name { get; private set; } = Lib.UnsetName;
 
     public Dictionary<PBRTextureInput, Texture> Texs { get; private set; } = new Dictionary<PBRTextureInput, Texture>();
     public Dictionary<PBRTextureInput, Image> Imgs { get; private set; } = new Dictionary<PBRTextureInput, Image>();
@@ -142,7 +137,7 @@ namespace PirateCraft
   }
 
   [DataContract]
-  public class Material : DataBlock, IClone, ICopy<Material>
+  public class Material : DataBlock
   {
     //Material, input to a shader & gpu state for material FBO (blending, etc)
     #region Public: Members
@@ -155,7 +150,7 @@ namespace PirateCraft
     public bool Flat { get { return _flat; } set { _flat = value; SetModified(); } }
     public DrawMode DrawMode { get { return _drawMode; } set { _drawMode = value; } }
     public DrawOrder DrawOrder { get { return _drawOrder; } set { _drawOrder = value; } }
-    
+
     //TODO: we can use PBRTextureARray here instead.
     public TextureSlot AlbedoSlot { get { return _textures[(int)PBRTextureInput.Albedo]; } private set { _textures[(int)PBRTextureInput.Albedo] = value; SetModified(); } }
     public TextureSlot NormalSlot { get { return _textures[(int)PBRTextureInput.Normal]; } private set { _textures[(int)PBRTextureInput.Normal] = value; SetModified(); } }
@@ -263,50 +258,16 @@ namespace PirateCraft
       this.AlbedoSlot.Texture = albedo;
       this.NormalSlot.Texture = normal;
     }
-    public virtual object? Clone(bool? shallow = null)
+    public Material Clone()
     {
-      Material other = new Material();
-      other.CopyFrom(this, shallow);
+      var other = (Material)this.MemberwiseClone();
+
+      other.GpuRenderState = this.GpuRenderState.Clone();
+      other._textures = new List<TextureSlot>(this._textures);
+
       return other;
     }
-    public void CopyFrom(Material? other, bool? shallow = null)
-    {
-      Gu.Assert(other != null);
-      base.CopyFrom(other);
-      this.GpuRenderState = Gu.Clone<GpuRenderState>(other.GpuRenderState);
-      this._shader = other._shader;
-      this._baseColor = other._baseColor;
-      this._roughness = other._roughness;
-      this._metallic = other._metallic;
-      this._specular = other._specular;
-      this._indexOfRefraction = other._indexOfRefraction;
-      this._textures = new List<TextureSlot>(other._textures);
-      this._flat = other._flat;
-      this.AlphaMode = other.AlphaMode;
-      this.DrawOrder = other.DrawOrder;
-      this.DrawMode = other.DrawMode;
-    }
-    public static Material DefaultFlatColor
-    {
-      get
-      {
-        return Gu.Lib.LoadMaterial(RName.Material_DefaultFlatColorMaterial);
-      }
-    }
-    public static Material DefaultObjectMaterial
-    {
-      get
-      {
-        return Gu.Lib.LoadMaterial(RName.Material_DefaultObjectMaterial);
-      }
-    }
-    public static Material DebugDraw_VertexNormals_FlatColor
-    {
-      get
-      {
-        return Gu.Lib.LoadMaterial(RName.Material_DebugDraw_VertexNormals_FlatColor);
-      }
-    }
+
   }
 
   #endregion

@@ -9,7 +9,7 @@ namespace PirateCraft
     //WindowContext
     //  Handle to window and data specific to GL context.
 
-    public string Name { get; private set; } = Library.UnsetName;
+    public string Name { get; private set; } = Lib.UnsetName;
     public Int64 FrameStamp { get { return ContextFrameTimer.FrameStamp; } }
     public double UpTime { get { return ContextFrameTimer.UpTime; } }
     public double FpsFrame { get { return ContextFrameTimer.FpsAvg; } }

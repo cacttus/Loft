@@ -13,7 +13,7 @@ namespace PirateCraft
     Destroyed
   }
   [DataContract]
-  public abstract class Component : DataBlock, IClone, ICopy<Component>, ISerializeBinary
+  public abstract class Component : DataBlock
   {
     private ComponentState _componentState = ComponentState.Added;
     [DataMember] private bool _enabled = true;
@@ -21,43 +21,31 @@ namespace PirateCraft
     public bool Enabled { get { return _enabled; } set { _enabled = value; } }
     public ComponentState ComponentState { get { return _componentState; } set { _componentState = value; } }
 
-    public Component() { }
-    public abstract void OnCreate(WorldObject myObj); //called after the object is created
-    public abstract void OnUpdate(double dt, WorldObject myObj); //update
-    public abstract void OnDestroy(WorldObject myObj); //called before the object is destroyed.
+    protected Component() { }
+    public Component(string name) : base(name) { }
+
+    #region Abstract methods
+    public virtual void OnCreate(WorldObject myObj) { }
+    public virtual void OnUpdate(double dt, WorldObject myObj) { }
+    public virtual void OnDestroy(WorldObject myObj) { }
+    public abstract Component Clone();
+    #endregion
+
     public virtual void OnPick() { }
-    public abstract object? Clone(bool? shallow = null);
-    public virtual void CopyFrom(Component? other, bool? shallow = null)
-    {
-      Gu.Assert(other != null);
-      base.CopyFrom(other, shallow);
-      this._enabled = other._enabled;
-      this._componentState = other._componentState;
-    }
-    public override void Serialize(BinaryWriter bw)
-    {
-      bw.Write((System.Boolean)Enabled);
-    }
-    public override void Deserialize(BinaryReader br, SerializedFileVersion version)
-    {
-      Enabled = br.ReadBoolean();
-    }
+
   }
   [DataContract]
-  public class EventComponent : Component, IClone, ICopy<EventComponent>
+  public class EventComponent : Component
   {
     //Executes an action on an object for a given interval
     [DataMember] public DeltaTimer Timer { get; private set; } = null;
     public Action<WorldObject>? Action { get; set; } = null;
 
     public EventComponent() { }
-    public EventComponent(Action<WorldObject>? action, double tick_seconds, ActionRepeat repeat, ActionState start)
+    public EventComponent(Action<WorldObject>? action, double tick_seconds, ActionRepeat repeat, ActionState start) : base("event-comp")
     {
       Action = action;
       Timer = new DeltaTimer((long)(tick_seconds * 1000.0), repeat, start, null);
-    }
-    public override void OnCreate(WorldObject myObj)
-    {
     }
     public override void OnUpdate(double dt, WorldObject myObj)
     {
@@ -67,10 +55,6 @@ namespace PirateCraft
         Action?.Invoke(myObj);
       }
     }
-    public override void OnDestroy(WorldObject myObj)
-    {
-    }
-
     public void Start()
     {
       Timer.Start();
@@ -79,28 +63,11 @@ namespace PirateCraft
     {
       Timer.Stop();
     }
-    public override object? Clone(bool? shallow = null)
+    public override Component Clone()
     {
-      return Gu.Clone<EventComponent>(this);
+      return (EventComponent)this.MemberwiseClone();
     }
-    public virtual void CopyFrom(EventComponent? other, bool? shallow = null)
-    {
-      Gu.Assert(other != null);
-      base.CopyFrom(other, shallow);
-      this.Timer = (DeltaTimer)other.Timer.Clone(shallow);
-      this.Action = other.Action;
-    }
-    public override void Serialize(BinaryWriter bw)
-    {
-      base.Serialize(bw);
-      //Ok so Action() can't be serialized, this is a problem. Maybe we add a quick LUA script hting..ughhh
-      Gu.BRThrowNotImplementedException();
-    }
-    public override void Deserialize(BinaryReader br, SerializedFileVersion version)
-    {
-      base.Deserialize(br, version);
-      Gu.BRThrowNotImplementedException();
-    }
+
   }
   // public class PhysicsComponent : Component
   // {
@@ -118,19 +85,10 @@ namespace PirateCraft
   //   public override void OnDestroy(WorldObject myObj)
   //   {
   //   }
-  //   public override Component Clone(bool? shallow = null)
-  //   {
-  //     PhysicsComponent c = new PhysicsComponent();
 
-  //     c.Velocity = this.Velocity;
-  //     c.HasGravity = this.HasGravity;
-  //     c.Collides = this.Collides;
-
-  //     return c;
-  //   }
   // }
   [DataContract]
-  public class AnimationComponent : Component, IClone, ICopy<AnimationComponent>, ISerializeBinary
+  public class AnimationComponent : Component
   {
     [DataMember] public double Time { get; private set; } = 0;
     [DataMember] public ActionState AnimationState { get; private set; } = ActionState.Stop;
@@ -143,11 +101,8 @@ namespace PirateCraft
     [DataMember] private double _maxTime = 0;
 
     public AnimationComponent() { }
-    public AnimationComponent(AnimationData dat) { this.AnimationData = dat; }
+    public AnimationComponent(AnimationData dat) : base("animation-comp") { this.AnimationData = dat; }
 
-    public override void OnCreate(WorldObject myObj)
-    {
-    }
     public override void OnUpdate(double dt, WorldObject myObj)
     {
       if (AnimationState == ActionState.Run)
@@ -188,9 +143,6 @@ namespace PirateCraft
 
       //TODO: put this in the keyframe when modified.
       //NormalizeState();
-    }
-    public override void OnDestroy(WorldObject myObj)
-    {
     }
     // private void NormalizeState()
     // {
@@ -410,42 +362,14 @@ namespace PirateCraft
       vec3 ret = a;
       return ret;
     }
-    public override object? Clone(bool? shallow = null)
+    public override Component Clone()
     {
-      return Gu.Clone<AnimationComponent>(this);
+      return (AnimationComponent)this.MemberwiseClone();
     }
-    public void CopyFrom(AnimationComponent? other, bool? shallow = null)
-    {
-      Gu.Assert(other != null);
-      base.CopyFrom(other, shallow);
-      this.AnimationState = other.AnimationState;
-      this.Time = other.Time;
-      this.Repeat = other.Repeat;
-      this._currentPos = other._currentPos;
-      this._currentScl = other._currentScl;
-      this._currentRot = other._currentRot;
-    }
-    public override void Serialize(BinaryWriter bw)
-    {
-      base.Serialize(bw);
-      bw.Write(Time);
-      bw.Write((Int32)AnimationState);
-      bw.Write(Repeat);
-      // SerializeTools.SerializeRef(bw, this.Data);
-      SerializeTools.SerializeNullable(bw, _currentPos, () => bw.Write(_currentPos.Value));
-      SerializeTools.SerializeNullable(bw, _currentRot, () => bw.Write(_currentRot.Value));
-      SerializeTools.SerializeNullable(bw, _currentScl, () => bw.Write(_currentScl.Value));
-    }
-    public override void Deserialize(BinaryReader br, SerializedFileVersion version)
-    {
-      base.Deserialize(br, version);
 
-      Gu.BRThrowNotImplementedException();
-    }
   }
-
   [DataContract]
-  public class FPSInputComponent : Component, ICopy<FPSInputComponent>, ISerializeBinary
+  public class FPSInputComponent : Component
   {
     public enum FPSCamMode
     {
@@ -469,7 +393,7 @@ namespace PirateCraft
 
     private RenderView _rv;
 
-    public FPSInputComponent(RenderView cam) { _rv = cam; }
+    public FPSInputComponent(RenderView cam) : base("fps-cmop") { _rv = cam; }
 
     public override void OnCreate(WorldObject myObj)
     {
@@ -490,7 +414,7 @@ namespace PirateCraft
       {
         return;
       }
-      
+
       myObj.AirFriction = MaxAirFriction; //Movement Damping
 
       vec3basis basis = new vec3basis();
@@ -508,9 +432,6 @@ namespace PirateCraft
       //   basis.z = cam.BasisZ;
       // }
       DoMouse(myObj, _rv, basis);
-    }
-    public override void OnDestroy(WorldObject myObj)
-    {
     }
     private void DoMouse(WorldObject obj, RenderView view, vec3basis basis)
     {
@@ -638,28 +559,22 @@ namespace PirateCraft
       // }
 
     }
-    public override object? Clone(bool? shallow = null)
+    public override Component Clone()
     {
-      Gu.BRThrowNotImplementedException();
-      return null;
-    }
-    public void CopyFrom(FPSInputComponent? other, bool? shallow = null)
-    {
-      Gu.Assert(other != null);
-      this.rotX = other.rotX;
-      this.rotY = other.rotY;
-    }
-    public override void Serialize(BinaryWriter bw)
-    {
-      base.Serialize(bw);
-      bw.Write(rotX);
-      bw.Write(rotY);
-    }
-    public override void Deserialize(BinaryReader br, SerializedFileVersion version)
-    {
-      base.Deserialize(br, version);
-      Gu.BRThrowNotImplementedException();
+      return (FPSInputComponent)this.MemberwiseClone();
     }
 
   }//FpsInputComponent
+
+  [DataContract]
+  public class ScriptComponent : Component
+  {
+    public override void OnUpdate(double dt, WorldObject myObj)
+    {
+    }
+    public override Component Clone()
+    {
+      return (ScriptComponent)this.MemberwiseClone();
+    }
+  }
 }

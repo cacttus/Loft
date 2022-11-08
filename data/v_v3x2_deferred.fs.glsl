@@ -14,8 +14,11 @@ void main()
   float nolight                         = fragPos_and_nolight.w;//Flat
 
   //vec3 final_color = lightFragmentCookTorrence(fragPos, fragColor, fragNormal, 0.2f, 0.5f, 1);
-  vec3 final_color = lightFragmentBlinnPhong(fragPos, fragColor, fragNormal, material) * (1.0-nolight) + fragColor.rgb * nolight;
-
+  vec3 final_color = fragColor.rgb;
+  if(nolight==0)
+  {
+    final_color = lightFragmentBlinnPhong(fragPos, fragColor, fragNormal, material);
+  }
 
   //testing
  // final_color = toneMap_Reinhard(final_color, 1.3);

@@ -36,8 +36,8 @@ namespace PirateCraft
   {
     Solid,
     Wire,
-    Flat,   //blender:material preview
-    Material
+    Textured,   //blender:material preview
+    Rendered
   }
   [DataContract]
   public class ViewportOverlay
@@ -49,14 +49,14 @@ namespace PirateCraft
     public ObjectRenderMode ObjectRenderMode { get { return _objectRenderMode; } set { _objectRenderMode = value; } }
     public bool DrawWireframeOverlay { get { return _drawWireframeOverlay; } set { _drawWireframeOverlay = value; } }
     public bool DrawObjectBasis { get { return _drawObjectBasis; } set { _drawObjectBasis = value; } }
-    public bool DrawBoundBoxes { get { return _drawBoundBoxes; } set { _drawBoundBoxes = value; } }
+    public bool DrawBoundBoxesAndGizmos { get { return _drawBoundBoxes; } set { _drawBoundBoxes = value; } }
     public bool DrawVertexAndFaceNormalsAndTangents { get { return _drawVertexAndFaceNormalsAndTangents; } set { _drawVertexAndFaceNormalsAndTangents = value; } }
     public bool ShowSelectionOrigin { get { return _showSelectionOrigin; } set { _showSelectionOrigin = value; } }
 
     #endregion
     #region Private: Members
 
-    [DataMember] private ObjectRenderMode _objectRenderMode = ObjectRenderMode.Material;
+    [DataMember] private ObjectRenderMode _objectRenderMode = ObjectRenderMode.Rendered;
     [DataMember] private bool _drawWireframeOverlay = false; //overlay, or base render.
     [DataMember] private bool _drawObjectBasis = false;
     [DataMember] private bool _drawBoundBoxes = false;
@@ -297,15 +297,15 @@ namespace PirateCraft
     {
       _mesh_verts = Gpu.CreateVertexBuffer("debug_vts", _verts.ToArray());
 
-      CreateDebugMesh("points", RName.Material_DebugDrawMaterial_Points, PrimitiveType.Points, c_pointOB);
-      CreateDebugMesh("lines", RName.Material_DebugDrawMaterial_Lines, PrimitiveType.Lines, c_lineOB);
-      CreateDebugMesh("tris", RName.Material_DebugDrawMaterial_Tris, PrimitiveType.Triangles, c_triOB);
+      CreateDebugMesh("points", Rs.Material.DebugDrawMaterial_Points, PrimitiveType.Points, c_pointOB);
+      CreateDebugMesh("lines", Rs.Material.DebugDrawMaterial_Lines, PrimitiveType.Lines, c_lineOB);
+      CreateDebugMesh("tris", Rs.Material.DebugDrawMaterial_Tris, PrimitiveType.Triangles, c_triOB);
     }
     private void CreateDebugMesh(string name_pfx, string materialname, PrimitiveType pt, int index)
     {
       var pind = Gpu.CreateIndexBuffer($"debug_{name_pfx}", _inds[index].ToArray());
       _debugOb[index] = new WorldObject($"debug_{name_pfx}ob");
-      _debugOb[index].Material = Gu.Lib.LoadMaterial(materialname);
+      _debugOb[index].Material = Gu.Lib.GetMaterial(materialname);
       _debugOb[index].Mesh = new MeshData($"debug_{name_pfx}", pt, _mesh_verts, pind, null, false);
     }
 

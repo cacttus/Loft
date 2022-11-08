@@ -65,7 +65,7 @@ namespace PirateCraft
     public static string WorkspaceDataPath { get; private set; } = "";// the ./Data directory. This is not present on embedded versions.
     public static string SavePath { get; private set; } = "";
     public static string BackupPath { get; private set; } = "";
-    public static Library Lib { get; private set; }
+    public static Lib Lib { get; private set; }
     public static AudioManager Audio { get; private set; }
     public static Gui2dManager Gui2dManager { get; private set; }
     public static FrameDataTimer GlobalTimer { get; private set; }//Global frame timer, for all windows;
@@ -153,7 +153,7 @@ namespace PirateCraft
 
       //Manager
       Translator = new Translator();
-      Lib = new Library();
+      Lib = new Lib();
       GlobalTimer = new FrameDataTimer();
       Audio = new AudioManager();
       Gui2dManager = new Gui2dManager();
@@ -206,12 +206,12 @@ namespace PirateCraft
               if (Gu.World.UpdateContext == Gu.Context)
               {
                 Gu.World.UpdateWorld(Gu.Context.FrameDelta);
-     
+
                 Gu.World.UpdateWorldEditor(Gu.Context.FrameDelta);
               }
 
               win.CullAllViews();//adds objects for rendering
-      
+
               win.UpdateSelectedView();//must come after editor update
 
               //may end up being a problem.
@@ -484,66 +484,6 @@ namespace PirateCraft
       //return a windows safe filename with datenow
       return DateTime.Now.ToString("yyyy.MM.dd.HH.mm.ss.fff");
     }
-    public static ulong HashStringArray(List<string> strrings)
-    {
-      //I don't claim to know anything about maths
-      //https://stackoverflow.com/questions/19250374/fastest-way-to-make-a-hashkey-of-multiple-strings
-      unchecked
-      {
-        ulong hash = 17;
-        foreach (var s in strrings)
-        {
-          hash = hash * 23 + s == null ? 0 : (ulong)s.GetHashCode();
-        }
-        return hash;
-      }
-    }
-    public static UInt64 HashByteArray(List<byte[]> datas)
-    {
-      //https://stackoverflow.com/questions/16340/how-do-i-generate-a-hashcode-from-a-byte-array-in-c
-      unchecked
-      {
-        const UInt64 p = 16777619;
-        UInt64 hash = (UInt64)2166136261;
-
-        foreach (var data in datas)
-        {
-          Gu.Assert(data != null);
-          for (UInt64 i = 0; i < (UInt64)data.Length; i++)
-          {
-            hash = (hash ^ data[i]) * p;
-          }
-        }
-
-        hash += hash << 13;
-        hash ^= hash >> 7;
-        hash += hash << 3;
-        hash ^= hash >> 17;
-        hash += hash << 5;
-        return hash;
-      }
-    }
-    public static int HashIntArray(int[] intlist)
-    {
-      //https://stackoverflow.com/questions/16340/how-do-i-generate-a-hashcode-from-a-byte-array-in-c
-      unchecked
-      {
-        const int p = 16777619;
-        int hash = (int)2166136261;
-
-        foreach (var i in intlist)
-        {
-          hash = (hash ^ i) * p; //Not sure if this will work but.
-        }
-
-        hash += hash << 13;
-        hash ^= hash >> 7;
-        hash += hash << 3;
-        hash ^= hash >> 17;
-        hash += hash << 5;
-        return hash;
-      }
-    }
     public static string GetAssemblyVersion()
     {
       Assembly assembly = Assembly.GetExecutingAssembly();
@@ -671,16 +611,6 @@ namespace PirateCraft
         }
       }
     }
-    public static T? DeepClone<T>(T? obj) where T : ICopy<T>, IClone, new()
-    {
-      return Gu.Clone<T>(obj, false);
-    }
-    public static T? Clone<T>(T? obj, bool? shallow = null) where T : ICopy<T>, IClone, new()
-    {
-      T? t = new T();
-      t.CopyFrom(obj, shallow);
-      return t;
-    }
     public static bool BackupFile(FileLoc fl, int maxbackups_size_MB = 200)
     {
       if (!fl.Exists)
@@ -749,7 +679,7 @@ namespace PirateCraft
     }
     public static bool TryGetSelectedViewOrDefault(out RenderView? view)
     {
-      view=null;
+      view = null;
       if (TryGetSelectedView(out var ss))
       {
         view = ss;
@@ -780,7 +710,7 @@ namespace PirateCraft
       cam = null;
       if (TryGetSelectedView(out var vv))
       {
-        cam=vv.Camera;
+        cam = vv.Camera;
       }
       return cam != null;
     }
@@ -978,7 +908,7 @@ namespace PirateCraft
             v.Viewport.Height / 2 - wh.height / 2
             );
           UiWindow win = new UiWindow(title, pos, wh, msg);
-          win.TopMost=true;
+          win.TopMost = true;
           v.Gui.AddChild(win);
         }
       }

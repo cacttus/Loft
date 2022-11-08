@@ -140,6 +140,76 @@ namespace PirateCraft
     {
       return a > b ? a : b;
     }
+
+    public static Line3f Closest_t_Lines(Line3f a, Line3f b)
+    {
+      //https://math.stackexchange.com/questions/1993953/closest-points-between-two-lines
+      //my math is incorrect this requires a perpendicular line to be calculated and two t's must be solved in a system of equations.
+
+      //  L1(t1)=P1+t1V1,
+      //  L2(t2)=P2+t2V2.        
+      //Now let the distance ∥L1(t1)−L2(t2)∥ be minimized at t1=r, t2=s. Then the line L1(r)L2(s) is perpendicular to both L1 and L2, so a vector 
+      //in the direction of that line (for example, L2(s)−L1(r)) is perpendicular to vectors in the directions of each of those lines (such as V1 and V2): 
+      //
+      //System of equations
+      //   (L1(s)−L2(t))⋅(p⃗ 2−p⃗ 1)=0
+      //   (L1(s)−L2(t))⋅(p⃗ 4−p⃗ 3)=0
+
+      //cast to the axis/line
+      //|(p0 + tv0)-(p1 + tv1)| = d(t)
+      //  p0-p1=p, v0-v1=v
+      //  => t^2(v.v) + 2t(p.v) + p.p = d(t)^2
+      //  A = v.v, B = 2p.v, C = p.p
+      //  => At^2 + Bt + C = d(t)^2
+      //  => dd/dt = 2At + B = 2d(t)
+      //  => dd/dt = At + B/2 = d(t)=0
+      //  => t = -B/2A
+      //  => t = -(p.v)/(v.v)
+      // var s0_p0 = _xform_mouseStartRay.Value.p0;
+      // var s0_v0 = (_xform_mouseStartRay.Value.p1 - _xform_mouseStartRay.Value.p0);//prevent  huge numbers
+
+      var p1 = a.p0;
+      var p2 = a.p1;
+      var p3 = b.p0;
+      var p4 = b.p1;
+      var P1 = p1;
+      var P2 = p3;
+      var V1 = p2 - p1;
+      var V2 = p4 - p3;
+      var V21 = P2 - P1;
+      var v22 = V2.dot(V2);
+      var v11 = V1.dot(V1);
+      var v21 = V2.dot(V2);
+      var v21_1 = V21.dot(V1);
+      var v21_2 = V21.dot(V2);
+      var denom = v21 * v21 - v22 * v11;
+
+      float s = 0, t = 0;
+      if (IsClose(denom, 0))
+      {
+        s = 0;
+        t = (v11 * s - v21_1) / v21;
+      }
+      else
+      {
+        s = (v21_2 * v21 - v22 * v21_1) / denom;
+        t = (-v21_1 * v21 + v11 * v21_2) / denom;
+      }
+      //No clamping.
+      // s = Math.Clamp(s, 0, 1);
+      // t = Math.Clamp(t, 0, 1);
+
+      Line3f ret = new Line3f();
+      ret.p0 = P1 + s * V1;//A
+      ret.p1 = P2 + t * V2;//B
+
+      return ret;
+    }
+    public static bool IsClose(double a, double b, double rtol = 1e-5, double atol = 1e-8, bool equal_nan = false)
+    {
+      //https://numpy.org/doc/stable/reference/generated/numpy.isclose.html
+      return Math.Abs(a - b) <= (atol + rtol * Math.Abs(b));
+    }
   }
   public struct RaycastHit
   {
@@ -440,6 +510,9 @@ namespace PirateCraft
   {
     [DataMember] public vec3 p0;
     [DataMember] public vec3 p1;
+
+    public static Line3f Zero { get { return new Line3f() { p0 = vec3.Zero, p1 = vec3.Zero }; } }
+
     public Line3f(vec3 dp0, vec3 dp1)
     {
       p0 = dp0; p1 = dp1;
@@ -497,6 +570,7 @@ namespace PirateCraft
     }
     [DataMember] public float x;
     [DataMember] public float y;
+    public vec2 xy { get { return new vec2(x, y); } set { x = value.x; y = value.y; } }
     public float width { get { return x; } set { x = value; } }
     public float height { get { return y; } set { y = value; } }
     public bool IsSane()
@@ -1203,6 +1277,11 @@ namespace PirateCraft
     {
       return new dvec3(x, y, z);
     }
+
+    public vec2 xy { get { return new vec2(x, y); } set { x = value.x; y = value.y; } }
+    public vec2 xz { get { return new vec2(x, z); } set { x = value.x; z = value.y; } }
+    public vec2 yz { get { return new vec2(y, z); } set { y = value.y; z = value.y; } }
+
     public bool IsSane()
     {
       return Gu.SaneFloat(x) && Gu.SaneFloat(y) && Gu.SaneFloat(z);
@@ -1392,14 +1471,7 @@ namespace PirateCraft
       vec3 tmp = maxv_a(v_a, v_b);
       return Math.Max(Math.Abs(tmp.x), Math.Max(Math.Abs(tmp.y), Math.Abs(tmp.z)));
     }
-    public vec2 xz()
-    {
-      return new vec2(x, z);
-    }
-    public vec2 xy()
-    {
-      return new vec2(x, y);
-    }
+
     public float length()
     {
       return (float)Math.Sqrt(x * x + y * y + z * z);
@@ -1764,6 +1836,12 @@ namespace PirateCraft
     [DataMember] public float z;
     [DataMember] public float w;
 
+    public vec2 xy { get { return new vec2(x, y); } set { x = value.x; y = value.y; } }
+    public vec2 xz { get { return new vec2(x, z); } set { x = value.x; z = value.y; } }
+    public vec2 yz { get { return new vec2(y, z); } set { y = value.y; z = value.y; } }
+
+    public vec3 xyz { get { return new vec3(x, y, z); } set { x = value.x; y = value.y; z = value.z; } }
+
     public float r { get { return x; } set { x = value; } }
     public float g { get { return y; } set { y = value; } }
     public float b { get { return z; } set { z = value; } }
@@ -2021,10 +2099,7 @@ namespace PirateCraft
       ret.w = (float)Math.Max(a.w, b.w);
       return ret;
     }
-    public vec3 xyz()
-    {
-      return new vec3(x, y, z);
-    }
+
     public override string ToString() { return "(" + x.ToString() + "," + y + "," + z + "," + w + ")"; }
     public string ToString(int prec) { return "(" + StringUtil.FormatPrec(x, prec) + "," + StringUtil.FormatPrec(y, prec) + "," + StringUtil.FormatPrec(z, prec) + "," + StringUtil.FormatPrec(w, prec) + ")"; }
   }
@@ -3357,6 +3432,14 @@ namespace PirateCraft
       //|14 24 34 44|   |14 24 34 44|
       //64 mul
       //48 add
+
+      /*
+      //Multiply is backwards UGH - AB:= A=row B=column :=
+      _m11, _m12, _m13, _m14,
+      _m21, _m22, _m23, _m24,
+      _m31, _m32, _m33, _m34,
+      _m41, _m42, _m43, _m44
+      */
       tMat._m11 = (a._m11 * b._m11) + (a._m12 * b._m21) + (a._m13 * b._m31) + (a._m14 * b._m41);
       tMat._m21 = (a._m21 * b._m11) + (a._m22 * b._m21) + (a._m23 * b._m31) + (a._m24 * b._m41);
       tMat._m31 = (a._m31 * b._m11) + (a._m32 * b._m21) + (a._m33 * b._m31) + (a._m34 * b._m41);

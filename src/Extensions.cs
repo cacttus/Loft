@@ -141,17 +141,7 @@ namespace PirateCraft
       }
       return xx;
     }
-    public static List<T> Clone<T>(this List<T> source, bool? shallow = null) where T : IClone
-    {
-      List<T> ret = new List<T>();
-      foreach (var item in source)
-      {
-        var t = item.Clone(shallow);
-        Gu.Assert(t == null || t is T);
-        ret.Add((T?)t);// item.Clone(shallow));
-      }
-      return ret;
-    }
+
     public static bool IsNotEmpty(this string s)
     {
       return StringUtil.IsNotEmpty(s);
@@ -313,18 +303,20 @@ namespace PirateCraft
       //https://stackoverflow.com/questions/15919598/serialize-datetime-as-binary
       writer.Write((long)dt.Ticks);
     }
-    public static void Write<T>(this System.IO.BinaryWriter writer, T item) where T : struct
+    public static int Write<T>(this System.IO.BinaryWriter writer, T item) where T : struct
     {
       var d = SerializeTools.Serialize(item);
       writer.Write((Int32)d.Length);
       writer.Write(d);
+      return d.Length;
     }
-    public static void Write<T>(this System.IO.BinaryWriter writer, T[] items) where T : struct
+    public static int Write<T>(this System.IO.BinaryWriter writer, T[] items) where T : struct
     {
       Gu.Assert(items != null);
       var d = SerializeTools.Serialize(items);
       writer.Write((Int32)d.Length);
       writer.Write(d);
+      return d.Length;
     }
     public static vec2 ReadVec2(this System.IO.BinaryReader reader)
     {
