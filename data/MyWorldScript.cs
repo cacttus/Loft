@@ -44,72 +44,72 @@ namespace PirateCraft
 
     private void CreateLight()
     {
-      var sun = new WorldObject("sunlight");
+      var sun = new Light("sunlight")
+      {
+        Position_Local = new vec3(10, 100, 10),
+        LightType = LightType.Direction,
+        LightPower = 300.0f,
+        LightColor = new vec3(1, 1, 1)
+      };
       sun.LookAtConstraint(new vec3(0, 0, 0));
-      sun.HasLight = true;
-      sun.LightType = LightType.Direction;//Direction is the object heading
-      sun.Position_Local = new vec3(10, 100, 10);
-      sun.LightRadius = 10000;
-      sun.LightPower = 100.0f;
-      sun.LightColor = new vec3(1, 1, 1);//Gu.World.WorldProps.DayNightCycle.SkyColor.ToVec3();//. new vec3(.9f, .8f, .1f);
       Gu.World.AddObject(sun);
 
-      var l = new WorldObject("pt");
-      l.LightType = LightType.Point;
-      l.Position_Local = new vec3(0, 10, 0);
-      l.HasLight = true;
-      l.LightRadius = 50;
-      l.LightPower = 0.75f;
-      l.LightColor = new vec3(1, 1, 1);
-      Gu.World.AddObject(l);
+      Gu.World.AddObject(new Light("pt")
+      {
+        Position_Local = new vec3(0, 10, 0),
+        LightType = LightType.Point,
+        LightRadius = 60,
+        LightPower = 0.75f,
+        LightColor = new vec3(1, 1, 1)
+      });
 
-      l = new WorldObject("pt2");
-      l.LightType = LightType.Point;
-      l.Position_Local = new vec3(-10, 10, -10);
-      l.HasLight = true;
-      l.LightRadius = 50;
-      l.LightPower = 0.75f;
-      l.LightColor = new vec3(.1f, .85f, .58f);
-      Gu.World.AddObject(l);
+      Gu.World.AddObject(new Light("pt2")
+      {
+        Position_Local = new vec3(-10, 10, -10),
+        LightType = LightType.Point,
+        LightRadius = 50,
+        LightPower = 0.75f,
+        LightColor = new vec3(.1f, .85f, .58f)
+      });
 
-      l = new WorldObject("pt3");
-      l.LightType = LightType.Point;
-      l.Position_Local = new vec3(10, 10, 10);
-      l.HasLight = true;
-      l.LightRadius = 50;
-      l.LightPower = 0.75f;
-      l.LightColor = new vec3(1, 1, 1);
-      Gu.World.AddObject(l);
+      Gu.World.AddObject(new Light("pt3")
+      {
+        Position_Local = new vec3(10, 10, 10),
+        LightType = LightType.Point,
+        LightRadius = 50,
+        LightPower = 0.75f,
+        LightColor = new vec3(1, 1, 1)
+      });
 
-      l = new WorldObject("pt4");
-      l.LightType = LightType.Point;
-      l.Position_Local = new vec3(20, 10, 20);
-      l.HasLight = true;
-      l.LightRadius = 50;
-      l.LightPower = 0.75f;
-      l.LightColor = new vec3(1, 0, 1);
-      Gu.World.AddObject(l);
+      Gu.World.AddObject(new Light("pt4")
+      {
+        Position_Local = new vec3(20, 10, 20),
+        LightType = LightType.Point,
+        LightRadius = 50,
+        LightPower = 0.75f,
+        LightColor = new vec3(1, 0, 1)
+      });
     }
     private void CreateSky()
     {
       var that = this;
 
-      Texture? tx_sky = new Texture("tx_sky", Gu.Lib.LoadImage(new FileLoc("hdri_sky2.jpg", FileStorage.Embedded)), true, TexFilter.Trilinear);
-      Texture? tx_sky_stars = new Texture("tx_sky_stars", Gu.Lib.LoadImage(new FileLoc("hdri_stars.jpg", FileStorage.Embedded)), true, TexFilter.Trilinear);
-      Texture? tx_sun = new Texture("tx_sun", Gu.Lib.LoadImage(new FileLoc("tx64_sun.png", FileStorage.Embedded)), true, TexFilter.Trilinear);
-      Texture? tx_moon = new Texture("tx_moon", Gu.Lib.LoadImage(new FileLoc("tx64_moon.png", FileStorage.Embedded)), true, TexFilter.Trilinear);
-      Texture? tx_bloom = new Texture("tx_bloom", Gu.Lib.LoadImage(new FileLoc("bloom.png", FileStorage.Embedded)), true, TexFilter.Trilinear);
-             
+      Texture? tx_sky = new Texture("tx_sky", Gu.Lib.GetOrLoadImage(new FileLoc("hdri_sky2.jpg", FileStorage.Embedded)), true, TexFilter.Trilinear);
+      Texture? tx_sky_stars = new Texture("tx_sky_stars", Gu.Lib.GetOrLoadImage(new FileLoc("hdri_stars.jpg", FileStorage.Embedded)), true, TexFilter.Trilinear);
+      Texture? tx_sun = new Texture("tx_sun", Gu.Lib.GetOrLoadImage(new FileLoc("tx64_sun.png", FileStorage.Embedded)), true, TexFilter.Trilinear);
+      Texture? tx_moon = new Texture("tx_moon", Gu.Lib.GetOrLoadImage(new FileLoc("tx64_moon.png", FileStorage.Embedded)), true, TexFilter.Trilinear);
+      Texture? tx_bloom = new Texture("tx_bloom", Gu.Lib.GetOrLoadImage(new FileLoc("bloom.png", FileStorage.Embedded)), true, TexFilter.Trilinear);
+
       //Sky 
-      Material sky_mat = new Material("sky", Gu.Lib.GetShader(Rs.Shader.DefaultObjectShader), tx_sky);
+      Material sky_mat = new Material("sky",  tx_sky);
       sky_mat.Flat = true;
       sky_mat.GpuRenderState.DepthTest = false;//Disable depth test.
-      var sky = Gu.World.CreateAndAddObject("sky", MeshGen.GenSphereResource("sky", DayNightCycle.SkyRadius, 128, 128, true, true), sky_mat);
+      var sky = Gu.World.CreateAndAddObject("sky", MeshGen.GenSphere("sky", DayNightCycle.SkyRadius, 128, 128, true, true), sky_mat);
       sky.Selectable = false;
       sky.Pickable = false;
       sky_mat.DrawOrder = DrawOrder.First;
       sky_mat.DrawMode = DrawMode.Deferred;
-      
+
       //sky.Constraints.Add(new FollowConstraint(Player, FollowConstraint.FollowMode.Snap)); ;
       sky.OnUpdate = (obj) =>
       {
@@ -165,14 +165,13 @@ namespace PirateCraft
       //Sun
       var sun_mat = sun_moon_mat.Clone() as Material;
       sun_mat.AlbedoSlot.Texture = tx_sun;
-      var sun = Gu.World.CreateObject("sun", MeshGen.GenPlaneResource("sun", sun_size, sun_size), sun_mat);
+      var sun = Gu.World.CreateObject("sun", MeshGen.GenPlane("sun", sun_size, sun_size), sun_mat);
       sun.OnUpdate = (obj) =>
       {
         //All this stuff can be script.
         sun_mat.BaseColor = new vec4(.994f, .990f, .8f, 1);
         obj.Position_Local = new vec3(DayNightCycle.SkyRadius, 0, 0);
         obj.Rotation_Local = quat.fromAxisAngle(new vec3(0, 0, 1), (float)Math.PI / 2);
-        sun.LightColor = new vec3(1, 1, 1);// Gu.World.WorldProps.DayNightCycle.LightColor.ToVec3() ;//. new vec3(.9f, .8f, .1f);
       };
 
       sun_moon_empty.AddChild(sun);
@@ -182,7 +181,7 @@ namespace PirateCraft
 
       var bloom_mat = sun_moon_mat.Clone() as Material;
       bloom_mat.AlbedoSlot.Texture = tx_bloom;
-      var sun_bloom = Gu.World.CreateObject("sun_bloom", MeshGen.GenPlaneResource("sun_bloom", sun_size, sun_size), bloom_mat);
+      var sun_bloom = Gu.World.CreateObject("sun_bloom", MeshGen.GenPlane("sun_bloom", sun_size, sun_size), bloom_mat);
       sun_bloom.OnUpdate = (obj) =>
       {
         if (Gu.TryGetSelectedViewCamera(out var cm))
@@ -202,7 +201,7 @@ namespace PirateCraft
       //Moon
       var moon_mat = sun_moon_mat.Clone() as Material;
       moon_mat.AlbedoSlot.Texture = tx_moon;
-      var moon = Gu.World.CreateObject("moon", MeshGen.GenPlaneResource("moon", moon_size, moon_size), moon_mat);
+      var moon = Gu.World.CreateObject("moon", MeshGen.GenPlane("moon", moon_size, moon_size), moon_mat);
       moon.OnUpdate = (obj) =>
       {
         //All this stuff can be script.
@@ -213,7 +212,7 @@ namespace PirateCraft
       sun_moon_empty.AddChild(moon);
 
 
-      var moon_bloom = Gu.World.CreateObject("moon_bloom", MeshGen.GenPlaneResource("moon_bloom", moon_size, moon_size), bloom_mat);
+      var moon_bloom = Gu.World.CreateObject("moon_bloom", MeshGen.GenPlane("moon_bloom", moon_size, moon_size), bloom_mat);
       moon_bloom.OnUpdate = (obj) =>
       {
         //All this stuff can be script.
@@ -233,26 +232,20 @@ namespace PirateCraft
     private void TestCreateDebugObjects()
     {
       //Textures
-      Texture tx_peron = new Texture("tx_peron", Gu.Lib.LoadImage(new FileLoc("grass_base.png", FileStorage.Embedded)), true, TexFilter.Bilinear);
-      Texture tx_grass = new Texture("tx_grass", Gu.Lib.LoadImage(new FileLoc("gates.jpg", FileStorage.Embedded)), true, TexFilter.Bilinear);
-      Texture tx_gates = new Texture("tx_gates", Gu.Lib.LoadImage(new FileLoc("brady.jpg", FileStorage.Embedded)), true, TexFilter.Nearest);
-      Texture tx_zuck = new Texture("tx_zuck", Gu.Lib.LoadImage(new FileLoc("zuck.jpg", FileStorage.Embedded)), true, TexFilter.Bilinear);
-      Texture tx_brady = new Texture("tx_brady", Gu.Lib.LoadImage(new FileLoc("main char.png", FileStorage.Embedded)), true, TexFilter.Trilinear);
-
-      //Objects
-      Gu.World.CreateAndAddObject("Grass-Plane.", MeshGen.GenPlaneResource("Grass-Plane", 10, 10), new Material("grass-plane", Gu.Lib.GetShader(Rs.Shader.DefaultObjectShader), tx_grass, null));
-
+      Texture tx_c = new Texture("tx_c", Gu.Lib.GetOrLoadImage(new FileLoc("mario.jpg", FileStorage.Embedded)), true, TexFilter.Nearest);
+      Texture tx_d = new Texture("tx_d", Gu.Lib.GetOrLoadImage(new FileLoc("ganon.jpg", FileStorage.Embedded)), true, TexFilter.Bilinear);
+      Texture tx_e = new Texture("tx_e", Gu.Lib.GetOrLoadImage(new FileLoc("peach.jpg", FileStorage.Embedded)), true, TexFilter.Trilinear);
+ 
       //normal map test (slow)
-      //new Texture2D(ResourceManager.LoadImage(brady).CreateNormalMap(false), true, TexFilter.Linear)
-
+      //new Texture2D(ResourceManager.LoadImage().CreateNormalMap(false), true, TexFilter.Linear)
       //Gu.Debug_IntegrityTestGPUMemory();
 
-      testobjs[0] = new Material("sphere_rot", Gu.Lib.GetShader(Rs.Shader.DefaultObjectShader), tx_gates);
-      testobjs[1] = new Material("sphere_rot2", Gu.Lib.GetShader(Rs.Shader.DefaultObjectShader), tx_zuck);
+      testobjs[0] = new Material("sphere_rot",tx_c);
+      testobjs[1] = new Material("sphere_rot2",  tx_d);
       testobjs[1].Flat = true;
-      testobjs[2] = new Material("sphere_rot3", Gu.Lib.GetShader(Rs.Shader.DefaultObjectShader), tx_brady, null);
+      testobjs[2] = new Material("sphere_rot3", tx_e);
 
-      Sphere_Rotate_Quat_Test = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test", MeshGen.GenSphereResource("Sphere_Rotate_Quat_Test", 1, 12, 12, true), testobjs[0]);
+      Sphere_Rotate_Quat_Test = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test", MeshGen.GenSphere("Sphere_Rotate_Quat_Test", 1, 12, 12, true), testobjs[0]);
       Sphere_Rotate_Quat_Test2 = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test2", MeshGen.GenEllipsoid("Sphere_Rotate_Quat_Test2", new vec3(1f, 1, 1f), 32, 32, true), testobjs[1]);
       Sphere_Rotate_Quat_Test3 = Gu.World.CreateAndAddObject("Sphere_Rotate_Quat_Test3", MeshGen.GenEllipsoid("Sphere_Rotate_Quat_Test3", new vec3(1, 1, 1), 32, 32, true), testobjs[2]);
       Sphere_Rotate_Quat_Test.Position_Local = new vec3(0, 3, 0);
@@ -260,37 +253,46 @@ namespace PirateCraft
       Sphere_Rotate_Quat_Test3.Position_Local = new vec3(3, 3, 0);
 
       //Test STB laoding EXR images.
-      Texture tx_exr = new Texture("tx_exr", Gu.Lib.LoadImage(new FileLoc("hilly_terrain_01_2k.hdr", FileStorage.Embedded)), true, TexFilter.Bilinear);
-      var exr_test = MeshGen.GenPlaneResource("tx_exr", 10, 10);
-      var exr_test_mat = new Material("plane", Gu.Lib.GetShader(Rs.Shader.DefaultObjectShader), tx_exr);
+      Texture tx_exr = new Texture("tx_exr", Gu.Lib.GetOrLoadImage(new FileLoc("hilly_terrain_01_2k.hdr", FileStorage.Embedded)), true, TexFilter.Bilinear);
+      var exr_test = MeshGen.GenPlane("tx_exr", 10, 10);
+      var exr_test_mat = new Material("plane", tx_exr);
       var exr_test_ob = Gu.World.CreateAndAddObject("EXR test", exr_test, exr_test_mat);
       exr_test_ob.Position_Local = new vec3(10, 10, 5);
 
       //Animation test
-      vec3 raxis = new vec3(0, 1, 0);
-      var adata = new AnimationData("test");
-      adata.AddFrame(0, new vec3(0, 0, 0), mat3.getRotation(raxis, 0).toQuat(), new vec3(1, 1, 1));
-      adata.AddFrame(1, new vec3(0, 1, 0), mat3.getRotation(raxis, (float)(MathUtils.M_PI_2 * 0.5 - 0.001)).toQuat(), new vec3(.5f, .5f, 3));
-      adata.AddFrame(2, new vec3(1, 1, 0), mat3.getRotation(raxis, (float)(MathUtils.M_PI_2 - 0.002)).toQuat(), new vec3(2, 2, 2));
-      adata.AddFrame(3, new vec3(1, 0, 0), mat3.getRotation(raxis, (float)(MathUtils.M_PI_2 + MathUtils.M_PI_2 * 0.5 - 0.004)).toQuat(), new vec3(2, 3, 1));
-      adata.AddFrame(4, new vec3(0, 0, 0), mat3.getRotation(raxis, (float)(MathUtils.M_PI * 2 - 0.006)).toQuat(), new vec3(1, 1, 1));
-      var cmp = new AnimationComponent(adata);
-      cmp.Repeat = true;
-      cmp.Play();
-      Sphere_Rotate_Quat_Test.AddComponent(cmp);
+      // vec3 raxis = new vec3(0, 1, 0);
+      // var testTrack = new AnimationClip("test");
+      // testTrack.AddFrame(0, new vec3(0, 0, 0), mat3.getRotation(raxis, 0).toQuat(), new vec3(1, 1, 1));
+      // testTrack.AddFrame(1, new vec3(0, 1, 0), mat3.getRotation(raxis, (float)(MathUtils.M_PI_2 * 0.5 - 0.001)).toQuat(), new vec3(.5f, .5f, 3));
+      // testTrack.AddFrame(2, new vec3(1, 1, 0), mat3.getRotation(raxis, (float)(MathUtils.M_PI_2 - 0.002)).toQuat(), new vec3(2, 2, 2));
+      // testTrack.AddFrame(3, new vec3(1, 0, 0), mat3.getRotation(raxis, (float)(MathUtils.M_PI_2 + MathUtils.M_PI_2 * 0.5 - 0.004)).toQuat(), new vec3(2, 3, 1));
+      // testTrack.AddFrame(4, new vec3(0, 0, 0), mat3.getRotation(raxis, (float)(MathUtils.M_PI * 2 - 0.006)).toQuat(), new vec3(1, 1, 1));
+      // var adata = new AnimationData("", testTrack);
+
+      // var cmp = new AnimationComponent(new List<AnimationData>() { adata });
+      // cmp.Repeat = true;
+      // cmp.Play();
+      //Sphere_Rotate_Quat_Test.AddComponent(cmp);
 
       //Check to see if this uses the resource and not the real thing
-      var gearob = Gu.Lib.GetModel(Rs.Model.Gear);
-      Gu.World.AddObject(gearob);
-      gearob.Position_Local = new vec3(4, 8, -4);
-      if (gearob.Component<AnimationComponent>(out var x))
-      {
-        x.Repeat = true;
-        x.Play();
-      }
-      var bare = Gu.Lib.GetModel(Rs.Model.Barrel);
-      Gu.World.AddObject(bare);
-      bare.Position_Local = new vec3(-4, 8, -7);
+      ModelFile mod;
+      // var mod = Gu.Lib.GetOrLoadModel(Rs.Model.Gear);
+      // mod.CreateObjectInstances(new vec3(2,0,2));
+      // mod = Gu.Lib.GetOrLoadModel(Rs.Model.Barrel);
+      // mod.CreateObjectInstances(new vec3(-2,0,-2));      
+      // mod = Gu.Lib.GetOrLoadModel(Rs.Model.Camera);
+      // mod.CreateObjectInstances(new vec3(10,0,10));      
+      // mod = new ModelFile("guyonlytest", new FileLoc("guy_only_test.glb", FileStorage.Embedded));
+      // mod.CreateObjectInstances(new vec3(3,3,3));
+      mod = new ModelFile("angelina", new FileLoc("angelina.glb", FileStorage.Embedded));
+      var obb = mod.CreateObject("Armature", new vec3(-2, 3, 10), quat.fromAxisAngle(new vec3(0, 1, 0), MathUtils.M_PI), new vec3(9, 9, 9));
+
+      obb.Play(new AnimationClip("Walk"));
+
+      //).CreateObjects(new vec3(-2, 3, 10), quat.fromAxisAngle(new vec3(0, 1, 0), MathUtils.M_PI));
+      mod = new ModelFile("elecro", new FileLoc("guy_only_test.glb", FileStorage.Embedded));
+      mod.CreateObjects(new vec3(4, 3, 10), quat.fromAxisAngle(new vec3(0, 1, 0), MathUtils.M_PI));
+
     }
 
   }

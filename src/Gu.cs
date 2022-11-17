@@ -35,10 +35,48 @@ namespace PirateCraft
       return (float)(bc + (float)bm / (float)b_to_mb);
     }
   }
+  public class FrameStats
+  {
+    public int NumDrawElements_Frame = 0;
+    public int NumDrawArrays_Frame = 0;
+    public int NumElements_Frame = 0;
+    public int NumArrayElements_Frame = 0;
+    public int NumTriangles_Frame = 0;
+    public int NumDrawElements_Frame_Last = 0;
+    public int NumDrawArrays_Frame_Last = 0;
+    public int NumElements_Frame_Last = 0;
+    public int NumArrayElements_Frame_Last = 0;
+    public int NumTriangles_Frame_Last = 0;
+    public void Reset()
+    {
+      NumDrawElements_Frame_Last = NumDrawElements_Frame;
+      NumDrawArrays_Frame_Last = NumDrawArrays_Frame;
+      NumElements_Frame_Last = NumElements_Frame;
+      NumArrayElements_Frame_Last = NumArrayElements_Frame;
+      NumTriangles_Frame_Last = NumTriangles_Frame;
 
+      NumDrawElements_Frame = 0;
+      NumDrawArrays_Frame = 0;
+      NumElements_Frame = 0;
+      NumArrayElements_Frame = 0;
+      NumTriangles_Frame = 0;
+
+    }
+    public string ToString()
+    {
+      System.Text.StringBuilder sb = new System.Text.StringBuilder();
+
+      sb.Append($" Triangles:{(NumElements_Frame_Last + NumArrayElements_Frame_Last) / 3}");
+      sb.Append($" DrawArrays:{NumDrawArrays_Frame_Last}");
+      sb.Append($" DrawElements:{NumDrawElements_Frame_Last}");
+
+      return sb.ToString();
+    }
+  }
   public static class Gu
   {
     // Global Utils. static Class
+    // Controls systems, game update loop(s), and windows
     #region Public: Constants
 
     public const int c_intMaxWhileTrueLoopBinarySearch64Bit = 64;//dummy infinite loop blocker
@@ -71,6 +109,7 @@ namespace PirateCraft
     public static FrameDataTimer GlobalTimer { get; private set; }//Global frame timer, for all windows;
     public static Translator Translator { get; private set; }
     public static UiWindowBase? FocusedWindow { get; set; } = null;
+    public static FrameStats FrameStats { get; private set; } = new FrameStats();
 
     //Debug
     public static bool BreakRenderState = false;
@@ -179,6 +218,7 @@ namespace PirateCraft
             }
 
             GlobalTimer.Update();
+            FrameStats.Reset();
 
             //Update all windows Sync
             //TODO: we should update the world main context first
@@ -222,6 +262,9 @@ namespace PirateCraft
               }
 
             }
+
+            //** Post - Render
+            Gu.World.WorldProps.EndAllRenders();
 
             //Update the picked object after all windows have used it.
             foreach (var ct in Contexts)

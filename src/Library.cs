@@ -66,12 +66,15 @@ namespace PirateCraft
   }
   public enum ResourceType
   {
+    //this enum is almost purely just for grouping object names into namespaces e.g. GLTFFile, OBJFile are one namespace
+    //if we didn't need that, we coudl just use the System.Type of the object, but Blender has a namespace sort of thing so that is bieng copied.
     Undefined,
     Shader,
     MeshView,
     MeshData,
     Model,
     WorldObject,
+    Armature,
     Material,
     Image,
     Texture,
@@ -88,7 +91,7 @@ namespace PirateCraft
 
     public List<FileLoc> Files { get { return _files; } set { _files = value; } }
     private List<FileLoc> _files = new List<FileLoc>();
-    private Func<List<FileLoc>, bool>? _onFilesChanged = null;
+    private Func<List<FileLoc>, bool>? _onFilesChanged = null;//return false if the loading/compiling of the new file failed.
     private DateTime _maxModifyTime = DateTime.MinValue;
     private long _poll = 500;
     private DateTime _lastFailTime = DateTime.MinValue;
@@ -186,6 +189,7 @@ namespace PirateCraft
         _timer.Update(dt);
       }
     }
+
     #endregion
     #region Constants
 
@@ -492,6 +496,10 @@ namespace PirateCraft
       }
       return ret;
     }
+    public string GetUniqueName(Type t, string desired_name)
+    {
+      return GetUniqueName(GetResourceType(t), desired_name);
+    }
     public string GetUniqueName(ResourceType rt, string desired_name)
     {
       //Gew new unique name, and increment the name index, if present
@@ -561,9 +569,6 @@ namespace PirateCraft
     public void Add(DataBlock res)
     {
       Gu.Assert(res != null);
-      if(res.Name==Rs.Model.Gear){
-        Gu.Trap();
-      }
       if (res.ResourceType == ResourceType.Undefined)
       {
         res.ResourceType = GetResourceType(res.GetType());
@@ -581,9 +586,7 @@ namespace PirateCraft
         byname = new Dictionary<string, DataBlock>();
         _resourcesByTypeAndName.Add(res.ResourceType, byname);
       }
-      if(res.Name==Rs.Model.Gear){
-        Gu.Trap();
-      }
+
       byname.Add(res.Name, res);
     }
     private bool GetResourceNameIndex(string desired_name, out string name_without_suffix, out int index)
@@ -699,25 +702,18 @@ namespace PirateCraft
     {
       return Get<MeshData>(name, ResourceType.MeshData);
     }
-    public Model GetModel(string name)
+    public ModelFile GetOrLoadModel(string name)
     {
-      return Get<Model>(name, ResourceType.Model);
+      //This should return the constructed data, not the file.
+      var mx = Get<ModelFile>(name, ResourceType.Model);
+      mx.OnLoad();
+      return mx;
     }
-
-    //only file references are what we "load" now
-    public Model LoadModel(string name, FileLoc loc, bool fliptris)
-    {
-      GLTFFile gf = new GLTFFile(name, loc, fliptris);
-      var ret = gf.Load<Model>(name);
-      return ret;
-    }
-    public Image LoadImage(FileLoc loc)
+    public Image GetOrLoadImage(FileLoc loc)
     {
       ImageFile f = new ImageFile(loc.FileName, loc);
-
-      //should throw..
-      var image = f.Load<Image>(loc.FileName);
-      return image;
+      f.OnLoad();
+      return f.TheImage;
     }
 
     private ResourceType GetResourceType(Type t)
@@ -725,8 +721,8 @@ namespace PirateCraft
       if (t == typeof(MeshData)) { return ResourceType.MeshData; }
       else if (t == typeof(Shader)) { return ResourceType.Shader; }
       else if (t == typeof(MeshView)) { return ResourceType.MeshView; }
-      else if (t == typeof(Model)) { return ResourceType.Model; }
-      else if (t == typeof(WorldObject)) { return ResourceType.WorldObject; }
+      else if (t == typeof(ModelFile)) { return ResourceType.Model; }
+      //else if (t == typeof(WorldObject)) { return ResourceType.WorldObject; }
       else if (t == typeof(Material)) { return ResourceType.Material; }
       else if (t == typeof(Image)) { return ResourceType.Image; }
       else if (t == typeof(Texture)) { return ResourceType.Texture; }

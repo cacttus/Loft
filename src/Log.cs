@@ -2,6 +2,8 @@
 using System.IO;
 using System.Text;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
+
 namespace PirateCraft
 {
   public class Log
@@ -52,7 +54,7 @@ namespace PirateCraft
     {
       string e_all = Gu.GetAllException(ex);
       Error("", e_all, "");
-    }    
+    }
     public void Error(string pred, Exception ex)
     {
       string e_all = Gu.GetAllException(ex);
@@ -212,4 +214,127 @@ namespace PirateCraft
       _logLine++;
     }
   }
-}
+  public class ClassLog
+  {
+    //log file is too big
+    //  disables errors across different systems based on engine config params
+    //  has internal log that can print all errors at once instead of each line
+    private StringBuilder _errs;
+    private bool _errors = false;
+    private bool _warnings = false;
+    private bool _log_buffer_enabled = false;
+    private string _name;
+    private bool _log_console_enabled = false;
+
+    public ClassLog(string name, bool log_console_enabled, bool buffer_enabled = false)
+    {
+      _name = name;
+      _log_console_enabled = log_console_enabled;
+      _log_buffer_enabled = buffer_enabled;
+      if (_log_buffer_enabled)
+      {
+        _errs = new StringBuilder();
+      }
+    }
+
+    public void Append(string str = "") { _errs.Append(str); }
+    public void AppendLine(string str = "") { _errs.AppendLine(str); }
+    public void Error(string err)
+    {
+      string e = $"  Error: '{_name}': {err}";
+      if (_log_buffer_enabled)
+      {
+        _errs.AppendLine(e);
+      }
+      // ** always show errors for now
+      //   if (_log_console_enabled)
+      //   {
+      Gu.Log.Error(e);
+      Gu.DebugBreak();
+      // }
+      _errors = true;
+    }
+    public void Debug(string err)
+    {
+      if (_log_console_enabled)
+      {
+        Gu.Log.Debug($"  Info: '{_name}': {err}");
+      }
+    }
+    public void Info(string err)
+    {
+      if (_log_console_enabled)
+      {
+        Gu.Log.Debug($"  Info: '{_name}': {err}");
+      }
+    }
+    public void Warn(string err)
+    {
+      string e = $"  Warning: '{_name}': {err}";
+      if (_log_buffer_enabled)
+      {
+        _errs.AppendLine(e);
+      }
+      if (_log_console_enabled)
+      {
+        Gu.Log.Error(e);
+      }
+    }
+    public bool Assert(bool condition, [CallerArgumentExpression("condition")] string? err = null)
+    {
+      if (!condition)
+      {
+        Error(err);
+        return false;
+      }
+      return true;
+    }
+    public void Print()
+    {
+      if (_errors)
+      {
+        Gu.Log.Error(_errs.ToString());
+      }
+      else if (_warnings)
+      {
+        Gu.Log.Warn(_errs.ToString());
+      }
+      else
+      {
+        Gu.Log.Info(_errs.ToString());
+      }
+    }
+
+  }//cls
+
+
+
+
+
+
+}//ns
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

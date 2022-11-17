@@ -360,10 +360,6 @@ namespace PirateCraft
     }
     public vec2 GetWrappedPosition(RenderView vp, vec2 wrap_sum)
     {
-      if (wrap_sum.x != 0 || wrap_sum.y != 0)
-      {
-        Gu.Trap();
-      }
       vec2 p_wrap = new vec2(
         Pos.x + vp.Viewport.Width * wrap_sum.x,
         Pos.y + vp.Viewport.Height * wrap_sum.y

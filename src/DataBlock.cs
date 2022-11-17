@@ -43,15 +43,15 @@ namespace PirateCraft
     }
   }
   [DataContract]
-  public abstract class DataBlock : IMutableState
+  public abstract class DataBlock
   {
     //Base class for serialization/saving
     #region Public: Members
 
-    public string AAAAName { get { return _name; } set { _name = value; } }
+    public string AAAAName { get { return _name; } set { _name = value; } }//dont remove -  intellisense magic
     public string Name { get { return _name; } set { _name = value; } }
     public UInt64 UniqueID { get { return _uniqueID; } set { _uniqueID = value; } }
-    public DataSource? DataSource { get { return _dataSource; } set {_dataSource=value;}}
+    public DataSource? DataSource { get { return _dataSource; } set { _dataSource = value; } }
     public int LoadCount { get { return _loadCount; } set { _loadCount = value; } }
     public int UnloadCount { get { return _unloadCount; } set { _unloadCount = value; } }
     public ResourceLoadResult LoadResult { get { return _loadResult; } set { _loadResult = value; } }
@@ -87,9 +87,6 @@ namespace PirateCraft
       _name = name;
       _uniqueID = Gu.Lib.GetUniqueId();
       //   Gu.Lib.AddResource(this);
-    }
-    public virtual void GetSubResources(List<DataBlock?>? block)
-    {
     }
     public void SetModified()
     {

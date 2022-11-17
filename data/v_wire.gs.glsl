@@ -33,7 +33,7 @@ void main()
 
   vec4 c = _ufGpuDebug._wireframeColor;
 
-  emitPixelLine(pv0, pv1, c, c, 3, 0, pvm);
-  emitPixelLine(pv1, pv2, c, c, 3, 0, pvm);
-  emitPixelLine(pv2, pv0, c, c, 3, 0, pvm);
+  emitPixelLine(pv0, pv1, c, c, 1, 0, pvm);
+  emitPixelLine(pv1, pv2, c, c, 1, 0, pvm);
+  emitPixelLine(pv2, pv0, c, c, 1, 0, pvm);
 }

@@ -2303,12 +2303,6 @@ namespace PirateCraft
       float e_height = ele._quads._b2LocalQuad._height;
 
       var e_pad = ele.GetPadding(dd);
-
-      if (ele is UiGlyph && _strText.Contains("elves") && (ele as UiGlyph)._char == 'e')
-      {
-        Gu.Trap();
-      }
-
       bool bLineBreak = false;
       if (ele.DisplayMode == UiDisplayMode.Inline || ele.DisplayMode == UiDisplayMode.Word)
       {
@@ -2832,20 +2826,13 @@ namespace PirateCraft
           float gbot = gg._cachedGlyph.ch_bot * sscl;
           float gwidth = (gright - gleft) + kern;
           float gheight = (gbot - gtop);
-          if (kern > 0)
-          {
-            Gu.Trap();
-          }
 
           float lineheight = gg._cachedGlyph.font_lineHeight * gg._cachedGlyph.font_scale * sscl;
           float gadvance = gg._cachedGlyph.ch_advance * gg._cachedGlyph.font_scale * sscl;
           float gascent = gg._cachedGlyph.font_ascent * gg._cachedGlyph.font_scale * sscl * Style._props.LineHeight;
           float gkern = kern * sscl;
           float linegap = gg._finalLineHeight - gg._glyphQuad._top - gg._glyphQuad._height;
-          if (ch == 'l')
-          {
-            Gu.Trap();
-          }
+
           gg._finalLineHeight = lineheight * Style._props.LineHeight;
           gg._glyphQuad._left = gleft;
           gg._glyphQuad._top = gtop + gascent;

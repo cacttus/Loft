@@ -274,11 +274,14 @@ vec3 lightFragmentCookTorrence(in vec3 in_vpos, in vec4 in_albedo, in vec3 in_no
 
   vec3 finalColor = vec3(0,0,0);
 
-  for(int iLight = 0; iLight < _ufGpuWorld._iPointLightCount; iLight++) {
-    vec3 vLightPos = _ufGpuPointLight[iLight]._pos;
+  for(int iLight = 0; iLight < DEF_MAX_LIGHTS; iLight++) {
+    if(_ufGpuLight[iLight]._enabled==0) {
+      continue;
+    }
+    vec3 vLightPos = _ufGpuLight[iLight]._pos;
 
     vec3 eye_vector = normalize(_ufGpuCamera._vViewPos - in_vpos);
-    vec3 light_vector = normalize(_ufGpuPointLight[iLight]._pos - in_vpos);
+    vec3 light_vector = normalize(_ufGpuLight[iLight]._pos - in_vpos);
     vec3 half_vector = (light_vector + eye_vector) / length(light_vector + eye_vector);
 
     //Cook-Torrence
@@ -302,11 +305,11 @@ vec3 lightFragmentCookTorrence(in vec3 in_vpos, in vec4 in_albedo, in vec3 in_no
     vec3 diffuse = (in_albedo.rgb  * _ufGpuMaterial._vPBR_baseColor.rgb) * (1.0-spec); //kd,  d = 1-s, s = 1-d
     
     //Attenuation
-    float fFragToLightDistance = distance(_ufGpuPointLight[iLight]._pos, in_vpos);
-    float power = clamp(_ufGpuPointLight[iLight]._power, 0.000001f, 0.999999f);
-    float fQuadraticAttenuation = 1- pow(clamp(fFragToLightDistance/_ufGpuPointLight[iLight]._radius, 0, 1),(power)/(1-power)); //works well: x^(p/(1-p)) where x is pos/radius
+    float fFragToLightDistance = distance(_ufGpuLight[iLight]._pos, in_vpos);
+    float power = clamp(_ufGpuLight[iLight]._power, 0.000001f, 0.999999f);
+    float fQuadraticAttenuation = 1- pow(clamp(fFragToLightDistance/_ufGpuLight[iLight]._radius, 0, 1),(power)/(1-power)); //works well: x^(p/(1-p)) where x is pos/radius
 
-    finalColor += _ufGpuPointLight[iLight]._color * dot(in_normal , light_vector) *  (diffuse + spec) ;
+    finalColor += _ufGpuLight[iLight]._color * dot(in_normal , light_vector) *  (diffuse + spec) ;
   } 
 
   finalColor += _ufGpuWorld._vAmbientColor * _ufGpuWorld._fAmbientIntensity;
@@ -327,33 +330,31 @@ vec3 lightFragmentBlinnPhong(in vec3 in_vertex, in vec4 in_albedo, in vec3 in_no
 
   vec3 finalColor = vec3(0,0,0);
 
-  for(int iLight = 0; iLight <  _ufGpuWorld._iPointLightCount; iLight++) {
-    vec3 vLightPos = _ufGpuPointLight[iLight]._pos;
-    vec3 vLightColor = _ufGpuPointLight[iLight]._color;
-    float fLightPower = _ufGpuPointLight[iLight]._power+100;
-    float fLightRadius = _ufGpuPointLight[iLight]._radius;
+  for(int iLight = 0; iLight <  DEF_MAX_LIGHTS; iLight++) 
+  {
+    if(_ufGpuLight[iLight]._enabled == 0) 
+    {
+      continue;
+    } 
+    vec3 vLightPos = _ufGpuLight[iLight]._pos;
+    vec3 vLightColor =  _ufGpuLight[iLight]._color;
+    float fLightPower = _ufGpuLight[iLight]._power+100;
+    float fLightRadius = _ufGpuLight[iLight]._radius;
 
-    vec3 light_vector = normalize(vLightPos - in_vertex);    
-
+    vec3 light_vector;
     float atten=1;
-    atten = attenuate_light_distance(in_vertex, vLightPos, fLightPower, fLightRadius);
+    if(_ufGpuLight[iLight]._isDir == 1) 
+    {
+      light_vector = -_ufGpuLight[iLight]._dir;    
+    }
+    else 
+    {
+      light_vector = normalize(vLightPos - in_vertex);    
+      atten = attenuate_light_distance(in_vertex, vLightPos, fLightPower, fLightRadius);
+    }
+
 
     finalColor += doBlinnPhong(in_vertex, in_albedo.rgb, light_vector, eye_vector, in_normal, vLightColor, atten,  spec_color);
-  }
-
-  for(int iLight = 0; iLight <  _ufGpuWorld._iDirLightCount; iLight++) 
-  {
-    vec3 vLightPos = _ufGpuDirLight[iLight]._pos;
-    vec3 vLightColor = _ufGpuDirLight[iLight]._color;
-    float fLightPower = _ufGpuDirLight[iLight]._power+100;
-    float fLightRadius = _ufGpuDirLight[iLight]._radius;
-
-    vec3 light_vector = -_ufGpuDirLight[iLight]._dir;    
-
-    float atten=1;
-    //atten = attenuate_light_distance(in_vertex, vLightPos, fLightPower, fLightRadius);
-
-    finalColor += doBlinnPhong(in_vertex, in_albedo.rgb, light_vector, eye_vector, in_normal, vLightColor, atten, spec_color) ;
   }
 
   finalColor += in_albedo.rgb* _ufGpuWorld._vAmbientColor * _ufGpuWorld._fAmbientIntensity;

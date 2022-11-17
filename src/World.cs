@@ -612,28 +612,33 @@ namespace PirateCraft
         return LambdaBool.Continue;
       });
     }
-    private float SanitizeHeight(float f, float max)
+    private float SanitizeHeight(float f, float min, float max)
     {
+      Gu.Assert(min <= max);
       Gu.Assert(f >= 0 && f <= 1);
-      return f * max;
+      return min + f * (max - min);
     }
     public void Edit_GenHills(float min_height, float max_height, bool rnadomJunk)
     {
       //TODO: generate linked topology
+      var rimg = Image.RandomImage_R32f(BeamGrid.SizeX + 1, BeamGrid.SizeY + 1, new Minimax<float>(0, 1)); //+1 due to vertex, not beam
+      rimg = rimg.CreateHeightMap(2, 1f, 2);
+      rimg = rimg.Normalized_R32f();
 
-      var rimg = Image.RandomImage_R32f(BeamGrid.SizeX + 1, BeamGrid.SizeY + 1, new Minimax<float>(min_height, max_height)).CreateHeightMap(2, 1f, 2).Normalized_R32f();//+1 due to vertex, not beam
-
-      Lib.SaveImage(System.IO.Path.Combine(Gu.LocalTmpPath, "test-hm1a.png"), rimg.Convert(Image.ImagePixelFormat.RGBA32ub, true), true);  
+      Lib.SaveImage(System.IO.Path.Combine(Gu.LocalTmpPath, "test-hm1a.png"), rimg.Convert(Image.ImagePixelFormat.RGBA32ub, true), true);
 
       //we move from +x, +z, and do this in the grid too
       BeamGrid.Iterate((g, x, z) =>
       {
-        float max = _world.Info.GlobWidthY * 0.9f;
+        float max = max_height; // _world.Info.GlobWidthY * 0.9f;
+        float min = min_height;
+
         //height
-        ushort tl = _world.Info.ConvertHeight(SanitizeHeight(rimg.GetPixel_R32f(x, z + 1), max));
-        ushort tr = _world.Info.ConvertHeight(SanitizeHeight(rimg.GetPixel_R32f(x + 1, z + 1), max));
-        ushort bl = _world.Info.ConvertHeight(SanitizeHeight(rimg.GetPixel_R32f(x, z), max));
-        ushort br = _world.Info.ConvertHeight(SanitizeHeight(rimg.GetPixel_R32f(x + 1, z), max));
+        var test = rimg.GetPixel_R32f(x, z + 1);
+        ushort tl = _world.Info.ConvertHeight(SanitizeHeight(rimg.GetPixel_R32f(x, z + 1), min, max));
+        ushort tr = _world.Info.ConvertHeight(SanitizeHeight(rimg.GetPixel_R32f(x + 1, z + 1), min, max));
+        ushort bl = _world.Info.ConvertHeight(SanitizeHeight(rimg.GetPixel_R32f(x, z), min, max));
+        ushort br = _world.Info.ConvertHeight(SanitizeHeight(rimg.GetPixel_R32f(x + 1, z), min, max));
         //base
         ushort bs = 0;
 
@@ -642,20 +647,19 @@ namespace PirateCraft
         if (bl == bs) { bl = (ushort)(bs + 1); }
         if (br == bs) { br = (ushort)(bs + 1); }
 
+        //TESTING DEBUG
+        //Testing random "cliff" beams
         if (rnadomJunk && ((x == 8 && z == 8) || (x == 9 && z == 8)))
         {
-          //TESTING DEBUG
-          //TESTING DEBUG
-          //TESTING DEBUG
           tl = tr = bl = br = BeamVert.MaxVal;
         }
 
         BeamList b = new BeamList();
-        b.AddBeam(new Beam(new ushort[] { (ushort)(bl/2), bl, (ushort)(br/2), br, (ushort)(tl/2), tl, (ushort)(tr/2), tr }));
+        // b.AddBeam(new Beam(new ushort[] { (ushort)(bl/2), bl, (ushort)(br/2), br, (ushort)(tl/2), tl, (ushort)(tr/2), tr }));
+        b.AddBeam(new Beam(new ushort[] { bs, bl, bs, br, bs, tl, bs, tr }));
         BeamGrid.Set(new ivec2(x, z), b);
 
         var bbbtest = BeamGrid.Get(new ivec2(x, z));
-
 
         return LambdaBool.Continue;
       }, false);
@@ -1173,8 +1177,6 @@ namespace PirateCraft
       {
         stageDist.Clear();
       }
-
-
       if (VisibleGlobs.TryGetValue(rv, out var glist))
       {
         glist.Clear();
@@ -1260,11 +1262,6 @@ namespace PirateCraft
 
       if (_dict.TryGetValue(rv, out var modes))
       {
-
-        if (dm == DrawMode.Debug && modes.Keys.Contains(dm))
-        {
-          Gu.Trap();
-        }
         if (modes.TryGetValue(dm, out var orders))
         {
           foreach (var order_call in orders)
@@ -1304,6 +1301,7 @@ namespace PirateCraft
     public int NumVisibleRenderGlobs { get { return _visibleRenderGlobs.Count; } }
     public WorldProps WorldProps { get { return _worldProps; } }
     public int NumCulledObjects { get; private set; } = 0;
+    public int NumVisibleObjects { get; private set; } = 0;
     public WindowContext UpdateContext { get; private set; } = null;
     public GameMode GameMode
     {
@@ -1326,7 +1324,6 @@ namespace PirateCraft
     //we should sort all objects by distance.
     private VisibleStuff _visibleStuff;
     private Dictionary<ivec3, Glob> _visibleRenderGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //globs that must be drawn this frame
-
     private Dictionary<ivec3, Glob> _globs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //All globs, which may be null if the glob region has been visible, but does not exist
     private Dictionary<ivec3, Glob> _existingGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //globs that are loaded, and exist
     private MultiMap<float, GlobArray> _queuedGlobs = new MultiMap<float, GlobArray>();// queued for topology
@@ -1351,7 +1348,8 @@ namespace PirateCraft
     public void Initialize(WorldInfo info)
     {
       _sceneRoot = new WorldObject("Scene_Root");
-      Gu.Lib.Add(_sceneRoot);
+
+      //Gu.Lib.Add(_sceneRoot);//??
 
       EmbeddedResources.BuildResources();
 
@@ -1383,7 +1381,7 @@ namespace PirateCraft
 
       //this should be set via the script
       _worldProps.EnvironmentMap = new Texture("_worldProps.EnvironmentMap",
-        Gu.Lib.LoadImage(new FileLoc("hilly_terrain_01_2k.hdr", FileStorage.Embedded)), true, TexFilter.Nearest);
+        Gu.Lib.GetOrLoadImage(new FileLoc("hilly_terrain_01_2k.hdr", FileStorage.Embedded)), true, TexFilter.Nearest);
       _worldProps.DayNightCycle = new DayNightCycle();
       _worldProps.DayNightCycle.Update(0);
     }
@@ -1507,7 +1505,7 @@ namespace PirateCraft
         //Collect visible
         _visibleStuff = _visibleStuff.ConstructIfNeeded();
         _visibleStuff.Clear(rv);
-        _worldProps.ClearLights();
+        _worldProps.Reset();
 
         rv.Camera.SanitizeTransform();
         BuildGrid(rv.Camera.Position_World, Info.GenerateDistance);
@@ -1617,14 +1615,6 @@ namespace PirateCraft
               var ei_opp0 = WorldStaticData.side_to_edge[iside_opp, 1];//reverse 1/0 for opposing side
               var ei_opp1 = WorldStaticData.side_to_edge[iside_opp, 0];
 
-              if (nbeams.Count > 0)
-              {
-                Gu.Trap();
-              }
-              if (nbeams.Count > 1)
-              {
-                Gu.Trap();
-              }
               //build faces from the bottom up -y->+y
               for (int bni = 0; bni < nbeams.Count; bni++)
               {
@@ -1692,8 +1682,8 @@ namespace PirateCraft
         var vertsarr = verts.ToArray();
         var indsarr = inds.ToArray();
 
-      //TODO: supply adjacent tile info for adjacent normals.. or something
-      //normals are not correct because they are in quads - adjacent verts are not constructed in patches.
+        //TODO: supply adjacent tile info for adjacent normals.. or something
+        //normals are not correct because they are in quads - adjacent verts are not constructed in patches.
         var faces = MeshGen.ComputeNormalsAndTangents(vertsarr, indsarr.AsUIntArray(), true, true);
 
         g.Opaque.Mesh = new MeshData(name, PrimitiveType.Triangles,
@@ -1927,20 +1917,23 @@ namespace PirateCraft
         return null;
       }
 
-      if (defaultBox)
+      if (!(ob is Armature))
       {
-        if (ob.Mesh == null)
+        if (defaultBox)
         {
-          ob.Mesh = Gu.Lib.GetMesh(Rs.Mesh.DefaultBox);
-        }
-        if (ob.Material == null)
-        {
-          ob.Material = Gu.Lib.GetMaterial(Rs.Material.DefaultObjectMaterial);
+          if (ob.Mesh == null)
+          {
+            ob.Mesh = Gu.Lib.GetMesh(Rs.Mesh.DefaultBox);
+          }
+          if (ob.Material == null)
+          {
+            ob.Material = Gu.Lib.GetMaterial(Rs.Material.DefaultObjectMaterial);
+          }
         }
       }
 
       SceneRoot.AddChild(ob);
-    //  ob.OnAddedToScene?.Invoke(ob);
+      //  ob.OnAddedToScene?.Invoke(ob);
       ob.State = WorldObjectState.Active;
       _worldEditor.Edited = true;
 
@@ -1986,13 +1979,19 @@ namespace PirateCraft
       {
         dt = WorldInfo.MinTimeStep;
       }
-      //Assuming we're going to modify object resting state when other objects change state
-      float vlen2 = (ob.Velocity * (float)dt).len2();
-      if (ob.OnGround && vlen2 > 0)
+      var phy = ob.PhysicsData;
+      if (phy == null || phy.Enabled == false)
       {
-        ob.OnGround = false;
+        return;
       }
-      if (ob.OnGround)
+
+      //Assuming we're going to modify object resting state when other objects change state
+      float vlen2 = (phy.Velocity * (float)dt).len2();
+      if (phy.OnGround && vlen2 > 0)
+      {
+        phy.OnGround = false;
+      }
+      if (phy.OnGround)
       {
         return;
       }
@@ -2000,11 +1999,11 @@ namespace PirateCraft
       float maxv = WorldInfo.MaxVelocity_Second_Frame * dt;
       float maxv2 = (float)Math.Pow(maxv, 2.0f);
 
-      vec3 dbg_initial_v = ob.Velocity;
+      vec3 dbg_initial_v = phy.Velocity;
 
       //Our final guys in frame time units
       vec3 final_p = ob.Position_Local;
-      vec3 final_v = ob.Velocity * dt;
+      vec3 final_v = phy.Velocity * dt;
 
       //Too big
       vlen2 = (final_v * dt).len2();
@@ -2014,17 +2013,17 @@ namespace PirateCraft
       }
 
       vec3 g_v = vec3.Zero;
-      if (ob.HasGravity)
+      if (phy.HasGravity)
       {
         g_v = new vec3(0, _worldInfo.Gravity * dt, 0);
       }
 
-      if (ob.Collides)
+      if (phy.Collides)
       {
-        CollideOb(ob, dt, ref final_v, ref final_p, maxv, maxv2, false);
-        if (ob.OnGround == false && ob.HasGravity)
+        CollideOb(ob, phy, dt, ref final_v, ref final_p, maxv, maxv2, false);
+        if (phy.OnGround == false && phy.HasGravity)
         {
-          CollideOb(ob, dt, ref g_v, ref final_p, maxv, maxv2, true);
+          CollideOb(ob, phy, dt, ref g_v, ref final_p, maxv, maxv2, true);
         }
       }
       else
@@ -2033,10 +2032,10 @@ namespace PirateCraft
       }
 
       //Dampen world velocity (not frame velocity)
-      if (!ob.OnGround && ob.AirFriction > 0.0f)
+      if (!phy.OnGround && phy.AirFriction > 0.0f)
       {
         float len = final_v.length();
-        float newlen = len - len * ob.AirFriction * dt;
+        float newlen = len - len * phy.AirFriction * dt;
         if (newlen <= 0)
         {
           newlen = 0;
@@ -2048,10 +2047,9 @@ namespace PirateCraft
 
       ob.Position_Local = final_p;
       //transform v back into world time units instead of frame time units
-      ob.Velocity = (final_v + g_v) * (1.0f / (dt == 0 ? 1.0f : dt));
-
+      phy.Velocity = (final_v + g_v) * (1.0f / (dt == 0 ? 1.0f : dt));
     }
-    private void CollideOb(WorldObject ob, float dt, ref vec3 final_v, ref vec3 final_p, float maxvdt, float maxvdt2, bool gravity)
+    private void CollideOb(WorldObject ob, PhysicsData phy, float dt, ref vec3 final_v, ref vec3 final_p, float maxvdt, float maxvdt2, bool gravity)
     {
       int max_sim_steps = 32;
 
@@ -2082,7 +2080,7 @@ namespace PirateCraft
 
           if (gravity && plane_n.dot(new vec3(0, 1, 0)) > 0)
           {
-            ob.OnGround = true;
+            phy.OnGround = true;
           }
 
           if (b.RaycastResult == RaycastResult.Inside)
@@ -2178,7 +2176,7 @@ namespace PirateCraft
 
           if (gravity && istep == 0)
           {
-            ob.OnGround = false;
+            phy.OnGround = false;
           }
 
           //Final add, the velocity does not collide.
@@ -2204,6 +2202,7 @@ namespace PirateCraft
     private void CollectVisibleObjects(RenderView rv, Camera3D cm)
     {
       NumCulledObjects = 0;
+      NumVisibleObjects = 0;
       CollectVisibleObjects(rv, cm, SceneRoot);
     }
     private void CollectVisibleGlobs(RenderView rv, Camera3D cam)
@@ -2255,7 +2254,7 @@ namespace PirateCraft
       else if (rv.Overlay.ObjectRenderMode == ObjectRenderMode.Wire)
       {
         mat = Gu.Lib.GetMaterial(Rs.Material.DebugDraw_Wireframe_FlatColor);
-        _worldProps.GpuDebug._wireframeColor = new vec4(.193f, .179f, .183f, 1);
+        _worldProps.WireframeColor = new vec4(.193f, .179f, .183f, 1);
       }
       else if (rv.Overlay.ObjectRenderMode == ObjectRenderMode.Textured)
       {
@@ -2278,11 +2277,11 @@ namespace PirateCraft
       {
         if (rv.Overlay.ObjectRenderMode == ObjectRenderMode.Solid)
         {
-          _worldProps.GpuDebug._wireframeColor = new vec4(.193f, .179f, .183f, 1);
+          _worldProps.WireframeColor = new vec4(.193f, .179f, .183f, 1);
         }
         else
         {
-          _worldProps.GpuDebug._wireframeColor = new vec4(.793f, .779f, .783f, 1);
+          _worldProps.WireframeColor = new vec4(.793f, .779f, .783f, 1);
         }
         _visibleStuff.AddObject(rv, ob, Gu.Lib.GetMaterial(Rs.Material.DebugDraw_Wireframe_FlatColor), g);
       }
@@ -2333,21 +2332,9 @@ namespace PirateCraft
       {
         if (cam == ob || cam.Frustum.HasBox(ob.BoundBox))
         {
-          if (ob.HasLight)
+          if (ob is Light)
           {
-            if (ob.LightType == LightType.Point)
-            {
-              _worldProps.PointLights.Add(ob);
-
-            }
-            else if (ob.LightType == LightType.Direction)
-            {
-              _worldProps.DirLights.Add(ob);
-            }
-            else
-            {
-              Gu.BRThrowNotImplementedException();
-            }
+            _worldProps.Lights.Add(ob as Light);
           }
           //if (rv.Overlay.DrawBoundBoxesAndGizmos)
           {
@@ -2364,6 +2351,7 @@ namespace PirateCraft
           if (ob.Mesh != null)
           {
             AddDrawable(rv, ob);
+            NumVisibleObjects++;
           }
           else
           {
@@ -2469,11 +2457,10 @@ namespace PirateCraft
       _blockTiles.Add(code, bt);
       return bt;
     }
-    private void CreateMaterials()
+    private void CreateMaterials() 
     {
       var maps = CreateAtlas();
-      var shader = Gu.Lib.GetShader(Rs.Shader.DefaultObjectShader);
-      _worldMaterial_Op = new Material("worldMaterial_Op", shader, maps.Albedo, maps.Normal);
+      _worldMaterial_Op = new Material("worldMaterial_Op", maps.Albedo, maps.Normal);
       _worldMaterial_Op._gpuMaterial._vBlinnPhong_Spec = new vec4(0.59f, 0.61f, 0.61f, 170.0f);
       _worldMaterial_Op.DrawOrder = DrawOrder.Mid;
       _worldMaterial_Op.DrawMode = DrawMode.Deferred;
@@ -2481,7 +2468,7 @@ namespace PirateCraft
       _worldMaterial_Op.GpuRenderState.DepthTest = true;
       _worldMaterial_Op.GpuRenderState.CullFace = true;
 
-      _worldMaterial_Tp = new Material("worldMaterial_Tp", shader, maps.Albedo, maps.Normal);
+      _worldMaterial_Tp = new Material("worldMaterial_Tp", maps.Albedo, maps.Normal);
       _worldMaterial_Tp.GpuRenderState.Blend = true;
       _worldMaterial_Tp.GpuRenderState.DepthTest = true;
       _worldMaterial_Tp.GpuRenderState.CullFace = false;
@@ -2792,8 +2779,9 @@ namespace PirateCraft
       Box3i b = new Box3i(new ivec3(-2, 0, -2), new ivec3(2, 1, 2));
       b.iterate((x, y, z, dbgcount) =>
       {
+        //_world.Info.GlobWidthY * 0.9f
         var g = new Glob(Gu.World, new ivec3(x, y, z));
-        g.Edit_GenHills(Gu.World.Info.BlockSizeY, Gu.World.Info.BlockSizeY * 2, true);
+        g.Edit_GenHills(0, Gu.World.Info.GlobWidthY * 0.15f, true);
         Gu.World.SetGlob(g.Pos, g);
         return LambdaBool.Continue;
       }, false);

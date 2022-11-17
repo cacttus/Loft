@@ -4,6 +4,7 @@ using Newtonsoft.Json;
 using System.Runtime.Serialization;
 using System.Reflection;
 using System.Text;
+using System.Runtime.Serialization.Formatters.Binary;
 
 namespace PirateCraft
 {
@@ -25,34 +26,6 @@ namespace PirateCraft
   }
   public static class SerializeTools
   {
-    // public static ISerializeBinary? CreateObjectFromType(ResourceType type)
-    // {
-    //   if (type == ResourceType.FPSInputComponent) { return new FPSInputComponent(null); }
-    //   else if (type == ResourceType.EventComponent) { return new EventComponent(); }
-    //   else if (type == ResourceType.AnimationComponent) { return new AnimationComponent(null); }
-    //   return null;
-    // }
-    // public static void SerializeRef<T>(BinaryWriter bw, DataRef<T> db) where T : DataBlock
-    // {
-    //   //Writing file loc every time is dumb, what if we have 1000 data references.. we need a table of file loc's mapped to Ddatablock
-    //   //unique ID, File Location
-    //   //Writes the datablock reference
-    //   if (db != null)
-    //   {
-    //     var blk = (DataBlock?)db.Get;
-    //     bw.Write((UInt64)blk.UniqueID);
-    //   }
-    //   else
-    //   {
-    //     bw.Write((UInt64)Library.NullID);
-    //   }
-    // }
-    // public static DataRef<T> DeserializeRef<T>(BinaryReader br) where T : DataBlock
-    // {
-    //   DataRef<T> d = new DataRef<T>();
-    //   d._ref = (UInt64)br.ReadUInt64();
-    //   return d;
-    // }    
     public static bool SerializeNullable(BinaryWriter bw, ISerializeBinary? obj)
     {
       if (SerializeNullable(bw, (object?)obj))
@@ -176,125 +149,45 @@ namespace PirateCraft
         }
       }
     }
-    public static void SerializeListOfStruct<K>(BinaryWriter bw, List<K>? items) where K : struct
+    public static T[] Deserialize<T>(byte[] data) where T : struct
     {
-      if (SerializeNullable(bw, items))
-      {
-        bw.Write((Int32)items.Count);
-        bw.Write<K>(items.ToArray());
-      }
-    }
-    public static List<K>? DeserializeListOfStruct<K>(BinaryReader br, List<K>? items, SerializedFileVersion ver) where K : struct
-    {
-      if (DeserializeNullable(br))
-      {
-        var c = br.ReadInt32();
-        var ret = br.Read<K>().ToList();
-        return ret;
-      }
-      return null;
-    }
-    // public static void SerializeList<K>(BinaryWriter bw, List<K>? items) where K : ISerializeBinary
-    // {
-    //   if (SerializeNullable(bw, items))
-    //   {
-    //     bw.Write((Int32)items.Count);
-    //     foreach (var n in items)
-    //     {
-    //       n.Serialize(bw);
-    //     }
-    //   }
-    // }
-    // public static List<K>? DeserializeList<K>(BinaryReader br, SerializedFileVersion ver) where K : ISerializeBinary, new()
-    // {
-    //   if (DeserializeNullable(br))
-    //   {
-    //     List<K> ret = new List<K>();
-    //     var c = br.ReadInt32();
-    //     for (int i = 0; i < c; i++)
-    //     {
-    //       var x = new K();
-    //       x.Deserialize(br, ver);
-    //       ret.Add(x);
-    //     }
-    //     return ret;
-    //   }
-    //   return null;
-    // }
-    // public static void SerializeRefList<K>(BinaryWriter bw, RefList<K>? items) where K : DataBlock
-    // {
-    //   if (SerializeNullable(bw, items))
-    //   {
-    //     bw.Write((Int32)items.Count);
-    //     foreach (var n in items)
-    //     {
-    //       //bw.Write((Int32)n.ResourceType);
-    //       n.Serialize(bw);
-    //     }
-    //   }
-    // }
-    // public static RefList<K>? DeserializeRefList<K>(BinaryReader br, SerializedFileVersion ver) where K : DataBlock
-    // {
-    //   if (DeserializeNullable(br))
-    //   {
-    //     RefList<K> ret = new RefList<K>();
-    //     var c = br.ReadInt32();
-    //     for (int i = 0; i < c; i++)
-    //     {
-    //       //ResourceType rt = (ResourceType)br.ReadInt32();
-    //       var x = new DataRef<K>();
-    //       x.Deserialize(br, ver);
-    //       ret.AddRef(x);
-    //     }
-    //     return ret;
-    //   }
-    //   return null;
-    // }
-    // public static void SerializeDictionary<K, V>(BinaryWriter bw, Dictionary<K, V>? items) where V : ISerializeBinary where K : struct
-    // {
-    //   if (SerializeNullable(bw, items))
-    //   {
-    //     bw.Write((Int32)items.Count);
-    //     foreach (var n in items)
-    //     {
-    //       bw.Write<K>(n.Key);
-    //       n.Value.Serialize(bw);
-    //     }
-    //   }
-    // }
-    // public static Dictionary<K, V>? DeserializeDictionary<K, V>(BinaryReader br, SerializedFileVersion ver) where V : ISerializeBinary, new() where K : struct
-    // {
-    //   //how to make k be notnull
-    //   if (DeserializeNullable(br))
-    //   {
-    //     var ret = new Dictionary<K, V>();
-    //     var c = br.ReadInt32();
-    //     for (int i = 0; i < c; i++)
-    //     {
-    //       var w = br.Read<K>();
-    //       Gu.Assert(w.Length == 1);
-    //       var x = new V();
-    //       x.Deserialize(br, ver);
-    //       ret.Add(w[0], x);
-    //     }
-    //     return ret;
-    //   }
-    //   return null;
-    // }
-    public static unsafe byte[] Serialize(string data)
-    {
-      var size = Marshal.SizeOf(data);
-      var bytes = new byte[size];
+      //Deserialize assuming data equals the size of the element to be deserialized
+      var tsize = Marshal.SizeOf(default(T));
+      Gu.Assert(data.Length % tsize == 0);
+      var count = data.Length / tsize;
 
-      var ptr = Marshal.AllocHGlobal(size);
-      Marshal.StructureToPtr(data, ptr, true);
-      Marshal.Copy(ptr, bytes, 0 * size, size);
-      Marshal.FreeHGlobal(ptr);
+      return DeserializeFrom<T>(data, 0, count);
+    }
+    public static T[] DeserializeFrom<T>(byte[] data, int offset_bytes, int count_items) where T : struct
+    {
+      //Parse an array of struct out of a byte[] of raw data, the byte[] does not exactly need to match the struct, but must be > the struct
+      var size = Marshal.SizeOf(default(T));
+      var length = count_items * size;
+      Gu.Assert(offset_bytes + length <= data.Length);
+      var ret = new T[count_items];
 
-      return bytes;
+      var pinnedHandle = GCHandle.Alloc(ret, GCHandleType.Pinned);
+      Marshal.Copy(data, offset_bytes, pinnedHandle.AddrOfPinnedObject(), length);
+      pinnedHandle.Free();
+
+      return ret;
+    }
+    public static T DeserializeFrom<T>(byte[] data, int offset_bytes) where T : struct
+    {
+      //Parse an array of struct out of a byte[] of raw data
+      var length = Marshal.SizeOf(default(T));
+      Gu.Assert(offset_bytes + length <= data.Length);
+      var ret = new T();
+
+      var pinnedHandle = GCHandle.Alloc(ret, GCHandleType.Pinned);
+      Marshal.Copy(data, offset_bytes, pinnedHandle.AddrOfPinnedObject(), length);
+      pinnedHandle.Free();
+
+      return ret;
     }
     public static unsafe byte[] Serialize<T>(T data) where T : struct
     {
+      //https://www.genericgamedev.com/general/converting-between-structs-and-byte-arrays/
       var size = Marshal.SizeOf(data);
       var bytes = new byte[size];
 
@@ -302,41 +195,17 @@ namespace PirateCraft
       Marshal.StructureToPtr(data, ptr, true);
       Marshal.Copy(ptr, bytes, 0 * size, size);
       Marshal.FreeHGlobal(ptr);
-
       return bytes;
     }
-    public static unsafe byte[] Serialize<T>(T[] data) where T : struct
+    public static byte[] Serialize<T>(T[] items) where T : struct
     {
-      //This is .. terrible.
-      var size = Marshal.SizeOf(data[0]);
-      var bytes = new byte[size * data.Length];
-      for (int di = 0; di < data.Length; di++)
-      {
-        var ptr = Marshal.AllocHGlobal(size);
-        Marshal.StructureToPtr(data[di], ptr, true);
-        Marshal.Copy(ptr, bytes, di * size, size);
-        Marshal.FreeHGlobal(ptr);
-      }
+      ///** Test this
+      var size = Marshal.SizeOf(default(T));
+      var ret = new byte[items.Length * size];
 
-      return bytes;
-    }
-    public static T[] Deserialize<T>(byte[] data) where T : struct
-    {
-      var tsize = Marshal.SizeOf(default(T));
-
-      //Must be a multiple of the struct.
-      Gu.Assert(data.Length % tsize == 0);
-
-      var count = data.Length / tsize;
-      T[] ret = new T[count];
-
-      for (int di = 0; di < data.Length; di += tsize)
-      {
-        var ptr_struct = Marshal.AllocHGlobal(tsize);
-        Marshal.StructureToPtr(data[di], ptr_struct, true);
-        ret[di / tsize] = (T)Marshal.PtrToStructure(ptr_struct, typeof(T));
-        Marshal.FreeHGlobal(ptr_struct);
-      }
+      var items_h = GCHandle.Alloc(items, GCHandleType.Pinned);
+      Marshal.Copy(items_h.AddrOfPinnedObject(), ret, 0, ret.Length);
+      items_h.Free();
 
       return ret;
     }
@@ -345,8 +214,6 @@ namespace PirateCraft
       string json = JsonConvert.SerializeObject(obj, indented ? Formatting.Indented : Formatting.None);
       return json;
     }
-
-
 
   }//cls
 
@@ -445,6 +312,12 @@ namespace PirateCraft
 
   public class WorldFile
   {
+    //Note:
+    //  Reference types that do not subclass DataBlock are directly serialized (no references)
+    //  DataBlock references are serialized as an ID (ulong)
+    //  List<DataBlock> and DataBlock[] are serialized as a list of ID (ulong)
+    //  Value types and arrays/lists of value types are directly serialized.
+
     private class RWRef
     {
       public bool IsWritten = false;
@@ -466,12 +339,16 @@ namespace PirateCraft
     private int dbg_meshViewsWritten = 0;
     private int dbg_componentsWritten = 0;
 
+    private ClassLog _log;
+
     public WorldFile() { }
 
     public bool SaveWorld(World w)
     {
       var ms = Gu.Milliseconds();
       string worldfn = GetWorldFileName(w);
+
+      _log = new ClassLog(System.IO.Path.GetFileName(worldfn), Gu.EngineConfig.Debug_LogSerializationDetails, true);
 
       dbg_writeObjectCalls = 0;
       dbg_worldObjectsWritten = 0;
@@ -482,6 +359,7 @@ namespace PirateCraft
 
       try
       {
+        _log.Append($"Writing {worldfn} ...");
         _fieldTable = new Dictionary<Type, ClassLayout>();
         BuildFieldTable(w.GetType());
 
@@ -506,15 +384,15 @@ namespace PirateCraft
         var fi = new System.IO.FileInfo(worldfn);
         var bytes = fi.Length;
 
-        Gu.Log.Debug($"Saved {StringUtil.FormatPrec((double)bytes / 1024.0, 1)}kB {Gu.Milliseconds() - ms}ms");
-        Gu.Log.Debug($" WriteObject calls:{dbg_writeObjectCalls}");
+        _log.AppendLine($"...Saved {StringUtil.FormatPrec((double)bytes / 1024.0, 1)}kB {Gu.Milliseconds() - ms}ms");
+        _log.AppendLine($" WriteObject: {dbg_writeObjectCalls}");
+        _log.AppendLine($" WorldObject: {dbg_worldObjectsWritten}");
+        _log.AppendLine($" Material:    {dbg_materialsWritten}");
+        _log.AppendLine($" MeshData:    {dbg_meshDatasWritten}");
+        _log.AppendLine($" MeshView:    {dbg_meshViewsWritten}");
+        _log.AppendLine($" Component:   {dbg_componentsWritten}");
 
-        Gu.Log.Debug($" WorldObject: {dbg_worldObjectsWritten}");
-        Gu.Log.Debug($" Material:    {dbg_materialsWritten}");
-        Gu.Log.Debug($" MeshData:    {dbg_meshDatasWritten}");
-        Gu.Log.Debug($" MeshView:    {dbg_meshViewsWritten}");
-        Gu.Log.Debug($" Component:   {dbg_componentsWritten}");
-
+        _log.Print();
       }
       catch (Exception ex)
       {
@@ -636,112 +514,149 @@ namespace PirateCraft
     }
     private void LogWriteProp(FieldOrProp forp, int depth, bool isnull = false)
     {
-      if (Gu.EngineConfig.Debug_LogSerializationDetails && !IsSystemType(forp.FieldType))
+      if (!IsSystemType(forp.FieldType))
       {
         string dbn = "";
         if (forp._subItemValue != null && forp._subItemValue is DataBlock)
         {
           dbn = (forp._subItemValue as DataBlock).Name;
         }
-        Gu.Log.Debug($" {new string(' ', depth)}->{forp.Name.ToString()} {forp.FieldType.Name.ToString()} {(isnull ? "(null)" : dbn)}");
+        string propstr = $" {new string(' ', depth)}->{forp.Name.ToString()} {forp.FieldType.Name.ToString()} {(isnull ? "(null)" : dbn)}";
+        _log.Info(propstr);
       }
+    }
+    private bool IsSystemType(Type ttt)
+    {
+      if (
+      ttt == typeof(Boolean) ||
+      ttt == typeof(Byte) ||
+      ttt == typeof(Char) ||
+      ttt == typeof(Int16) ||
+      ttt == typeof(UInt16) ||
+      ttt == typeof(Int32) ||
+      ttt == typeof(UInt32) ||
+      ttt == typeof(Int64) ||
+      ttt == typeof(UInt64) ||
+      ttt == typeof(Single) ||
+      ttt == typeof(Double) ||
+      ttt == typeof(Decimal) ||
+      ttt == typeof(DateTime))
+      {
+        return true;
+      }
+      return false;
     }
     private void UpdateStats(FieldOrProp obt)
     {
-      dbg_writeObjectCalls++;
-      if (obt.FieldType == typeof(WorldObject))
+      if (obt != null)
       {
-        dbg_worldObjectsWritten++;
-      }
-      if (obt.FieldType == typeof(Material))
-      {
-        dbg_materialsWritten++;
-      }
-      if (obt.FieldType == typeof(MeshData))
-      {
-        dbg_meshDatasWritten++;
-      }
-      if (obt.FieldType == typeof(MeshView))
-      {
-        dbg_meshViewsWritten++;
-      }
-      if (obt.FieldType == typeof(Component))
-      {
-        dbg_componentsWritten++;
+        dbg_writeObjectCalls++;
+        if (obt.FieldType == typeof(WorldObject))
+        {
+          dbg_worldObjectsWritten++;
+        }
+        if (obt.FieldType == typeof(Material))
+        {
+          dbg_materialsWritten++;
+        }
+        if (obt.FieldType == typeof(MeshData))
+        {
+          dbg_meshDatasWritten++;
+        }
+        if (obt.FieldType == typeof(MeshView))
+        {
+          dbg_meshViewsWritten++;
+        }
+        if (obt.FieldType == typeof(Component))
+        {
+          dbg_componentsWritten++;
+        }
       }
     }
-    private void WriteObject(BinaryWriter bw, FieldOrProp? this_forp, object? this_obj, Dictionary<ulong, RWRef> refs, int depth)
+    private void WriteObject(BinaryWriter bw, FieldOrProp? parent_field, object? this_obj, Dictionary<ulong, RWRef> refs, int depth)
     {
       Gu.Assert(refs != null);
       Gu.Assert(_fieldTable != null);
       Gu.Assert(bw != null);
 
-      Type this_ft;
+      UpdateStats(parent_field);
 
-      if (this_forp == null)
+      //Write class header
+      if (WriteObjectHeader(bw, this_obj))
       {
-        Gu.Assert(depth == 0);
-        this_ft = typeof(World);
-        Gu.Log.Debug($"--{this_ft.Name.ToString()}--");
-      }
-      else
-      {
-        LogWriteProp(this_forp, depth, this_obj == null);
-        UpdateStats(this_forp);
-        this_ft = this_forp.FieldType;
-      }
-
-      if (this_obj == null)
-      {
-        WriteNull(bw);
-      }
-      else
-      {
-        WriteNotNull(bw);
-        WriteTypeHash(bw, this_ft);// [byte null] [long id] [long, .., long, .. ]
-        if (_fieldTable.TryGetValue(this_ft, out var layout))
+        Type parent_type = this_obj.GetType();
+        if (_fieldTable.TryGetValue(parent_type, out var classlayout))
         {
-          foreach (var fieldorprop in layout.Props)
+          foreach (var fieldorprop in classlayout.Props)
           {
             Gu.Assert(fieldorprop != null);
             var sub_val = fieldorprop.GetValue(this_obj);
             var sub_ft = fieldorprop.FieldType;
 
+            //Write field type hash.
             WriteTypeHash(bw, sub_ft);
 
-            if (TryWriteLists(bw, fieldorprop, sub_val, refs, depth + 1)) { }
-            else if (TryWriteDataBlock(bw, fieldorprop, sub_val, refs, depth + 1)) { }
+            //null values are a prolblem because we cant cast it, so we handle them here..
+            //check for reference or nullable value.. then write it early.
+
+            //ref types must come before value types here.
+            if (TryNullValue(bw, fieldorprop, sub_val, refs, depth + 1)) { }
+            else if (TryDataBlock(bw, fieldorprop, sub_val, refs, depth + 1)) { }
+            else if (TryRefList(bw, fieldorprop, sub_val, refs, depth + 1)) { }
+            else if (TryValueOrValueList(bw, fieldorprop, sub_val, depth + 1)) { }
             else if (_fieldTable.Keys.Contains(sub_ft))
             {
-              //direct struct 
-              //** must account for nullable types.
-              //like vec3, or class that is not a ref, will have all data copied
+              //direct write - class that is not a ref, will have all data copied
               WriteObject(bw, fieldorprop, sub_val, refs, depth + 1);
             }
-            else if (TryWriteSystemTypes(bw, fieldorprop, sub_val, depth + 1)) { }
             else
             {
               string msg = $"Field type '{sub_ft.FullName}' was not handled.";
-              Gu.Log.Error(msg);
+              _log.Error(msg);
               Gu.DebugBreak();
               Gu.BRThrowException(msg);
             }
-
-
           }
         }
       }
 
     }
-    private bool TryWriteSystemTypes(BinaryWriter bw, FieldOrProp ft, object? val, int depth)
+    private bool WriteObjectHeader(BinaryWriter bw, object? obj)
     {
-      //write a System type (struct type) 
-      //Also must account for nullable system types.
+      if (obj != null)
+      {
+        WriteNotNull(bw);
+        var parent_type = obj.GetType();
+        WriteTypeHash(bw, parent_type);// [byte null] [long id] [long, .., long, .. ]
+        return true;
+      }
+      else
+      {
+        WriteNull(bw);
+        return false;
+      }
+    }
+    private bool TryNullValue(BinaryWriter bw, FieldOrProp ft, object? val, Dictionary<ulong, RWRef> refs, int depth)
+    {
+      //Check for nullable value types and write the boolen header
+      if (val == null)
+      {
+        WriteNull(bw);
+        return true;
+      }
+      return false;
+    }
+    private bool TryValueOrValueList(BinaryWriter bw, FieldOrProp ft, object? val, int depth)
+    {
+      //write a System type (struct type) and for nullables
+      var typ = ft.FieldType;
+      var utyp = Nullable.GetUnderlyingType(typ);
+      if (utyp != null)
+      {
+        typ = utyp;
+      }
 
-      var nullableType = Nullable.GetUnderlyingType(ft.FieldType);
-      //TODO: 
-      //|| (nullableType!=null && nullableType.IsEnum)
-      if (ft.FieldType.IsEnum)
+      if (typ.IsEnum)
       {
         LogWriteProp(ft, depth, val == null);
         bw.Write((Int32)val);
@@ -753,19 +668,25 @@ namespace PirateCraft
         bw.Write((string)val);
         return true;
       }
-      else if (TryWrite<Boolean>(bw, val)
-            || TryWrite<Byte>(bw, val)
-            || TryWrite<Char>(bw, val)
-            || TryWrite<Int16>(bw, val)
-            || TryWrite<UInt16>(bw, val)
-            || TryWrite<Int32>(bw, val)
-            || TryWrite<UInt32>(bw, val)
-            || TryWrite<Int64>(bw, val)
-            || TryWrite<UInt64>(bw, val)
-            || TryWrite<Single>(bw, val)
-            || TryWrite<Double>(bw, val)
-            || TryWrite<Decimal>(bw, val)
-            || TryWrite<DateTime>(bw, val)
+      else if (TryVal<Boolean>(bw, ft, val)
+            || TryVal<Byte>(bw, ft, val)
+            || TryVal<Char>(bw, ft, val)
+            || TryVal<Int16>(bw, ft, val)
+            || TryVal<UInt16>(bw, ft, val)
+            || TryVal<Int32>(bw, ft, val)
+            || TryVal<UInt32>(bw, ft, val)
+            || TryVal<Int64>(bw, ft, val)
+            || TryVal<UInt64>(bw, ft, val)
+            || TryVal<Single>(bw, ft, val)
+            || TryVal<Double>(bw, ft, val)
+            || TryVal<Decimal>(bw, ft, val)
+            || TryVal<DateTime>(bw, ft, val)
+            || TryVal<vec2>(bw, ft, val)
+            || TryVal<vec3>(bw, ft, val)
+            || TryVal<vec4>(bw, ft, val)
+            || TryVal<mat2>(bw, ft, val)
+            || TryVal<mat3>(bw, ft, val)
+            || TryVal<mat4>(bw, ft, val)
             )
       {
         //dont log integral types, maybe some better way to do it
@@ -774,119 +695,43 @@ namespace PirateCraft
       }
       return false;
     }
-    private bool TryWriteLists(BinaryWriter bw, FieldOrProp ft, object? val, Dictionary<ulong, RWRef> refs, int depth)
+   
+    private bool TryRefList(BinaryWriter bw, FieldOrProp ft, object? val, Dictionary<ulong, RWRef> refs, int depth)
     {
-      if (ft.Name.Contains("_children"))
+      //write out any list/array of references or DataBlock
+      var typ = ft.FieldType;
+      if (val is System.Collections.IEnumerable)
       {
-        Gu.Trap();
-      }
-      //       foreach(var t in _fieldTable.Keys){
-      // //this is much easier.
-      //       }
-      if (
-        TryWriteArray(bw, ft, val, refs, depth)
-        || TryWriteList<WorldObject>(bw, ft, val, refs, depth)
-        || TryWriteList<Component>(bw, ft, val, refs, depth)
-        || TryWriteList<Constraint>(bw, ft, val, refs, depth)
-        || TryWriteList<Material>(bw, ft, val, refs, depth)
-        || TryWriteList<MeshData>(bw, ft, val, refs, depth)
-        || TryWriteList<MeshView>(bw, ft, val, refs, depth)
-        || TryWriteList<Image>(bw, ft, val, refs, depth)
-        || TryWriteList<Texture>(bw, ft, val, refs, depth)
-        || TryWriteList<Shader>(bw, ft, val, refs, depth)
-        || TryWriteList<MeshDataLoader>(bw, ft, val, refs, depth)
-        || TryWriteList<Camera3D>(bw, ft, val, refs, depth)
-        || TryWriteList<ImageFile>(bw, ft, val, refs, depth)
-        || TryWriteList<ImageGen>(bw, ft, val, refs, depth)
-        || TryWriteList<TextureSlot>(bw, ft, val, refs, depth)
-        || TryWriteList<PBRTextureInput>(bw, ft, val, refs, depth)
-        || TryWriteList<GPUBuffer>(bw, ft, val, refs, depth)
-        )
-      {
-        return true;
-      }
-      return false;
-    }
-    private bool TryWriteArray(BinaryWriter bw, FieldOrProp ft, object? val, Dictionary<ulong, RWRef> refs, int depth)
-    {
-      //Note: We support serialization of struct arrays with a simple method 
-      //find a way to just call bw.Write(..) Marhsal.sizeof<T>
-
-      if (ft.FieldType.IsArray)
-      {
-        var arrtype = ft.FieldType.GetElementType();
-
-        LogWriteProp(ft, depth, val == null);
-        if (val == null)
+        //TODO: check if is array, list or dictionary.
+        List<Type> argTypes = new List<Type>();
+        if (typ.IsGenericType)
         {
-          WriteNull(bw);
+          argTypes = typ.GetGenericArguments().ToList();
         }
-        else
+        else if (typ.IsArray)
         {
-          var ls = (val as System.Collections.IEnumerable); //System.Collections.IEnumerable - non-generic
-          int n = 0;
-          foreach (var item in ls)
+          argTypes.Add(ft.FieldType.GetElementType());
+        }
+        var ebl = (val as System.Collections.IEnumerable);
+
+        //you have to enumerate all items here, I think, it's ok we'll do that anyway..
+        int n = 0;
+        foreach (var item in ebl)
+        {
+          n++;
+        }
+        bw.Write((int)n);
+
+        //Write Items, or Key,Value
+        n = 0;
+        foreach (var item in ebl)
+        {
+          foreach (var argtype in argTypes)
           {
-            n++;
-          }
-          bw.Write((int)n);
-          //for (int iitem = 0; iitem < ls.Count(); iitem++)
-          n = 0;
-          foreach (var item in ls)
-          {
-            //var item = ls.ElementAt(iitem);
-            var itemProp = new FieldOrProp(arrtype, $"{ft.Name}-item{n}", item);
+            var itemProp = new FieldOrProp(argtype, $"{ft.Name}[{n}]", item);
             if (item is DataBlock)
             {
-              Gu.Assert(TryWriteDataBlock(bw, itemProp, item, refs, depth));
-            }
-            else
-            {
-              WriteObject(bw, itemProp, item, refs, depth);
-            }
-            n++;
-          }
-
-        }
-        return true;
-      }
-      return false;
-    }
-
-    private bool TryWriteList<T>(BinaryWriter bw, FieldOrProp ft, object? val, Dictionary<ulong, RWRef> refs, int depth)
-    {
-      //write List<T> or Array<T>
-
-      //we could strictly use arrays. but then we'd have trouble with Dictionary<>
-
-      //       if (ft.FieldType.IsGenericType)
-      // {
-      //   var args = ft.FieldType.GetGenericArguments().ToList();
-
-      // }
-      //Type x ;
-      //object? bb;
-      //var y = bb as x;
-      //Type.makeMakeGenericType()
-
-      if (ft.FieldType == typeof(List<T>))
-      {
-        LogWriteProp(ft, depth, val == null);
-        if (val == null)
-        {
-          WriteNull(bw);
-        }
-        else
-        {
-          var ls = (val as IEnumerable<T>);
-          bw.Write((int)ls.Count());
-          for (int iitem = 0; iitem < ls.Count(); iitem++)
-          {
-            var item = ls.ElementAt(iitem);
-            var itemProp = new FieldOrProp(typeof(T), $"{ft.Name}-item{iitem}", item);
-            if (item is DataBlock)
-            {
-              Gu.Assert(TryWriteDataBlock(bw, itemProp, item, refs, depth));
+              Gu.Assert(TryDataBlock(bw, itemProp, item, refs, depth));
             }
             else
             {
@@ -894,18 +739,15 @@ namespace PirateCraft
             }
           }
 
+          n++;
         }
+
         return true;
       }
+
       return false;
     }
-    private void TruWriteRefDictionary(BinaryWriter bw, FieldOrProp ft, object? val, int depth)
-    {
-      Gu.BRThrowException($"Could not serialize dict of type '{ft.ToString()}'");
-      LogWriteProp(ft, depth);
-
-    }
-    private bool TryWriteDataBlock(BinaryWriter bw, FieldOrProp ft, object? val, Dictionary<ulong, RWRef> refs, int depth)
+    private bool TryDataBlock(BinaryWriter bw, FieldOrProp ft, object? val, Dictionary<ulong, RWRef> refs, int depth)
     {
       if (val is DataBlock)
       {
@@ -934,8 +776,7 @@ namespace PirateCraft
         if (db.UniqueID < Lib.c_iIDStart)
         {
           string msg = $"Object '{db.Name}' ({db.GetType().Name.ToString()}) had no UniqueID";
-          Gu.Log.Error(msg);
-          Gu.DebugBreak();
+          _log.Error(msg);
           Gu.BRThrowException(msg);
         }
         ulong dbid = db.UniqueID;
@@ -950,34 +791,30 @@ namespace PirateCraft
     {
       bw.Write((byte)1);
     }
-    private bool IsSystemType(Type ttt)
+    private bool TryVal<T>(BinaryWriter bw, FieldOrProp ft, object? val) where T : struct
     {
-      if (
-      ttt == typeof(Boolean) ||
-      ttt == typeof(Byte) ||
-      ttt == typeof(Char) ||
-      ttt == typeof(Int16) ||
-      ttt == typeof(UInt16) ||
-      ttt == typeof(Int32) ||
-      ttt == typeof(UInt32) ||
-      ttt == typeof(Int64) ||
-      ttt == typeof(UInt64) ||
-      ttt == typeof(Single) ||
-      ttt == typeof(Double) ||
-      ttt == typeof(Decimal) ||
-      ttt == typeof(DateTime))
-      {
-        return true;
-      }
-      return false;
-    }    
-    private bool TryWrite<T>(BinaryWriter bw, object? val) where T : struct
-    {
+      //Try scalar value, or array/ list 
+      //typeof(List<>).MakeGenericType(elementType);
       if (val is T)
       {
+        //TODO: OPTIMIZE:
+        // writing <T> is incorrect because it calls the generic T serializer here instead of bw.Write(boolean)..
+        //however is it so much slower? not sure
         bw.Write((T)val);
         return true;
       }
+      if (ft.FieldType == typeof(List<T>))
+      {
+        bw.Write<T>(((List<T>)val).ToArray());
+        return true;
+      }
+
+      if (ft.FieldType == typeof(T[]))
+      {
+        bw.Write<T>((T[])val);
+        return true;
+      }
+
       return false;
     }
 
@@ -1026,7 +863,6 @@ namespace PirateCraft
         List<Type> newtypes = new List<Type>();
         foreach (var gt in types)
         {
-
           //OK so - i think we should ALSO keep the array/nullable/generic types in the field table.
           //FieldOrProp stores these fields as this type - so we need the exact kind.
           //ug
@@ -1034,7 +870,6 @@ namespace PirateCraft
           var nt = Nullable.GetUnderlyingType(gt);//This seems to be skipped for IsGenericType..
           if (nt != null)
           {
-            Gu.Trap();//enum?
             newtypes.Add(gt);
           }
           else if (gt.IsArray)
@@ -1140,18 +975,6 @@ namespace PirateCraft
     protected void msg(string st)
     {
       _msgs.Add($"Serialize Error: {st}");
-    }
-    public void PrintOutput()
-    {
-      StringBuilder sb = new StringBuilder();
-      sb.AppendLine("");
-      sb.AppendLine("Serialization output:");
-      foreach (var e in _msgs)
-      {
-        sb.AppendLine(e);
-      }
-      sb.AppendLine("Done.");
-      Gu.Log.Info(sb.ToString());
     }
 
 

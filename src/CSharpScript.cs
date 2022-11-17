@@ -62,10 +62,10 @@ namespace PirateCraft
       }
     }
   }
-// public class ObjectScript : CSharpScript , IObjectScript
-// {
+  // public class ObjectScript : CSharpScript , IObjectScript
+  // {
 
-// }
+  // }
   public enum ScriptStatus
   {
     None,
@@ -103,7 +103,8 @@ namespace PirateCraft
     private int _compileCount = 0;
     private DynamicFileLoader? _loader = null;
     protected Type? _scriptObjectInterfaceType = null;
-    
+    private bool _initialized = false;
+
     #endregion
     #region Public:Methods
 
@@ -168,6 +169,8 @@ namespace PirateCraft
       }
 
       PrintErrors();
+
+      _initialized = true;
 
       return _scriptStatus == ScriptStatus.CompileSuccess;
     }
@@ -381,8 +384,10 @@ namespace PirateCraft
 
       if (_scriptStatus != ScriptStatus.CompileSuccess)
       {
-        //TODO: check if system is currently loading, or world is loading (not running)
-        Gu.DebugBreak();
+        if (_initialized == false)
+        {
+          Gu.DebugBreak();
+        }
       }
 
     }

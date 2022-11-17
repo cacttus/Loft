@@ -1,9 +1,14 @@
 using System;
 using OpenTK.Graphics.OpenGL4;
 using System.Runtime.Serialization;
+using System.Runtime.CompilerServices;
+using System.Text;
 //File Loaders / Generators / Data sources
 namespace PirateCraft
 {
+  using GLTF_DATA_TYPE = glTFLoader.Schema.Accessor.TypeEnum;
+  using GLTF_COMP_TYPE = glTFLoader.Schema.Accessor.ComponentTypeEnum;
+
   [DataContract]
   public abstract class DataSource : DataBlock
   {
@@ -14,18 +19,18 @@ namespace PirateCraft
       Serialized = 2,
       Generated = 3,
     }
-    public enum LoadState
-    {
-      None,
-      Loaded,
-      Unloaded
-    }
+    // public enum LoadState
+    // {
+    //   None,
+    //   Loaded,
+    //   Unloaded
+    // }
 
     [DataMember] private SourceFormat _format = SourceFormat.File;
-    private LoadState _state = LoadState.None;
-    private int _dbgCreateCount = 0;//just debug
+    // private LoadState _state = LoadState.None;
+    // private int _dbgCreateCount = 0;//just debug
 
-    public LoadState State { get { return _state; } protected set { _state = value; } }
+    // public LoadState State { get { return _state; } protected set { _state = value; } }
 
     protected DataSource() { }//clone/serialize
     public DataSource(string name, SourceFormat type) : base(name)
@@ -33,65 +38,55 @@ namespace PirateCraft
       _format = type;
     }
 
-    public T? Load<T>(string name) where T : DataBlock
-    {
-      var x = Load(name);
-      Gu.Assert(x is T);
-      return (T?)x;
-    }
+    // public T? Load<T>(string name) where T : DataBlock
+    // {
+    //   var x = Load(name);
+    //   Gu.Assert(x is T);
+    //   return (T?)x;
+    // }
     //Creatre a new resource with the given name. 
     //The returned resource will be a resource instance with the given datablock attached
-    protected abstract DataBlock? Create(string name);
-    protected abstract void Destroy();
+    public abstract void OnLoad();
+    public abstract void OnDestroy();
     //Load the resource data required to create the resource
-    public DataBlock? Load(string name)
-    {
-      if (this._state == LoadState.Loaded)
-      {
-        Gu.Log.Warn($"Tried ot load aloready loaded asset {name}");
-        Gu.DebugBreak();
-      }
-      var d = Create(name);
-      d.DataSource = this;
-      this._state = LoadState.Loaded;
-      return d;
-    }
-    //Unload the heavy data for the resource
-    public void Unload()
-    {
-      Destroy();
-      this._state = LoadState.Unloaded;
-    }
+    // public DataBlock? Load(string name)
+    // {
+    //   if (this._state == LoadState.Loaded)
+    //   {
+    //     Gu.Log.Warn($"Tried ot load aloready loaded asset {name}");
+    //     Gu.DebugBreak();
+    //   }
+    //   var d = Create(name);
+    //   d.DataSource = this;
+    //   this._state = LoadState.Loaded;
+    //   return d;
+    // }
+    // //Unload the heavy data for the resource
+    // public void Unload()
+    // {
+    //   Destroy();
+    //   this._state = LoadState.Unloaded;
+    // }
     public override string ToString()
     {
       string json = SerializeTools.SerializeJSON(this);
       return json;
     }
   }
-  [DataContract]
-  public class SerializedDataSource : DataSource
-  {
-    //default DS items get their internal contens serialized into the Library
-    public SerializedDataSource(string name) : base(name, SourceFormat.Serialized) { }
-    protected override DataBlock? Create(string name)
-    {
-      return null;
-    }
-    protected override void Destroy()
-    {
-    }
-  }
+  // [DataContract]
+  // public class SerializedDataSource : DataSource
+  // {
+  //   //default DS items get their internal contens serialized into the Library
+  //   public SerializedDataSource(string name) : base(name, SourceFormat.Serialized) { }
+  //   // protected override DataBlock? Create(string name)
+  //   // {
+  //   //   return null;
+  //   // }
+  //   // protected override void Destroy()
+  //   // {
+  //   // }
+  // }
 
-  [DataContract]
-  public abstract class FileDataSource : DataSource
-  {
-    [DataMember] private FileLoc? _file = null;
-    [DataMember] public FileLoc? File { get { return _file; } }
-    public FileDataSource(string name, FileLoc loc) : base(name, SourceFormat.File)
-    {
-      _file = loc;
-    }
-  }
   [DataContract]
   public abstract class ImageGenParams
   {
@@ -144,27 +139,27 @@ namespace PirateCraft
       Gu.Assert(p != null);
       _params = p;
     }
-    protected override DataBlock? Create(string name)
+    public override void OnLoad()
     {
       Gu.Assert(_params != null);
       _params.Generate(ref _data);
-      var img = new Image(name, _params._width, _params._height, _data, _params._format);
-      return img;
+      var img = new Image(this.Name, _params._width, _params._height, _data, _params._format);
     }
-    protected override void Destroy()
+    public override void OnDestroy()
     {
       _data = null;
     }
   }
   [DataContract]
-  public class ImageFile : FileDataSource
+  public class ImageFile : DataSource
   {
-    Image? _image = null;
+    public Image? TheImage = null;
 
     public static Image? LoadImage(string name, FileLoc loc)
     {
+
       ImageFile f = new ImageFile(name, loc);
-      var img = f.Load<Image>(name);
+      var img = f.LoadImageFile(name);
       return img;
     }
     public static Image? LoadImageRaw(byte[] raw_png, string name)
@@ -187,23 +182,27 @@ namespace PirateCraft
       return img;
     }
 
-    public ImageFile(string name, FileLoc loc) : base(name, loc) { }
+    public ImageFile(string name, FileLoc loc) : base(name, SourceFormat.File) { _file = loc; }
+    [DataMember] private FileLoc? _file = null;
 
-    protected override DataBlock? Create(string name)
+    bool loaded = false;
+    public override void OnLoad()
     {
-      _image = LoadImageFile(name);
-      _image.DataSource = this;
-      return _image;
+      if (!loaded)
+      {
+        TheImage = LoadImageFile(this.Name);
+        TheImage.DataSource = this;
+      }
     }
-    protected override void Destroy()
+    public override void OnDestroy()
     {
-      _image = null;
+      TheImage = null;
     }
     private Image? LoadImageFile(string name)
     {
       Image? ret = null;
 
-      using (var fs = File.OpenRead())
+      using (var fs = _file.OpenRead())
       {
         if (fs != null)
         {
@@ -268,529 +267,1057 @@ namespace PirateCraft
       _gs = gs;
       _storage = storage;
     }
-    protected override DataBlock? Create(string name)
+    public override void OnLoad()
     {
       //Returns an instance of the shader.
-      _shader = new Shader(name, _generic_name, _storage, _primType);
-      return _shader;
+      _shader = new Shader(this.Name, _generic_name, _storage, _primType);
     }
-    protected override void Destroy()
+    public override void OnDestroy()
     {
     }
   }
   [DataContract]
-  public class GLTFFile : FileDataSource
+  public class ModelFile : DataSource
   {
-    private List<WorldObject> _objects = null;
-    public Dictionary<string, object>? _loadedData = null;
-    [DataMember] private bool _flipTris = true;
+    //@class ModelFile
+    //@desc: model file class
 
-    public List<WorldObject> Objects { get { return _objects; } }
-    public Dictionary<string, object>? LoadedData { get { return _loadedData; } }
-    public bool FlipTris { get { return _flipTris; } set { _flipTris = value; } }
+    #region Public: Classes
 
-    public GLTFFile(string name, FileLoc loc, bool flip_tris = true) : base(name, loc)
+    private const int MAX_JOINTS_OR_WEIGHTS_BUFFERS = 4;
+
+    public enum ModelLoadState
     {
-      _flipTris = flip_tris;
+      None,
+      Loading,
+      Failed,
+      Success
     }
-    protected override DataBlock? Create(string objName)
+    public enum IncludeMode
     {
-      Gu.Assert(File != null);
-      _objects = LoadObjects(File, _flipTris);
-      foreach (var ob in _objects)
+      DefsOnly,
+      AllObjects
+    }
+
+    public class ImportInfo
+    {
+      //Locates an object inside model file
+      //Specify parameters to process and drop model in scene
+      //note: Any undefined objects will not be created unless LoadAll is set
+      public string _nameInFile = Lib.UnsetName;
+      public vec3 _pos = vec3.Zero;
+      public vec3 _scale = vec3.One;
+      public quat _rot = quat.Identity;
+      public string? _playAnimation = null;
+      public bool _playAnimationRepeat = true;
+      public bool _flipTris = true; // flip triangles
+      public bool _rootOnly = true; // search only root objects by name, false= search for any object by name
+      public WorldObject? _object = null;
+      public bool _generated = false; //was generated by loader
+      public bool _visible = true;
+      public ImportInfo() { }
+    }
+
+    #endregion
+
+    [DataMember] private FileLoc? _file = null;
+    [DataMember] private List<ImportInfo> _importInfos;
+    [DataMember] private IncludeMode _loadMode = IncludeMode.DefsOnly;
+
+    //temps
+    private bool _initialized = false;
+    private ModelLoadState _loadState = ModelLoadState.None;
+    private DynamicFileLoader _loader;
+    private class ObjTemp
+    {
+      public ImportInfo _info;
+      public int _gltfNodeId;
+      public glTFLoader.Schema.Node _gltfNode;
+      public int _gltfSkinId;
+    }
+    private class TempsData
+    {
+      public Dictionary<WorldObject, ObjTemp> _worldobj_temp = new Dictionary<WorldObject, ObjTemp>();
+      public Dictionary<int, WorldObject> _gltf_id_to_worldobj = new Dictionary<int, WorldObject>();
+      public Dictionary<string, WorldObject> _name_to_worldobj = new Dictionary<string, WorldObject>();
+      public Dictionary<int, NodeType> _nodeid_to_nodetype = new Dictionary<int, NodeType>();
+      public Dictionary<int, Armature> _joint_nodeid_to_armature = new Dictionary<int, Armature>();
+      public Dictionary<int, int> _nodeid_to_jointid = new Dictionary<int, int>();
+      public Dictionary<Armature, List<int>> _arm_joint_jointid_to_parentid = new Dictionary<Armature, List<int>>();//list is indexed by jointid => parentid
+      public Dictionary<Armature, List<int>> _arm_to_jointid = new Dictionary<Armature, List<int>>();
+      public Dictionary<Armature, int> _arm_to_jid_gen = new Dictionary<Armature, int>();
+      public List<WorldObject> _objects = new List<WorldObject>();
+    }
+    private TempsData? _temp = null;
+    private glTFLoader.Schema.Gltf? _myModel = null;
+    private byte[] _gltf_data = null;
+    private ClassLog _log;
+
+    #region Public: Methods
+
+    public ModelFile(string name, FileLoc loc, List<ImportInfo>? defs = null, IncludeMode mode = IncludeMode.DefsOnly) : base(name, SourceFormat.File)
+    {
+      //Ctor is just for storing parameters, call Load to load the asset
+      _file = loc;
+      _loadMode = mode;
+      if (defs == null)
       {
-        ob.DataSource = this;
+        _importInfos = new List<ImportInfo>();
+        _loadMode = IncludeMode.AllObjects;
       }
-      Gu.Assert(_objects != null);
-      Model wo = new Model(objName);
-      foreach (var ob in _objects)
+      else
       {
-        wo.AddChild(ob);
+        _importInfos = defs;
       }
-      return wo;
     }
-    protected override void Destroy()
+    public override void OnLoad()
     {
-      _objects = null;
+      if (!_initialized)
+      {
+        Gu.Assert(_file != null);
+
+        ReloadEverything();
+
+        _loader = new DynamicFileLoader(new List<FileLoc>() { _file }, (files) =>
+        {
+          ReloadEverything();
+          return this._loadState == ModelLoadState.Success;
+        });
+      }
     }
-    private static List<WorldObject> LoadObjects(FileLoc loc, bool flip_tris = true)
+    public override void OnDestroy()
     {
-      //Load GLTF object
-      //Returns a single object that is persistent with other objects as data refs.
-      //@param flip_tris - flip the triangle winding (from blender .. etc)
-      //@Note this is not an optimal loading - it loads the entire mesh into memory.For small meshes, small games. 
-      List<WorldObject> objs = null;
+      ClearData();
+    }
+    public WorldObject CreateObject(string name, vec3? pos = null, quat? rot = null, vec3? scl = null)
+    {
+      MakeSureLoadedAndDataSet();
+      if (_temp._name_to_worldobj.TryGetValue(name, out var wo))
+      {
+        if (pos != null) { wo.Position_Local = wo.Position_Local + pos.Value; }
+        if (rot != null) { wo.Rotation_Local = wo.Rotation_Local * rot.Value; }
+        if (scl != null) { wo.Scale_Local = wo.Scale_Local * scl.Value; }
+        Gu.World.AddObject(wo);
+        return wo;
+      }
+      // var def = _importInfos.Where(x => x._nameInFile == name).FirstOrDefault();
+      // if (def != null)
+      // {
+      //   var wo = def._object;
+      //   if (wo != null)
+      //   {
+      //     if (pos != null) { wo.Position_Local = wo.Position_Local + pos.Value; }
+      //     if (rot != null) { wo.Rotation_Local = wo.Rotation_Local * rot.Value; }
+      //     if (scl != null) { wo.Scale_Local = wo.Scale_Local * scl.Value; }
+
+      //     Gu.World.AddObject(wo);
+
+      //     return wo;
+      //   }
+      //   else
+      //   {
+      //     Gu.Log.Error($"Def '{name}' had no object");
+      //     Gu.DebugBreak();
+      //   }
+      // }
+      // else
+      // {
+      //   Gu.Log.Error($"Could not find definition for name '{name}'");
+      //   Gu.DebugBreak();
+      // }
+      return null;
+    }
+    private void MakeSureLoadedAndDataSet()
+    {
+      if (_loadState == ModelLoadState.None)
+      {
+        OnLoad();
+      }
+      // Gu.Assert(_importInfos != null);
+      // if (_importInfos.Count == 0)
+      // {
+      //   Gu.Log.Error($"Model '{Name}' had no object defs");
+      //   Gu.DebugBreak();
+      // }
+      Gu.Assert(_temp != null);
+    }
+    public void CreateObjects(vec3? pos = null, quat? rot = null, vec3? scl = null)
+    {
+      //Processing a loaded scene, create the objects based on the definitions, and other generation parameters
+      MakeSureLoadedAndDataSet();
+
+      foreach (var kvp in _temp._worldobj_temp)
+      {
+        var wo = kvp.Key;
+        //var def = kvp.Value._info;
+        //wo.Visible = def._visible;
+        //wo.Position_Local = wo.Position_Local + def._pos;
+        //wo.Rotation_Local = wo.Rotation_Local * def._rot;
+        //wo.Scale_Local = def._scale;
+        if (pos != null) { wo.Position_Local = wo.Position_Local + pos.Value; }
+        if (rot != null) { wo.Rotation_Local = wo.Rotation_Local * rot.Value; }
+        if (scl != null) { wo.Scale_Local = wo.Scale_Local * scl.Value; }
+        Gu.World.AddObject(wo);
+      }
+    }
+
+    #endregion
+    #region Private: Methods
+
+    private void OnFilesChanged()
+    {
+      ReloadEverything();
+    }
+    private void ReloadEverything()
+    {
+      _loadState = ModelLoadState.Loading;
+
+      var msa = Gu.Milliseconds();
+
+      _log = new ClassLog(this.Name, Gu.EngineConfig.Debug_Log_GLTF_Details, true);
+      _log.AppendLine("\n---------------------------------------------------------------------------------");
+      _log.AppendLine("---------------------------------------------------------------------------------");
+      _log.AppendLine($"Loading '{this._file.FileName}'");
+
+      if (_file.Extension == ".glb")
+      {
+        LoadGLTFScene(Name);
+        _initialized = true;
+      }
+      else
+      {
+        _log.Error($"Unknown file format '{_file.Extension}' must be .glb");
+      }
+
+      _log.Debug($"..{_loadState.ToString()} {Gu.Milliseconds() - msa}ms");
+
+      _log.Print();
+    }
+
+
+    #endregion
+    #region Private: Load Methods
+
+    private void LoadGLTFScene(string name)
+    {
       try
       {
-        //GLTF has 2 parts the model info and the binary data.
-        //It also has 3 file formats: data only, data + metadata, and metadata with embedded data (json)
-        string path = loc.QualifiedPath;
-        byte[]? model_bytes = null;
-        glTFLoader.Schema.Gltf myModel = null;
+        _log.Debug($" Loading {name}");
 
-        using (Stream? stream = loc.OpenRead())
-        {
-          if (stream != null)
-          {
-            myModel = glTFLoader.Interface.LoadModel(stream);
-          }
-          else
-          {
-            Gu.BRThrowException("Stream from '" + path + "'was null");
-          }
-        }
-        using (Stream? stream = loc.OpenRead())
-        {
-          if (stream != null)
-          {
-            model_bytes = glTFLoader.Interface.LoadBinaryBuffer(stream);
-          }
-          else
-          {
-            Gu.BRThrowException("Stream from '" + path + "'was null");
-          }
-        }
+        ClearData();
 
-        objs = LoadObjectNodes(myModel);
-        foreach (var ob in objs)
+        if (LoadGLTFIntoMemory(_file))
         {
-          LoadModelNode(ob, myModel, model_bytes, flip_tris);
+          BuildSceneHierarchy();
+          ProcessObjects();
         }
       }
       catch (Exception ex)
       {
-        Gu.Log.Error("Load model failed: ", ex);
-      }
-
-      return objs;
-    }
-    private static void ParseNodes(WorldObject parent, int[] nodeIndexes, glTFLoader.Schema.Gltf myModel, List<WorldObject> worldobjs_ordered_toplevel)
-    {
-      if (nodeIndexes != null)
-      {
-        foreach (var iNode in nodeIndexes)
-        {
-          var node = myModel.Nodes[iNode];
-          //glTFLoader.Schema.Node 
-          if (node != null)
-          {
-            vec3 trans = new vec3(node.Translation);
-            vec4 rot = new vec4(node.Rotation);
-            vec3 scale = new vec3(node.Scale);
-            WorldObject wo = new WorldObject(Gu.Lib.GetUniqueName(ResourceType.WorldObject, node.Name));
-            wo.Position_Local = trans;  
-            wo.Rotation_Local = new quat(rot.x, rot.y, rot.z, rot.w);
-            wo.Scale_Local = scale;
-            wo.LoaderTempData = (object)node;
-            wo.LoaderTempDataNodeId = iNode;
-            if (parent == null)
-            {
-              worldobjs_ordered_toplevel.Add(wo);
-            }
-            else
-            {
-              parent.AddChild(wo);
-            }
-            ParseNodes(wo, node.Children, myModel, worldobjs_ordered_toplevel);
-          }
-          else
-          {
-            Gu.Log.Error("A node was was null loading GLTF.");
-          }
-        }
+        _log.Error("Load model failed: " + Gu.GetAllException(ex));
       }
     }
-    private static List<WorldObject> LoadObjectNodes(glTFLoader.Schema.Gltf myModel)
+    private void ClearData()
     {
-      //Loads a hierarchy of objects no mesh data (yet)
-      List<WorldObject> worldobjs_ordered_toplevel = new List<WorldObject>();
-      if (myModel != null)
+      _temp = new TempsData();
+      _myModel = null;
+      _gltf_data = null;
+      _loadState = ModelLoadState.None;
+
+      foreach (var d in this._importInfos)
       {
-        //Only use first scene
-        if (myModel.Scenes.Length == 0)
+        d._object = null;
+      }
+    }
+    private bool LoadGLTFIntoMemory(FileLoc loc)
+    {
+      _gltf_data = null;
+      _myModel = null;
+
+      string path = loc.QualifiedPath;
+      using (Stream? stream = loc.OpenRead())
+      {
+        if (stream != null)
         {
-          Gu.Log.Error("There were no scenes in the GLTF.");
-          return worldobjs_ordered_toplevel;
+          _myModel = glTFLoader.Interface.LoadModel(stream);
         }
-        var scene = myModel.Scenes[0];
-        if (myModel.Scenes.Length > 1)
+        else
         {
-          Gu.Log.Warn("There was more than 1 scene in GLTF. Only 1 scene is supported.");
+          _log.Error($"Stream '{path}' was null");
+          return false;
+        }
+      }
+      using (Stream? stream = loc.OpenRead())
+      {
+        if (stream != null)
+        {
+          _gltf_data = glTFLoader.Interface.LoadBinaryBuffer(stream);
+        }
+        else
+        {
+          _log.Error($"Stream '{path}' was null");
+          return false;
+        }
+      }
+
+      return true;
+    }
+    private void BuildSceneHierarchy()
+    {
+      if (_myModel != null)
+      {
+        if (_myModel.Scenes.Length == 0)
+        {
+          _log.Error("There were no scenes in the GLTF.");
+        }
+        var scene = _myModel.Scenes[0];
+        if (_myModel.Scenes.Length > 1)
+        {
+          _log.Warn("There was more than 1 scene in GLTF. Only 1 scene is supported.");
         }
 
-        ParseNodes(null, scene.Nodes, myModel, worldobjs_ordered_toplevel);
+        ParseNodes(null, scene.Nodes);
       }
       else
       {
-        Gu.Log.Error("GLTF model was null upon loading nodes");
+        _log.Error("GLTF model was null upon loading nodes");
+      }
+    }
+    private bool IsJoint(int nodeid)
+    {
+      bool isJoint = false;
+      foreach (var skin in _myModel.Skins)
+      {
+        if (skin.Joints.Contains(nodeid))
+        {
+          isJoint = true;
+          break;
+        }
+      }
+      return isJoint;
+    }
+    private bool IsArmature(string name)
+    {
+      //fromw hat i can see at least in blender the exported 
+      //name of the skin is also the name of the armature node
+      bool isarm = false;
+      foreach (var skin in _myModel.Skins)
+      {
+        if (skin.Name == name)
+        {
+          isarm = true;
+          break;
+        }
+      }
+      return isarm;
+    }
+    private void SetJointParent(Armature arm, int jparent_id)
+    {
+      List<int>? d = null;
+      if (!_temp._arm_joint_jointid_to_parentid.TryGetValue(arm, out d))
+      {
+        d = new List<int>();
+        _temp._arm_joint_jointid_to_parentid[arm] = d;
+      }
+      d.Add(jparent_id);//this should end up being in order if we generate ids correctly.
+    }
+    private void AddArmJoint(Armature arm, int j_nodeid, int j_id)
+    {
+      _temp._joint_nodeid_to_armature.Add(j_nodeid, arm);
+      if (!_temp._arm_to_jointid.TryGetValue(arm, out var jids))
+      {
+        jids = new List<int>();
+        _temp._arm_to_jointid.Add(arm, jids);
+      }
+      _temp._arm_to_jointid[arm].Add(j_id);
+      _temp._nodeid_to_jointid.Add(j_nodeid, j_id);
+    }
+    private void DoJoint(Armature arm, int[] child_nodes, int nodeid_parent, int jid_parent, ref int jid_next)
+    {
+      //start at 1 to signal 0 as being null parent (root)
+      //breadth first generation of joint ids iterating joints during processing will iterate the hierarchy
+      Gu.Assert(arm != null);
+
+      //it is possible for control bones to not have parents.
+      //[control bones..][root][..]
+      AddArmJoint(arm, nodeid_parent, jid_parent);
+
+      //build hierarchy breadth first so linear traversal guarantees parent processing
+      if (child_nodes != null)
+      {
+        var ch_jids = new List<int>();
+        foreach (var ch_nodeid in child_nodes)
+        {
+          var joint_node = _myModel.Nodes[ch_nodeid];
+          var ch_jid = jid_next++;
+          SetJointParent(arm, jid_parent);
+          ch_jids.Add(ch_jid);
+        }
+        int i = 0;
+        foreach (var ch_nodeid in child_nodes)
+        {
+          var joint_node = _myModel.Nodes[ch_nodeid];
+          //breadth first
+          DoJoint(arm, joint_node.Children, ch_nodeid, ch_jids[i], ref jid_next);
+          i++;
+        }
       }
 
-      return worldobjs_ordered_toplevel;
     }
-    private static void LoadModelNode(WorldObject root, glTFLoader.Schema.Gltf myModel, byte[] gltf_data, bool flip_tris)
+    private void ParseNodes(WorldObject parent, int[] nodes)
     {
-      //TODO: there can be more than 1 buffer her, so the gltf_data would need to be a list of buffer
-      //and we would use the BufferView.Buffer to select the correct buffer.
-      glTFLoader.Schema.Node? node = root.LoaderTempData as glTFLoader.Schema.Node;
-      if (node == null)
+      Gu.Assert(nodes != null);
+
+      foreach (var nodeid in nodes)
       {
-        Gu.Log.Error("Loader temp data was not set for a node.");
+        var node = _myModel.Nodes[nodeid];
+        Gu.Assert(node != null);
+
+        // if (CanAddNode(node.Name, parent, out var def))
+        // {
+        ///Gu.Assert(def != null);
+        WorldObject? wo = null;
+        if (IsArmature(Gu.Lib.GetUniqueName(ResourceType.Armature, node.Name)))
+        {
+          wo = new Armature(node.Name);
+        }
+        else if (IsJoint(nodeid))
+        {
+          //i give up
+          var arm = parent as Armature;
+          int jid_next = 1;
+          if (!_temp._arm_to_jid_gen.ContainsKey(arm))
+          {
+            _temp._arm_to_jid_gen.Add(arm, jid_next);
+          }
+          jid_next = _temp._arm_to_jid_gen[arm];
+          SetJointParent(arm, 0);
+
+          DoJoint(arm, node.Children, nodeid, 0, ref jid_next);
+
+          _temp._arm_to_jid_gen[arm] = jid_next;
+        }
+        else
+        {
+          wo = new WorldObject(Gu.Lib.GetUniqueName(ResourceType.WorldObject, node.Name));
+        }
+        if (wo != null)
+        {
+          wo.DataSource = this;
+          wo.Position_Local = new vec3(node.Translation);
+          wo.Rotation_Local = new quat(node.Rotation[0], node.Rotation[1], node.Rotation[2], node.Rotation[3]);
+          wo.Scale_Local = new vec3(node.Scale);
+          _temp._objects.Add(wo);
+          _temp._worldobj_temp.Add(wo, new ObjTemp()
+          {
+            _gltfNode = node,
+            // _info = def,
+            _gltfNodeId = nodeid,
+            _gltfSkinId = node.Skin == null ? -1 : node.Skin.Value
+          });
+          _temp._gltf_id_to_worldobj.Add(nodeid, wo);
+          _temp._name_to_worldobj.Add(node.Name, wo);
+          if (parent != null)
+          {
+            parent.AddChild(wo);
+          }
+          if (node.Children != null)
+          {
+            ParseNodes(wo, node.Children);
+          }
+        }
+
+
+        // }
+        // else
+        // {
+        //   _clog.Debug($"Note: Undefined object '{node.Name}'");
+        // }
+
+      }
+    }
+    private bool CanAddNode(string nodeName, WorldObject parent, out ImportInfo? def)
+    {
+      if (_loadMode == IncludeMode.AllObjects)
+      {
+        def = new ImportInfo()
+        {
+          _generated = true
+        };
+        _importInfos.Add(def);
+
+        return true;
+      }
+      else
+      {
+        //find node by nname
+        def = _importInfos.Where(x => x._nameInFile == nodeName).FirstOrDefault();
+
+        if (def != null)
+        {
+          if (parent == null && def._rootOnly)
+          {
+            return true;
+          }
+        }
+
+        return false;
+      }
+    }
+    private void ProcessObjects()
+    {
+      //TODO: fix
+      // if (_importInfos != null && _importInfos.Count > 0)
+      // {
+      //   foreach (var d in _importInfos)
+      //   {
+      //     if (d._object != null)
+      //     {
+      foreach (var wo in _temp._objects)
+      {
+        LoadModelNode(wo);
+      }
+      //   }
+      //   else
+      //   {
+      //     _log.Warn($" '{d._nameInFile}' Node was not found (generated={d._generated})");
+      //   }
+      // }
+
+      //skin all objs      
+      LoadGLTFSkin();
+      LoadGLTFAnimation();
+      // }
+      // else
+      // {
+      //   _log.Error($"No import definitions supplied, or file had no objects (loadMode={this._loadMode.ToString()})");
+      // }
+      if (_loadState == ModelLoadState.Loading)
+      {
+        _loadState = ModelLoadState.Success;
+      }
+    }
+    private void LoadModelNode(WorldObject wo)
+    {
+      LoadGLTFMeshAndMaterial(wo);
+      wo.IterateChildrenSafe((child) =>
+      {
+        LoadModelNode(child);
+        return LambdaBool.Continue;
+      });
+    }
+    private void LoadGLTFAnimation()
+    {
+      Dictionary<int, AnimationData> node_anims = new Dictionary<int, AnimationData>();
+
+      if (_myModel.Animations != null && _myModel.Animations.Length > 0)
+      {
+        foreach (var anim in _myModel.Animations)
+        {
+          string n = anim.Name;
+          if (anim != null && anim.Channels != null && anim.Channels.Length > 0)
+          {
+            foreach (var channel in anim.Channels)
+            {
+              int nodeid = channel.Target.Node.Value;
+
+              //this is an issue bc gltf does not distinguish bones and nodes
+              AnimationData? adat = null;
+              if (!node_anims.TryGetValue(nodeid, out adat))
+              {
+                adat = new AnimationData();
+                node_anims.Add(nodeid, adat);
+              }
+              KeyframeData? kdat = null;
+              if (!adat.Animations.TryGetValue(anim.Name, out kdat))
+              {
+                kdat = new KeyframeData(anim.Name);
+                adat.Animations.Add(anim.Name, kdat);
+              }
+
+              ParseKeyFrames(anim.Name, channel, anim.Samplers[channel.Sampler], ref kdat);
+            }
+          }
+          else
+          {
+            _log.Error($"Animation '{anim.Name}' had no channels.");
+          }
+        }
+      }
+
+      foreach (var kvp in node_anims)
+      {
+        int nodeId = kvp.Key;
+        AnimationData adat = kvp.Value;
+
+        if (_temp._joint_nodeid_to_armature.TryGetValue(nodeId, out var arm))
+        {
+          //joint
+          Gu.Assert(arm.Data != null);
+          arm.Data.JointAnims[nodeId] = adat;
+        }
+        else
+        {
+          //node
+          Gu.Assert(_temp._gltf_id_to_worldobj.TryGetValue(nodeId, out var wo));
+          wo.AnimationData = adat;
+        }
+
+      }
+
+
+
+
+    }
+    private void ParseKeyFrames(string name, glTFLoader.Schema.AnimationChannel? channel, glTFLoader.Schema.AnimationSampler? sampler, ref KeyframeData adat)
+    {
+      if (!_log.Assert(adat != null))
+      {
         return;
       }
+      if (!_log.Assert(sampler != null))
+      {
+        return;
+      }
+      if (!_log.Assert(channel != null))
+      {
+        return;
+      }
+
+      // "channels" : [
+      //     {
+      //         "sampler" : 0,
+      //         "target" : {
+      //             "node" : 4,
+      //             "path" : "translation"
+      //         }
+      //     },
+      // ],
+      // "name" : "TestAnimation1",
+      // "samplers" : [
+      //     { 
+      //        //sampler 0
+      //         "input" : 20, // time
+      //         "interpolation" : "LINEAR",
+      //         "output" : 21 //prs, floats, mats, ..
+      //     },
+      // ]
+
+      //time
+      //Note: time values (seemingly) translated into seconds.
+      var samp_acc = _myModel.Accessors[sampler.Input];
+      if (!_log.Assert(samp_acc.ComponentType == GLTF_COMP_TYPE.FLOAT))
+      {
+        return;
+      }
+      if (!_log.Assert(samp_acc.Type == GLTF_DATA_TYPE.SCALAR))
+      {
+        return;
+      }
+      var off = _myModel.BufferViews[samp_acc.BufferView.Value].ByteOffset;
+      float[] times = SerializeTools.DeserializeFrom<float>(_gltf_data, off, samp_acc.Count);
+
+      //Translate interpolation enum
+      KeyframeInterpolation interp = KeyframeInterpolation.Linear;
+      if (sampler.Interpolation == glTFLoader.Schema.AnimationSampler.InterpolationEnum.LINEAR) { interp = KeyframeInterpolation.Linear; }
+      else if (sampler.Interpolation == glTFLoader.Schema.AnimationSampler.InterpolationEnum.CUBICSPLINE) { interp = KeyframeInterpolation.Cubic; }
+      else if (sampler.Interpolation == glTFLoader.Schema.AnimationSampler.InterpolationEnum.STEP) { interp = KeyframeInterpolation.Step; }
+      else
+      {
+        Gu.BRThrowNotImplementedException();
+      }
+
+
+      //value
+      samp_acc = _myModel.Accessors[sampler.Output];
+      off = _myModel.BufferViews[samp_acc.BufferView.Value].ByteOffset;
+      if (channel.Target.Path == glTFLoader.Schema.AnimationChannelTarget.PathEnum.rotation)
+      {
+        //quaternion
+        if (!_log.Assert(samp_acc.ComponentType == GLTF_COMP_TYPE.FLOAT))
+        {
+          return;
+        }
+        if (!_log.Assert(samp_acc.Type == GLTF_DATA_TYPE.VEC4))
+        {
+          return;
+        }
+        _log.Debug($"Loading {samp_acc.Count} rotation keys.");
+        quat[] vals = SerializeTools.DeserializeFrom<quat>(_gltf_data, off, samp_acc.Count);
+
+        adat.FillRot(times, vals, interp, false, false);
+      }
+      else if (channel.Target.Path == glTFLoader.Schema.AnimationChannelTarget.PathEnum.translation)
+      {
+        //v3
+        if (!_log.Assert(samp_acc.ComponentType == GLTF_COMP_TYPE.FLOAT))
+        {
+          return;
+        }
+        if (!_log.Assert(samp_acc.Type == GLTF_DATA_TYPE.VEC3))
+        {
+          return;
+        }
+
+        _log.Debug($"Loading {samp_acc.Count} position keys.");
+
+        vec3[] vals = SerializeTools.DeserializeFrom<vec3>(_gltf_data, off, samp_acc.Count).ToArray();
+
+        adat.FillPos(times, vals, interp);
+      }
+      else if (channel.Target.Path == glTFLoader.Schema.AnimationChannelTarget.PathEnum.scale)
+      {
+        //v3
+        if (!_log.Assert(samp_acc.ComponentType == GLTF_COMP_TYPE.FLOAT))
+        {
+          return;
+        }
+        if (!_log.Assert(samp_acc.Type == GLTF_DATA_TYPE.VEC3))
+        {
+          return;
+        }
+        _log.Debug($"Loading {samp_acc.Count} scale keys.");
+        vec3[] vals = SerializeTools.DeserializeFrom<vec3>(_gltf_data, off, samp_acc.Count);
+
+        adat.FillScale(times, vals, interp);
+      }
+      else if (channel.Target.Path == glTFLoader.Schema.AnimationChannelTarget.PathEnum.weights)
+      {
+        _log.Error("We do not support skin yet.. todo..");
+        Gu.DebugBreak();
+      }
+      else
+      {
+        Gu.BRThrowNotImplementedException();
+      }
+
+      adat.SortAndCalculate();
+
+    }
+    private class MeshTemp
+    {
+      public vec3[]? positions = null;
+      public vec3[]? normals = null;
+      public vec2[]? texs_0 = null;
+      public vec3[]? tangents = null;
+      public List<Svec4>[]? jointsn = new List<Svec4>[MAX_JOINTS_OR_WEIGHTS_BUFFERS];
+      public List<vec4>[]? weightsn = new List<vec4>[MAX_JOINTS_OR_WEIGHTS_BUFFERS];
+      public bool has_weights = false;
+      public bool has_joints = false;
+    }
+    private void LoadGLTFMeshAndMaterial(WorldObject wo)
+    {
+      Gu.Assert(wo != null);
+      Gu.Assert(_myModel != null);
+      Gu.Assert(_temp != null);
+      if (!_temp._worldobj_temp.TryGetValue(wo, out var obtemp))
+      {
+        _log.Error("Loader temp data was not set for a node.");
+        return;
+      }
+      if (obtemp == null)
+      {
+        _log.Error("Loader temp data was not set for a node.");
+        return;
+      }
+      var node = obtemp._gltfNode;
       if (node.Mesh == null)
       {
-        Gu.Log.Warn("Given node '" + node.Name + "' had no mesh.");
+        _log.Warn($"'{node.Name}' had no mesh.");
         return;
       }
+
       //Get the mesh at the index. 
-      var mesh = myModel.Meshes[node.Mesh.Value];
+      var mesh = _myModel.Meshes[node.Mesh.Value];
 
       if (mesh.Primitives.Length == 0)
       {
-        Gu.Log.Error("No mesh primitives were available for mesh..");
+        _log.Error("No mesh primitives were available for mesh..");
         return;
       }
       if (mesh.Primitives.Length > 1)
       {
-        Gu.Log.Warn("Only one mesh primitive of triangles is supported.");
+        _log.Warn("Only one mesh primitive of triangles is supported.");
       }
       var prim = mesh.Primitives[0];
+      LoadGLTFMesh(mesh, prim, wo);
 
-      LoadGLTFMesh(myModel, mesh, prim, gltf_data, root, flip_tris);
-
-      LoadGLTFMaterial(myModel, prim, gltf_data, root);
-
-      LoadGLTFAnimation(myModel, gltf_data, root);
-
-      //Recur children.
-      root.IterateChildrenSafe((child) =>
-      {
-        LoadModelNode(child, myModel, gltf_data, flip_tris);
-        return LambdaBool.Continue;
-      });
+      //Material
+      LoadGLTFMaterial(prim, wo);
     }
-    private static void LoadGLTFAnimation(glTFLoader.Schema.Gltf myModel, byte[] gltf_data, WorldObject root)
+    private void LoadGLTFMesh(glTFLoader.Schema.Mesh? mesh, glTFLoader.Schema.MeshPrimitive prim, WorldObject wo)
     {
-      AnimationComponent anim_comp = null;
-      AnimationData adat = null;
-
-      if (myModel.Animations != null && myModel.Animations.Length > 0)
-      {
-        foreach (var anim in myModel.Animations)
-        {
-          Gu.Assert(anim != null);
-          if (anim.Channels != null && anim.Channels.Length > 0)
-          {
-            foreach (var channel in anim.Channels)
-            {
-              if (channel.Target != null)
-              {
-                if (channel.Target.Node != null)
-                {
-                  int nodeId = channel.Target.Node.Value;
-                  if (root.LoaderTempDataNodeId == nodeId)
-                  {
-                    var sampler = anim.Samplers[channel.Sampler];
-
-                    //Translate interpolation enum
-                    KeyframeInterpolation interp = KeyframeInterpolation.Linear;
-                    if (sampler.Interpolation == glTFLoader.Schema.AnimationSampler.InterpolationEnum.LINEAR) { interp = KeyframeInterpolation.Linear; }
-                    else if (sampler.Interpolation == glTFLoader.Schema.AnimationSampler.InterpolationEnum.CUBICSPLINE) { interp = KeyframeInterpolation.Cubic; }
-                    else if (sampler.Interpolation == glTFLoader.Schema.AnimationSampler.InterpolationEnum.STEP) { interp = KeyframeInterpolation.Step; }
-                    else
-                    {
-                      Gu.BRThrowNotImplementedException();
-                    }
-
-                    //time
-                    //Note: time values (seemingly) translated into seconds.
-                    var samp_acc = myModel.Accessors[sampler.Input];
-                    Gu.Assert(samp_acc.ComponentType == glTFLoader.Schema.Accessor.ComponentTypeEnum.FLOAT);
-                    Gu.Assert(samp_acc.Type == glTFLoader.Schema.Accessor.TypeEnum.SCALAR);
-                    var off = myModel.BufferViews[samp_acc.BufferView.Value].ByteOffset;
-                    float[] times = ByteArrayUtils.ParseFloatArray(gltf_data, samp_acc.Count, off);
-
-                    //value
-                    samp_acc = myModel.Accessors[sampler.Output];
-                    off = myModel.BufferViews[samp_acc.BufferView.Value].ByteOffset;
-
-                    if (channel.Target.Path == glTFLoader.Schema.AnimationChannelTarget.PathEnum.rotation)
-                    {
-                      //quaternion
-                      Gu.Assert(samp_acc.ComponentType == glTFLoader.Schema.Accessor.ComponentTypeEnum.FLOAT);
-                      Gu.Assert(samp_acc.Type == glTFLoader.Schema.Accessor.TypeEnum.VEC4);
-                      Gu.Log.Debug($"Loading Model: {samp_acc.Count} rotation keys.");
-                      quat[] vals = ByteArrayUtils.ParseQuatArray(gltf_data, samp_acc.Count, off);
-                      if (adat == null)
-                      {
-                        adat = new AnimationData(anim.Name);
-                        anim_comp = new AnimationComponent(adat);
-                      }
-                      adat.FillRot(times, vals, interp, false, false);
-                    }
-                    else if (channel.Target.Path == glTFLoader.Schema.AnimationChannelTarget.PathEnum.translation)
-                    {
-                      //v3
-                      Gu.Assert(samp_acc.ComponentType == glTFLoader.Schema.Accessor.ComponentTypeEnum.FLOAT);
-                      Gu.Assert(samp_acc.Type == glTFLoader.Schema.Accessor.TypeEnum.VEC3);
-                      Gu.Log.Debug($"Loading Model: {samp_acc.Count} position keys.");
-                      vec3[] vals = ByteArrayUtils.ParseVec3fArray(gltf_data, samp_acc.Count, off).ToArray();
-                      if (adat == null)
-                      {
-                        adat = new AnimationData(anim.Name);
-                        anim_comp = new AnimationComponent(adat);
-                      }
-                      adat.FillPos(times, vals, interp);
-                    }
-                    else if (channel.Target.Path == glTFLoader.Schema.AnimationChannelTarget.PathEnum.scale)
-                    {
-                      //v3
-                      Gu.Assert(samp_acc.ComponentType == glTFLoader.Schema.Accessor.ComponentTypeEnum.FLOAT);
-                      Gu.Assert(samp_acc.Type == glTFLoader.Schema.Accessor.TypeEnum.VEC3);
-                      Gu.Log.Debug($"Loading Model: {samp_acc.Count} scale keys.");
-                      vec3[] vals = ByteArrayUtils.ParseVec3fArray(gltf_data, samp_acc.Count, off).ToArray();
-                      if (adat == null)
-                      {
-                        adat = new AnimationData(anim.Name);
-                        anim_comp = new AnimationComponent(adat);
-                      }
-                      adat.FillScale(times, vals, interp);
-                    }
-                    else if (channel.Target.Path == glTFLoader.Schema.AnimationChannelTarget.PathEnum.weights)
-                    {
-                      Gu.Log.Error("We do not support skin yet.. todo..");
-                      Gu.DebugBreak();
-                    }
-                    else
-                    {
-                      Gu.BRThrowNotImplementedException();
-                    }
-                  }
-                }
-                else
-                {
-                  Gu.Log.Error($"Animation '{anim.Name}' channel target had no node.");
-                }
-              }
-              else
-              {
-                Gu.Log.Error($"Animation '{anim.Name}' channel had no target.");
-              }
-            }
-          }
-          else
-          {
-            Gu.Log.Error($"Animation '{anim.Name}' had no channels.");
-          }
-        }
-      }
-
-      if (anim_comp != null)
-      {
-        root.AddComponent(anim_comp);
-      }
-    }
-    private static void LoadGLTFMesh(glTFLoader.Schema.Gltf myModel, glTFLoader.Schema.Mesh? mesh, glTFLoader.Schema.MeshPrimitive prim, byte[] gltf_data, WorldObject root, bool flip_tris)
-    {
+      //https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#meshes-overview
+      //https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#skinned-mesh-attributes
+      //The number of joints that influence one vertex is limited to 4 per set
       const string position_att = "POSITION";
       const string normal_att = "NORMAL";
       const string texcoord0_att = "TEXCOORD_0";
+      const string color0_att = "COLOR_0";
       const string texcoord1_att = "TEXCOORD_1";
       const string texcoord2_att = "TEXCOORD_2";
       const string texcoord3_att = "TEXCOORD_3";
       const string texcoord4_att = "TEXCOORD_4";
       const string tangent_att = "TANGENT";
+      const string joints_att = "JOINTS_";
+      const string weights_att = "WEIGHTS_";
+
+      _log.Debug($"Parsing mesh '{mesh.Name}'");
 
       glTFLoader.Schema.MeshPrimitive.ModeEnum mode = prim.Mode;
       OpenTK.Graphics.OpenGL4.PrimitiveType mesh_prim_type = OpenTK.Graphics.OpenGL4.PrimitiveType.Triangles;
       if (mode != glTFLoader.Schema.MeshPrimitive.ModeEnum.TRIANGLES)
       {
-        Gu.Log.Error("Primitive mode for mesh not supported..");
+        _log.Error("Primitive mode for mesh not supported..");
         return;
       }
 
-      //Hoist raw data into buffers.
-      //This is slow - we could just use some raw index offsets to create v_.. but my brain is not working... later we fix this. No need for these buffers.
-      vec3[] positions = null;
-      vec3[] normals = null;
-      vec2[] texs_0 = null;
-      vec3[] tangents = null;
-
+      MeshTemp mt = new MeshTemp();
       foreach (var attr in prim.Attributes)
       {
         //3.7.2.1. Overview - these are all valid as part of the spec
         //https://www.khronos.org/registry/glTF/specs/2.0/glTF-2.0.html
-
         string attr_name = attr.Key;
-        int accessor_index = attr.Value;
-        if (accessor_index < myModel.Accessors.Length)
+
+        if (attr_name.Equals(position_att))
         {
-          var attribute_accessor = myModel.Accessors[accessor_index];
-          int? bufferViewID = myModel.Accessors[accessor_index].BufferView;
-          if (bufferViewID != null && bufferViewID.Value < myModel.BufferViews.Length)
+          mt.positions = ParseBuf_Vec3f(attr.Value, attr_name);
+        }
+        else if (attr_name.Equals(tangent_att))
+        {
+          mt.tangents = ParseBuf_Vec3f(attr.Value, attr_name);
+        }
+        else if (attr_name.Equals(normal_att))
+        {
+          mt.normals = ParseBuf_Vec3f(attr.Value, attr_name);
+        }
+        else if (attr_name.Equals(texcoord0_att))
+        {
+          mt.texs_0 = ParseBuf_Vec2f(attr.Value, attr_name);
+        }
+        else if (attr_name.Equals(color0_att))
+        {
+          _log.Warn("Ignoring Color atrib");
+        }
+        else if (attr_name.StartsWith(joints_att))
+        {
+          int idx = Int32.Parse(attr_name.Substring(joints_att.Length, 1));
+          Gu.Assert(idx < MAX_JOINTS_OR_WEIGHTS_BUFFERS);
+
+          if (mt.jointsn[idx] == null)
           {
-            var buffer_view = myModel.BufferViews[bufferViewID.Value];
-            Gu.Assert(buffer_view.ByteStride == null || buffer_view.ByteStride.Value == 0);
-            Gu.Assert(buffer_view.Buffer == 0);
-            if (buffer_view != null)
-            {
-              if (attr_name.Equals(position_att))
-              {
-                if (attribute_accessor.ComponentType == glTFLoader.Schema.Accessor.ComponentTypeEnum.FLOAT)
-                {
-                  if (attribute_accessor.Type == glTFLoader.Schema.Accessor.TypeEnum.VEC3)
-                  {
-                    positions = ByteArrayUtils.ParseVec3fArray(gltf_data, attribute_accessor.Count, buffer_view.ByteOffset);
-                  }
-                  else
-                  {
-                    Gu.Log.Error("Attribute: " + attr_name + " - Invalid data type");
-                  }
-                }
-                else
-                {
-                  Gu.Log.Error("Attribute: " + attr_name + " - Invalid component type");
-                }
-              }
-              else if (attr_name.Equals(tangent_att))
-              {
-                if (attribute_accessor.ComponentType == glTFLoader.Schema.Accessor.ComponentTypeEnum.FLOAT)
-                {
-                  if (attribute_accessor.Type == glTFLoader.Schema.Accessor.TypeEnum.VEC3)
-                  {
-                    tangents = ByteArrayUtils.ParseVec3fArray(gltf_data, attribute_accessor.Count, buffer_view.ByteOffset);
-                  }
-                  else
-                  {
-                    Gu.Log.Error("Attribute: " + attr_name + " - Invalid data type");
-                  }
-                }
-                else
-                {
-                  Gu.Log.Error("Attribute: " + attr_name + " - Invalid component type");
-                }
-              }
-              else if (attr_name.Equals(normal_att))
-              {
-                if (attribute_accessor.ComponentType == glTFLoader.Schema.Accessor.ComponentTypeEnum.FLOAT)
-                {
-                  if (attribute_accessor.Type == glTFLoader.Schema.Accessor.TypeEnum.VEC3)
-                  {
-                    normals = ByteArrayUtils.ParseVec3fArray(gltf_data, attribute_accessor.Count, buffer_view.ByteOffset);
-                  }
-                  else
-                  {
-                    Gu.Log.Error("Attribute: " + attr_name + " - Invalid data type");
-                  }
-                }
-                else
-                {
-                  Gu.Log.Error("Attribute: " + attr_name + " - Invalid component type");
-                }
-              }
-              else if (attr_name.Equals(texcoord0_att))
-              {
-                if (attribute_accessor.ComponentType == glTFLoader.Schema.Accessor.ComponentTypeEnum.FLOAT)
-                {
-                  if (attribute_accessor.Type == glTFLoader.Schema.Accessor.TypeEnum.VEC2)
-                  {
-                    texs_0 = ByteArrayUtils.ParseVec2fArray(gltf_data, attribute_accessor.Count, buffer_view.ByteOffset);
-                  }
-                  else
-                  {
-                    Gu.Log.Error("Attribute: " + attr_name + " - Invalid data type");
-                  }
-                }
-                else
-                {
-                  Gu.Log.Error("Attribute: " + attr_name + " - Invalid component type");
-                }
-              }
-              else
-              {
-                Gu.Log.Error("Invalid attribute name " + attr_name);
-                Gu.BRThrowNotImplementedException();
-              }
-            }
-            else
-            {
-              Gu.Log.Error("Buffer view was null.");
-            }
+            mt.jointsn[idx] = new List<Svec4>();
           }
-          else
+
+          ReadJointData(mt.jointsn[idx], attr_name, attr.Value);
+          mt.has_joints = true;
+        }
+        else if (attr_name.StartsWith(weights_att))
+        {
+          int idx = Int32.Parse(attr_name.Substring(weights_att.Length, 1));
+          Gu.Assert(idx < MAX_JOINTS_OR_WEIGHTS_BUFFERS);
+
+          if (mt.weightsn[idx] == null)
           {
-            Gu.Log.Error("Buffer view ID was null, or out of bounds.");
+            mt.weightsn[idx] = new List<vec4>();
           }
+          mt.weightsn[idx] = ParseBuf_Vec4f(attr.Value, attr_name).ToList();
+          mt.has_weights = true;
         }
         else
         {
-          Gu.Log.Error("attribute index outside of accessor");
-          return;
+          _log.Error($"'{attr_name}' Invalid attribute name or not supported.");
+          Gu.BRThrowNotImplementedException();
         }
       }
 
-      ushort[] indices_ushort = null;
-      uint[] indices_uint = null;
-
-      if (prim.Indices == null || prim.Indices.Value > myModel.Accessors.Length)
+      SkinWeights? sw = null;
+      if (mt.has_joints && mt.has_weights)
       {
-        Gu.Log.Error("Mesh had no index data or outside bounds. This is not supported.");
-        return;
-      }
-      {
-        var index_accessor = myModel.Accessors[prim.Indices.Value];
-        int? bufferViewID = index_accessor.BufferView;
-        if (bufferViewID != null && bufferViewID.Value < myModel.BufferViews.Length)
-        {
-          //According to the spec target should not be null - element array or array buf
-          var buffer_view = myModel.BufferViews[bufferViewID.Value];
-          Gu.Assert(buffer_view.ByteStride == null || buffer_view.ByteStride.Value == 0);
-          Gu.Assert(buffer_view.Buffer == 0);//TODO:
-          if (index_accessor.ComponentType == glTFLoader.Schema.Accessor.ComponentTypeEnum.UNSIGNED_SHORT)
-          {
-            indices_ushort = ByteArrayUtils.ParseUInt16Array(gltf_data, index_accessor.Count, buffer_view.ByteOffset);
-          }
-          else if (index_accessor.ComponentType == glTFLoader.Schema.Accessor.ComponentTypeEnum.UNSIGNED_INT)
-          {
-            indices_uint = ByteArrayUtils.ParseUInt32Array(gltf_data, index_accessor.Count, buffer_view.ByteOffset);
-          }
-          else
-          {
-            Gu.Log.Error("Invalid index type.");
-            return;
-          }
-        }
-        else
-        {
-          Gu.Log.Error("Buffer View ID was null or empty for indexes.");
-          return;
-        }
+        sw = BuildSkin(mesh.Name, mt);
       }
 
-      if (positions == null)
+      ReadIndexes(prim, out var indices_ushort, out var indices_uint);
+
+      if (mt.positions == null)
       {
-        Gu.Log.Error("No position information specified on mesh.");
+        _log.Error("No position information specified on mesh.");
       }
-      else if (normals != null && positions.Length != normals.Length)
+      else if (mt.normals != null && mt.positions.Length != mt.normals.Length)
       {
-        Gu.Log.Error($"normals ordinal {tangents.Length} did not equal position {positions.Length}");
+        _log.Error($"normals ordinal {mt.tangents.Length} did not equal position {mt.positions.Length}");
       }
-      else if (texs_0 != null && positions.Length != texs_0.Length)
+      else if (mt.texs_0 != null && mt.positions.Length != mt.texs_0.Length)
       {
-        Gu.Log.Error($"texs_0 ordinal {tangents.Length} did not equal position {positions.Length}");
+        _log.Error($"texs_0 ordinal {mt.tangents.Length} did not equal position {mt.positions.Length}");
       }
-      else if (tangents != null && positions.Length != tangents.Length)
+      else if (mt.tangents != null && mt.positions.Length != mt.tangents.Length)
       {
-        Gu.Log.Error($"Tangents ordinal {tangents.Length} did not equal position {positions.Length}");
+        _log.Error($"Tangents ordinal {mt.tangents.Length} did not equal position {mt.positions.Length}");
       }
       else
       {
-        FillGLTFMeshData(root, mesh_prim_type, mesh.Name, indices_ushort, indices_uint, positions, normals, texs_0, tangents, flip_tris);
+        FillGLTFMeshData(wo, mesh_prim_type, mesh.Name, indices_ushort, indices_uint, mt.positions, mt.normals, mt.texs_0, mt.tangents, sw);
       }
     }
-    private static void FillGLTFMeshData(WorldObject root, OpenTK.Graphics.OpenGL4.PrimitiveType mesh_prim_type, string mesh_name,
-     ushort[] indices_ushort, uint[] indices_uint, vec3[] positions, vec3[] normals, vec2[] texs_0, vec3[] tangents, bool flip_tris)
+    private void ReadJointData(List<Svec4> jointsn, string attr_name, int attr_idx)
     {
+      //"The number of joints that influence one vertex is limited to 4 per set, so the referenced accessors MUST have VEC4 type and following component types:
+      //  JOINTS_n: unsigned byte or unsigned short
+      //  WEIGHTS_n: float, or normalized unsigned byte, or normalized unsigned short"
+      //"When any of the vertices are influenced by more than four joints, the additional joint and weight information are
+      // stored in subsequent sets. For example, JOINTS_1 and WEIGHTS_1 if present will reference the accessor for up to 4 
+      // additional joints that influence the vertices."
+      //https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#skinned-mesh-attributes
+
+      if (GetAccessor(attr_idx, out var joint_acc))
+      {
+        //for GLTF joints type is always vec4 
+        Gu.Assert(joint_acc.Type == GLTF_DATA_TYPE.VEC4);
+
+        //shorts should be big enough for all joint indexes. technically bytes would be, but 255 is somewhat a low number.
+        if (joint_acc.ComponentType == GLTF_COMP_TYPE.UNSIGNED_BYTE)
+        {
+          if (AccessBuffer(attr_idx, attr_name, GLTF_DATA_TYPE.VEC4, GLTF_COMP_TYPE.UNSIGNED_BYTE, out int count, out int byteoff))
+          {
+            var vals = SerializeTools.DeserializeFrom<vec4ub>(_gltf_data, byteoff, count);
+            foreach (var val in vals)
+            {
+              jointsn.Add(new Svec4((ushort)val.x, (ushort)val.y, (ushort)val.z, (ushort)val.w));
+            }
+          }
+        }
+        else if (joint_acc.ComponentType == GLTF_COMP_TYPE.UNSIGNED_SHORT)
+        {
+          if (AccessBuffer(attr_idx, attr_name, GLTF_DATA_TYPE.VEC4, GLTF_COMP_TYPE.UNSIGNED_SHORT, out int count, out int byteoff))
+          {
+            var vals = SerializeTools.DeserializeFrom<Svec4>(_gltf_data, byteoff, count);
+            foreach (var val in vals)
+            {
+              jointsn.Add(new Svec4((ushort)val.x, (ushort)val.y, (ushort)val.z, (ushort)val.w));
+            }
+          }
+        }
+        else if (joint_acc.ComponentType == GLTF_COMP_TYPE.UNSIGNED_INT)
+        {
+          if (AccessBuffer(attr_idx, attr_name, GLTF_DATA_TYPE.VEC4, GLTF_COMP_TYPE.UNSIGNED_INT, out int count, out int byteoff))
+          {
+            var vals = SerializeTools.DeserializeFrom<uvec4>(_gltf_data, byteoff, count);
+            foreach (var val in vals)
+            {
+              Gu.Assert(val.x < ushort.MaxValue);
+              Gu.Assert(val.y < ushort.MaxValue);
+              Gu.Assert(val.z < ushort.MaxValue);
+              Gu.Assert(val.w < ushort.MaxValue);
+              jointsn.Add(new Svec4((ushort)val.x, (ushort)val.y, (ushort)val.z, (ushort)val.w));
+            }
+          }
+        }
+        else
+        {
+          //unhandled type
+          _log.Error($"Unhandled joint component type '{joint_acc.ComponentType.ToString()}'");
+        }
+
+      }
+    }
+    private void ReadIndexes(glTFLoader.Schema.MeshPrimitive prim, out ushort[] indices_ushort, out uint[] indices_uint)
+    {
+      indices_ushort = null;
+      indices_uint = null;
+
+      if (prim.Indices == null || prim.Indices.Value > _myModel.Accessors.Length)
+      {
+        _log.Error("Mesh had no index data or outside bounds. This is not supported.");
+        return;
+      }
+
+      var index_accessor = _myModel.Accessors[prim.Indices.Value];
+      int? bufferViewID = index_accessor.BufferView;
+      if (bufferViewID != null && bufferViewID.Value < _myModel.BufferViews.Length)
+      {
+        //According to the spec target should not be null - element array or array buf
+        var buffer_view = _myModel.BufferViews[bufferViewID.Value];
+        Gu.Assert(buffer_view.ByteStride == null || buffer_view.ByteStride.Value == 0);
+        Gu.Assert(buffer_view.Buffer == 0);//TODO:
+        if (index_accessor.ComponentType == GLTF_COMP_TYPE.UNSIGNED_SHORT)
+        {
+          indices_ushort = SerializeTools.DeserializeFrom<ushort>(_gltf_data, buffer_view.ByteOffset, index_accessor.Count);
+        }
+        else if (index_accessor.ComponentType == GLTF_COMP_TYPE.UNSIGNED_INT)
+        {
+          indices_uint = SerializeTools.DeserializeFrom<uint>(_gltf_data, buffer_view.ByteOffset, index_accessor.Count);
+        }
+        else
+        {
+          _log.Error($"Invalid index type '{index_accessor.ComponentType}'");
+          return;
+        }
+      }
+    }
+    private SkinWeights? BuildSkin(string meshname, MeshTemp mt)
+    {
+      //Build the GPU skin buffers
+      //these are ordinal by vertex id
+      Gu.Assert(mt.weightsn != null);
+      Gu.Assert(mt.jointsn != null);
+      Gu.Assert(mt.positions != null);
+
+      SkinWeights? sw = null;
+
+      try
+      {
+        int vcount = mt.positions.Length;
+        var offs = new wd_in_st[vcount];
+        var weights = new jw_in_st[0];
+        int woff = 0;
+        for (int vi = 0; vi < vcount; ++vi)
+        {
+          int vjcount = 0;
+          for (int jbufi = 0; jbufi < mt.jointsn.Length; jbufi++)
+          {
+            var jbuf = mt.jointsn[jbufi];
+            var wbuf = mt.weightsn[jbufi];
+            if (jbuf != null)
+            {
+              Gu.Assert(jbuf.Count == vcount);
+              Gu.Assert(wbuf != null);
+              Gu.Assert(wbuf.Count == jbuf.Count);
+
+              if (jbuf[vi].x > 0 && wbuf[vi].x > 0) { weights.Append(new jw_in_st() { joff = jbuf[vi].x, wt = wbuf[vi].x }); vjcount++; }
+              if (jbuf[vi].y > 0 && wbuf[vi].y > 0) { weights.Append(new jw_in_st() { joff = jbuf[vi].y, wt = wbuf[vi].y }); vjcount++; }
+              if (jbuf[vi].z > 0 && wbuf[vi].z > 0) { weights.Append(new jw_in_st() { joff = jbuf[vi].z, wt = wbuf[vi].z }); vjcount++; }
+              if (jbuf[vi].w > 0 && wbuf[vi].w > 0) { weights.Append(new jw_in_st() { joff = jbuf[vi].w, wt = wbuf[vi].w }); vjcount++; }
+            }
+          }
+
+          offs.Append(new wd_in_st() { wc = vjcount, wo = woff });
+
+          woff += vjcount;
+        }
+
+        if (weights.Length > 0)
+        {
+          sw = new SkinWeights(meshname, offs, weights);
+        }
+
+      }
+      catch (Exception ex)
+      {
+        _log.Error("error - " + Gu.GetAllException(ex));
+        sw = null;
+      }
+
+      return sw;
+    }
+    private void FillGLTFMeshData(WorldObject wo, OpenTK.Graphics.OpenGL4.PrimitiveType mesh_prim_type, string mesh_name,
+         ushort[]? indices_ushort, uint[]? indices_uint, vec3[] positions, vec3[]? normals, vec2[]? texs_0, vec3[]? tangents, SkinWeights? sw)
+    {
+      Gu.Assert(positions != null);
+
+      //honestly
+      bool flip_tris = true;// _temp._worldobj_temp[wo]._info._flipTris;
+
       //Pack everything
       v_v3n3x2t3u1[] verts = new v_v3n3x2t3u1[positions.Length];
       for (int ivert = 0; ivert < positions.Length; ivert++)
@@ -814,10 +1341,15 @@ namespace PirateCraft
       //Fill mesh / flip tris.
       if (indices_uint == null && indices_ushort == null)
       {
-        Gu.Assert(verts.Length % 3 == 0);
+        int vlen = verts.Length;
+        if (vlen % 3 != 0)
+        {
+          _log.Error($"Uneven vertex count %3!=0 '{verts.Length}'.");
+          return;
+        }
         if (flip_tris)
         {
-          for (int vi = 0; vi < verts.Length; vi += 3)
+          for (int vi = 0; vi < vlen; vi += 3)
           {
             v_v3n3x2t3u1 vert = verts[vi];
             verts[vi] = verts[vi + 1];
@@ -854,146 +1386,200 @@ namespace PirateCraft
         Gu.BRThrowNotImplementedException();
       }
 
+      //Fill buffers
+      MeshData? md = null;
       if (indices_uint == null && indices_ushort == null)
       {
+        //no indices
         var fd = MeshGen.ComputeNormalsAndTangents(verts, null, normals == null, tangents == null);
-
-        root.MeshView = new MeshView( 
-          new MeshData(mesh_name, mesh_prim_type,
+        md = new MeshData(mesh_name, mesh_prim_type,
           Gpu.CreateVertexBuffer(mesh_name, verts),
           Gpu.CreateVertexBuffer(mesh_name, fd),
           Gpu.CreateShaderStorageBuffer(mesh_name, fd),
-          true
-          ));
+          true);
       }
       else
       {
+        //indices
         var fd = MeshGen.ComputeNormalsAndTangents(verts, indices_uint != null ? indices_uint : indices_ushort.AsUIntArray(), normals == null, tangents == null);
-        root.MeshView =new MeshView( 
-          new MeshData(Gu.Lib.GetUniqueName(ResourceType.MeshData, mesh_name), mesh_prim_type,
+        md = new MeshData(Gu.Lib.GetUniqueName(ResourceType.MeshData, mesh_name), mesh_prim_type,
           Gpu.CreateVertexBuffer(mesh_name, verts),
           indices_uint != null ? Gpu.CreateIndexBuffer(mesh_name, indices_uint) : Gpu.CreateIndexBuffer(mesh_name, indices_ushort),
           Gpu.CreateShaderStorageBuffer(mesh_name, fd),
-          true
-          ));
+          true);
+      }
+
+      //Make view and skin
+      if (_log.Assert(md != null))
+      {
+        wo.MeshView = new MeshView(md);
+        wo.MeshView.DataSource = this;
+        wo.MeshView.MeshData.DataSource = this;
+        md.SkinWeights = sw;
+      }
+
+    }
+    private void LoadGLTFSkin()
+    {
+      //Fill out armature data and joint data for previously created nodes
+      //https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#reference-skin
+      if (_myModel.Skins != null)
+      {
+        int skinid = 0;
+        foreach (var skin in _myModel.Skins)
+        {
+          var dat = _temp._worldobj_temp.Where((x) => x.Key is Armature && x.Key.Name == skin.Name).FirstOrDefault();
+          Gu.Assert(dat.Key != null);
+          var wo_obj = dat.Key;
+          Gu.Assert(wo_obj is Armature);
+          var arm = wo_obj as Armature;
+          if (arm.Data == null)
+          {
+            arm.Data = new ArmatureData(skin.Name);
+          }
+          var jids = _temp._arm_to_jointid[arm];
+
+          arm.Data.InvBinds = ParseBuf_Mat4(skin.InverseBindMatrices.Value, "InverseBindMatrices");
+          arm.Data.JointAnims = new AnimationData[jids.Count];
+          arm.Data.JointParents = _temp._arm_joint_jointid_to_parentid[arm].ToArray();
+
+          Gu.Assert(jids.Count == arm.Data.InvBinds.Length);
+          Gu.Assert(jids.Count == arm.Data.JointParents.Length);
+
+          //add skin modifier to objs that are bound to this armature "skin"
+          foreach (var skinned in _temp._worldobj_temp)
+          {
+            if (skinned.Value._gltfSkinId == skinid)
+            {
+              skinned.Key.Modifiers = skinned.Key.Modifiers.ConstructIfNeeded();
+              skinned.Key.Modifiers.Add(new ArmatureModifier(arm));
+            }
+          }
+
+          skinid++;
+        }
       }
     }
-    private static void LoadGLTFMaterial(glTFLoader.Schema.Gltf myModel, glTFLoader.Schema.MeshPrimitive prim, byte[] gltf_data, WorldObject root)
+    private void LoadGLTFMaterial(glTFLoader.Schema.MeshPrimitive prim, WorldObject wo)
     {
-      root.Material = null;
-      if (root.LoaderTempData != null)
+      wo.Material = null;
+      if (prim.Material != null)
       {
-        if (prim.Material != null)
+        var ind = prim.Material.Value;
+        var mat = _myModel.Materials[ind];
+        if (mat != null)
         {
-          var ind = prim.Material.Value;
-          var mat = myModel.Materials[ind];
-          if (mat != null)
+          wo.Material = new Material(Gu.Lib.GetUniqueName(ResourceType.Material, mat.Name), Gu.Lib.GetShader(Rs.Shader.DefaultObjectShader));
+          wo.Material.DataSource = this;
+
+          if (mat.OcclusionTexture != null)
           {
-            root.Material = new Material(Gu.Lib.GetUniqueName(ResourceType.Material, mat.Name), Gu.Lib.GetShader(Rs.Shader.DefaultObjectShader));
+            _log.Error("occlusion tex Not supoported");
+          }
+          if (mat.EmissiveTexture != null)
+          {
+            _log.Error("emissive tex Not supoported");
+          }
+          if (mat.NormalTexture != null)
+          {
+            LoadGLTFTexture(mat, mat.NormalTexture.Index, wo, wo.Material.NormalSlot);
+          }
+          wo.Material.DoubleSided = mat.DoubleSided;
+          if (mat.PbrMetallicRoughness != null)
+          {
+            wo.Material.Roughness = mat.PbrMetallicRoughness.RoughnessFactor;
+            wo.Material.Metallic = mat.PbrMetallicRoughness.MetallicFactor;
+            wo.Material.AlphaMode = mat.AlphaMode;
+            wo.Material.BaseColor = new vec4(
+               mat.PbrMetallicRoughness.BaseColorFactor[0],
+               mat.PbrMetallicRoughness.BaseColorFactor[1],
+               mat.PbrMetallicRoughness.BaseColorFactor[2],
+               mat.PbrMetallicRoughness.BaseColorFactor[3]);
 
-            if (mat.OcclusionTexture != null)
+            if (mat.PbrMetallicRoughness.BaseColorTexture != null)
             {
-              Gu.Log.Error("occlusion tex Not supoported");
-              Gu.DebugBreak();
+              LoadGLTFTexture(mat, mat.PbrMetallicRoughness.BaseColorTexture.Index, wo, wo.Material.AlbedoSlot);
             }
-            if (mat.EmissiveTexture != null)
+            if (mat.PbrMetallicRoughness.MetallicRoughnessTexture != null)
             {
-              Gu.Log.Error("emissive tex Not supoported");
-              Gu.DebugBreak();
-            }
-            if (mat.NormalTexture != null)
-            {
-              LoadGLTFTexture(myModel, mat, gltf_data, mat.NormalTexture.Index, root, root.Material.NormalSlot);
-            }
-            if (mat.PbrMetallicRoughness != null)
-            {
-              root.Material.Roughness = mat.PbrMetallicRoughness.RoughnessFactor;
-              root.Material.Metallic = mat.PbrMetallicRoughness.MetallicFactor;
-              root.Material.AlphaMode = mat.AlphaMode;
-              root.Material.BaseColor = new vec4(
-                 mat.PbrMetallicRoughness.BaseColorFactor[0],
-                 mat.PbrMetallicRoughness.BaseColorFactor[1],
-                 mat.PbrMetallicRoughness.BaseColorFactor[2],
-                 mat.PbrMetallicRoughness.BaseColorFactor[3]);
-
-              if (mat.PbrMetallicRoughness.BaseColorTexture != null)
-              {
-                LoadGLTFTexture(myModel, mat, gltf_data, mat.PbrMetallicRoughness.BaseColorTexture.Index, root, root.Material.AlbedoSlot);
-              }
-              if (mat.PbrMetallicRoughness.MetallicRoughnessTexture != null)
-              {
-                LoadGLTFTexture(myModel, mat, gltf_data, mat.PbrMetallicRoughness.MetallicRoughnessTexture.Index, root, root.Material.RoughnessSlot);
-              }
+              LoadGLTFTexture(mat, mat.PbrMetallicRoughness.MetallicRoughnessTexture.Index, wo, wo.Material.RoughnessSlot);
             }
           }
         }
       }
 
-      if (root.Material == null)
+      if (wo.Material == null)
       {
-        root.Material = Gu.Lib.GetMaterial(Rs.Material.DefaultObjectMaterial);
+        wo.Material = Gu.Lib.GetMaterial(Rs.Material.DefaultObjectMaterial);
       }
     }
-    private static void LoadGLTFTexture(glTFLoader.Schema.Gltf myModel, glTFLoader.Schema.Material mat, byte[] gltf_data, int tind, WorldObject root, TextureSlot slot)
+    private void LoadGLTFTexture(glTFLoader.Schema.Material mat, int tind, WorldObject root, TextureSlot slot)
     {
       Gu.Assert(slot != null);
       Gu.Assert(root != null);
-      Gu.Assert(myModel != null);
-      Gu.Assert(myModel.Textures != null && myModel.Textures.Length >= tind);
-      var md_tex = myModel.Textures[tind];
+      Gu.Assert(_myModel != null);
+      Gu.Assert(_myModel.Textures != null && _myModel.Textures.Length >= tind);
+      var md_tex = _myModel.Textures[tind];
 
       if (md_tex.Source != null)
       {
-        var md_img = myModel.Images[md_tex.Source.Value];
+        var md_img = _myModel.Images[md_tex.Source.Value];
         if (md_img.BufferView != null)
         {
           TextureWrapMode ws = TextureWrapMode.Repeat;
           TextureWrapMode wt = TextureWrapMode.Repeat;
           TextureMinFilter minf = TextureMinFilter.Linear;
           TextureMagFilter magf = TextureMagFilter.Linear;
-          LoadGLTFSamplerOrDefaults(myModel, md_tex, out ws, out wt, out minf, out magf);
+          LoadGLTFSamplerOrDefaults(md_tex, out ws, out wt, out minf, out magf);
 
-          var bv = myModel.BufferViews[md_img.BufferView.Value];
-          Gu.Assert(bv.ByteStride == null || bv.ByteStride.Value == 0);
-          Gu.Assert(bv.Buffer == 0);
+          var bv = _myModel.BufferViews[md_img.BufferView.Value];
+          if (!_log.Assert(bv.ByteStride == null || bv.ByteStride.Value == 0))
+          {
+            return;
+          }
+          if (!_log.Assert(bv.Buffer == 0))
+          {
+            return;
+          }
           var imgData = new byte[bv.ByteLength];
-          System.Buffer.BlockCopy(gltf_data, bv.ByteOffset, imgData, 0, bv.ByteLength);
+          System.Buffer.BlockCopy(_gltf_data, bv.ByteOffset, imgData, 0, bv.ByteLength);
           Image? m = ImageFile.LoadImageRaw(imgData, md_img.Name);//Could use URI here, but it's not specified in a packed GLB
           string name = md_img.Name;
 #if DEBUG
           {
             var p = System.IO.Path.Combine(Gu.LocalTmpPath, name + ".png");
-            Gu.Log.Debug("Saving debug image " + p.ToString());
+            _log.Debug("Saving debug image " + p.ToString());
             Lib.SaveImage(p, m, true);
           }
 #endif
           if (md_img.Name.ToLower().Contains("bump"))
           {
-            Gu.Log.Info("Converting bump map to normal map because it contains 'bump' in the name.. " + md_img.Name);
+            _log.Debug("Converting bump map to normal map because it contains 'bump' in the name.. " + md_img.Name);
             m = m.CreateNormalMap(true);
             name = name + "-normalized";
 #if DEBUG
             {
               var p = System.IO.Path.Combine(Gu.LocalTmpPath, name + ".png");
-              Gu.Log.Debug("Saving debug image " + p.ToString());
+              _log.Debug("Saving debug image " + p.ToString());
               Lib.SaveImage(p, m, true);
             }
 #endif
           }
 
           slot.Texture = new Texture(name, m, true, minf, magf, ws, wt);
+          slot.Texture.DataSource = this;
         }
         else
         {
-          Gu.Log.Error($"Bufferview was null for image texture {md_img.Name}. Possibly disk texture? (uri={md_img.Uri})");
+          _log.Error($"Bufferview was null for image texture {md_img.Name}. Possibly disk texture? (uri={md_img.Uri})");
         }
       }
       else
       {
-        Gu.Log.Error("Texture source was null");
+        _log.Error("Texture source was null");
       }
     }
-    private static void LoadGLTFSamplerOrDefaults(glTFLoader.Schema.Gltf myModel, glTFLoader.Schema.Texture? md_tex, out TextureWrapMode ws, out TextureWrapMode wt, out TextureMinFilter minf, out TextureMagFilter magf)
+    private void LoadGLTFSamplerOrDefaults(glTFLoader.Schema.Texture? md_tex, out TextureWrapMode ws, out TextureWrapMode wt, out TextureMinFilter minf, out TextureMagFilter magf)
     {
       ws = TextureWrapMode.Repeat;
       wt = TextureWrapMode.Repeat;
@@ -1002,7 +1588,7 @@ namespace PirateCraft
 
       if (md_tex.Sampler != null)
       {
-        var samp = myModel.Samplers[md_tex.Sampler.Value];
+        var samp = _myModel.Samplers[md_tex.Sampler.Value];
 
         if (samp.WrapS != null)
         {
@@ -1039,41 +1625,140 @@ namespace PirateCraft
       }
 
     }
-  }
-  [DataContract]
-  public class AnimationLoader : DataSource
-  {
-    public AnimationLoader(string name) : base(name, SourceFormat.Generated)
+
+    #endregion
+    #region GLTF Data Handling
+
+    private bool GetAccessor(int accessor_index, out glTFLoader.Schema.Accessor? accessor)
     {
-      throw new NotImplementedException();
+      accessor = null;
+      if (accessor_index < _myModel.Accessors.Length)
+      {
+        accessor = _myModel.Accessors[accessor_index];
+        Gu.Assert(accessor != null);
+        return true;
+      }
+      else
+      {
+        _log.Error("attribute index outside of accessor");
+        return false;
+      }
     }
-    protected override DataBlock? Create(string name)
+    private bool AccessBuffer(int accessor_index, string name, GLTF_DATA_TYPE datatype, GLTF_COMP_TYPE compType, out int count, out int byteoffset)
     {
-      throw new NotImplementedException();
-      return null;
+      count = 0;
+      byteoffset = 0;
+      if (!GetAccessor(accessor_index, out var accessor))
+      {
+        return false;
+      }
+      if (accessor.ComponentType != compType)
+      {
+        _log.Error("Attribute: " + name + " - Invalid component type");
+      }
+      if (accessor.Type != datatype)
+      {
+        _log.Error("Attribute: " + name + " - Invalid data type");
+      }
+      int? bufferViewID = _myModel.Accessors[accessor_index].BufferView;
+      if (bufferViewID != null && bufferViewID.Value < _myModel.BufferViews.Length)
+      {
+        var buffer_view = _myModel.BufferViews[bufferViewID.Value];
+        Gu.Assert(buffer_view.ByteStride == null || buffer_view.ByteStride.Value == 0);
+        Gu.Assert(buffer_view.Buffer == 0);
+        if (buffer_view != null)
+        {
+          count = accessor.Count;
+          byteoffset = buffer_view.ByteOffset;
+          return true;
+        }
+        else
+        {
+          _log.Error("Buffer view was null.");
+        }
+      }
+      else
+      {
+        _log.Error("Buffer view ID was null, or out of bounds.");
+      }
+
+      return false;
     }
-    protected override void Destroy()
+    private vec2[] ParseBuf_Vec2f(int accessor_index, string attr_name)
     {
-      throw new NotImplementedException();
+      vec2[]? vals = null;
+      if (AccessBuffer(accessor_index, attr_name, GLTF_DATA_TYPE.VEC2, GLTF_COMP_TYPE.FLOAT, out int count, out int byteoff))
+      {
+        vals = SerializeTools.DeserializeFrom<vec2>(_gltf_data, byteoff, count);
+      }
+      return vals;
     }
-  }
-  [DataContract]
-  public class MeshDataLoader : DataSource
-  {
-    public MeshDataLoader(string name) : base(name, SourceFormat.Generated)
+    private vec3[] ParseBuf_Vec3f(int accessor_index, string attr_name)
     {
-      throw new NotImplementedException();
+      vec3[]? vals = null;
+      if (AccessBuffer(accessor_index, attr_name, GLTF_DATA_TYPE.VEC3, GLTF_COMP_TYPE.FLOAT, out int count, out int off))
+      {
+        vals = SerializeTools.DeserializeFrom<vec3>(_gltf_data, off, count);
+      }
+      return vals;
     }
-    protected override DataBlock? Create(string name)
+    private vec4[] ParseBuf_Vec4f(int accessor_index, string attr_name)
     {
-      throw new NotImplementedException();
-      return null;
+      vec4[]? vals = null;
+      if (AccessBuffer(accessor_index, attr_name, GLTF_DATA_TYPE.VEC4, GLTF_COMP_TYPE.FLOAT, out int count, out int off))
+      {
+        vals = SerializeTools.DeserializeFrom<vec4>(_gltf_data, off, count);
+      }
+      return vals;
     }
-    protected override void Destroy()
+    private mat4[] ParseBuf_Mat4(int accessor_index, string attr_name)
     {
-      throw new NotImplementedException();
+      mat4[]? vals = null;
+      if (AccessBuffer(accessor_index, attr_name, GLTF_DATA_TYPE.MAT4, GLTF_COMP_TYPE.FLOAT, out int count, out int off))
+      {
+        vals = SerializeTools.DeserializeFrom<mat4>(_gltf_data, off, count);
+      }
+      return vals;
     }
-  }
+
+
+    #endregion
+
+  }//cls
+  // [DataContract]
+  // public class AnimationLoader : DataSource
+  // {
+  //   public AnimationLoader(string name) : base(name, SourceFormat.Generated)
+  //   {
+  //     throw new NotImplementedException();
+  //   }
+  //   protected override DataBlock? Create(string name)
+  //   {
+  //     throw new NotImplementedException();
+  //     return null;
+  //   }
+  //   protected override void Destroy()
+  //   {
+  //     throw new NotImplementedException();
+  //   }
+  // }
+  // [DataContract]
+  // public class MeshDataLoader : DataSource
+  // {
+  //   public MeshDataLoader(string name) : base(name, SourceFormat.Generated)
+  //   {
+  //     throw new NotImplementedException();
+  //   }
+  //   protected override DataBlock? Create(string name)
+  //   {
+  //     throw new NotImplementedException();
+  //     return null;
+  //   }
+  //   protected override void Destroy()
+  //   {
+  //     throw new NotImplementedException();
+  //   }
+  // }
   [DataContract]
   public abstract class MeshGenParams
   {
@@ -1138,71 +1823,19 @@ namespace PirateCraft
     {
       _params = mgparams;
     }
-    protected override DataBlock? Create(string name)
+    public override void OnLoad()
     {
-      _meshData = _params.Generate(name);
+      _meshData = _params.Generate(this.Name);
       _meshData.DataSource = this;
-      return _meshData;
     }
-    protected override void Destroy()
+    public override void OnDestroy()
     {
       _meshData = null;
     }
-    #region Public Static: Resource generators
 
-    public static MeshData GenEllipsoidResource(string name, vec3 radius, int slices = 128, int stacks = 128, bool smooth = false, bool flip_tris = false)
-    {
-      MeshGen g = new MeshGen(name, new MeshGenEllipsoidParams()
-      {
-        _radius = radius,
-        _slices = slices,
-        _stacks = stacks,
-        _smooth = smooth,
-        _flip_tris = flip_tris,
-      });
-      return g.Load<MeshData>(name);
-    }
-    public static MeshData GenSphereResource(string name, float radius, int slices = 128, int stacks = 128, bool smooth = false, bool flip_tris = false)
-    {
-      MeshGen g = new MeshGen(name, new MeshGenEllipsoidParams()
-      {
-        _radius = new vec3(radius, radius, radius),
-        _slices = slices,
-        _stacks = stacks,
-        _smooth = smooth,
-        _flip_tris = flip_tris,
-      });
-      return g.Load<MeshData>(name);
-    }
-    public static MeshData GenPlaneResource(string name, float w, float h, vec2[]? side = null)
-    {
-      MeshGen g = new MeshGen(name, new MeshGenPlaneParams()
-      {
-        _w = w,
-        _h = h,
-        _side = side,
-      });
-      return g.Load<MeshData>(name);
-    }
-    public static MeshData GenBoxResource(string name, float w, float h, float d, vec2[] top = null, vec2[] side = null, vec2[] bot = null, vec3? translate = null)
-    {
-      MeshGen g = new MeshGen(name, new MeshGenBoxParams()
-      {
-        _w = w,
-        _h = h,
-        _d = d,
-        _top = top,
-        _side = side,
-        _bot = bot,
-        _translate = translate,
-      });
-      return g.Load<MeshData>(name);
-    }
+    #region Public Static: Generators
 
-    #endregion
-    #region Public Static: Raw generators
-
-    public static MeshData GenPlane(string name, float w, float h, vec2[]? side)
+    public static MeshData GenPlane(string name, float w, float h, vec2[]? side = null)
     {
       //Left Righ, Botom top, back front
       vec3[] box = new vec3[4];
@@ -1231,11 +1864,19 @@ namespace PirateCraft
       ushort[] qinds = MeshGen.GenerateQuadIndices(verts.Length / 4, false);
       var fd = MeshGen.ComputeNormalsAndTangents(verts, qinds.AsUIntArray());
 
-      return new MeshData(name, PrimitiveType.Triangles,
+      var md = new MeshData(name, PrimitiveType.Triangles,
         Gpu.CreateVertexBuffer(name, verts),
         Gpu.CreateIndexBuffer(name, qinds),
         Gpu.CreateShaderStorageBuffer(name, fd)
         );
+
+      md.DataSource = new MeshGen(name, new MeshGenPlaneParams()
+      {
+        _w = w,
+        _h = h,
+        _side = side,
+      });
+      return md;
     }
     public static MeshData GenSphere(string name, float radius, int slices = 128, int stacks = 128, bool smooth = false, bool flip_tris = false)
     {
@@ -1250,14 +1891,26 @@ namespace PirateCraft
 
       var fd = MeshGen.ComputeNormalsAndTangents(verts, inds.AsUIntArray(), false, true);
 
-      return new MeshData(name, PrimitiveType.Triangles,
+      var md = new MeshData(name, PrimitiveType.Triangles,
         Gpu.CreateVertexBuffer(name, verts),
         Gpu.CreateIndexBuffer(name, inds),
         Gpu.CreateShaderStorageBuffer(name, fd)
         );
+
+      md.DataSource = new MeshGen(name, new MeshGenEllipsoidParams()
+      {
+        _radius = radius,
+        _slices = slices,
+        _stacks = stacks,
+        _smooth = smooth,
+        _flip_tris = flip_tris,
+      });
+
+      return md;
     }
-    public static void GenEllipsoid(out v_v3n3x2t3u1[] verts, out ushort[] inds, vec3 radius, int slices = 128, int stacks = 128, bool smooth = false, bool flip_tris = false)
+    private static void GenEllipsoid(out v_v3n3x2t3u1[] verts, out ushort[] inds, vec3 radius, int slices = 128, int stacks = 128, bool smooth = false, bool flip_tris = false)
     {
+
       int vcount = slices * stacks * 4;
       verts = new v_v3n3x2t3u1[vcount];
 
@@ -1436,11 +2089,23 @@ namespace PirateCraft
       ushort[] qinds = GenerateQuadIndices(verts.Length / 4, false);
       var fd = ComputeNormalsAndTangents(verts, qinds.AsUIntArray());
 
-      return new MeshData(name, PrimitiveType.Triangles,
+      var md = new MeshData(name, PrimitiveType.Triangles,
         Gpu.CreateVertexBuffer(name, verts),
         Gpu.CreateIndexBuffer(name, qinds),
         Gpu.CreateShaderStorageBuffer(name, fd)
         );
+
+      md.DataSource = new MeshGen(name, new MeshGenBoxParams()
+      {
+        _w = w,
+        _h = h,
+        _d = d,
+        _top = top,
+        _side = side,
+        _bot = bot,
+        _translate = translate,
+      });
+      return md;
     }
     public static MeshData CreateScreenQuadMesh(string name, float fw, float fh)
     {

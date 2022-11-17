@@ -142,14 +142,21 @@ namespace PirateCraft
     //Material, input to a shader & gpu state for material FBO (blending, etc)
     #region Public: Members
 
+    public bool Modified { get; private set; } = true;
+    public void SetModified()
+    {
+      Modified = true;
+    }
+
     public vec4 BaseColor { get { return _baseColor; } set { _baseColor = value; SetModified(); } }
     public float Roughness { get { return _roughness; } set { _roughness = value; SetModified(); } }
     public float Metallic { get { return _metallic; } set { _metallic = value; SetModified(); } }
     public float Specular { get { return _specular; } set { _specular = value; SetModified(); } }
     public float IndexOfRefraction { get { return _indexOfRefraction; } set { _indexOfRefraction = value; SetModified(); } }
     public bool Flat { get { return _flat; } set { _flat = value; SetModified(); } }
-    public DrawMode DrawMode { get { return _drawMode; } set { _drawMode = value; } }
-    public DrawOrder DrawOrder { get { return _drawOrder; } set { _drawOrder = value; } }
+    public DrawMode DrawMode { get { return _drawMode; } set { _drawMode = value; SetModified(); } }
+    public DrawOrder DrawOrder { get { return _drawOrder; } set { _drawOrder = value; SetModified(); } }
+    public bool DoubleSided { get { return _doubleSided; } set { _doubleSided = value; this._gpuRenderState.CullFace = !_doubleSided; SetModified(); } }
 
     //TODO: we can use PBRTextureARray here instead.
     public TextureSlot AlbedoSlot { get { return _textures[(int)PBRTextureInput.Albedo]; } private set { _textures[(int)PBRTextureInput.Albedo] = value; SetModified(); } }
@@ -163,12 +170,15 @@ namespace PirateCraft
     public Shader? Shader { get { return _shader; } private set { _shader = value; SetModified(); } }
     public GpuRenderState GpuRenderState { get { return _gpuRenderState; } set { _gpuRenderState = value; SetModified(); } } //The rendering state of the material: clipping, depth, alpha, culling, etc
 
-    public GpuMaterial GpuMaterial
+
+
+    private GPUBuffer _gpuMaterialBuf = null;
+    public GPUBuffer GpuMaterial
     {
       get
       {
         CompileGpuData();
-        return _gpuMaterial;
+        return _gpuMaterialBuf;
       }
     }
 
@@ -186,6 +196,7 @@ namespace PirateCraft
     [DataMember] private bool _flat = false;
     [DataMember] private DrawMode _drawMode = DrawMode.Deferred;//Future TODO: - draw mode per each pipeline stage, if needed.
     [DataMember] private DrawOrder _drawOrder = DrawOrder.Mid;
+    [DataMember] private bool _doubleSided = false;
 
     public GpuMaterial _gpuMaterial = new GpuMaterial();//default(GpuMaterial);
     public glTFLoader.Schema.Material.AlphaModeEnum AlphaMode = glTFLoader.Schema.Material.AlphaModeEnum.BLEND;
@@ -202,28 +213,13 @@ namespace PirateCraft
       _textures[index].Texture = tex;
     }
 
-    private bool _bMustCompile = false;
 
     #endregion
 
     #region Public: Methods
-
-    public override void GetSubResources(List<DataBlock?> deps)
-    {
-      Gu.Assert(deps != null);
-      base.GetSubResources(deps);
-      deps.Add(_shader);
-      foreach (var x in this._textures)
-      {
-        if (x.Texture != null)
-        {
-          deps.Add(x.Texture);
-        }
-      }
-    }
     public void CompileGpuData()
     {
-      if (_bMustCompile || Gu.EngineConfig.Debug_AlwaysCompileAndReloadGpuUniformData)
+      if (_gpuMaterialBuf == null || Modified)
       {
         _gpuMaterial._vPBR_baseColor = _baseColor;
         _gpuMaterial._fPBR_roughness = _roughness;
@@ -231,12 +227,22 @@ namespace PirateCraft
         _gpuMaterial._fPBR_indexOfRefraction = _indexOfRefraction;
         _gpuMaterial._fPBR_specular = _specular;
         _gpuMaterial._flat = this._flat ? 1 : 0;
-        _bMustCompile = false;
+
+        if (_gpuMaterialBuf == null)
+        {
+          _gpuMaterialBuf = Gpu.CreateUniformBuffer(Name + "ubbuf", _gpuMaterial);
+        }
+        else
+        {
+          _gpuMaterialBuf.CopyToGPU(_gpuMaterial);
+        }
+        Modified = false;
+
       }
     }
 
     protected Material() { }//clone ctor
-    public Material(string name, Shader s) : base(name)
+    public Material(string name, Shader? s = null) : base(name)
     {
       _textures = new List<TextureSlot>(){
           new TextureSlot((PBRTextureInput)0),
@@ -247,13 +253,22 @@ namespace PirateCraft
           new TextureSlot((PBRTextureInput)5),
        };
 
-      Shader = s;
+      if (s == null)
+      {
+        //generate
+        Shader = Gu.Lib.GetShader(Rs.Shader.DefaultObjectShader);
+      }
+      else
+      {
+        Shader = s;
+      }
+
     }
-    public Material(string name, Shader s, Texture albedo) : this(name, s)
+    public Material(string name, Texture albedo, Shader? s = null) : this(name, s)
     {
       this.AlbedoSlot.Texture = albedo;
     }
-    public Material(string name, Shader s, Texture albedo, Texture normal) : this(name, s)
+    public Material(string name, Texture albedo, Texture normal, Shader? s = null) : this(name, s)
     {
       this.AlbedoSlot.Texture = albedo;
       this.NormalSlot.Texture = normal;

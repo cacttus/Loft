@@ -366,6 +366,7 @@ namespace PirateCraft
     {
       Gu.Assert(this.Format == ImagePixelFormat.R32f);
       //Normalize floating point image from [-inf, inf] to [0,1]
+      //Takes Maximum/minimum value from image
       Image ret = (Image?)this.Clone();
       float min = float.MaxValue;
       float max = float.MinValue;

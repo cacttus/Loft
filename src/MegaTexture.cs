@@ -452,7 +452,7 @@ namespace PirateCraft
       }
       else
       {
-        Image? img = Gu.Lib.LoadImage(MtFile.FileLoc);
+        Image? img = Gu.Lib.GetOrLoadImage(MtFile.FileLoc);
         Gu.Assert(img != null);
         var tx = new MtTex(img.Name, 0, MtFile.ShrinkPixelBorder);
         MtFile.Texs.Add(tx);
@@ -1398,7 +1398,7 @@ namespace PirateCraft
         Gu.Assert(alb.Exists);
         Gu.Assert(!_hasNormalMap || (_hasNormalMap && norm.Exists));
 
-        var albedo = Gu.Lib.LoadImage(alb);
+        var albedo = Gu.Lib.GetOrLoadImage(alb);
         output.CreateTexture(PBRTextureInput.Albedo, albedo, this._generateMipmaps, this._texFilter, true);
         if (this._hasNormalMap)
         {
@@ -1408,7 +1408,7 @@ namespace PirateCraft
           }
           else
           {
-            var normal = Gu.Lib.LoadImage(norm);
+            var normal = Gu.Lib.GetOrLoadImage(norm);
             output.CreateTexture(PBRTextureInput.Normal, normal, this._generateMipmaps, this._texFilter, true);
           }
         }

@@ -1,30 +1,12 @@
-﻿using System.Runtime.Serialization;
+﻿using System.Runtime.CompilerServices;
+using System.Runtime.Serialization;
 
 namespace PirateCraft
 {
   public enum WorldObjectCloneMode
   {
-    Instance, //reference to the data
-    Copy //copy everything
-  }
-  public class Model : WorldObject
-  {
-    //i cant think of a reason for this, but it seems to make sense as
-    //we would need to root all the WorldObject's in a loaded model anyway - so we need
-    //to create a WorldObject node anyway - but what is the purpose of a subclass?
-    //a WO is a model simply by the fact that it has a GLTFFile DataSource
-    //if we just return a WO scene it would be ok, but it isn't a "model" per se
-    //so what to do? i don't know. - 
-    //this clss may go away eventually
-
-    protected Model() { }
-    public Model(string name) : base(name) { }
-
-    //todo:
-    //a base class that handles GLTF laoding - basically a data source for GLTF
-    //has its own scnee.
-    // WorldObject _modelRoot - 
-
+    Instance, // reference to the data
+    Copy      // copy everything
   }
 
   public enum WorldObjectState
@@ -32,6 +14,15 @@ namespace PirateCraft
     Created,
     Active,
     Removed, //pending removal from the scene, or removed
+  }
+
+  public enum NodeType
+  {
+    Object,
+    Camera,
+    Light,
+    Joint,
+    Armature,
   }
 
   [DataContract]
@@ -127,13 +118,6 @@ namespace PirateCraft
       _material = mat;
       _world = mworld;
     }
-    public override void GetSubResources(List<DataBlock?>? deps)
-    {
-      Gu.Assert(deps != null);
-      base.GetSubResources(deps);
-      deps.Add(_meshView);
-      deps.Add(_material);
-    }
     public Drawable Clone()
     {
       return (Drawable)this.MemberwiseClone();
@@ -203,7 +187,6 @@ namespace PirateCraft
 
     public WorldObjectState State { get { return _state; } set { _state = value; } }
     public bool TransformChanged { get { return _transformChanged; } private set { _transformChanged = value; } }
-    public bool CanDestroy { get { return _canDestroy; } set { _canDestroy = value; } }
 
     public OOBox3f? BoundBoxMeshTransform { get { return _boundBoxMeshOO; } } //Transformed local mesh bound box
     public Box3f? BoundBoxMesh { get { return _boundBoxMeshAA; } } //Local Mesh only AABB.
@@ -211,47 +194,24 @@ namespace PirateCraft
     public vec3 Position_Local { get { return _position; } set { _position = value; SetTransformChanged(); } }
     public quat Rotation_Local { get { return _rotation; } set { _rotation = value; SetTransformChanged(); } }//xyz,angle
     public vec3 Scale_Local { get { return _scale; } set { _scale = value; SetTransformChanged(); } }
-
-    //technically you can set the world PRS just multiply by world^-1 (possibly parent, not sure)
-    //then set the local PRS
-
     public vec3 Position_World { get { return _positionWorld; } private set { _positionWorld = value; } }
-    public quat Rotation_World { get { return _rotationWorld; } private set { _rotationWorld = value; } }
-    public vec3 Scale_World { get { return _scaleWorld; } private set { _scaleWorld = value; } }
-
-    public vec3 AnimatedPosition { get { return _animatedPosition; } set { _animatedPosition = value; SetTransformChanged(); } }
-    public quat AnimatedRotation { get { return _animatedRotation; } set { _animatedRotation = value; SetTransformChanged(); } }
-    public vec3 AnimatedScale { get { return _animatedScale; } set { _animatedScale = value; SetTransformChanged(); } }
-
-    public mat4 BindMatrix { get { return _bind; } } // Skinned Bind matrix
-    public mat4 InverseBindMatrix { get { return _inverse_bind; } } // Skinned Inverse Bind
     public mat4 LocalMatrix { get { return _local; } set { _local = value; DecomposeLocalMatrix(); } }
 
     public vec3 BasisX_World { get { return _basisX_World; } }
     public vec3 BasisY_World { get { return _basisY_World; } }
     public vec3 BasisZ_World { get { return _basisZ_World; } }
-    public vec3 ForwardNormalVector { get { return _basisZ_World; } }
     public vec3 Heading { get { return _basisZ_World; } }
 
-    //Script system should be for this
-    public Action<WorldObject>? OnUpdate { get; set; } = null;
-    //public Action<WorldObject>? OnAddedToScene { get; set; } = null;
-    //public Action<WorldObject>? OnDestroyed { get; set; } = null;
-
+    //Mesh Object data
+    public Action<WorldObject>? OnUpdate { get; set; } = null;//Script system should be for this
     public IObjectScript? Script { get { return _script; } set { _script = value; } }
+    public List<Modifier> Modifiers { get { return _modifiers; } set { _modifiers = value; } }
+    public List<Component> Components { get { return _components; } set { _components = value; } }
 
-    public bool HasPhysics { get { return _hasPhysics; } set { _hasPhysics = value; } }
-    public vec3 Velocity { get { return _velocity; } set { _velocity = value; } }
-    public bool OnGround { get { return _resting; } set { _resting = value; } }
-    public bool HasGravity { get { return _hasGravity; } set { _hasGravity = value; } }
-    public bool Collides { get { return _collides; } set { _collides = value; } }
-    public float AirFriction { get { return _airFriction; } set { _airFriction = value; } }
+    public PhysicsData? PhysicsData { get { return _physicsData; } set { _physicsData = value; } }
+    public AnimationData? AnimationData { get { return _animationData; } set { _animationData = value; } }
 
-    public bool HasLight { get { return _hasLight; } set { _hasLight = value; } }
-    public float LightRadius { get { return _lightRadius; } set { _lightRadius = value; } }
-    public vec3 LightColor { get { return _lightColor; } set { _lightColor = value; } }
-    public float LightPower { get { return _lightPower; } set { _lightPower = value; } }
-    public LightType LightType { get { return _lightType; } set { _lightType = value; } }
+    public bool HasPhysics { get { return _physicsData != null; } }
 
     public static WorldObject Default
     {
@@ -320,51 +280,33 @@ namespace PirateCraft
     [DataMember] private quat _rotation = new quat(0, 0, 0, 1); //Axis-Angle xyz,ang
     [DataMember] private vec3 _scale = new vec3(1, 1, 1);
     [DataMember] private vec3 _position = new vec3(0, 0, 0);
-    [DataMember] private quat _animatedRotation = quat.identity();
-    [DataMember] private vec3 _animatedScale = new vec3(1, 1, 1);
-    [DataMember] private vec3 _animatedPosition = new vec3(0, 0, 0);
     [DataMember] private mat4 _local = mat4.Identity;
-    [DataMember] private mat4 _bind = mat4.Identity;
-    [DataMember] private mat4 _inverse_bind = mat4.Identity;
     [DataMember] private vec3 _basisX_World = new vec3(1, 0, 0);
     [DataMember] private vec3 _basisY_World = new vec3(0, 1, 0);
     [DataMember] private vec3 _basisZ_World = new vec3(0, 0, 1);
     [DataMember] private vec3 _positionWorld = vec3.Zero;
-    [DataMember] private quat _rotationWorld = quat.Identity;
-    [DataMember] private vec3 _scaleWorld = vec3.Zero;
     [DataMember] private vec4 _color = new vec4(1, 1, 1, 1);
     [DataMember] private OOBox3f? _boundBoxMeshOO = null;//Transformed mesh
     [DataMember] protected Box3f? _boundBoxMeshAA = null;//Bound box of this object with all base meshes
     [DataMember] private int _treeDepth = 0; //used to check for DAG cycles
-    [DataMember] private bool _hasPhysics = false;
-    [DataMember] private vec3 _velocity = new vec3(0, 0, 0);
-    [DataMember] private bool _resting = false;
-    [DataMember] private bool _hasGravity = true;
-    [DataMember] private bool _collides = false;
-    [DataMember] private float _airFriction = 0.0f;//friction with the air i.e. movement damping in m/s
-    [DataMember] private bool _hasLight = false;
-    [DataMember] private float _lightRadius = 100;//Distance in the case of directional light
-    [DataMember] private vec3 _lightColor = vec3.One;
-    [DataMember] private float _lightPower = 10;
-    [DataMember] private LightType _lightType = LightType.Point;
-    [DataMember] private bool _canDestroy = true;
 
     //Refs
     [DataMember] private WorldObject? _parent = null;
-    [DataMember] private List<WorldObject>? _children = null;//new List<DataReference<WorldObject>>();
-    [DataMember] private List<Component>? _components = null;//new List<DataReference<Component>>();
-    //[DataMember] private List<Constraint>? _constraints = null;//new List<DataReference<Constraint>>();
+    [DataMember] private List<WorldObject>? _children = null;
+    [DataMember] private List<Component>? _components = null;
+    [DataMember] private List<Modifier>? _modifiers = null;
     [DataMember] private IObjectScript? _script = null;
+    [DataMember] private PhysicsData? _physicsData = null;
+    [DataMember] protected AnimationData? _animationData = null;
 
     //Temps/generated
     private WorldObjectState _state = WorldObjectState.Created;
     private bool _transformChanged = false;
     private WeakReference<RenderView>? _excludeFromRenderView = null; //DO NOT render in THIS context. Used for an FPS seeing other characters.
+    protected AnimationClip? _currentClip = null;//eventually this data will be on a more generic action sequencer
+    protected KeyframeData? _currentKeys = null;
 
     //Junk
-    public object LoaderTempData = null;
-    public int LoaderTempDataNodeId = -1;
-    public bool DebugBreakRender = false;
     private static bool skip_transform_validation_check = false;
 
     #endregion
@@ -383,24 +325,17 @@ namespace PirateCraft
       {
         return;
       }
-      OnUpdate?.Invoke(this);
 
+      OnUpdate?.Invoke(this);
+      DispatchModifiers();
       UpdateComponents(dt);
       ApplyConstraints();
-      CompileLocalMatrix();
+      CompileAndAnimate(dt);
       ApplyParentMatrix();
-      //Hacking this in..
-      // if (_lookAtConstraint != null)
-      // {
-      //   vec3 t = _world.ExtractTranslation();
-      //   _world = _world * mat4.getLookAt(t, _lookAtConstraint.Value, _basisY_World).inverseOf();//why are matrix multiplies backwards 
-      // }
 
-      //Basis calculuation must come after the world is computed
       _basisX_World = (WorldMatrix * new vec4(1, 0, 0, 0)).xyz.normalized();
       _basisY_World = (WorldMatrix * new vec4(0, 1, 0, 0)).xyz.normalized();
       _basisZ_World = (WorldMatrix * new vec4(0, 0, 1, 0)).xyz.normalized();
-
       DecomposeWorldMatrix();
 
       _boundBox.genResetLimits();
@@ -490,23 +425,6 @@ namespace PirateCraft
       });
 
     }
-    public override void MakeUnique()
-    {
-      Gu.BRThrowNotImplementedException();
-      // base.MakeUnique();
-      // _meshData = _meshData.Ref.Clone().GetDataReference<MeshData>();
-      // _material = _material.Ref.Clone().GetDataReference<Material>();
-      // _components = this._components.Clone(false);
-      // _constraints = this._constraints.Clone(false);
-    }
-    public override void GetSubResources(List<DataBlock?> deps)
-    {
-      base.GetSubResources(deps);
-
-      if (_children != null) deps.AddRange(_children);
-      if (_components != null) deps.AddRange(_components);
-      //if (_constraints != null) deps.AddRange(_constraints);
-    }
     public WorldObject Clone()
     {
       /*
@@ -525,16 +443,6 @@ namespace PirateCraft
           return LambdaBool.Continue;
         });
       }
-      // if (other._constraints != null)
-      // {
-
-      //   this._constraints = new List<Constraint>();
-      //   other.IterateComponentsSafe((c) =>
-      //   {
-      //     _constraints.Add((Constraint)c.Clone());
-      //     return LambdaBool.Continue;
-      //   });
-      // }
 
       IterateChildrenSafe((ch) =>
       {
@@ -548,21 +456,6 @@ namespace PirateCraft
     public void Remove()
     {
       _state = WorldObjectState.Removed;//Picked up and destroyed by the world.
-    }
-    public AnimationComponent GrabFirstAnimation()
-    {
-      AnimationComponent found = null;
-      //Test - assume tool has just one component
-      IterateComponentsSafe((c) =>
-      {
-        if (c is AnimationComponent)
-        {
-          found = c as AnimationComponent;
-          return LambdaBool.Break;
-        }
-        return LambdaBool.Continue;
-      });
-      return found;
     }
     public void SetTransformChanged()
     {
@@ -670,11 +563,7 @@ namespace PirateCraft
         _boundBox.genExpandByPoint(Position_World);
       }
 
-      if (HasLight)
-      {
-        _boundBox.genExpandByPoint(Position_Local - LightRadius);
-        _boundBox.genExpandByPoint(Position_Local + LightRadius);
-      }
+      SubclassModifyBoundBox();
 
       //bound box can be just a point - but not invalid.
       VolumizeBoundBox(_boundBox);
@@ -687,6 +576,7 @@ namespace PirateCraft
       parent.genExpandByPoint(_boundBox._min);
       parent.genExpandByPoint(_boundBox._max);
     }
+    protected virtual void SubclassModifyBoundBox() { }
     public void ApplyParentMatrix()
     {
       //TODO: Parent types
@@ -700,30 +590,42 @@ namespace PirateCraft
         _world = _local;
       }
     }
-    public bool Component<T>(out T comp) where T : class
-    {
-      //Gets the first component of the given template type
-      bool res = false;
-      comp = null;
-      T found = null;
-      IterateComponentsSafe((c) =>
-      {
-        if (c is T)
-        {
-          found = c as T;
-          res = true;
-          return LambdaBool.Break;
-        }
-        return LambdaBool.Continue;
-      });
-      comp = found;
-      return res;
-    }
-    public T Component<T>() where T : class
-    {
-      Component<T>(out var x);
-      return x;
-    }
+    // public void Animate(AnimationTransition par)
+    // {
+    //   Gu.BRThrowNotImplementedException();
+    //   // Gu.Assert(par != null);
+    //   // if (TryGetComponent<AnimationComponent>(par._name, out var cmp))
+    //   // {
+    //   //   cmp.Play(par);
+    //   // }
+    //   // else
+    //   // {
+    //   //   Gu.Log.Warn($"Could not find/play object animation '{par.ToString()}'");
+    //   //   Gu.DebugBreak();
+    //   // }
+    // }
+    // public bool TryGetComponent<T>(string? name, out T comp) where T : class
+    // {
+    //   //Gets the first component of the given template type
+    //   bool res = false;
+    //   comp = null;
+    //   T found = null;
+    //   IterateComponentsSafe((c) =>
+    //   {
+    //     if (c is T)
+    //     {
+    //       if ((name == null) || (name != null && c.Name == name))
+    //       {
+    //         found = c as T;
+    //         res = true;
+    //         return LambdaBool.Break;
+    //       }
+    //     }
+    //     return LambdaBool.Continue;
+    //   });
+    //   comp = found;
+    //   return res;
+    // }
     public void IterateComponentsSafe(Func<Component, LambdaBool> act)
     {
       _components?.IterateSafe(act);
@@ -797,21 +699,37 @@ namespace PirateCraft
     #endregion
     #region Private: Methods
 
+    private void DispatchModifiers()
+    {
+      //TODO: send all modifiers to GPU for computation
+      // we are doing this async not on the vert shader
+      //also can apply smoothing and springs.
+      if (_modifiers != null)
+      {
+        foreach (var mod in _modifiers)
+        {
+          mod.Dispatch(this.Mesh);
+        }
+      }
+    }
     private void UpdateComponents(double dt)
     {
-      IterateComponentsSafe((cmp) =>
+      if (_components != null)
       {
-        if (cmp.ComponentState == ComponentState.Added)
+        IterateComponentsSafe((cmp) =>
         {
-          cmp.OnCreate(this);
-          cmp.ComponentState = ComponentState.Initialized;
-        }
-        if (cmp.Enabled)
-        {
-          cmp.OnUpdate(dt, this);
-        }
-        return LambdaBool.Continue;
-      });
+          if (cmp.ComponentState == ComponentState.Added)
+          {
+            cmp.OnCreate(this);
+            cmp.ComponentState = ComponentState.Initialized;
+          }
+          if (cmp.Enabled)
+          {
+            cmp.OnUpdate(dt, this);
+          }
+          return LambdaBool.Continue;
+        });
+      }
     }
     private void UpdateTreeDepth()
     {
@@ -854,24 +772,47 @@ namespace PirateCraft
         b._max.z += epsilon;
         b._min.z -= epsilon;
       }
-
     }
-    private void CompileLocalMatrix()
+    public virtual void Play(AnimationClip ac)
     {
-      if (TransformChanged == false)
+      Gu.Assert(ac != null);
+      if (_animationData != null)
       {
-        return;
+        if (_animationData.Animations.TryGetValue(ac.Name, out this._currentKeys))
+        {
+          _currentClip = ac;
+        }
       }
 
-      mat4 mSclA = mat4.getScale(AnimatedScale);
-      mat4 mRotA = mat4.getRotation(AnimatedRotation);
-      mat4 mPosA = mat4.getTranslation(AnimatedPosition);
+      IterateChildrenSafe((wo) =>
+      {
+        wo.Play(ac);
+        return LambdaBool.Continue;
+      });
+    }
+    private void CompileAndAnimate(double dt)
+    {
+      if (TransformChanged == true)
+      {
+        mat4 mScl = mat4.getScale(Scale_Local);
+        mat4 mRot = mat4.getRotation(Rotation_Local);
+        mat4 mPos = mat4.getTranslation(Position_Local);
 
-      mat4 mScl = mat4.getScale(Scale_Local);
-      mat4 mRot = mat4.getRotation(Rotation_Local);
-      mat4 mPos = mat4.getTranslation(Position_Local);
+        _local = (mScl) * (mRot) * (mPos);
+      }
 
-      _local = (mScl * mSclA) * (mRot * mRotA) * (mPos * mPosA);
+      if (_currentClip != null && _currentKeys != null)
+      {
+        _currentClip.Update(dt, _currentKeys.MaxTime);
+        _local = _local * _currentKeys.Animate(_currentClip.Time);
+        if (_currentClip.State == ActionState.Stop)
+        {
+          _currentClip = null;
+        }
+      }
+      //old xform..
+      //_local = (mScl * mSclA) * (mRot * mRotA) * (mPos * mPosA);
+
     }
     private void DecomposeLocalMatrix()
     {
@@ -888,19 +829,50 @@ namespace PirateCraft
     {
       //We should just compute these if we need them.
       // positionworld get{if(!decomposed) decompose.. }
-      mat4 tmprot;
-      vec4 pw;
-      vec4 sw;
-      WorldMatrix.decompose(out pw, out tmprot, out sw);
-      _positionWorld = pw.xyz;
-      _scaleWorld = sw.xyz;
-      _rotationWorld = tmprot.toQuat();
+      _positionWorld = WorldMatrix.ExtractTranslation();
+      // mat4 tmprot;
+      // vec4 pw;
+      // vec4 sw;
+      // WorldMatrix.decompose(out pw, out tmprot, out sw);
+      // _positionWorld = pw.xyz;
+      //_scaleWorld = sw.xyz;
+      //_rotationWorld = tmprot.toQuat();
     }
 
     #endregion
 
+  }//cls
+
+
+
+
+  public class Light : WorldObject
+  {
+    public bool Enabled { get { return _enabled; } set { _enabled = value; } }
+    public float LightRadius { get { return _lightRadius; } set { _lightRadius = value; } }
+    public vec3 LightColor { get { return _lightColor; } set { _lightColor = value; } }
+    public float LightPower { get { return _lightPower; } set { _lightPower = value; } }
+    public LightType LightType { get { return _lightType; } set { _lightType = value; } }
+
+    [DataMember] private float _lightRadius = 100;//Distance in the case of directional light
+    [DataMember] private vec3 _lightColor = vec3.One;
+    [DataMember] private float _lightPower = 10;
+    [DataMember] private LightType _lightType = LightType.Point;
+    [DataMember] private bool _enabled = true;
+
+    protected Light() { }
+    public Light(string name) : base(name) { }
+
+    public override void Update(double dt, ref Box3f parentBoundBox)
+    {
+      base.Update(dt, ref parentBoundBox);
+    }
+    protected override void SubclassModifyBoundBox()
+    {
+      _boundBox.genExpandByPoint(Position_Local - LightRadius);
+      _boundBox.genExpandByPoint(Position_Local + LightRadius);
+    }
+
   }
-
-
 
 }//ns 

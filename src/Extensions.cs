@@ -170,7 +170,7 @@ namespace PirateCraft
           }
         }
       }
-    }    
+    }
     public static void IterateSafe<T>(this List<T> list, Func<T, LambdaBool> act)
     {
       if (list != null)
@@ -245,6 +245,14 @@ namespace PirateCraft
       writer.Write((Int32)v.y);
       writer.Write((Int32)v.z);
       writer.Write((Int32)v.w);
+    }
+    public static void Write(this System.IO.BinaryWriter writer, mat2 v)
+    {
+      writer.Write((float)v._m11);
+      writer.Write((float)v._m12);
+
+      writer.Write((float)v._m21);
+      writer.Write((float)v._m22);
     }
     public static void Write(this System.IO.BinaryWriter writer, mat3 v)
     {

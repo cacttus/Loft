@@ -55,7 +55,7 @@ namespace PirateCraft
     {
       //The context that existed when this was created.
       Gu.Assert(Gu.Context != null);
-      _name = _name + DataPathName();
+      _name = name + DataPathName();
     }
     public void SetObjectLabel()
     {

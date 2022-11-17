@@ -5,6 +5,7 @@ namespace PirateCraft
   public static class EmbeddedResources
   {
     //Build some manual resources.
+    //the purpose is to consistently create these objects via constructors
     public static void BuildResources()
     {
       Image i;
@@ -12,7 +13,7 @@ namespace PirateCraft
       Shader s;
       Material m;
       MeshData md;
-      Model o;
+      ModelFile gtf;
 
       Lib g = Gu.Lib;
 
@@ -55,7 +56,7 @@ namespace PirateCraft
       new List<FileLoc>(){
           new FileLoc("v_obj_dbg_shared.vs.glsl", FileStorage.Embedded),
           new FileLoc("v_wire.gs.glsl", FileStorage.Embedded),
-          new FileLoc("v_obj_dbg_shared.fs.glsl", FileStorage.Embedded), 
+          new FileLoc("v_obj_dbg_shared.fs.glsl", FileStorage.Embedded),
         }, OpenTK.Graphics.OpenGL4.PrimitiveType.Triangles));
       s = g.AddE(new Shader(Rs.Shader.Solid,
       new List<FileLoc>(){
@@ -77,7 +78,7 @@ namespace PirateCraft
       m.DrawOrder = DrawOrder.Last;
       m.DrawMode = DrawMode.Debug;
       m.Flat = true;
-      
+
       m = g.AddE(new Material(Rs.Material.DebugDraw_Solid_FlatColor, g.GetShader(Rs.Shader.Solid)));
       m.BaseColor = new vec4(.793f, .779f, .783f, 1);
       m.GpuRenderState.DepthTest = true;
@@ -122,11 +123,28 @@ namespace PirateCraft
       //mesh
       md = g.AddE(MeshGen.GenBox(Rs.Mesh.DefaultBox, 1, 1, 1));
 
-
       //models
-      o = g.AddE(g.LoadModel(Rs.Model.Camera, new FileLoc("camera.glb", FileStorage.Embedded), true));
-      o = g.AddE(g.LoadModel(Rs.Model.Gear, new FileLoc("gear.glb", FileStorage.Embedded), true));
-      o = g.AddE(g.LoadModel(Rs.Model.Barrel, new FileLoc("barrel.glb", FileStorage.Embedded), true));
+      //camera = load(models.camera)
+      //var newcam = camera.clone()
+      gtf = g.AddE(new ModelFile(Rs.Model.Camera, new FileLoc("camera.glb", FileStorage.Embedded), new List<ModelFile.ImportInfo>(){
+        new ModelFile.ImportInfo(){
+          _nameInFile = "Cube",
+          _pos = new vec3(-14, 8, -4),
+        }
+      }));
+      gtf = g.AddE(new ModelFile(Rs.Model.Gear, new FileLoc("gear.glb", FileStorage.Embedded), new List<ModelFile.ImportInfo>(){
+        new ModelFile.ImportInfo(){
+          _nameInFile = "Gear",
+          _pos = new vec3(4, 8, -14),
+          _playAnimation ="RotateGear",
+        }
+      }));
+      gtf = g.AddE(new ModelFile(Rs.Model.Barrel, new FileLoc("barrel.glb", FileStorage.Embedded), new List<ModelFile.ImportInfo>(){
+        new ModelFile.ImportInfo(){
+          _nameInFile = "Barrel",
+          _pos = new vec3(-4, 8, -4),
+        }
+      }));
 
     }
 

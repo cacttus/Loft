@@ -1,0 +1,177 @@
+{
+    "asset" : {
+        "generator" : "Khronos glTF Blender I/O v3.3.27",
+        "version" : "2.0"
+    },
+    "scene" : 0,
+    "scenes" : [
+        {
+            "name" : "Scene",
+            "nodes" : [
+                5
+            ]
+        }
+    ],
+    "nodes" : [
+        {
+            "mesh" : 0,
+            "name" : "meshE",
+            "translation" : [
+                -0.1907474398612976,
+                0.6967954635620117,
+                -5.247509479522705
+            ]
+        },
+        {
+            "mesh" : 0,
+            "name" : "meshC.001",
+            "translation" : [
+                -0.12570428848266602,
+                2.3512980937957764,
+                3.5563368797302246
+            ]
+        },
+        {
+            "mesh" : 0,
+            "name" : "meshD",
+            "translation" : [
+                -0.5645620822906494,
+                1.6736128330230713,
+                -4.071282386779785
+            ]
+        },
+        {
+            "children" : [
+                1,
+                2
+            ],
+            "mesh" : 0,
+            "name" : "meshF",
+            "translation" : [
+                -0.5137506723403931,
+                1.1839954853057861,
+                8.109675407409668
+            ]
+        },
+        {
+            "children" : [
+                0,
+                3
+            ],
+            "mesh" : 0,
+            "name" : "meshB",
+            "translation" : [
+                -0.6876823902130127,
+                2.0343141555786133,
+                -3.5687174797058105
+            ]
+        },
+        {
+            "children" : [
+                4
+            ],
+            "mesh" : 0,
+            "name" : "meshA"
+        }
+    ],
+    "materials" : [
+        {
+            "doubleSided" : true,
+            "name" : "Material",
+            "pbrMetallicRoughness" : {
+                "baseColorFactor" : [
+                    0.800000011920929,
+                    0.800000011920929,
+                    0.800000011920929,
+                    1
+                ],
+                "metallicFactor" : 0,
+                "roughnessFactor" : 0.5
+            }
+        }
+    ],
+    "meshes" : [
+        {
+            "name" : "Cube",
+            "primitives" : [
+                {
+                    "attributes" : {
+                        "POSITION" : 0,
+                        "NORMAL" : 1,
+                        "TEXCOORD_0" : 2
+                    },
+                    "indices" : 3,
+                    "material" : 0
+                }
+            ]
+        }
+    ],
+    "accessors" : [
+        {
+            "bufferView" : 0,
+            "componentType" : 5126,
+            "count" : 24,
+            "max" : [
+                1,
+                1,
+                1
+            ],
+            "min" : [
+                -1,
+                -1,
+                -1
+            ],
+            "type" : "VEC3"
+        },
+        {
+            "bufferView" : 1,
+            "componentType" : 5126,
+            "count" : 24,
+            "type" : "VEC3"
+        },
+        {
+            "bufferView" : 2,
+            "componentType" : 5126,
+            "count" : 24,
+            "type" : "VEC2"
+        },
+        {
+            "bufferView" : 3,
+            "componentType" : 5123,
+            "count" : 36,
+            "type" : "SCALAR"
+        }
+    ],
+    "bufferViews" : [
+        {
+            "buffer" : 0,
+            "byteLength" : 288,
+            "byteOffset" : 0,
+            "target" : 34962
+        },
+        {
+            "buffer" : 0,
+            "byteLength" : 288,
+            "byteOffset" : 288,
+            "target" : 34962
+        },
+        {
+            "buffer" : 0,
+            "byteLength" : 192,
+            "byteOffset" : 576,
+            "target" : 34962
+        },
+        {
+            "buffer" : 0,
+            "byteLength" : 72,
+            "byteOffset" : 768,
+            "target" : 34963
+        }
+    ],
+    "buffers" : [
+        {
+            "byteLength" : 840,
+            "uri" : "parenting-test.bin"
+        }
+    ]
+}

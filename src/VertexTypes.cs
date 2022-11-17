@@ -79,14 +79,14 @@ namespace PirateCraft
     #region Public: Members
 
     public Dictionary<int, Dictionary<int, DataComponent>> ComponentsLUT { get { return _componentsLUT; } private set { _componentsLUT = value; } }
-    public int VertexSizeBytes { get { return _vertexSizeBytes; } private set { _vertexSizeBytes = value; } }
+    public int SizeBytes { get { return _sizeBytes; } private set { _sizeBytes = value; } }
     public int MaxLocation { get { return _componentsLUT.Count; } }
     public Type? Type { get { return _type; } }
 
     //Note:primary key is the shader vertex type OR the hash of the input name if no type is specified.
     private Dictionary<int, Dictionary<int, DataComponent>>? _componentsLUT = null;
     private List<DataComponent>? _componentsOrdered = null;
-    private int _vertexSizeBytes = 0; // Size of the vert, including padding
+    private int _sizeBytes = 0; // Size of the item, or vert, including padding
     private Type? _type = null;
 
     #endregion
@@ -113,7 +113,7 @@ namespace PirateCraft
     public GPUDataFormat(Type dataType) : base(dataType.Name)
     {
       _type = dataType;
-      _vertexSizeBytes = Marshal.SizeOf(dataType);
+      _sizeBytes = Marshal.SizeOf(dataType);
 
       _componentsOrdered = _componentsOrdered.ConstructIfNeeded();
       _componentsLUT = _componentsLUT.ConstructIfNeeded();
@@ -181,7 +181,7 @@ namespace PirateCraft
               previousFormatMaxAttribLocation + comp.AttribLocation,
               comp.ComponentCount,
               comp.IntPointerType.Value,
-              VertexSizeBytes,
+              SizeBytes,
               (IntPtr)(0 + comp.ByteOffset)
             );
           }
@@ -192,7 +192,7 @@ namespace PirateCraft
               comp.ComponentCount,
               comp.FloatType.Value,
               false,
-              VertexSizeBytes,
+              SizeBytes,
               (IntPtr)(0 + comp.ByteOffset)
             );
           }
@@ -202,7 +202,7 @@ namespace PirateCraft
               previousFormatMaxAttribLocation + comp.AttribLocation,
               comp.ComponentCount,
               comp.DoublePointerType.Value,
-              VertexSizeBytes,
+              SizeBytes,
               (IntPtr)(0 + comp.ByteOffset)
             );
           }
@@ -556,7 +556,7 @@ namespace PirateCraft
       if (Format.TryGetComponent(comp, comp_index, out var cmp))
       {
         Gu.Assert(cmp != null);
-        int vsize = Format.VertexSizeBytes;
+        int vsize = Format.SizeBytes;
         int boff = cmp.ByteOffset;
         ret = (byte*)pt + offset * vsize + boff;
       }

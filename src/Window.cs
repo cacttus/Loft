@@ -253,7 +253,6 @@ namespace PirateCraft
 
     #endregion
   }
-
   public class InfoWindow : UiWindowBase
   {
     private UiElement? _info = null;
@@ -345,7 +344,7 @@ namespace PirateCraft
     private vec3 second_y_glob = new vec3(2.5f, 2.0f, 2.5f);
 
     #endregion
-    #region Public:Methods
+    #region Public: Methods
 
     public MainWindow(ivec2 pos, ivec2 size, vec2 scale) : base("mainwindow", "Welcome!", true, pos, size, scale, WindowBorder.Resizable, true)
     {
@@ -375,30 +374,29 @@ namespace PirateCraft
       {
         var info = new System.Text.StringBuilder();
         info.AppendLine($"{appname} v{Gu.GetAssemblyVersion()} (Hide=F7)");
-        info.AppendLine($"Window:{rv.Name}");
+        info.AppendLine($"Window:");
         info.AppendLine($" FPS:{StringUtil.FormatPrec(Gu.Context.FpsAvg, 1)} (vsync:{(VSync.ToString())})");
         info.AppendLine($" Uptime:{StringUtil.Seconds_ToString_HMSU(Gu.Context.UpTime)}");
         info.AppendLine($" Mem:{StringUtil.FormatPrec(SystemInfo.BToMB(SystemInfo.MemUsedBytes), 2)}MB");
         info.AppendLine($" VMem:{StringUtil.FormatPrec(SystemInfo.BToMB(SystemInfo.VMemUsedBytes), 2)}MB");
         info.AppendLine($" View:{rv.Name}");
         info.AppendLine($" Mouse:{Gu.Context.PCMouse.Pos.ToString()}");
-        info.AppendLine($" GLProfile:{Profile.ToString()}");
+        info.AppendLine($" Profile:{Profile.ToString()}");
         info.AppendLine($" Camera:{cpos.ToString(2)} ");
-        info.AppendLine($"  FOV:{StringUtil.FormatPrec(MathUtils.ToDegrees(rv.Camera.FOV),0)}°,{StringUtil.FormatPrec(rv.Camera.Near,1)},{StringUtil.FormatPrec(rv.Camera.Far,1)},{rv.Camera.ProjectionMode.ToString()} ");
-        info.AppendLine($"Render:");
-        info.AppendLine($" DrawElements_Frame:{MeshView.dbg_numDrawElements_Frame}");
-        info.AppendLine($" Arrays_Frame:{MeshView.dbg_numDrawArrays_Frame}");
-        info.AppendLine($" OBs Culled:{Gu.World.NumCulledObjects}");
+        info.AppendLine($" FOV:{StringUtil.FormatPrec(MathUtils.ToDegrees(rv.Camera.FOV),0)}°,{StringUtil.FormatPrec(rv.Camera.Near,1)},{StringUtil.FormatPrec(rv.Camera.Far,1)},{rv.Camera.ProjectionMode.ToString()} ");
+        info.AppendLine($"Stats:");
+        info.AppendLine($"{Gu.FrameStats.ToString()}");
         info.AppendLine($"UI:");
         info.AppendLine($" update={rv.Gui?._dbg_UpdateMs}ms mesh={rv.Gui?._dbg_MeshMs}ms event={rv.Gui?._dbg_EventsMs}ms");
         info.AppendLine($"Scripts:");
         info.AppendLine($" {StringUtil.FormatPrec((float)CSharpScript.TotalLoadedScriptAssemblyBytes/(float)(1024*1024),1)}MB");
         info.AppendLine($"World:");
-        info.AppendLine($" Globs: count={Gu.World.NumGlobs} visible={Gu.World.NumVisibleRenderGlobs}");
-        info.AppendLine($" Picked:{Gu.Context.Renderer.Picker.PickedObjectName}");
-        info.AppendLine($" Selected:{Gu.World.Editor.SelectedObjects.ToString()}");
+        info.AppendLine($" globs: count={Gu.World.NumGlobs} visible={Gu.World.NumVisibleRenderGlobs}");
+        info.AppendLine($" objs: visible={Gu.World.NumVisibleObjects} culled={Gu.World.NumCulledObjects}");
+        info.AppendLine($" icked={Gu.Context.Renderer.Picker.PickedObjectName}");
+        info.AppendLine($" selected={Gu.World.Editor.SelectedObjects.ToString()}");
         info.AppendLine($"Gpu:");
-        info.AppendLine($" GPU Mem={Gu.Context.Gpu.GetMemoryInfo().ToString()}");
+        info.AppendLine($"{Gu.Context.Gpu.GetMemoryInfo().ToString()}");
 
         rv.WorldDebugInfo.Text = info.ToString();
       }
@@ -439,7 +437,6 @@ namespace PirateCraft
 
       //uh.
       var w = Gu.WorldLoader.GoToWorld(new WorldInfo("MyWorld", new FileLoc("MyWorldScript.cs", FileStorage.Embedded), DELETE_WORLD_START_FRESH, 2));
-
 
       SetGameMode(Gu.World.GameMode);
 

@@ -76,12 +76,33 @@ namespace PirateCraft
       _meshData = new WeakReference<MeshData>(parent);
     }
   }
+  [DataContract]
+  public class SkinWeights : MutableState
+  {
+    //Skin weights.
+    //  technically we should be using vertex groups and naming them to the joint names on the armature
+    //  then compile the groups into a single buffer ordinal by vertex index
+    //  this will decouple and "bind" armatures to arbitrary vertex groups as this is actually part of the requirements
+    //  e.g. allow "retargeting"
 
+    //  bool IsSHapekey.. et shape key would use vec3 .. 
+    public GPUBuffer wd_in_st;
+    public GPUBuffer jw_in_st;
+
+    public SkinWeights(string meshname, wd_in_st[] offs, jw_in_st[] weights)
+    {
+      wd_in_st = Gpu.CreateShaderStorageBuffer($"{meshname}-wd_in_st", offs);
+      jw_in_st = Gpu.CreateShaderStorageBuffer($"{meshname}-jw_in_st", weights);
+    }
+  }
+  public class SoftBodyWeights
+  {
+  }
   [DataContract]
   public class MeshView : DataBlock
   {
     // @class MeshView
-    // @brief Subset of mesh
+    // @brief Visible mesh, or subset of a mesh.
     // @details Lightweight data structure that points to a subset of mesh data.
     //           see glDrawElementsIndexed** functions for more info
     // @note TODO: this class will need to have views for each buffer for vertex arrays, or a view to the index buffer for indexed arrays
@@ -93,12 +114,6 @@ namespace PirateCraft
     [DataMember] private MeshData? _meshData = null;
     [DataMember] private int _start = 0;
     [DataMember] private int _count = 0;
-
-    //junk
-    public static int dbg_numDrawElements_Frame = 0;
-    public static int dbg_numDrawArrays_Frame = 0;
-    private static long dbg_frame = 0;
-    public bool dbg_break_render = false;
 
     protected MeshView() { }//clone/copy
     public MeshView(MeshData? data, int? start = null, int? count = null) : base(data.Name)
@@ -117,22 +132,11 @@ namespace PirateCraft
       //@param instances - Can be null in which case we draw a mesh without an accompanying instance transform
       var vao = _meshData.GetDataForContext(Gu.Context);
 
-      if (Gu.Context.FrameStamp != dbg_frame)
-      {
-        dbg_frame = Gu.Context.FrameStamp;
-        dbg_numDrawArrays_Frame = 0;
-        dbg_numDrawElements_Frame = 0;
-      }
       Gpu.CheckGpuErrorsDbg();
       vao.Bind();
 
-      //*****
-      if (Gu.Context.Renderer.CurrentStage != null &&
-         Gu.Context.Renderer.CurrentStage.PipelineStageEnum == PipelineStageEnum.Debug)
-      {
-        Gu.Trap();
-      }
-      if (Gu.BreakRenderState || dbg_break_render || !String.IsNullOrEmpty(Gu.SaveRenderStateFile))
+      //***** Render Break
+      if (Gu.BreakRenderState || !String.IsNullOrEmpty(Gu.SaveRenderStateFile))
       {
         string rs = GpuDebugInfo.DebugGetRenderState(true, false, false);
         if (!String.IsNullOrEmpty(Gu.SaveRenderStateFile))
@@ -142,19 +146,14 @@ namespace PirateCraft
           //fl.WriteAllText(rs);
           Gu.SaveRenderStateFile = "";
         }
-        if (Gu.BreakRenderState || dbg_break_render)
+        if (Gu.BreakRenderState)
         {
           Gu.Log.Info(rs);
           Gu.DebugBreak();
           Gu.BreakRenderState = false;
         }
       }
-      string n = "sky";
-      if (_meshData.Name.ToLower().Contains(n))
-      {
-        Gu.Trap();
-      }
-      //*****
+      //***** Render Break
 
       OpenTK.Graphics.OpenGL4.PrimitiveType primType = _meshData.PrimitiveType;
       if (primTypeOverride != null)
@@ -178,7 +177,9 @@ namespace PirateCraft
             instances.Length
             );
           Gpu.CheckGpuErrorsDbg();
-          dbg_numDrawElements_Frame++;
+          Gu.FrameStats.NumDrawElements_Frame++;
+          Gu.FrameStats.NumElements_Frame += _count;
+
         }
         else
         {
@@ -192,7 +193,8 @@ namespace PirateCraft
             IntPtr.Zero + _start
             );
           Gpu.CheckGpuErrorsDbg();
-          dbg_numDrawElements_Frame++;
+          Gu.FrameStats.NumDrawElements_Frame++;
+          Gu.FrameStats.NumElements_Frame += _count;
         }
       }
       else
@@ -207,7 +209,8 @@ namespace PirateCraft
               instances.Length
               );
             Gpu.CheckGpuErrorsDbg();
-            dbg_numDrawArrays_Frame++;
+            Gu.FrameStats.NumDrawArrays_Frame++;
+            Gu.FrameStats.NumArrayElements_Frame += _count;
           }
           else
           {
@@ -219,7 +222,8 @@ namespace PirateCraft
               _count
               );
             Gpu.CheckGpuErrorsDbg();
-            dbg_numDrawArrays_Frame++;
+            Gu.FrameStats.NumDrawArrays_Frame++;
+            Gu.FrameStats.NumArrayElements_Frame += _count;
           }
         }
       }
@@ -319,17 +323,40 @@ namespace PirateCraft
     public Box3f BoundBox_Extent { get { return _boundBoxExtent; } } //Bond box of mesh extenss
     public PrimitiveType PrimitiveType { get { return _primitiveType; } }
     public List<GPUBuffer> VertexBuffers { get { return _vertexBuffers; } }
+    public SkinWeights SkinWeights { get { return _skinWeights; } set { _skinWeights = value; } }
+    public SoftBodyWeights SoftBodyWeights { get { return _softBodyWeights; } }
     public GPUBuffer IndexBuffer { get { return _indexBuffer; } }
     public GPUBuffer FaceData { get { return _faceData; } private set { _faceData = value; } }
     public bool HasIndexes { get { return _indexBuffer != null; } }
 
+    public void UpdateInstanceData(GpuInstanceData[] insts)
+    {
+      if (_instanceData == null)
+      {
+        _instanceData = Gpu.CreateUniformBuffer(Name + "-inst", insts);
+      }
+      else
+      {
+        _instanceData.CopyToGPU(insts);
+      }
+    }
+    public GPUBuffer InstanceData
+    {
+      get
+      {
+        return _instanceData;
+      }
+    }
+
     #endregion
     #region Private: Members
 
-    private static MeshData? _defaultBox = null;
-    [DataMember] private GPUBuffer _indexBuffer = null;
-    [DataMember] private GPUBuffer _faceData = null;
-    [DataMember] private List<GPUBuffer> _vertexBuffers = null;
+    [DataMember] private GPUBuffer? _indexBuffer = null;
+    [DataMember] private GPUBuffer? _faceData = null;
+    [DataMember] private GPUBuffer? _instanceData = null;
+    [DataMember] private List<GPUBuffer> _vertexBuffers = new List<GPUBuffer>();
+    [DataMember] private SkinWeights? _skinWeights = null;
+    [DataMember] private SoftBodyWeights? _softBodyWeights = null;
     [DataMember] private bool _boundBoxComputed = false;
     [DataMember] private Box3f _boundBoxExtent = new Box3f();
     [DataMember] private PrimitiveType _primitiveType = PrimitiveType.Triangles;

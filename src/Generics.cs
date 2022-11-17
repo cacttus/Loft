@@ -14,7 +14,7 @@ namespace PirateCraft
   }
   public enum ActionState
   {
-    Pause, Run, Stop
+    None, Pause, Run, Stop
   }
   public enum ActionRepeat
   {
@@ -177,6 +177,14 @@ namespace PirateCraft
     public static FileLoc Generated = new FileLoc("<generated>", FileStorage.Generated);
     public FileStorage FileStorage { get; set; } = FileStorage.Disk;
     public string RawPath { get; set; } = "";
+
+    public string Extension
+    {
+      get
+      {
+        return System.IO.Path.GetExtension(this.QualifiedPath);
+      }
+    }
 
     public string WorkspacePath
     {
@@ -1883,142 +1891,48 @@ namespace PirateCraft
       Buffer.BlockCopy(buf, 0, newbytes, Bytes.Length, buf.Length);
     }
   }
-  public class ByteArrayUtils
-  {
-    public static unsafe vec2[] ParseVec2fArray(byte[] Data, int item_count, int byte_offset)
-    {
-      vec2[] ret = new vec2[item_count];
-      fixed (byte* raw = Data)
-      {
-        int component_byte_size = 4;//sizeof float
-        int tensor_rank = 2;// 2 sca
-        int tensor_byte_size = component_byte_size * tensor_rank;
-        //***** not sure if count is number of bytes, or components
-        for (int ioff = 0; ioff < item_count; ioff++)
-        {
-          int offset = byte_offset + ioff * tensor_byte_size;
-          Gu.Assert(offset < Data.Length);
-          vec2 v = *((vec2*)(raw + offset));
-          ret[ioff] = v;
-        }
-      }
-      return ret;
-    }
-    public static unsafe vec3[] ParseVec3fArray(byte[] Data, int item_count, int byte_offset)
-    {
-      vec3[] ret = new vec3[item_count];
-      fixed (byte* raw = Data)
-      {
-        int component_byte_size = 4;//sizeof float
-        int tensor_rank = 3;// 3 scalars
-        int tensor_byte_size = component_byte_size * tensor_rank;
-        //***** not sure if count is number of bytes, or components
-        for (int ioff = 0; ioff < item_count; ioff++)
-        {
-          int offset = byte_offset + ioff * tensor_byte_size;
-          Gu.Assert(offset < Data.Length);
-          vec3 v = *((vec3*)(raw + offset));
-          ret[ioff] = v;
-        }
-      }
-      return ret;
-    }
-    public static unsafe vec4[] ParseVec4fArray(byte[] Data, int item_count, int byte_offset)
-    {
-      vec4[] ret = new vec4[item_count];
-      fixed (byte* raw = Data)
-      {
-        int component_byte_size = 4;//sizeof float
-        int tensor_rank = 4;// 4 scalars
-        int tensor_byte_size = component_byte_size * tensor_rank;
-        //***** not sure if count is number of bytes, or components
-        for (int ioff = 0; ioff < item_count; ioff++)
-        {
-          int offset = byte_offset + ioff * tensor_byte_size;
-          Gu.Assert(offset < Data.Length);
-          vec4 v = *((vec4*)(raw + offset));
-          ret[ioff] = v;
-        }
-      }
-      return ret;
-    }
-    public static unsafe quat[] ParseQuatArray(byte[] Data, int item_count, int byte_offset)
-    {
-      quat[] ret = new quat[item_count];
-      fixed (byte* raw = Data)
-      {
-        int component_byte_size = 4;//sizeof float
-        int tensor_rank = 4;// 4 scalars
-        int tensor_byte_size = component_byte_size * tensor_rank;
-        //***** not sure if count is number of bytes, or components
-        for (int ioff = 0; ioff < item_count; ioff++)
-        {
-          int offset = byte_offset + ioff * tensor_byte_size;
-          Gu.Assert(offset < Data.Length);
-          quat v = *((quat*)(raw + offset));
-          ret[ioff] = v;
-        }
-      }
-      return ret;
-    }
-    public static unsafe ushort[] ParseUInt16Array(byte[] Data, int item_count, int byte_offset)
-    {
-      ushort[] ret = new ushort[item_count];
-      fixed (byte* raw = Data)
-      {
-        int component_byte_size = 2;//sizeof ushort
-        int tensor_rank = 1;// 3 scalars
-        int tensor_byte_size = component_byte_size * tensor_rank;
-        //***** not sure if count is number of bytes, or components
-        for (int ioff = 0; ioff < item_count; ioff++)
-        {
-          int offset = byte_offset + ioff * tensor_byte_size;
-          Gu.Assert(offset < Data.Length);
-          ushort v = *((ushort*)(raw + offset));
-          ret[ioff] = v;
-        }
-      }
-      return ret;
-    }
-    public static unsafe uint[] ParseUInt32Array(byte[] Data, int item_count/*not sure*/, int byte_offset)
-    {
-      uint[] ret = new uint[item_count];
-      fixed (byte* raw = Data)
-      {
-        int component_byte_size = 4;//sizeof uint
-        int tensor_rank = 1;// 3 scalars
-        int tensor_byte_size = component_byte_size * tensor_rank;
-        //***** not sure if count is number of bytes, or components
-        for (int ioff = 0; ioff < item_count; ioff++)
-        {
-          int offset = byte_offset + ioff * tensor_byte_size;
-          Gu.Assert(offset < Data.Length);
-          uint v = *((uint*)(raw + offset));
-          ret[ioff] = v;
-        }
-      }
-      return ret;
-    }
-    public static unsafe float[] ParseFloatArray(byte[] Data, int scalar_count/*not sure*/, int byte_offset)
-    {
-      float[] floats = new float[scalar_count];
-      fixed (byte* raw = Data)
-      {
-        int component_byte_size = 4;//sizeof uint
-        int tensor_rank = 1;// 3 scalars
-        int tensor_byte_size = component_byte_size * tensor_rank;
-        //***** not sure if count is number of bytes, or components
-        for (int ioff = 0; ioff < scalar_count; ioff++)
-        {
-          int offset = byte_offset + ioff * tensor_byte_size;
-          Gu.Assert(offset < Data.Length);
-          float v = *((float*)(raw + offset));
-          floats[ioff] = v;
-        }
-      }
-      return floats;
-    }
-  }
+  // public class ArrayUtils
+  // {
+  //   //ByteArrayUtils
+
+  //   // public static unsafe byte[] Serialize<T>(T[] data) where T : struct
+  //   // {
+  //   //   //we could optimize this with unsafe code
+  //   //   var size = Marshal.SizeOf(data[0]);
+  //   //   var bytes = new byte[size * data.Length];
+  //   //   for (int di = 0; di < data.Length; di++)
+  //   //   {
+  //   //     var ptr = Marshal.AllocHGlobal(size);
+  //   //     Marshal.StructureToPtr(data[di], ptr, true);
+  //   //     Marshal.Copy(ptr, bytes, di * size, size);
+  //   //     Marshal.FreeHGlobal(ptr);
+  //   //   }
+
+  //   //   return bytes;
+  //   // }
+
+  //   // Old copy method - slower by initially about x20 then subsequently by about x3 (11us/200us, then 12us/35us)
+  //   // public static unsafe vec3[] ParseVec3fArray(byte[] Data, int item_count, int byte_offset)
+  //   // {
+  //   //   vec3[] ret = new vec3[item_count];
+  //   //   fixed (byte* raw = Data)
+  //   //   {
+  //   //     int component_byte_size = 4;//sizeof float
+  //   //     int tensor_rank = 3;// 3 scalars
+  //   //     int tensor_byte_size = component_byte_size * tensor_rank;
+  //   //     for (int ioff = 0; ioff < item_count; ioff++)
+  //   //     {
+  //   //       int offset = byte_offset + ioff * tensor_byte_size;
+  //   //       Gu.Assert(offset < Data.Length);
+  //   //       vec3 v = *((vec3*)(raw + offset));
+  //   //       ret[ioff] = v;
+  //   //     }
+  //   //   }
+  //   //   return ret;
+  //   // }
+
+
+  // }
   public class BList<T> : List<T> where T : IComparable
   {
     //Sorted list O(logn)
@@ -2092,11 +2006,6 @@ namespace PirateCraft
       int range = Count / 2;
       bool even = true;//range % 2 == 0; /// 2x range = even right?
       // even = range % 2 == 0;
-
-      if (Count == 23)
-      {
-        Gu.Trap();
-      }
       for (int xi = 0; Gu.WhileTrueGuard(xi, Gu.c_intMaxWhileTrueLoopBinarySearch64Bit); xi++)
       {
         Gu.Assert(pos >= 0 && pos <= Count);//can equal count if beyond array

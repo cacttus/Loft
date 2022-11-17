@@ -529,7 +529,6 @@ namespace PirateCraft
             {
               //TODO: - free rotate
               //see Blender --> r->r
-              Gu.Trap();
             }
             else
             {
@@ -1341,11 +1340,6 @@ namespace PirateCraft
                   //null second, so do these actions
                   foreach (var c in combos)
                   {
-                    if (c.First.Key == Keys.Z)
-                    {
-                      Gu.Trap();
-                    }
-
                     e.DoEvent(c.Event);
                   }
                 }
@@ -1671,7 +1665,10 @@ namespace PirateCraft
           if (Gu.TryGetSelectedViewCamera(out var cm))
           {
             cm.RootParent.Position_Local = new vec3(0, 0, 0);
-            cm.RootParent.Velocity = vec3.Zero;
+            if (cm.PhysicsData != null)
+            {
+              cm.PhysicsData.Velocity = vec3.Zero;
+            }
           }
         }
         else if (code == WorldEditEvent.TestScript)

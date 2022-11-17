@@ -390,7 +390,6 @@ namespace PirateCraft
       }
     }
     public Viewport Viewport { get { return _viewport; } set { _viewport = value; } }
-    public GpuCamera GpuCamera { get { return _gpuCamera; } private set { _gpuCamera = value; } }
     public Gui2d? Gui { get { return _gui; } set { _gui = value; } }
     public UiElement? WorldDebugInfo { get { return _worldDebugInfo; } set { _worldDebugInfo = value; } }
     public UiElement? GpuDebugInfo { get { return _gpuDebugInfo; } set { _gpuDebugInfo = value; } }
@@ -399,6 +398,15 @@ namespace PirateCraft
     public UiToast? Toast { get { return _toast; } set { _toast = value; } }
     public ViewInputMode ViewInputMode { get { return _viewInputMode; } set { _viewInputMode = value; } }
     public RenderViewMode ViewMode { get { return _viewMode; } }
+
+    private GPUBuffer _camBuf = null;
+    public GPUBuffer GpuCamera
+    {
+      get
+      {
+        return _camBuf;
+      }
+    }
 
     [DataMember] public Camera3D _camera;//camera that takes up entire viewport.
     [DataMember] private int _id = 0;
@@ -429,12 +437,16 @@ namespace PirateCraft
     }
     public void CreateDefaultCamera()
     {
-      _camera = new Camera3D(this.Name + "-def-cam", 1, 4000);
+      _camera = new Camera3D(this.Name + "-def-cam", 0.01f, 4000);
       _camera.Position_Local = new vec3(-16, 16, -16);
-      _camera.Collides = false;
-      _camera.FOV = (float)Math.PI * 0.6f;
-      _camera.HasPhysics = true;
-      _camera.HasGravity = false;
+      _camera.FOV = MathUtils.ToRadians(81.7f);
+
+      _camera.PhysicsData = new PhysicsData()
+      {
+        HasGravity = false,
+        Collides = false,
+      };
+
       _camera.Mesh = null;
       _camera.Material = null;
       _camera.AddComponent(new FPSInputComponent(this));
@@ -460,21 +472,10 @@ namespace PirateCraft
       OnResize(sw, sh);
       SetModified();
     }
-    public bool BeginRender3D()
-    {
-      return true;
-    }
-    public void EndRender3D()
-    {
-    }
     public void BeginRender2D(mat4? customProj)
     {
       _customProj = customProj;
-      if (customProj == null)
-      {
-        //see if custom proj is nulll - mght be the problem.
-        Gu.Trap();
-      }
+      CompileGpuData();
       //** we do not do this nw
       //ProjectionMatrix = mat4.getOrtho((float)Viewport.X, (float)Viewport.Width, (float)Viewport.Y, (float)Viewport.Height, -1.0f, 1.0f);
       SetModified();
@@ -499,6 +500,8 @@ namespace PirateCraft
                  ps.Size.y - clip.Y - clip.Height, //OpenGL Y = Bottom left!!!
                  clip.Width,
                  clip.Height);
+
+      CompileGpuData();
 
       return true;
     }
@@ -561,63 +564,76 @@ namespace PirateCraft
       b.h = (int)(Math.Round((uv1.y - uv0.y) * (float)height));
       return b;
     }
-    public void CompileGpuData()
+    private void CompileGpuData()
     {
-      if (Modified || Gu.EngineConfig.Debug_AlwaysCompileAndReloadGpuUniformData)
+      // if (Modified || Gu.EngineConfig.Debug_AlwaysCompileAndReloadGpuUniformData)
+      // {
+      if (ViewMode != RenderViewMode.UIOnly)
       {
-        if (ViewMode != RenderViewMode.UIOnly)
-        {
-          _gpuCamera._vViewPos = _camera.Position_World;
-          _gpuCamera._vViewDir = _camera.Heading;
-          _gpuCamera._m4View = _camera.ViewMatrix;
-          _gpuCamera._widthNear = _camera.Frustum.WidthNear;
-          _gpuCamera._heightNear = _camera.Frustum.HeightNear;
-          _gpuCamera._heightFar = _camera.Frustum.HeightFar;
-          _gpuCamera._widthFar = _camera.Frustum.WidthFar;
-          _gpuCamera._fZNear = _camera.Near;
-          _gpuCamera._fZFar = _camera.Far;
-        }
-        else
-        {
-          _gpuCamera._vViewPos = vec3.Zero;
-          _gpuCamera._vViewDir = vec3.Zero;
-          _gpuCamera._m4View = mat4.Identity;
-          _gpuCamera._m4Projection = mat4.Identity;
-        }
-
-        if (ViewMode != RenderViewMode.UIOnly)
-        {
-          if (_customProj != null)
-          {
-            _gpuCamera._m4Projection = _customProj.Value;
-          }
-          else
-          {
-            _gpuCamera._m4Projection = _camera.ProjMatrix;
-          }
-        }
-        else
-        {
-          _gpuCamera._m4Projection = mat4.Identity;
-        }
-
-        _gpuCamera._fWindowWidth = Gu.Context.GameWindow.Width;
-        _gpuCamera._fWindowHeight = Gu.Context.GameWindow.Height;
-        _gpuCamera._fRenderWidth = (float)Gu.Context.Renderer.CurrentStageFBOSize.x;
-        _gpuCamera._fRenderHeight = (float)Gu.Context.Renderer.CurrentStageFBOSize.y;
-
-        //TODO: this may be different from camera viewport / invalid
-        //   var vp =GetClipViewport();
-        _gpuCamera._vWindowViewport.x = Viewport.X;
-        _gpuCamera._vWindowViewport.y = Viewport.Y;
-        _gpuCamera._vWindowViewport.z = Viewport.Width;
-        _gpuCamera._vWindowViewport.w = Viewport.Height;
+        _gpuCamera._vViewPos = _camera.Position_World;
+        _gpuCamera._vViewDir = _camera.Heading;
+        _gpuCamera._m4View = _camera.ViewMatrix;
+        _gpuCamera._widthNear = _camera.Frustum.WidthNear;
+        _gpuCamera._heightNear = _camera.Frustum.HeightNear;
+        _gpuCamera._heightFar = _camera.Frustum.HeightFar;
+        _gpuCamera._widthFar = _camera.Frustum.WidthFar;
+        _gpuCamera._fZNear = _camera.Near;
+        _gpuCamera._fZFar = _camera.Far;
       }
+      else
+      {
+        _gpuCamera._vViewPos = vec3.Zero;
+        _gpuCamera._vViewDir = vec3.Zero;
+        _gpuCamera._m4View = mat4.Identity;
+        _gpuCamera._m4Projection = mat4.Identity;
+      }
+
+      if (ViewMode != RenderViewMode.UIOnly)
+      {
+        if (_customProj != null)
+        {
+          _gpuCamera._m4Projection = _customProj.Value;
+        }
+        else
+        {
+          _gpuCamera._m4Projection = _camera.ProjMatrix;
+        }
+      }
+      else
+      {
+        _gpuCamera._m4Projection = mat4.Identity;
+      }
+
+      _gpuCamera._fWindowWidth = Gu.Context.GameWindow.Width;
+      _gpuCamera._fWindowHeight = Gu.Context.GameWindow.Height;
+      _gpuCamera._fRenderWidth = (float)Gu.Context.Renderer.CurrentStageFBOSize.x;
+      _gpuCamera._fRenderHeight = (float)Gu.Context.Renderer.CurrentStageFBOSize.y;
+
+      //TODO: this may be different from camera viewport / invalid
+      //   var vp =GetClipViewport();
+      _gpuCamera._vWindowViewport.x = Viewport.X;
+      _gpuCamera._vWindowViewport.y = Viewport.Y;
+      _gpuCamera._vWindowViewport.z = Viewport.Width;
+      _gpuCamera._vWindowViewport.w = Viewport.Height;
+
+      if (_camBuf == null)
+      {
+        _camBuf = Gpu.CreateUniformBuffer("renderview_cambuf", _gpuCamera);
+      }
+      else
+      {
+        _camBuf.CopyToGPU(_gpuCamera);
+      }
+
+
+
+      //}
     }
-  }
+  }//cls
   [DataContract]
   public class Camera3D : WorldObject
   {
+    //TODO: data block
     //Camera is loosely tied to the render viewport
     // RenderViewport: Area of the window to render to. Could be whole window, or part of a window.
     // Camera defines a sub-area of the viewport (e.g. blender->view camera)

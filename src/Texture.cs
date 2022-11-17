@@ -177,11 +177,6 @@ namespace PirateCraft
         //   GL.TexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, Gu::GetEngineDisplayParams()->getTextureAnisotropyLevel());
         //    Gu::getGraphicsContext()->chkErrRt();
         //}
-        if (eInternalFormat == PixelInternalFormat.R32ui)
-        {
-          Gu.Trap();
-        }
-
         GL.TexImage2D(TextureTarget, 0, eInternalFormat, iWidth, iHeight, 0, eTextureFormat, eDataType, IntPtr.Zero);
         Gpu.CheckGpuErrorsRt();
 
@@ -293,13 +288,6 @@ namespace PirateCraft
       GpuTexture.SetObjectLabel();
       GL.BindTexture(this.TextureTarget, 0);
       Gpu.CheckGpuErrorsRt();
-    }
-
-    public override void GetSubResources(List<DataBlock?> deps)
-    {
-      Gu.Assert(deps != null);
-      base.GetSubResources(deps);
-      deps.Add(_image);
     }
     public void SetWrap(TextureWrapMode wraps, TextureWrapMode wrapt)
     {

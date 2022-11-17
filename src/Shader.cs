@@ -19,7 +19,7 @@ namespace PirateCraft
     LoadingBinaryFailed,
     CompilingShaders,
     CompiledShadersSuccess,
-    Compiled, //Means compiled on GPU or shaderc, (not preproc)
+    Compiled, //compiled on GPU or shaderc, (not preproc)
     Validated,
     Success,
     Failed,
@@ -35,8 +35,7 @@ namespace PirateCraft
     [Description("_ufGpuWorld_Block")] _ufGpuWorld_Block,
     [Description("_ufGpuDebug_Block")] _ufGpuDebug_Block,
     [Description("_ufGpuCamera_Block")] _ufGpuCamera_Block,
-    [Description("_ufGpuPointLight_Block")] _ufGpuPointLight_Block,
-    [Description("_ufGpuDirLight_Block")] _ufGpuDirLight_Block,
+    [Description("_ufGpuLight_Block")] _ufGpuLights_Block,
     [Description("_ufGpuInstanceData_Block")] _ufGpuInstanceData_Block,
     [Description("_ufGpuFaceData_Block")] _ufGpuFaceData_Block,
     [Description("_m4Projection_Debug")] _m4Projection_Debug,
@@ -59,34 +58,28 @@ namespace PirateCraft
   {
     public GpuInstanceData() { }
     public mat4 _model = mat4.Identity;
+    public mat4 _model_inverse = mat4.Identity;
     public uvec2 _pickId = 0;
     public float _pad0 = 0.0f;
     public float _pad1 = 0.0f;
-    public mat4 _model_inverse = mat4.Identity;
   }
   [StructLayout(LayoutKind.Sequential)]
-  public struct GpuPointLight
+  public struct GpuLight
   {
-    public GpuPointLight() { }
-    //
+    public GpuLight() { }
     public vec3 _pos = new vec3(0, 0, 0);
-    public float _radius = 1;
-    //
-    public vec3 _color = new vec3(1, 1, 1);
-    public float _power = 1;
-  }
-  [StructLayout(LayoutKind.Sequential)]
-  public struct GpuDirLight
-  {
-    public GpuDirLight() { }
-    public vec3 _pos = new vec3(0, 0, 0);
-    public float _radius = 1000; // Radius=maxdist
+    public float _radius = 1000; // Radius=maxdist radius = 0 = directional
     //
     public vec3 _color = new vec3(1, 1, 1);
     public float _power = 10;
     //
     public vec3 _dir = new vec3(0, -1, 0);
-    public float _pad = 0;
+    public int _enabled = 0;
+    //
+    public int _atten = 1; //0 = disable attenuation
+    public int _isDir = 0;
+    public float _pad1 = 0;
+    public float _pad2 = 0;
   }
   [StructLayout(LayoutKind.Sequential)]
   public struct GpuWorld
@@ -101,9 +94,9 @@ namespace PirateCraft
     public vec3 _vFogColor = new vec3(0.8407f, 0.89349f, 0.981054f);
     public float _fFocalRange = 25.0f;
     //
-    public int _iPointLightCount = 0;
-    public int _iDirLightCount = 0;
     public float _fTimeSeconds = 0;
+    public int _pad00 = 0;
+    public int _pad001 = 0;
     public int _pad = 0;
     //
     public int _iShadowBoxCount = 0;
@@ -164,6 +157,7 @@ namespace PirateCraft
   {
     const float cb = 0;//0.3725f;
     const float nb = 1;//0.895f;
+
     public GpuDebug() { }
     //
     public vec4 _faceTangentColor = new vec4(nb, cb, cb, 1);//kinda make it differntt
@@ -175,8 +169,8 @@ namespace PirateCraft
     //
     public float _normalLength = 0.3f;//for normals/tangents
     public float _fWireframeCageDist = 0.002f; // extrusion of wireframe, % of 1 unit
-    public float pad0 = 0;
     public float pad1 = 0;
+    public float pad2 = 0;
     //
     public vec4 _wireframeColor = new vec4(.793f, .779f, .783f, 1);
     //
@@ -187,40 +181,29 @@ namespace PirateCraft
 
   public class ShaderControlVars
   {
+    public const int MaxLights = 16;
+    public const int MaxInstances = 32;
+    public const int MaxCubeShadowSamples = 4;
+    public const int MaxFrusShadowSamples = 4;
+
     public ShaderType? ShaderType { get; private set; } = null;
-    public int MaxPointLights { get; set; } = 16;
-    public int MaxDirLights { get; set; } = 2;
-    public int MaxCubeShadowSamples { get; set; } = 4;
-    public int MaxFrusShadowSamples { get; set; } = 4;
-    public int MaxInstances { get; set; } = 32;
     public bool IsInstanced { get; set; } = true;  //this is, technically going to always be set now, but later we can add non-instanced for performance improvements.
     private PipelineStageEnum PipelineStageEnum = PipelineStageEnum.Unset;
     private int PipelineStageIndex = -1;
 
-    public Dictionary<Type, int> GlobalStructTypes
+    public static Dictionary<Type, int> GlobalStructTypes = new Dictionary<Type, int>()
     {
-      get
-      {
-        return new Dictionary<Type, int>(){
-          {typeof(GpuWorld), 1},
-          {typeof(GpuMaterial), 1},
-          {typeof(GpuCamera), 1},
-          {typeof(GpuDebug), 1},
-          {typeof(GpuDirLight), MaxDirLights},
-          {typeof(GpuPointLight), MaxPointLights},
-          {typeof(GpuFaceData), 0},
-        };
-      }
-    }
-    public Dictionary<Type, int> InstanceDataStructTypes
+      {typeof(GpuWorld), 1},
+      {typeof(GpuMaterial), 1},
+      {typeof(GpuCamera), 1},
+      {typeof(GpuDebug), 1},
+      {typeof(GpuLight), MaxLights},
+      {typeof(GpuFaceData), 0},
+    };
+    public static Dictionary<Type, int> InstanceDataStructTypes = new Dictionary<Type, int>()
     {
-      get
-      {
-        return new Dictionary<Type, int>(){
-          {typeof(GpuInstanceData), MaxInstances},
-        };
-      }
-    }
+      {typeof(GpuInstanceData), MaxInstances},
+    };
     public ShaderControlVars() { }
     public ShaderControlVars(PipelineStageEnum stage, int stageindex, ShaderType type)
     {
@@ -233,10 +216,6 @@ namespace PirateCraft
       Gu.Assert(stage != null);
 
       var ret = new ShaderControlVars(stage, stageindex, type);
-      ret.MaxPointLights = this.MaxPointLights;
-      ret.MaxDirLights = this.MaxDirLights;
-      ret.MaxCubeShadowSamples = this.MaxCubeShadowSamples;
-      ret.MaxFrusShadowSamples = this.MaxFrusShadowSamples;
       return ret;
     }
 
@@ -256,11 +235,10 @@ namespace PirateCraft
     {
       var sb = new StringBuilder();
 
-      AddDef(sb, "DEF_MAX_POINT_LIGHTS", MaxPointLights);
-      AddDef(sb, "DEF_MAX_DIR_LIGHTS", MaxDirLights);
+      AddDef(sb, "DEF_MAX_LIGHTS", MaxLights);
       AddDef(sb, "DEF_MAX_CUBE_SHADOW_SAMPLES", MaxCubeShadowSamples);
       AddDef(sb, "DEF_MAX_FRUS_SHADOW_SAMPLES", MaxFrusShadowSamples);
-      AddDef(sb, "DEF_MAX_INSTANCES", MaxInstances);
+      AddDef(sb, "DEF_MAX_INSTANCES", MaxInstances); //size of GpuInstanceData and GpuJointData
 
       if (IsInstanced)
       {
@@ -447,124 +425,148 @@ namespace PirateCraft
   }
   public class WorldProps : DataBlock
   {
-
     #region Public:Members
     //similar to "world" in Blender, Envmap + Volume
-    public Texture EnvironmentMap { get { return _environmentMap; } set { _environmentMap = value; SetModified(); } }
-    public Texture IrradianceMap { get { return _irradianceMap; } set { _irradianceMap = value; SetModified(); } }
-    public float FogDamp { get { return _fogDamp; } set { _fogDamp = value; SetModified(); } }
-    public float FogBlend { get { return _fogBlend; } set { _fogBlend = value; SetModified(); } }
-    public float FogDivisor { get { return _fogDivisor; } set { _fogDivisor = value; SetModified(); } }
-    public vec3 FogColor { get { return _fogColor; } set { _fogColor = value; SetModified(); } }
-    public vec3 Ambient { get { return _ambient; } set { _ambient = value; SetModified(); } }
-    public float AmbientIntensity { get { return _ambientIntensity; } set { _ambientIntensity = value; SetModified(); } }
+    //TODO: set (is!=is), modiifed=ture
+    public Texture EnvironmentMap { get { return _environmentMap; } set { _environmentMap = value; _gpuWorld_Modified = true; } }
+    public Texture IrradianceMap { get { return _irradianceMap; } set { _irradianceMap = value; _gpuWorld_Modified = true; } }
+    public float FogDamp { get { return _gpuWorld._fFogDamp; } set { _gpuWorld._fFogDamp = value; _gpuWorld_Modified = true; } }
+    public float FogBlend { get { return _gpuWorld._fFogBlend; } set { _gpuWorld._fFogBlend = value; _gpuWorld_Modified = true; } }
+    public float FogDivisor { get { return _gpuWorld._fFogDivisor; } set { _gpuWorld._fFogDivisor = value; _gpuWorld_Modified = true; } }
+    public vec3 FogColor { get { return _gpuWorld._vFogColor; } set { _gpuWorld._vFogColor = value; _gpuWorld_Modified = true; } }
+    public vec3 Ambient { get { return _gpuWorld._vAmbientColor; } set { _gpuWorld._vAmbientColor = value; _gpuWorld_Modified = true; } }
+    public float AmbientIntensity { get { return _gpuWorld._fAmbientIntensity; } set { _gpuWorld._fAmbientIntensity = value; _gpuWorld_Modified = true; } }
     public DayNightCycle DayNightCycle { get { return _dayNightCycle; } set { _dayNightCycle = value; SetModified(); } }
-    public ModifiedList<WorldObject> PointLights { get { return _pointLights; } set { _pointLights = value; SetModified(); } }
-    public ModifiedList<WorldObject> DirLights { get { return _dirLights; } set { _dirLights = value; SetModified(); } }
-    public GpuWorld GpuWorld { get { return _gpuWorld; } }
-    public GpuDirLight[] GpuDirLights { get { return _gpuDirLights; } }
-    public GpuPointLight[] GpuPointLights { get { return _gpuPointLights; } }
-    public GpuDebug GpuDebug = new GpuDebug();
+    public List<Light> Lights { get { return _lights; } set { _lights = value; } }
+
+    public vec4 WireframeColor
+    {
+      get { return _gpuDebug._wireframeColor; }
+      set
+      {
+        if (_gpuDebug._wireframeColor != value)
+        {
+          _gpuDebug._wireframeColor = value;
+          _gpuDebug_Modified = true;
+        }
+      }
+    }
 
     #endregion
     #region Private: Members
 
     private Texture _environmentMap = null;
     private Texture _irradianceMap = null;
-    private float _fogDamp = 2.8f;
-    private float _fogBlend = 0.56361f;
-    private float _fogDivisor = 1200.0f; //Begin of fog distance
-    private vec3 _fogColor = new vec3(0.8407f, 0.89349f, 0.981054f);
-    private vec3 _ambient = new vec3(1, 1, 1);
-    private float _ambientIntensity = 0.13f;
+
     private DayNightCycle _dayNightCycle = null;
-    private ModifiedList<WorldObject> _pointLights = new ModifiedList<WorldObject>();
-    private ModifiedList<WorldObject> _dirLights = new ModifiedList<WorldObject>();
+    private List<Light> _lights = new List<Light>();
+
+    public bool _gpuDebug_Modified = true;
+    public bool _gpuWorld_Modified = true;
+    private GpuDebug _gpuDebug = new GpuDebug();
     private GpuWorld _gpuWorld = new GpuWorld();
-    private GpuDirLight[] _gpuDirLights = null;
-    private GpuPointLight[] _gpuPointLights = null;
+    private GpuLight[] _gpuLights = new GpuLight[ShaderControlVars.MaxLights];
+    public GPUBuffer _gpuDebugBuf = null;
+    public GPUBuffer _gpuWorldBuf = null;
+    public GPUBuffer _gpuLightsBuf = null;
 
     #endregion
 
-    public void ClearLights()
-    {
-      _pointLights.Clear();
-      _dirLights.Clear();
-      SetModified();
-    }
-
     protected WorldProps() { }
     public WorldProps(string name) : base(name) { }
+
+    public void Reset()
+    {
+      _lights = new List<Light>();
+    }
+    public void EndAllRenders()
+    {
+      _gpuDebug_Modified = false;
+      _gpuWorld_Modified = false;
+    }
     public void CompileGpuData()
     {
-      if (Modified || PointLights.Modified || Gu.EngineConfig.Debug_AlwaysCompileAndReloadGpuUniformData)
+      if (_gpuLightsBuf == null || _gpuLightsBuf.CopyToGpuCalledFrameId != Gu.Context.FrameStamp)
       {
-        _gpuWorld._fFogDamp = this._fogDamp;
-        _gpuWorld._fFogBlend = this._fogBlend;
-        _gpuWorld._fFogDivisor = this._fogDivisor;
-        _gpuWorld._vFogColor = this._fogColor;
-        _gpuWorld._vAmbientColor = this._ambient;
-        _gpuWorld._fAmbientIntensity = this._ambientIntensity;
-
-        _gpuWorld._iPointLightCount = 0;
-        _gpuWorld._iDirLightCount = 0;
-
-        FillLights();
-
-        //**Leave these as default
-        //_gpuWorld._fHdrSampleExp = 1.1f;
-        //_gpuWorld._fHdrGamma = 2.2f;
-        //_gpuWorld._fHdrExposure = 1.1f;
-
-        if (_gpuWorld._iDirLightCount > 0)
+        bool hasdir = false;
+        for (int pi = 0; pi < ShaderControlVars.MaxLights; pi++)
         {
-          _gpuWorld._fHdrExposure = 0.75f + 1.2f;  //for Sun the exposure must be brighter this is hard coded for now
+          if (pi < _lights.Count)
+          {
+            _gpuLights[pi]._enabled = 1;
+            _gpuLights[pi]._pos = _lights[pi].Position_World;
+            _gpuLights[pi]._color = _lights[pi].LightColor;
+            _gpuLights[pi]._power = _lights[pi].LightPower;
+            _gpuLights[pi]._radius = _lights[pi].LightRadius;
+            _gpuLights[pi]._isDir = _lights[pi].LightType == LightType.Direction ? 1 : 0;
+            _gpuLights[pi]._dir = new vec3(-1.1f, -1, -1.1f).normalized();// _dirLights[di].Heading;
+            if (_lights[pi].LightType == LightType.Direction)
+            {
+              hasdir = true;
+            }
+          }
+          else
+          {
+            _gpuLights[pi]._enabled = 0;
+          }
+        }
+
+        //Adjust exposure (this is a hack for now)
+        float exp = 0.65f;
+        if (hasdir)
+        {
+          exp = 0.75f + 1.2f;  //for Sun the exposure must be brighter this is hard coded for now
+        }
+        if (_gpuWorld._fHdrExposure != exp)
+        {
+          _gpuWorld._fHdrExposure = exp;
+          _gpuWorld_Modified = true;
+        }
+
+        if (_gpuLightsBuf == null)
+        {
+          _gpuLightsBuf = Gpu.CreateUniformBuffer("uf_lightsbuf", this._gpuLights);
         }
         else
         {
-          _gpuWorld._fHdrExposure = 0.65f;
+          _gpuLightsBuf.CopyToGPU(this._gpuLights);
         }
-
-        _gpuWorld._iShadowBoxCount = 0;
-        _gpuWorld._fTimeSeconds = (float)(Gu.Milliseconds() % 1000) / 1000.0f;
-        _gpuWorld._fFocalDepth = 0;
-        _gpuWorld._fFocalRange = 25.0f;
-
-        ClearModified();
-        PointLights.Modified = false;
       }
-    }
-    private void FillLights()
-    {
-      if (_pointLights != null)
+
+      if (_gpuDebugBuf == null || _gpuDebug_Modified)
       {
-        _gpuWorld._iPointLightCount = _pointLights.Count;
-        _gpuWorld._iDirLightCount = _dirLights.Count;
-        _gpuPointLights = new GpuPointLight[_gpuWorld._iPointLightCount];
-        _gpuDirLights = new GpuDirLight[_gpuWorld._iDirLightCount];
-
-        for (int pi = 0; pi < _pointLights.Count; pi++)
+        if (_gpuDebugBuf == null)
         {
-          _gpuPointLights[pi]._color = _pointLights[pi].LightColor;
-          _gpuPointLights[pi]._pos = _pointLights[pi].Position_World;
-          _gpuPointLights[pi]._power = _pointLights[pi].LightPower;
-          _gpuPointLights[pi]._radius = _pointLights[pi].LightRadius;
+          _gpuDebugBuf = Gpu.CreateUniformBuffer("uf_debugbuf", this._gpuDebug);
         }
-
-        for (int di = 0; di < _dirLights.Count; di++)
+        else
         {
-          _gpuDirLights[di]._color = _dirLights[di].LightColor;
-          _gpuDirLights[di]._dir = new vec3(-1.1f, -1, -1.1f).normalized();// _dirLights[di].Heading;
-          _gpuDirLights[di]._pos = _dirLights[di].Position_World;
-          _gpuDirLights[di]._power = _dirLights[di].LightPower;
-          _gpuDirLights[di]._radius = _dirLights[di].LightRadius;
+          _gpuDebugBuf.CopyToGPU(this._gpuDebug);
         }
-
       }
+      if (_gpuWorldBuf == null || _gpuWorld_Modified)
+      {
+        if (_gpuWorldBuf == null)
+        {
+          _gpuWorldBuf = Gpu.CreateUniformBuffer("uf_worldbuf", this._gpuWorld);
+        }
+        else
+        {
+          _gpuWorldBuf.CopyToGPU(_gpuWorld);
+        }
+      }
+
+
+      //TODO: this would modify world every frame and we send it to gpu every frame ..
+      //   //GpuWorld._fTimeSeconds = (float)(Gu.Milliseconds() % 1000) / 1000.0f;
     }
+
   }
   public class VisibleObjectInstances : MutableState
   {
+
+    //todo: if same objects visible, no need to copy the data again
+    // ** ^ GPu Instance data..
     //A list of instanced objects that all share the same mesh material
     public List<Drawable> Objects = null;
     public GpuInstanceData[] GpuInstanceData = null;
@@ -576,20 +578,22 @@ namespace PirateCraft
     }
     public void CompileGpuData()
     {
-      if (Modified || Gu.EngineConfig.Debug_AlwaysCompileAndReloadGpuUniformData)
+      //TODO: - in the object instances - we destroy this each frame, we can cache this to prevent copying instance data over and over..
+
+      //if (Modified)
+      //{
+      Gu.Assert(Objects != null);
+      GpuInstanceData = new GpuInstanceData[Objects.Count];
+      for (int iob = 0; iob < Objects.Count; iob++)
       {
-        Gu.Assert(Objects != null);
-        GpuInstanceData = new GpuInstanceData[Objects.Count];
-        for (int iob = 0; iob < Objects.Count; iob++)
-        {
-          Gu.Assert(Objects[iob] != null);
-          //we could have the objects also contain a GpuInstanceData themselves.. this may be too much extra data though
-          GpuInstanceData[iob]._model = Objects[iob].WorldMatrix;
-          GpuInstanceData[iob]._model_inverse = GpuInstanceData[iob]._model.inverseOf();//We can cache this
-          GpuInstanceData[iob]._pickId.x = Picker.AddFlagsToPickID(Objects[iob].PickId, Objects[iob].Pickable, Objects[iob].IsSelected, Objects[iob].IsPicked, Objects[iob].IsActive);
-        }
-        Modified = false;
+        Gu.Assert(Objects[iob] != null);
+        //we could have the objects also contain a GpuInstanceData themselves.. this may be too much extra data though
+        GpuInstanceData[iob]._model = Objects[iob].WorldMatrix;
+        GpuInstanceData[iob]._model_inverse = GpuInstanceData[iob]._model.inverseOf();//We can cache this
+        GpuInstanceData[iob]._pickId.x = Picker.AddFlagsToPickID(Objects[iob].PickId, Objects[iob].Pickable, Objects[iob].IsSelected, Objects[iob].IsPicked, Objects[iob].IsActive);
       }
+      Modified = false;
+      //}
     }
   }
   public class DrawCall : MutableState
@@ -643,13 +647,10 @@ namespace PirateCraft
 
       foreach (var ob_set in mesh_instances)
       {
-        if (ob_set.Value.Objects[0] is Drawable)
-        {
-          Gu.Trap();
-        }
         var mesh_view = ob_set.Key;
         ob_set.Value.CompileGpuData();
-        cs.BindInstanceUniforms(ob_set.Value.GpuInstanceData);
+        mesh_view.MeshData.UpdateInstanceData(ob_set.Value.GpuInstanceData);
+        cs.BindInstanceUniforms(mesh_view.MeshData);
 
         Gu.Assert(mesh_view != null);
         Gu.Assert(mesh_view.MeshData != null);
@@ -663,22 +664,22 @@ namespace PirateCraft
     }
     public void CompileGpuData()
     {
-      if (Modified || Gu.EngineConfig.Debug_AlwaysCompileAndReloadGpuUniformData)
+      //if (Modified || Gu.EngineConfig.Debug_AlwaysCompileAndReloadGpuUniformData)
+      //{
+      if (_matMeshInstances != null)
       {
-        if (_matMeshInstances != null)
+        foreach (var mat_dic in _matMeshInstances)
         {
-          foreach (var mat_dic in _matMeshInstances)
+          mat_dic.Key.CompileGpuData();
+          foreach (var type_instances in mat_dic.Value)
           {
-            mat_dic.Key.CompileGpuData();
-            foreach (var type_instances in mat_dic.Value)
-            {
-              type_instances.Value.CompileGpuData();
-            }
+            type_instances.Value.CompileGpuData();
           }
         }
-
-        Modified = false;
       }
+
+      //  Modified = false;
+      // }
     }
     public void Clear()
     {
@@ -750,9 +751,9 @@ namespace PirateCraft
       _success = (stat == (int)GLenum.GL_TRUE);
       Gpu.CheckGpuErrorsRt();
     }
-   
+
     protected override string DataPathName() { return "-shs" + base.DataPathName(); }
-        
+
     public override void Dispose_OpenGL_RenderThread()
     {
       if (GL.IsShader(_glId))
@@ -763,8 +764,10 @@ namespace PirateCraft
   }
   public abstract class ShaderDataBlock : OpenGLResource
   {
-    public bool HasBeenSet { get; set; } = false; //TODO: share shaderUniform and ShaderMemory block data like hasbeenset and wasskipped
-    public bool WasSkipped { get; set; } = false;
+    public bool HasBeenCopiedThisFrame { get; set; } = false;
+    public bool HasBeenCopiedInitially { get; set; } = false; //TODO: share shaderUniform and ShaderMemory block data like hasbeenset and wasskipped
+    public bool HasBeenBound { get; set; } = false; //TODO: share shaderUniform and ShaderMemory block data like hasbeenset and wasskipped
+    public bool CopyWasSkipped { get; set; } = false;
     public bool Active { get; private set; } = false;
     public int SizeBytes { get; private set; } = 0;
     public ShaderDataBlock(string name, bool active, int size_bytes)
@@ -772,6 +775,7 @@ namespace PirateCraft
     {
       Active = active; SizeBytes = size_bytes;
     }
+    public virtual string BufferName { get { return ""; } }
   }
   public class ShaderUniform : ShaderDataBlock
   {
@@ -798,6 +802,8 @@ namespace PirateCraft
     public int BindingIndex { get; private set; } = -1;
     public GPUBuffer Buffer { get; protected set; } = null;//Optional buffer to copy to, or we can set it from mesh data, or elsewhere
 
+    public override string BufferName { get { return Buffer == null ? "null" : Buffer.Name; } }
+
     public override void Dispose_OpenGL_RenderThread()
     {
       Buffer = null;
@@ -809,7 +815,7 @@ namespace PirateCraft
       BindingIndex = iBindingIndex;
       BlockIndex = iBlockIndex;
     }
-    public abstract GPUBuffer GetOrCreateBuffer(int size);
+    //public abstract GPUBuffer GetOrCreateBuffer(int size);
   }
   public class ShaderUniformBlock : ShaderMemoryBlock
   {
@@ -818,15 +824,15 @@ namespace PirateCraft
     {
     }
     protected override string DataPathName() { return "-ubo" + base.DataPathName(); }
-    public override GPUBuffer GetOrCreateBuffer(int size)
-    {
-      Gu.Assert(size <= SizeBytes);
-      if (Buffer == null)
-      {
-        Buffer = Gpu.CreateUniformBuffer(Name, SizeBytes, 1);
-      }
-      return Buffer;
-    }
+    // public override GPUBuffer GetOrCreateBuffer(int size)
+    // {
+    //   Gu.Assert(size <= SizeBytes);
+    //   if (Buffer == null)
+    //   {
+    //     Buffer = Gpu.CreateUniformBuffer(Name, SizeBytes, 1);
+    //   }
+    //   return Buffer;
+    // }
   }
   public class ShaderStorageBlock : ShaderMemoryBlock
   {
@@ -835,15 +841,15 @@ namespace PirateCraft
     {
     }
     protected override string DataPathName() { return "-ssb" + base.DataPathName(); }
-    public override GPUBuffer GetOrCreateBuffer(int size)
-    {
-      Gu.Assert(size <= SizeBytes);
-      if (Buffer == null)
-      {
-        Buffer = Gpu.CreateShaderStorageBuffer(this.Name, SizeBytes, 1);
-      }
-      return Buffer;
-    }
+    // public override GPUBuffer GetOrCreateBuffer(int size)
+    // {
+    //   Gu.Assert(size <= SizeBytes);
+    //   if (Buffer == null)
+    //   {
+    //     Buffer = Gpu.CreateShaderStorageBuffer(this.Name, SizeBytes, 1);
+    //   }
+    //   return Buffer;
+    // }
   }
   public class ShaderAttrib
   {
@@ -884,17 +890,13 @@ namespace PirateCraft
       get { return _state; }
       private set
       {
-        if (value == ShaderLoadState.Failed)
-        {
-          Gu.Trap();
-        }
         _state = value;
       }
     }
 
     #endregion
     #region Private: Members
-    
+
     protected override string DataPathName() { return "-shr" + base.DataPathName(); }
 
     private List<ShaderStage> _stages = null;
@@ -1168,8 +1170,9 @@ namespace PirateCraft
       }
       foreach (var u in _allActiveDataBlocks)
       {
-        u.HasBeenSet = false;
-        u.WasSkipped = false;
+        u.HasBeenBound = false;
+        u.HasBeenCopiedThisFrame = false;
+        u.CopyWasSkipped = false;
       }
       _currUnit = TextureUnit.Texture0;
       _boundTextures.Clear();
@@ -1232,16 +1235,11 @@ namespace PirateCraft
 
       // Gu::checkErrorsDbg();
     }
-    public void BindInstanceUniforms(GpuInstanceData[] inst)
+    public void BindInstanceUniforms(MeshData dat)
     {
-      Gu.Assert(inst != null);
-      if (!BindUniformBlock(ShaderUniformName._ufGpuInstanceData_Block.Description(), inst))
-      {
-        //Int he current system Instance data is required.
-        Gu.DebugBreak();
-      }
-
-      BindUniform_Mat4(ShaderUniformName._m4Model_Debug.Description(), inst[0]._model);
+      Gu.Assert(dat != null);
+      BindUniformBlock(ShaderUniformName._ufGpuInstanceData_Block.Description(), dat.InstanceData);
+      //BindUniform_Mat4(ShaderUniformName._m4Model_Debug.Description(), inst[0]._model);
     }
     public void BindMeshUniforms(MeshData m)
     {
@@ -1253,21 +1251,30 @@ namespace PirateCraft
     }
     public void CheckAllRequiredDataWasSet()
     {
+      string notbound = "";
       string notset = "";
+      int n_unbound = 0;
       int n_unset = 0;
       foreach (var u in _allActiveDataBlocks)
       {
         Gu.Assert(u.Active == true);//must be active to be in here.
-        if (u.HasBeenSet == false && u.WasSkipped == false)
+        if (u.HasBeenBound == false)
         {
-          notset += " " + u.Name + ",";
+          notbound += $" {u.Name}({u.BufferName}),";
+          n_unbound++;
+        }
+        else if (u.HasBeenCopiedInitially == false)
+        {
+          notset += $" {u.Name}({u.BufferName}),";
           n_unset++;
         }
       }
 
-      if (notset.Length > 0)
+      if (notbound.Length > 0 || notset.Length > 0)
       {
-        Gu.Log.Warn($"{Name}: {n_unset} Uniforms were not set: {notset}");
+        string s = (n_unbound > 0 ? $"{Name}: {n_unbound} Uniforms were not bound: {notbound}\n" : "") +
+                  (n_unset > 0 ? $"{Name}: {n_unset} Uniform datas were never set: {notset}" : "");
+        Gu.Log.Warn(s);
         Gu.DebugBreak();
       }
     }
@@ -1300,8 +1307,8 @@ namespace PirateCraft
       {
         var vars = ct.Renderer.DefaultControlVars.Clone(stage, stageindex, type);
 
-        AddStructs(GpuShader.c_strGlobalStructsString, type, StructStorage.UniformBlock, vars.GlobalStructTypes, ref src_cpy);
-        AddStructs(GpuShader.c_strInstanceDataStructString, type, StructStorage.UniformBlock, vars.InstanceDataStructTypes, ref src_cpy);
+        AddStructs(GpuShader.c_strGlobalStructsString, type, StructStorage.UniformBlock, ShaderControlVars.GlobalStructTypes, ref src_cpy);
+        AddStructs(GpuShader.c_strInstanceDataStructString, type, StructStorage.UniformBlock, ShaderControlVars.InstanceDataStructTypes, ref src_cpy);
 
         CreateBindingIndexes(GpuShader.c_strBufferBindingString, ref src_cpy);
 
@@ -1371,7 +1378,7 @@ namespace PirateCraft
           string index = "";
           if (count > 1)
           {
-            index = $"[{count - 1}]";
+            index = $"[{count}]";
           }
           sb.AppendLine($"  {structname} _uf{structname}{index};");
           sb.AppendLine($"}};");
@@ -1840,6 +1847,10 @@ namespace PirateCraft
 
           _maxBufferBindingIndex = Math.Max(_maxBufferBindingIndex, binding);
         }
+        if (u_name == "" || u_name == null || u_name.Contains("Light"))
+        {
+          Gu.Trap();
+        }
 
         ShaderUniformBlock su = new ShaderUniformBlock(u_name, iBlock, binding, buffer_size_bytes, active);// u_size, u_type, u_name);
         _uniformBlocks.Add(u_name, su);
@@ -1885,31 +1896,32 @@ namespace PirateCraft
         }
       }
     }
+
+    //Must initially assign all shader data for each shader, eh?
+    //Seems like we are getting on to rolling all this stuff into a generic "modified block"
+    //Just optimizing this data proved a significant frame rate speed-up
     private void BindWorldUniforms(WorldProps world)
     {
       Gu.Assert(world != null);
       world.CompileGpuData();
-      BindUniformBlock(ShaderUniformName._ufGpuWorld_Block.Description(), new GpuWorld[] { world.GpuWorld });
-      BindUniformBlock(ShaderUniformName._ufGpuPointLight_Block.Description(), world.GpuPointLights, world.GpuPointLights.Length == 0);
-      BindUniformBlock(ShaderUniformName._ufGpuDirLight_Block.Description(), world.GpuDirLights, world.GpuDirLights.Length == 0);
-      BindUniformBlock(ShaderUniformName._ufGpuDebug_Block.Description(), new GpuDebug[] { world.GpuDebug });
+      //Ok here's the thing - do we still need to "bind" the block and skip data transfer?
+      ShaderUniformBlock? ub;
+      BindUniformBlock(ShaderUniformName._ufGpuWorld_Block.Description(), world._gpuWorldBuf);
+      BindUniformBlock(ShaderUniformName._ufGpuLights_Block.Description(), world._gpuLightsBuf);
+      BindUniformBlock(ShaderUniformName._ufGpuDebug_Block.Description(), world._gpuDebugBuf);
     }
     private void BindViewUniforms(RenderView rv)
     {
       Gu.Assert(rv != null);
-      rv.CompileGpuData();
-      BindUniformBlock(ShaderUniformName._ufGpuCamera_Block.Description(), new GpuCamera[] { rv.GpuCamera });
+      BindUniformBlock(ShaderUniformName._ufGpuCamera_Block.Description(), rv.GpuCamera);
     }
     private void BindMaterialUniforms(Material mat)
     {
+      //We should just be able to copy all materials at once, no?
+
       Gu.Assert(mat != null);
       mat.CompileGpuData();
-      if (mat.Name.ToLower().Contains("gear") || mat.Name.ToLower().Contains("plane"))
-      {
-        int n = 0;
-        n++;
-      }
-      BindUniformBlock(ShaderUniformName._ufGpuMaterial_Block.Description(), new GpuMaterial[] { mat.GpuMaterial });
+      BindUniformBlock(ShaderUniformName._ufGpuMaterial_Block.Description(), mat.GpuMaterial);
       foreach (var input in mat.Textures)
       {
         BindTexture(input.Name, input.GetTextureOrDefault());
@@ -1922,65 +1934,16 @@ namespace PirateCraft
         var mat = m.ToOpenTK();
         GL.UniformMatrix4(u.Location, false, ref mat);
         Gpu.CheckGpuErrorsDbg();
-        u.HasBeenSet = true;
+        u.HasBeenCopiedInitially = true;
+        u.HasBeenCopiedThisFrame = true;
+        u.HasBeenBound = true;
       }
     }
-    private bool BindUniformBlock<T>(string uname, T[] items, bool canHaveNoItems = false)
+    private bool TryGetUniformBlock(string uname, out ShaderUniformBlock? ubb)
     {
-      if (_uniformBlocks.TryGetValue(uname, out var block))
-      {
-        BindUniformBlock(block, items, canHaveNoItems);
-        return true;
-      }
-      else
-      {
-        ReportUniformNotFound(uname, true);
-        return false;
-      }
+      return _uniformBlocks.TryGetValue(uname, out ubb);
     }
-    private void BindUniformBlock<T>(ShaderUniformBlock ub, T[] items, bool canHaveNoItems)
-    {
-      Gu.Assert(items != null);
 
-      if (items.Length == 0)
-      {
-        if (canHaveNoItems)
-        {
-          ub.WasSkipped = true;//avoid reporting if it had nothing
-        }
-        return;
-      }
-
-      Gu.Assert(typeof(T).IsValueType, $"{Name}:'{ub.Name}': Type '{typeof(T).Name}' must be value type.");
-
-      int item_size = Marshal.SizeOf(typeof(T));//default(T) 
-      Gu.Assert((ub.SizeBytes % item_size) == 0, $"{Name}:'{ub.Name}': Struct size does not match struct size reported from shader. (Precompiler/cache bug)");
-
-      int num_bytes_to_copy = item_size * items.Length;// dat.instanceData.Length;
-      if (num_bytes_to_copy > ub.SizeBytes)
-      {
-        num_bytes_to_copy = ub.SizeBytes;
-        Gu.Log.WarnCycle($"Uniform Block '{ub.Name}' exceeded max count of '{(ub.SizeBytes / item_size)}' items. Tried to copy '{items.Length}' items.");
-      }
-      var handle = GCHandle.Alloc(items, GCHandleType.Pinned);
-      CopyUniformBlockData(ub, handle.AddrOfPinnedObject(), num_bytes_to_copy);
-      handle.Free();
-
-      BindBlockFast(ub);
-    }
-    private void CopyUniformBlockData(ShaderUniformBlock u, IntPtr pData, int copySizeBytes)
-    {
-      Gu.Assert(copySizeBytes <= u.SizeBytes);
-
-      var ubo = u.GetOrCreateBuffer(copySizeBytes);
-      ubo.CopyToGPURaw(pData, 0, 0, copySizeBytes, false);
-
-      if (u.HasBeenSet == true && Gu.EngineConfig.Debug_Print_Shader_Uniform_Details_Verbose_AlreadySet)
-      {
-        Gu.Log.WarnCycle(this.Name + ": Uniform  " + u.Name + " was already set.", 120 * 10);
-      }
-      u.HasBeenSet = true;
-    }
     private void BindUniformBlock(string uname, GPUBuffer b)
     {
       if (_uniformBlocks.TryGetValue(uname, out var block))
@@ -2005,7 +1968,7 @@ namespace PirateCraft
     }
     private void BindBlockFast(ShaderMemoryBlock u)
     {
-      if (u.HasBeenSet == false)
+      if (u.HasBeenCopiedInitially == false)
       {
         Gu.Log.WarnCycle(this.Name + ": Shader Uniform Block '" + u.Name + "' value was not set before binding.");
         Gu.DebugBreak();
@@ -2014,12 +1977,16 @@ namespace PirateCraft
     }
     private void BindBlockFast(ShaderMemoryBlock u, GPUBuffer b)
     {
+      Gu.Assert(b != null);
       Gu.Assert(b.RangeTarget != null);
       GL.BindBufferBase(b.RangeTarget.Value, u.BindingIndex, b.GlId);
       Gpu.CheckGpuErrorsDbg();
       GL.BindBuffer(b.BufferTarget, b.GlId);
       Gpu.CheckGpuErrorsDbg();
-      u.HasBeenSet = true;
+      u.HasBeenBound = true;
+
+      u.HasBeenCopiedInitially = b.CopyToGpuCalled;
+      u.HasBeenCopiedThisFrame = b.CopyToGpuCalledFrameId == Gu.Context.FrameStamp;
     }
     private void BindTexture(string uniform_name, Texture tex)
     {
@@ -2028,7 +1995,7 @@ namespace PirateCraft
       {
         if (tex != null)
         {
-          if (su.HasBeenSet && Gu.EngineConfig.Debug_Print_Shader_Uniform_Details_Verbose_AlreadySet)
+          if (su.HasBeenBound && Gu.EngineConfig.Debug_Print_Shader_Uniform_Details_Verbose_AlreadySet)
           {
             Gu.Log.WarnCycle(this.Name + ": Texture uniform " + su.Name + "  was already set.", 120 * 10);
           }
@@ -2037,7 +2004,9 @@ namespace PirateCraft
           Gpu.CheckGpuErrorsDbg();
           tex.Bind(_currUnit);
           _boundTextures.Add(_currUnit, tex);
-          su.HasBeenSet = true;
+          su.HasBeenBound = true;
+          su.HasBeenCopiedInitially = true;
+          su.HasBeenCopiedThisFrame = true;
         }
         else
         {
@@ -2342,7 +2311,7 @@ namespace PirateCraft
 
     public const int c_iNormalizedFileCount = 3; // Number of ALL shader files if we used all pipeline stages ex. v,g,f=3.
     public OpenTK.Graphics.OpenGL4.PrimitiveType? GSPrimType { get { return _gsPrimType; } private set { _gsPrimType = value; } }
-    public DynamicFileLoader? _loader = null;
+    private DynamicFileLoader? _loader = null;
 
     #endregion
     #region Private: Members

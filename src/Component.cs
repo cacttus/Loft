@@ -1,4 +1,5 @@
 using OpenTK.Windowing.GraphicsLibraryFramework;
+using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
 namespace PirateCraft
 {
@@ -12,27 +13,41 @@ namespace PirateCraft
     Initialized,
     Destroyed
   }
-  [DataContract]
-  public abstract class Component : DataBlock
+  public enum AnimationTransition
   {
-    private ComponentState _componentState = ComponentState.Added;
-    [DataMember] private bool _enabled = true;
-
+    Repeat, Stop, PlayNext
+  }
+  public enum AnimationPlayMode
+  {
+    Linear, //linear play - for backwards set _speed = -speed
+    PingPong
+  }
+  [DataContract]
+  public abstract class Component /*Components are unique to objects, they are not shared the *data* a component references may be shared though */
+  {
     public bool Enabled { get { return _enabled; } set { _enabled = value; } }
     public ComponentState ComponentState { get { return _componentState; } set { _componentState = value; } }
 
-    protected Component() { }
-    public Component(string name) : base(name) { }
+    [DataMember] private bool _enabled = true;
+    private ComponentState _componentState = ComponentState.Added;
+
+    public Component() { }
 
     #region Abstract methods
+
     public virtual void OnCreate(WorldObject myObj) { }
     public virtual void OnUpdate(double dt, WorldObject myObj) { }
+    public virtual void OnPick() { }
     public virtual void OnDestroy(WorldObject myObj) { }
     public abstract Component Clone();
+
     #endregion
 
-    public virtual void OnPick() { }
-
+    public override string ToString()
+    {
+      string json = SerializeTools.SerializeJSON(this);
+      return json;
+    }
   }
   [DataContract]
   public class EventComponent : Component
@@ -42,7 +57,7 @@ namespace PirateCraft
     public Action<WorldObject>? Action { get; set; } = null;
 
     public EventComponent() { }
-    public EventComponent(Action<WorldObject>? action, double tick_seconds, ActionRepeat repeat, ActionState start) : base("event-comp")
+    public EventComponent(Action<WorldObject>? action, double tick_seconds, ActionRepeat repeat, ActionState start)
     {
       Action = action;
       Timer = new DeltaTimer((long)(tick_seconds * 1000.0), repeat, start, null);
@@ -69,305 +84,6 @@ namespace PirateCraft
     }
 
   }
-  // public class PhysicsComponent : Component
-  // {
-  //   //Yup
-  //   public vec3 Velocity = new vec3(0, 0, 0);
-  //   public bool HasGravity = false;
-  //   public bool Collides = false;
-  //   public override void OnCreate(WorldObject myObj)
-  //   {
-  //   }
-  //   public override void OnUpdate(double dt, WorldObject myObj)
-  //   {
-  //     myObj.Position_Local += Velocity;
-  //   }
-  //   public override void OnDestroy(WorldObject myObj)
-  //   {
-  //   }
-
-  // }
-  [DataContract]
-  public class AnimationComponent : Component
-  {
-    [DataMember] public double Time { get; private set; } = 0;
-    [DataMember] public ActionState AnimationState { get; private set; } = ActionState.Stop;
-    [DataMember] public bool Repeat { get; set; } = false;
-    [DataMember] public AnimationData AnimationData { get; set; } = null;
-
-    [DataMember] private vec3? _currentPos = null;
-    [DataMember] private quat? _currentRot = null;
-    [DataMember] private vec3? _currentScl = null;
-    [DataMember] private double _maxTime = 0;
-
-    public AnimationComponent() { }
-    public AnimationComponent(AnimationData dat) : base("animation-comp") { this.AnimationData = dat; }
-
-    public override void OnUpdate(double dt, WorldObject myObj)
-    {
-      if (AnimationState == ActionState.Run)
-      {
-        Time += dt;
-        if (Time > _maxTime)
-        {
-          if (Repeat)
-          {
-            Time = Time % _maxTime;
-          }
-          else
-          {
-            Stop();
-          }
-        }
-
-        SlerpFrames();
-
-        if (_currentPos != null)
-        {
-          myObj.AnimatedPosition = _currentPos.Value;
-        }
-        if (_currentRot != null)
-        {
-          myObj.AnimatedRotation = _currentRot.Value;
-        }
-        if (_currentScl != null)
-        {
-          myObj.AnimatedScale = _currentScl.Value;
-        }
-      }
-
-      //mat4 mScl = mat4.CreateScale(Current.Scale);
-      //mat4 mRot = mat4.CreateFromquaternion(Current.Rot);
-      //mat4 mPos = mat4.CreateTranslation(Current.Pos);
-      //   myObj.Local = myObj.Local * (mScl) * (mRot) * mPos;
-
-      //TODO: put this in the keyframe when modified.
-      //NormalizeState();
-    }
-    // private void NormalizeState()
-    // {
-    //   if (KeyFrames.Count > 0)
-    //   {
-    //     //foreach(var k in KeyFrames)
-    //     {
-    //       //TODO: find equal keyframe times as this could be an error.
-    //       // Gu.Log.Warn("Keyframes had equal times.");
-    //     }
-    //   }
-    // }
-    public void Play(bool? repeat = null)
-    {
-      //Sort.
-      if (AnimationData == null)
-      {
-        Gu.Log.Error("Animation had no data.");
-        Gu.DebugBreak();
-      }
-      else if (
-        (AnimationData.PosChannel == null || AnimationData.PosChannel.Count == 0) &&
-        (AnimationData.RotChannel == null || AnimationData.RotChannel.Count == 0) &&
-        (AnimationData.ScaleChannel == null || AnimationData.ScaleChannel.Count == 0)
-        )
-      {
-        Gu.Log.Error("Animation had no keyframes.");
-        Gu.DebugBreak();
-      }
-      AnimationData.PosChannel?.Sort((x, y) => x.Time.CompareTo(y.Time));
-      AnimationData.RotChannel?.Sort((x, y) => x.Time.CompareTo(y.Time));
-      AnimationData.ScaleChannel?.Sort((x, y) => x.Time.CompareTo(y.Time));
-
-      //Calc max time.
-      _maxTime = 0;
-      if (AnimationData.PosChannel != null) { _maxTime = Math.Max(AnimationData.PosChannel[AnimationData.PosChannel.Count - 1].Time, _maxTime); }
-      if (AnimationData.RotChannel != null) { _maxTime = Math.Max(AnimationData.RotChannel[AnimationData.RotChannel.Count - 1].Time, _maxTime); }
-      if (AnimationData.ScaleChannel != null) { _maxTime = Math.Max(AnimationData.ScaleChannel[AnimationData.ScaleChannel.Count - 1].Time, _maxTime); }
-
-      AnimationState = ActionState.Run;
-      if (repeat != null)
-      {
-        Repeat = repeat.Value;
-      }
-    }
-    public void Stop()
-    {
-      Time = 0;
-      //Call slerpFrames once more to make sure we reset the current state back to frame zero
-      SlerpFrames();
-      AnimationState = ActionState.Stop;
-    }
-    public void Pause()
-    {
-      AnimationState = ActionState.Pause;
-    }
-    private void AdvanceFrame(List<KeyframeBase> frames, ref KeyframeBase? current, ref KeyframeBase? next, ref double out_time)
-    {
-      current = null;
-      next = null;
-      out_time = 0;
-      if (frames == null)
-      {
-        //empty channel
-      }
-      else if (frames.Count == 0)
-      {
-        //No animation.
-      }
-      else if (frames.Count == 1)
-      {
-        //Set to this key frame.
-        current = frames[0];
-      }
-      else
-      {
-        //Grab 0 and 1
-        KeyframeBase? f0 = null, f1 = null;
-        for (int i = 0; i < frames.Count - 1; i++)
-        {
-          var k0 = frames[i];
-          var k1 = frames[i + 1];
-          if (k0.Time <= Time && k1.Time >= Time)
-          {
-            f0 = k0;
-            f1 = k1;
-            break;
-          }
-        }
-        if (f0 == null || f1 == null)
-        {
-          //This should not be possible as the MaxTime must be the last of the keyframes.
-          if (Time > frames[frames.Count - 1].Time)
-          {
-            f0 = frames[frames.Count - 1];
-            f1 = f0;
-          }
-          else //if (Time < KeyFrames[0].Time)
-          {
-            f0 = frames[0];
-            f1 = f0;
-          }
-        }
-
-        Gu.Assert(f0 != null && f1 != null);
-        double denom = f1.Time - f0.Time;
-        if (denom == 0)
-        {
-          out_time = 1; //If f0 and f1 are euqal in time it's an error.
-        }
-        else
-        {
-          out_time = (Time - f0.Time) / denom;
-        }
-        current = f0;
-        next = f1;
-      }
-    }
-    private void SlerpFrames()
-    {
-      KeyframeBase? c = null, n = null;
-      double t = 0;
-
-      if (AnimationData.PosChannel != null && AnimationData.PosChannel.Count > 0)
-      {
-        AdvanceFrame(AnimationData.PosChannel.OfType<KeyframeBase>().ToList(), ref c, ref n, ref t);
-        if (c != null && n == null)
-        {
-          _currentPos = (c as Vec3Keyframe).Value;
-        }
-        else if (c != null && n != null)
-        {
-          _currentPos = InterpolateV3((n as Vec3Keyframe).Interpolation, (c as Vec3Keyframe).Value, (n as Vec3Keyframe).Value, t);
-        }
-        else
-        {
-          _currentPos = null;
-        }
-      }
-      if (AnimationData.RotChannel != null && AnimationData.RotChannel.Count > 0)
-      {
-        AdvanceFrame(AnimationData.RotChannel.OfType<KeyframeBase>().ToList(), ref c, ref n, ref t);
-        if (c != null && n == null)
-        {
-          _currentRot = (c as QuatKeyframe).Value;
-        }
-        else if (c != null && n != null)
-        {
-          _currentRot = (c as QuatKeyframe).Value.slerpTo((n as QuatKeyframe).Value, (float)t);
-        }
-        else
-        {
-          _currentRot = null;
-        }
-      }
-      if (AnimationData.ScaleChannel != null && AnimationData.ScaleChannel.Count > 0)
-      {
-        AdvanceFrame(AnimationData.ScaleChannel.OfType<KeyframeBase>().ToList(), ref c, ref n, ref t);
-        if (c != null && n == null)
-        {
-          _currentScl = (c as Vec3Keyframe).Value;
-        }
-        else if (c != null && n != null)
-        {
-          _currentScl = InterpolateV3((n as Vec3Keyframe).Interpolation, (c as Vec3Keyframe).Value, (n as Vec3Keyframe).Value, t);
-        }
-        else
-        {
-          _currentScl = null;
-        }
-      }
-    }
-    private vec3 InterpolateV3(KeyframeInterpolation interp, vec3 f0, vec3 f1, double slerpTime)
-    {
-      if (interp == KeyframeInterpolation.Linear)
-      {
-        return LinearInterpolate(f0, f1, slerpTime);
-      }
-      else if (interp == KeyframeInterpolation.Cubic)
-      {
-        return CubicInterpolate(f0, f1, slerpTime);
-      }
-      else if (interp == KeyframeInterpolation.Ease)
-      {
-        return EaseInterpolate(f0, f1, slerpTime);
-      }
-      else if (interp == KeyframeInterpolation.Step)
-      {
-        return ConstantInterpolate(f0, f1, slerpTime);
-      }
-      Gu.BRThrowNotImplementedException();
-      return f0;
-    }
-    private vec3 LinearInterpolate(vec3 a, vec3 b, double time)
-    {
-      vec3 ret = a + (b - a) * (float)time;
-      return ret;
-    }
-    private vec3 EaseInterpolate(vec3 a, vec3 b, double time)
-    {
-      //Sigmoid "ease"
-      //Assuming time is normalized [0,1]
-      double k = 0.1; //Slope
-      double f = 1 / (1 + Math.Exp(-((time - 0.5) / k)));
-      return a * (1 - (float)f) + b * (float)f;
-    }
-    private vec3 CubicInterpolate(vec3 a, vec3 b, double time)
-    {
-      //This is actually cosine interpolate. We need to update this to be cubic.
-      //TODO:
-      double ft = time * Math.PI;
-      double f = (1.0 - Math.Cos(ft)) * 0.5;
-      return a * (1 - (float)f) + b * (float)f;
-    }
-    private vec3 ConstantInterpolate(vec3 a, vec3 b, double time)
-    {
-      vec3 ret = a;
-      return ret;
-    }
-    public override Component Clone()
-    {
-      return (AnimationComponent)this.MemberwiseClone();
-    }
-
-  }
   [DataContract]
   public class FPSInputComponent : Component
   {
@@ -377,6 +93,7 @@ namespace PirateCraft
     }
     private const float Base_Speed = 10.0f * 0.10f;
     private const float Run_Mul = 6;
+    private const float Creep_Mul = 0.1f;
     private const float Base_Jump_Speed = 10.0f * 0.75f;
     private const float MaxAirFriction = 10.0f;//friction percentage in velocity Units per second (1.0 means the velocity will reach 0 in one second) [0,1]. lower values result in less friction
                                                //    private FirstPersonMouseRotator _FPSRotator = new FirstPersonMouseRotator();
@@ -393,12 +110,15 @@ namespace PirateCraft
 
     private RenderView _rv;
 
-    public FPSInputComponent(RenderView cam) : base("fps-cmop") { _rv = cam; }
+    public FPSInputComponent(RenderView cam) { _rv = cam; }
 
     public override void OnCreate(WorldObject myObj)
     {
-      myObj.HasPhysics = true;
-      myObj.HasGravity = false;
+      if (myObj.PhysicsData != null)
+      {
+        myObj.PhysicsData.HasGravity = false;
+        myObj.PhysicsData.Enabled = true; // camera moves with velocity vector
+      }
     }
     public override void OnUpdate(double dt, WorldObject myObj)
     {
@@ -415,7 +135,10 @@ namespace PirateCraft
         return;
       }
 
-      myObj.AirFriction = MaxAirFriction; //Movement Damping
+      if (myObj.PhysicsData != null)
+      {
+        myObj.PhysicsData.AirFriction = MaxAirFriction; //Movement Damping
+      }
 
       vec3basis basis = new vec3basis();
       //removing cammode for now
@@ -519,6 +242,10 @@ namespace PirateCraft
       {
         speedMul = Run_Mul; // run speed
       }
+      if (Gu.Context.PCKeyboard.PressOrDown(Keys.LeftShift) || Gu.Context.PCKeyboard.PressOrDown(Keys.LeftShift))
+      {
+        speedMul = Creep_Mul; // run speed
+      }
       // if (!myObj.OnGround && this.CamMode != FPSCamMode.Flying)
       // {
       //   speedMul = 0.1f; // "in the air" movement. 
@@ -527,27 +254,27 @@ namespace PirateCraft
       float final_run_speed = Base_Speed * speedMul;
       if (Gu.Context.PCKeyboard.PressOrDown(new List<Keys>() { Keys.Q }))
       {
-        myObj.Velocity += basis.y * final_run_speed;
+        myObj.PhysicsData.Velocity += basis.y * final_run_speed;
       }
       if (Gu.Context.PCKeyboard.PressOrDown(new List<Keys>() { Keys.E }))
       {
-        myObj.Velocity -= basis.y * final_run_speed;
+        myObj.PhysicsData.Velocity -= basis.y * final_run_speed;
       }
       if (Gu.Context.PCKeyboard.PressOrDown(new List<Keys>() { Keys.Up, Keys.W }))
       {
-        myObj.Velocity += basis.z * final_run_speed;
+        myObj.PhysicsData.Velocity += basis.z * final_run_speed;
       }
       if (Gu.Context.PCKeyboard.PressOrDown(new List<Keys>() { Keys.Down, Keys.S }))
       {
-        myObj.Velocity -= basis.z * final_run_speed;
+        myObj.PhysicsData.Velocity -= basis.z * final_run_speed;
       }
       if (Gu.Context.PCKeyboard.PressOrDown(new List<Keys>() { Keys.Right, Keys.D }))
       {
-        myObj.Velocity += basis.x * final_run_speed;
+        myObj.PhysicsData.Velocity += basis.x * final_run_speed;
       }
       if (Gu.Context.PCKeyboard.PressOrDown(new List<Keys>() { Keys.Left, Keys.A }))
       {
-        myObj.Velocity -= basis.x * final_run_speed;
+        myObj.PhysicsData.Velocity -= basis.x * final_run_speed;
       }
 
       // if (myObj.OnGround && this.CamMode != FPSCamMode.Flying)
@@ -565,7 +292,6 @@ namespace PirateCraft
     }
 
   }//FpsInputComponent
-
   [DataContract]
   public class ScriptComponent : Component
   {
@@ -577,4 +303,223 @@ namespace PirateCraft
       return (ScriptComponent)this.MemberwiseClone();
     }
   }
-}
+
+  [DataContract]
+  public class SpringPhysics : Modifier
+  {
+    //do boba physics
+    public virtual void Dispatch(MeshData myMesh) { }
+  }
+  [StructLayout(LayoutKind.Sequential)]
+  public struct wd_in_st //GpuVertJointOffset
+  {
+    //vertidx -> [count, jw offset, ]
+    //std430
+    public int wc;	//joints count
+    public int wo;	//joints offset
+    public float pad0;
+    public float pad1;
+  }
+  [StructLayout(LayoutKind.Sequential)]
+  public struct jw_in_st //GpuVertWeight
+  {
+    //[jid, weight]
+    //std430
+    public int joff; //offset into matrix palette, i.e. joint id
+    public float wt;
+
+    public float pad0;
+    public float pad1;
+  }
+  [DataContract]
+  public class PhysicsData : DataBlock
+  {
+    public bool Enabled { get { return _enabled; } set { _enabled = value; } }
+    public vec3 Velocity { get { return _velocity; } set { _velocity = value; } }
+    public bool OnGround { get { return _resting; } set { _resting = value; } }
+    public bool HasGravity { get { return _hasGravity; } set { _hasGravity = value; } }
+    public bool Collides { get { return _collides; } set { _collides = value; } }
+    public float AirFriction { get { return _airFriction; } set { _airFriction = value; } }
+    [DataMember] private vec3 _velocity = new vec3(0, 0, 0);
+    [DataMember] private bool _resting = false;
+    [DataMember] private bool _hasGravity = true;
+    [DataMember] private bool _collides = false;
+    [DataMember] private float _airFriction = 0.0f;//friction with the air i.e. movement damping in m/s    
+    [DataMember] private bool _enabled = true;
+
+    public PhysicsData(string name = "PhysicsData") : base(name) { }
+  }
+  [DataContract]
+  public class Modifier
+  {
+    //mesh modifiers, dispatched and applied to meshes
+    public enum ModifierState
+    {
+      None,
+      Error,
+      Dispatched,
+      Success
+    }
+    public bool Enabled { get { return _enabled; } set { _enabled = value; } }
+    [DataMember] private bool _enabled = true;
+
+    protected ModifierState _state = ModifierState.None;
+
+    protected void SetError(string e)
+    {
+      Gu.Log.Error(e);
+      _state = ModifierState.Error;
+    }
+
+    public virtual void Dispatch(MeshData mesh) { }
+  }
+  [DataContract]
+  public class ArmatureModifier : Modifier
+  {
+    //"skin" modifier, "skeleton" etc
+    public GPUBuffer Influences;
+    public GPUBuffer VertexWeights;
+    public GPUBuffer MatrixPalette;
+
+    public WeakReference<Armature> ArmatureRef = null;
+    public ArmatureModifier(Armature arm)
+    {
+      Gu.Assert(arm != null);
+      ArmatureRef = new WeakReference<Armature>(arm);
+      //check armature data exists when we update, we may not set the data until later.
+    }
+    public override void Dispatch(MeshData mesh)
+    {
+      //compile vertex groups from mesh into a single buffer if modified.
+      //dispatch compute.
+    }
+  }
+  [StructLayout(LayoutKind.Sequential)]
+  public struct vertex_adjacency
+  {
+    //adjacency per vertex
+    // gives us the count (_adj0.x) then vertex offset's (adj0.y-adj1.w)
+    //  max 6 adjacent verts
+    //    [(count0), (o00, o01, o02, o03, o04, o05, o06)],[(count1),(o10,o11,o12,o13,o14,o15,o16)],...,[(countn),(o0n,...)]
+    public Svec4 _adj0;
+    public Svec4 _adj1;
+  }
+  [StructLayout(LayoutKind.Sequential)]
+  public struct physics_vert
+  {
+    //hair / cloth / booba vertexes
+    //one phy vert for every vertex in the mesh.
+    public vec3 _velocity;
+    public float _mass;
+    // other stuf
+
+  }
+
+  [DataContract]
+  public class SoftbodyModifier : Modifier
+  {
+    //for boba - but not used right now
+    //buffer of ushort 
+    public GPUBuffer? _adjacency = null;
+    public GPUBuffer? _physicsVerts = null;
+
+    public float _tension;
+    public float _compression;
+    public float _restitution;
+    public float _friction;
+
+    public override void Dispatch(MeshData mesh)
+    {
+      //compile vertex groups from mesh into a single buffer if modified.
+      //dispatch compute.
+      if (_adjacency == null)
+      {
+        CreateVertexAdjacency(mesh);
+      }
+
+      if (_state != ModifierState.Error)
+      {
+
+      }
+    }
+    private void CreateVertexAdjacency(MeshData mesh)
+    {
+      List<ushort> adjacency = new List<ushort>();
+
+      if (mesh.IndexBuffer == null)
+      {
+        SetError("Mesh had no index buffer. Array meshes are not supported");
+        return;
+      }
+
+
+      var vp = new VertexPointer(mesh.IndexBuffer);
+      for (int ii = 0; ii < vp.Length; ii += 3)
+      {
+        //iterate tris.
+
+      }
+
+
+    }
+  }
+
+
+}//ns 
+
+
+
+
+
+
+
+// private Dictionary<string, AnimationTrack>;
+
+//sequencer should hold animation data via the strng name -> to all objects
+// string anim
+//   object, sampler
+//  Gu.Sequencer.play()
+//  WorldObject girl
+
+//AnimatedParameter { 
+// float .. animat
+//}
+// so an aobject can have a sequence in addition to its animation
+// we can cancel, or xfade the sequence which will leave the current params as-is
+// girl is worldobject, but the data would be like AnimationData
+//    Current Armature (skin) Animation
+//    List of skin animations..
+//    Object PRS Animation
+//  girl.play("walk", repeat = true, speed = 1);
+//  if(ctrl pressed)
+//    girl.Do(
+//      new Sequence(
+//        girl.Delay(1s, 1s),//start, len
+//        girl.Speed.Fade(2s, 1s, 2)  //whatever animation is playing on girl, speed it up by 2 at 2s, for 1s
+//        girl.Play(4s, -1, "run", repeat=true//speed=current speed
+//        girl.Speed.Fade(7s, 1s, 1)
+//      )
+//    );
+//  cancel current sequence and fade to another one
+//  girl.Fade(
+//    new Sequence(
+//     girl.move(0s, 10s, new vec3(10,10,10))
+//     girl.play(10s, "run", loop=true);
+//   )
+//  )
+//  add this new animation and blend it
+//  girl.Add(
+//    new Sequence(
+//     girl.move(0s, 10s, new vec3(10,10,10))
+//     girl.play(10s, "run", loop=true);
+//   )
+//  )    
+// if world obj has armature data theen it has skin animation so we can sequence it
+// 
+//[DataMember] private double _time = 0;
+//Sequencer
+//move character here a
+//play character animation at t
+//play animation after t
+//animate mesh
+//animate PRS of object

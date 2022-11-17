@@ -659,7 +659,7 @@ namespace PirateCraft
     private static GPULog GPULog = new GPULog();
     public static bool CheckGpuErrorsRt(bool donotbreak = false, bool donotlog = false)
     {
-      if (Gu.EngineConfig.EnableRuntimeErrorChecking == true)
+      if (Gu.EngineConfig.EnableRuntimeErrorChecks == true)
       {
         return GPULog.CheckErrors(donotbreak, donotlog);
       }
@@ -668,7 +668,7 @@ namespace PirateCraft
     public static bool CheckGpuErrorsDbg(bool donotbreak = false, bool donotlog = false)
     {
 #if DEBUG
-      if (Gu.EngineConfig.EnableDebugErrorChecking == true)
+      if (Gu.EngineConfig.EnableDebugErrorChecks == true)
       {
         return GPULog.CheckErrors(donotbreak, donotlog);
       }
@@ -910,33 +910,42 @@ namespace PirateCraft
       GL.GetObjectLabel(idt, id, 256, out length, out label);
       return label;
     }
-    public static GPUBuffer CreateUniformBuffer<T>(string name, T[] items)
+    public static GPUBuffer CreateUniformBuffer<T>(string name, T item) where T : struct
     {
-      return new GPUBuffer(name + "-ubo", null, BufferTarget.UniformBuffer, Marshal.SizeOf<T>(), items.Length, BufferUsageHint.StreamDraw, items);
+      var b = new GPUBuffer(name + "-ubo", GPUDataFormat.GetDataFormat<T>(), 1, BufferTarget.UniformBuffer, BufferUsageHint.StreamDraw);
+      b.CopyToGPU(item);
+      return b;
     }
-    public static GPUBuffer CreateUniformBuffer(string name, int item_size_bytes, int item_count)
+    public static GPUBuffer CreateUniformBuffer<T>(string name, T[] items) where T : struct
     {
-      return new GPUBuffer(name + "-ubo", null, BufferTarget.UniformBuffer, item_size_bytes, item_count, BufferUsageHint.StreamDraw, null);
+      var b = new GPUBuffer(name + "-ubo", GPUDataFormat.GetDataFormat<T>(), items.Length, BufferTarget.UniformBuffer, BufferUsageHint.StreamDraw);
+      b.CopyToGPU(items);
+      return b;
     }
-    public static GPUBuffer CreateShaderStorageBuffer<T>(string name, T[] items)
+    public static GPUBuffer CreateShaderStorageBuffer<T>(string name, T[] items) where T : struct
     {
-      return new GPUBuffer(name + "-ssbo", null, BufferTarget.ShaderStorageBuffer, Marshal.SizeOf<T>(), items.Length, BufferUsageHint.StreamDraw, items);
+      var b = new GPUBuffer(name + "-ssbo", GPUDataFormat.GetDataFormat<T>(), items.Length, BufferTarget.ShaderStorageBuffer, BufferUsageHint.StreamDraw);
+      b.CopyToGPU(items);
+      return b;
     }
-    public static GPUBuffer CreateShaderStorageBuffer(string name, int item_size_bytes, int item_count)
-    {
-      return new GPUBuffer(name + "-ssbo", null, BufferTarget.ShaderStorageBuffer, item_size_bytes, item_count, BufferUsageHint.StreamDraw, null);
-    }
-    public static GPUBuffer CreateVertexBuffer<T>(string name, T[] verts)
+    // public static GPUBuffer CreateShaderStorageBuffer(string name, int item_size_bytes, int item_count)
+    // {
+    //   return new GPUBuffer(name + "-ssbo", GPUDataFormat.GetDataFormat<T>(), BufferTarget.ShaderStorageBuffer, item_count, BufferUsageHint.StreamDraw);
+    // }
+    public static GPUBuffer CreateVertexBuffer<T>(string name, T[] verts) where T : struct
     {
       Gu.Assert(verts != null);
-      return new GPUBuffer(name + "-vbo", GPUDataFormat.GetDataFormat<T>(), BufferTarget.ArrayBuffer, Marshal.SizeOf<T>(), verts.Length, BufferUsageHint.StreamDraw, verts);
+      var b = new GPUBuffer(name + "-vbo", GPUDataFormat.GetDataFormat<T>(), verts.Length, BufferTarget.ArrayBuffer, BufferUsageHint.StreamDraw);
+      b.CopyToGPU(verts);
+      return b;
     }
-    public static GPUBuffer CreateIndexBuffer<T>(string name, T[] inds)
+    public static GPUBuffer CreateIndexBuffer<T>(string name, T[] inds) where T : struct
     {
       Gu.Assert(inds != null);
-      return new GPUBuffer(name + "-ibo", GPUDataFormat.GetDataFormat<T>(), BufferTarget.ElementArrayBuffer, Marshal.SizeOf<T>(), inds.Length, BufferUsageHint.StreamDraw, inds);
+      var b = new GPUBuffer(name + "-ibo", GPUDataFormat.GetDataFormat<T>(), inds.Length, BufferTarget.ElementArrayBuffer, BufferUsageHint.StreamDraw);
+      b.CopyToGPU(inds);
+      return b;
     }
-
     public class GPUMemInfo
     {
       public int? Free = null;
@@ -952,14 +961,14 @@ namespace PirateCraft
       public override string ToString()
       {
         StringBuilder s = new StringBuilder();
-        ToString(s);
+        ToString(s, " ");
         return s.ToString();
       }
       public void ToString(StringBuilder s, string tab = "")
       {
-        if (this.Free != null) { s.AppendLine($"{tab}Free :{this.Free}kB"); }
-        if (this.Total != null) { s.AppendLine($"{tab}Total:{this.Total}kB"); }
-        if (this.GPU_MEMORY_INFO_DEDICATED_VIDMEM_NVX != null) { s.AppendLine($"{tab}GPU_MEMORY_INFO_DEDICATED_VIDMEM_NVX :{this.GPU_MEMORY_INFO_DEDICATED_VIDMEM_NVX}kB"); }
+        if (this.Free != null) { s.AppendLine($"{tab}Free :{StringUtil.FormatPrec((float)Free / 1024.0f, 1)}MB"); }
+        if (this.Total != null) { s.AppendLine($"{tab}Total:{StringUtil.FormatPrec((float)Total / 1024.0f, 1)}MB"); }
+        if (this.GPU_MEMORY_INFO_DEDICATED_VIDMEM_NVX != null) { s.AppendLine($"{tab}GPU_MEMORY_INFO_DEDICATED_VIDMEM_NVX :{StringUtil.FormatPrec((float)GPU_MEMORY_INFO_DEDICATED_VIDMEM_NVX / 1024.0f, 1)}MB"); }
         if (this.GPU_MEMORY_INFO_EVICTION_COUNT_NVX != null) { s.AppendLine($"{tab}GPU_MEMORY_INFO_EVICTION_COUNT_NVX :{this.GPU_MEMORY_INFO_EVICTION_COUNT_NVX}"); }
         if (this.GPU_MEMORY_INFO_EVICTED_MEMORY_NVX != null) { s.AppendLine($"{tab}GPU_MEMORY_INFO_EVICTED_MEMORY_NVX :{this.GPU_MEMORY_INFO_EVICTED_MEMORY_NVX}"); }
         if (this.VBO_FREE_MEMORY_ATI != null) { s.AppendLine($"{tab}VBO_FREE_MEMORY_ATI :{this.VBO_FREE_MEMORY_ATI}kB"); }
@@ -967,7 +976,6 @@ namespace PirateCraft
         if (this.RENDERBUFFER_FREE_MEMORY_ATI != null) { s.AppendLine($"{tab}RENDERBUFFER_FREE_MEMORY_ATI :{this.RENDERBUFFER_FREE_MEMORY_ATI}kB"); }
       }
     }
-
     public GPUMemInfo GetMemoryInfo()
     {
       Gpu.CheckGpuErrorsRt();

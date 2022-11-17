@@ -2130,6 +2130,30 @@ namespace PirateCraft
   }
   [DataContract]
   [StructLayout(LayoutKind.Sequential)]
+  public struct Svec4
+  {
+    [DataMember] public ushort x;
+    [DataMember] public ushort y;
+    [DataMember] public ushort z;
+    [DataMember] public ushort w;
+    public Svec4(ushort dx) : this(dx, dx, dx, dx)
+    {
+    }
+    public Svec4(ushort dx, ushort dy, ushort dz, ushort dw)
+    {
+      x = dx;
+      y = dy;
+      z = dz;
+      w = dw;
+    }
+    public ushort r { get { return x; } }
+    public ushort g { get { return y; } }
+    public ushort b { get { return z; } }
+    public ushort a { get { return w; } }
+  }
+
+  [DataContract]
+  [StructLayout(LayoutKind.Sequential)]
   public struct ivec2
   {
     [DataMember] public Int32 x;
@@ -2451,9 +2475,22 @@ namespace PirateCraft
   }
   [DataContract]
   [StructLayout(LayoutKind.Sequential)]
+  public struct uivec4
+  {
+    [DataMember] public uint x;
+    [DataMember] public uint y;
+    [DataMember] public uint z;
+    [DataMember] public uint w;
+    public uivec4(uint dx, uint dy, uint dz, uint dw)
+    {
+      x = dx; y = dy; z = dz; w = dw;
+    }
+  }
+  [DataContract]
+  [StructLayout(LayoutKind.Sequential)]
   public struct mat2
   {
-    float _m11, _m12, _m21, _m22;
+    public float _m11, _m12, _m21, _m22;
 
     public static vec2 operator *(mat2 a, vec2 b)
     {
@@ -3612,9 +3649,79 @@ namespace PirateCraft
   }
   [DataContract]
   [StructLayout(LayoutKind.Sequential)]
+  public struct quatD
+  {
+    //Exists due to issue with double precision in C# and Acos domain due to precision rounding errors
+
+    [DataMember] public double x, y, z, w;
+
+    public static quatD Identity = new quatD(0, 0, 0, 1);
+
+    public quatD(double dx, double dy, double dz, double dw)
+    {
+      x = dx;
+      y = dy;
+      z = dz;
+      w = dw;
+    }
+    public quat toQuatF()
+    {
+      return new quat(
+        (float)this.x,
+        (float)this.y,
+        (float)this.z,
+        (float)this.w);
+    }
+    public double dot(in quat rhs)
+    {
+      return (
+        this.x * rhs.x +
+        this.y * rhs.y +
+        this.z * rhs.z +
+        this.w * rhs.w
+      );
+    }
+    public double mag()
+    {
+      double ret = Math.Sqrt(
+        this.w * this.w +
+        this.x * this.x +
+        this.y * this.y +
+        this.z * this.z
+      );
+      return ret;
+    }
+    public quatD normalized()
+    {
+      quatD ret;
+      double len = mag();
+      if (len == 1)
+      {
+        return this;
+      }
+      if (len != 0)
+      {
+        ret = new quatD(
+           this.x / len,
+           this.y / len,
+           this.z / len,
+           this.w / len
+           );
+      }
+      else
+      {
+        ret = quatD.Identity;
+      }
+      return ret;
+    }
+  }
+
+  [DataContract]
+  [StructLayout(LayoutKind.Sequential)]
   public struct quat
   {
     [DataMember] public float x, y, z, w;
+    public static quat Identity = new quat(0, 0, 0, 1);
 
     public quat(float dx, float dy, float dz, float dw)
     {
@@ -3630,22 +3737,42 @@ namespace PirateCraft
       z = dz;
       w = dw;
     }
+    public quatD toQuatD()
+    {
+      return new quatD(
+        (double)this.x,
+        (double)this.y,
+        (double)this.z,
+        (double)this.w);
+    }
+
     public float dot(in quat rhs)
     {
-      return (x * rhs.x + y * rhs.y + z * rhs.z + w * rhs.w);
+      return (
+        this.x * rhs.x +
+        this.y * rhs.y +
+        this.z * rhs.z +
+        this.w * rhs.w
+      );
     }
     public float mag()
     {
-      float ret = (float)Math.Sqrt(w * w + x * x + y * y + z * z);
+      float ret = (float)Math.Sqrt(
+        this.w * this.w +
+        this.x * this.x +
+        this.y * this.y +
+        this.z * this.z
+      );
       return ret;
     }
     public quat normalized()
     {
+      //neat thing found today
+      //https://stackoverflow.com/questions/11667783/quaternion-and-normalization
       quat ret;
       float len = mag();
       if (len != 0)
       {
-
         ret = new quat(
            this.x / len,
            this.y / len,
@@ -3655,7 +3782,7 @@ namespace PirateCraft
       }
       else
       {
-        ret = quat.identity();
+        ret = quat.Identity;
       }
       return ret;
     }
@@ -3741,13 +3868,29 @@ namespace PirateCraft
       // @param t Interpolation value [0 to 1]
       quat ret;
 
-      double theta = Math.Acos(this.dot(rhs));
-      double sintheta = Math.Sin(theta);
-      double wp = (Math.Sin(1 - t) * theta) / sintheta;
-      double wq = (Math.Sin(t) * theta) / sintheta;
-
-      ret = (this) * wp + rhs * wq;
-      ret = ret.normalized();
+      float dot = this.dot(rhs);
+      if (dot > 1 && dot < 1.000001)
+      {
+        //floating point or double conversion error 
+        dot = 1;
+      }
+      if (dot <0 && dot > -0.000001)
+      {
+        dot = 0;
+      }      
+      float theta = (float)Math.Acos((double)dot);
+      float sintheta = (float)Math.Sin((double)theta);
+      if (sintheta == 0)
+      {
+        return this;
+      }
+      else
+      {
+        float wp = (float)(Math.Sin(1.0 - (double)t) * theta) / sintheta;
+        float wq = (float)(Math.Sin((double)t) * theta) / sintheta;
+        ret = (this) * wp + rhs * wq;
+        ret = ret.normalized();
+      }
       return ret;
     }
     public static quat operator *(in quat q, in vec3 v)
@@ -3819,11 +3962,6 @@ namespace PirateCraft
       mat4 m = new mat4(toMat3());
       return m;
     }
-    public static quat identity()
-    {
-      return new quat(0, 0, 0, 1);
-    }
-    public static quat Identity = new quat(0, 0, 0, 1);
     public bool IsSane()
     {
       return Gu.SaneFloat(x) && Gu.SaneFloat(y) && Gu.SaneFloat(z) && Gu.SaneFloat(w);

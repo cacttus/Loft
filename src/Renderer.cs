@@ -38,7 +38,7 @@ namespace PirateCraft
     public const uint c_iPickedFlag = (1 << 29);//object is picked
     public const uint c_iActiveFlag = (1 << 28);//object is picked
 
-    private uint _iid = 0;
+    private uint _iid = 1;
     private WeakReference<Renderer> _pRenderer;
     private uint _uiLastSelectedPixelId = c_iInvalidPickId;//Note: This is relative to the last UserSelectionSet - the Id here is not fixed.
     private object _pickedObjectFrame = null;
@@ -92,14 +92,14 @@ namespace PirateCraft
           {
             ret = (PickedObjectFrame as WorldObject).Name;
           }
-          
+
           ret += $" ({PickedObjectFrame.GetType().Name})";
 
           if (PickedObjectFrame is Drawable)
           {
             if ((PickedObjectFrame as Drawable).MeshView != null)
             {
-              ret+= $" (Mesh:{(PickedObjectFrame as Drawable).MeshView.Name})";
+              ret += $" (Mesh:{(PickedObjectFrame as Drawable).MeshView.Name})";
             }
             else
             {
@@ -197,14 +197,21 @@ namespace PirateCraft
     }
     public uint GenPickId()
     {
+      if(Gu.EngineConfig.Debug_PickIDs){
+      _iid = _iid + 100;
+      }
+      else
+      {
+        _iid++;
+      }
       //Creates a pick ID, note that this ID is colored so we can see it (alpha off)
-      uint increment = 1;
-      //DEBUG pick ID that shows the color of the picked object.
-      _iid = (_iid + increment);
+
+
       if (_iid > 0xFFFFFF)
       {
         //50 = 335544 possible Id's, 10=1677721.5 id's still possible to wrap
-        Gu.Log.Warn("Pick Id Generator just wrapped, check if debug mode,  increment =" + increment);
+        Gu.Log.Error("Pick Id Generator just wrapped, check if debug mode" );
+        Gu.DebugBreak();
         _iid %= 0xFFFFFF;
       }
 
@@ -454,7 +461,7 @@ namespace PirateCraft
       string names = $"Shader_{generic_name}";
       BlitObj = new WorldObject($"{names}-wo");
       BlitObj.MeshView = new MeshView(MeshGen.CreateScreenQuadMesh($"{names}-mesh", width, height));
-      
+
       BlitObj.Material = new Material($"{names}-mat", new Shader($"{names}-shr", generic_name, FileStorage.Embedded));
 
       BlitObj.Material.GpuRenderState.CullFace = false;
@@ -707,10 +714,6 @@ namespace PirateCraft
         ps.BeginRender(true);
         ps.EndRender();
       }
-      if (_requestSaveFBOs == true)
-      {
-        Gu.Trap();
-      }
     }
     public void EndRenderToWindow()
     {
@@ -744,11 +747,12 @@ namespace PirateCraft
             continue;
           }
 
+          CurrentStage = ps;
+
           if (rv.BeginPipelineStage(ps))//Set P/V matrix
           {
             if (ps.BeginRender(false))//Bind FBO
             {
-              CurrentStage = ps;
 
               Gu.World.RenderPipeStage(rv, CurrentStage.PipelineStageEnum);
 
@@ -792,10 +796,6 @@ namespace PirateCraft
       Gu.Assert(RenderState == RendererState.EndView || RenderState == RendererState.None);
       RenderState = RendererState.BeginView;
       CurrentView = rv;
-      if (!rv.BeginRender3D())
-      {
-        return false;
-      }
       SetInitialGpuRenderState();
       Gpu.CheckGpuErrorsDbg();
       //  _pMsaaForward.ClearSharedFb();//Must call before deferred. After Picker.
@@ -806,7 +806,6 @@ namespace PirateCraft
     {
       Gu.Assert(RenderState == RendererState.BeginView);
       RenderState = RendererState.EndView;
-      rv.EndRender3D();
       rv.Overlay.EndFrame();
       CurrentView = null;
       //PipelineStage = PipelineStageEnum.Unset;
