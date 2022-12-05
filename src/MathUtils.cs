@@ -13,6 +13,7 @@ namespace PirateCraft
 {
   public class MathUtils
   {
+    
     public const double FUZZY_EQUALS_EPSILON = 0.0002f;
     public const float M_PI = (float)(Math.PI);
     public const float M_2PI = (float)(Math.PI * 2.0f);
@@ -2568,7 +2569,7 @@ namespace PirateCraft
     }
     public void setIdentity()
     {
-      _m11 = _m22 = _m33 = 1.0f;
+      _m11 = _m22 = _m33 = 1;
       _m12 = _m13 = _m21 = _m23 = _m31 = _m32 = 0;
     }
     public static mat3 operator +(in mat3 a, in mat3 b)
@@ -2705,43 +2706,9 @@ namespace PirateCraft
       m._m33 = z;
       return m;
     }
-
-    public mat3 adj()
-    {
-      // - The expanded cofactor adjoint.
-      mat3 m = new mat3();
-      m._m11 = 0.0f * ((_m22 * _m33) - (_m23 * _m32));
-      m._m12 = 1.0f * ((_m21 * _m33) - (_m23 * _m31));
-      m._m13 = 0.5f * ((_m21 * _m32) - (_m22 * _m31));
-      m._m21 = 1.0f * ((_m12 * _m33) - (_m13 * _m32));
-      m._m22 = 0.5f * ((_m11 * _m33) - (_m13 * _m31));
-      m._m23 = (float)Math.Pow(-1.00f, 2 + 1) * ((_m12 * _m31) - (_m11 * _m32));
-      m._m31 = 0.5f * ((_m12 * _m23) - (_m13 * _m22));
-      m._m32 = (float)Math.Pow(-1.00f, 2 + 1) * ((_m11 * _m23) - (_m13 * _m21));
-      m._m33 = 0.25f * ((_m11 * _m22) - (_m12 * _m21));
-      return m;
-    }
-    public float det()
-    {
-      return (
-          _m11 * _m22 * _m33 +
-          _m21 * _m32 * _m13 +
-          _m12 * _m23 * _m31 - (_m13 * _m22 * _m31) - (_m12 * _m21 * _m33) - (_m23 * _m32 * _m11));
-    }
-    public mat3 inverse()
-    {
-      mat3 m = adj();
-
-      float d = m.det();
-      for (int i = 0; i < CompSize(); ++i)
-      {
-        m[i] /= d;
-      }
-      return m;
-    }
     public static mat3 getRotation(vec3 axis, float angle, bool normalize_axis = true)
     {
-      mat3 Temp;
+      mat3 m;
 
       if (normalize_axis)
       {
@@ -2757,57 +2724,57 @@ namespace PirateCraft
       float nc = 1 - c;
       // row matrix
 
-      Temp._m11 = (x * x) * nc + c;
-      Temp._m12 = (x * y) * nc + (z * s);
-      Temp._m13 = (x * z) * nc - (y * s);
+      m._m11 = (x * x) * nc + c;
+      m._m21 = (x * y) * nc + (z * s);
+      m._m31 = (x * z) * nc - (y * s);
 
-      Temp._m21 = (y * x) * nc - (z * s);
-      Temp._m22 = (y * y) * nc + c;
-      Temp._m23 = (y * z) * nc + (x * s);
+      m._m12 = (y * x) * nc - (z * s);
+      m._m22 = (y * y) * nc + c;
+      m._m32 = (y * z) * nc + (x * s);
 
-      Temp._m31 = (z * x) * nc + (y * s);
-      Temp._m32 = (z * y) * nc - (x * s);
-      Temp._m33 = (z * z) * nc + c;
+      m._m13 = (z * x) * nc + (y * s);
+      m._m23 = (z * y) * nc - (x * s);
+      m._m33 = (z * z) * nc + c;
 
-      return Temp;
+      return m;
     }
     public quat toQuat()
     {
       quat q = new quat();
-      mat3 m = this.transposed();//Testing to see if this is thr problem..it is -- fix this -- this requires matrices to be rewritten, they are backwards
+      mat3 m = this;
 
-      float tr = m._m11 + m._m22 + m._m33;
+      float tr = _m11 + _m22 + _m33;
 
       if (tr > 0)
       {
         float S = MathUtils.sqrtf(tr + 1.0f) * 2; // S=4*qw 
         q.w = 0.25f * S;
-        q.x = (m._m32 - m._m23) / S;
-        q.y = (m._m13 - m._m31) / S;
-        q.z = (m._m21 - m._m12) / S;
+        q.x = (_m32 - _m23) / S;
+        q.y = (_m13 - _m31) / S;
+        q.z = (_m21 - _m12) / S;
       }
-      else if ((m._m11 > m._m22) & (m._m11 > m._m33))
+      else if ((_m11 > _m22) & (_m11 > _m33))
       {
-        float S = MathUtils.sqrtf(1.0f + m._m11 - m._m22 - m._m33) * 2; // S=4*qx 
-        q.w = (m._m32 - m._m23) / S;
+        float S = MathUtils.sqrtf(1.0f + _m11 - _m22 - _m33) * 2; // S=4*qx 
+        q.w = (_m32 - _m23) / S;
         q.x = 0.25f * S;
-        q.y = (m._m12 + m._m21) / S;
-        q.z = (m._m13 + m._m31) / S;
+        q.y = (_m12 + _m21) / S;
+        q.z = (_m13 + _m31) / S;
       }
-      else if (m._m22 > m._m33)
+      else if (_m22 > _m33)
       {
-        float S = MathUtils.sqrtf(1.0f + m._m22 - m._m11 - m._m33) * 2; // S=4*qy
-        q.w = (m._m13 - m._m31) / S;
-        q.x = (m._m12 + m._m21) / S;
+        float S = MathUtils.sqrtf(1.0f + _m22 - _m11 - _m33) * 2; // S=4*qy
+        q.w = (_m13 - _m31) / S;
+        q.x = (_m12 + _m21) / S;
         q.y = 0.25f * S;
-        q.z = (m._m23 + m._m32) / S;
+        q.z = (_m23 + _m32) / S;
       }
       else
       {
-        float S = MathUtils.sqrtf(1.0f + m._m33 - m._m11 - m._m22) * 2; // S=4*qz
-        q.w = (m._m21 - m._m12) / S;
-        q.x = (m._m13 + m._m31) / S;
-        q.y = (m._m23 + m._m32) / S;
+        float S = MathUtils.sqrtf(1.0f + _m33 - _m11 - _m22) * 2; // S=4*qz
+        q.w = (_m21 - _m12) / S;
+        q.x = (_m13 + _m31) / S;
+        q.y = (_m23 + _m32) / S;
         q.z = 0.25f * S;
       }
 
@@ -2873,7 +2840,6 @@ namespace PirateCraft
       _m42 = rhs._m42;
       _m43 = rhs._m43;
       _m44 = rhs._m44;
-
     }
     public mat4(in mat3 rhs)
     {
@@ -2896,12 +2862,11 @@ namespace PirateCraft
       _m42 = 0;
       _m43 = 0;
       _m44 = 1;
-
     }
     public mat4(float t0, float t1, float t2, float t3,
-        float t4, float t5, float t6, float t7,
-    float t8, float t9, float t10, float t11,
-    float t12, float t13, float t14, float t15)
+                float t4, float t5, float t6, float t7,
+                float t8, float t9, float t10, float t11,
+                float t12, float t13, float t14, float t15)
     {
       _m11 = t0;
       _m12 = t1;
@@ -3010,6 +2975,16 @@ namespace PirateCraft
       to._m43 = _m43;
       to._m44 = _m44;
     }
+    public quat toQuat()
+    {
+      mat3 m = new mat3(this);
+      return m.toQuat();
+    }    
+    public mat4 SetTranslation(vec3 v)
+    {
+      SetTranslation(v.x, v.y, v.z);
+      return this;
+    }
     public mat4 SetTranslation(float x, float y, float z)
     {
       _m41 = x;
@@ -3017,19 +2992,7 @@ namespace PirateCraft
       _m43 = z;
 
       return this;
-    }
-    public mat4 SetTranslation(vec3 v)
-    {
-      SetTranslation(v.x, v.y, v.z);
-
-      return this;
-    }
-    public quat toQuat()
-    {
-      mat3 m = new mat3(this);
-      return m.toQuat();
-
-    }
+    }    
     public static mat4 getTranslation(in vec3 vTrans)
     {
       return getTranslation(vTrans.x, vTrans.y, vTrans.z);
@@ -3044,6 +3007,14 @@ namespace PirateCraft
 
       return m;
     }
+    public vec3 ExtractTranslation()
+    {
+      vec3 ret = new vec3();
+      ret.x = _m41;
+      ret.y = _m42;
+      ret.z = _m43;
+      return ret;
+    }    
     public static mat4 getRotation(in quat q)
     {
       return q.toMat4();
@@ -3109,59 +3080,18 @@ namespace PirateCraft
         l = -l;
       }
 
-      mat4 m = new mat4();
-      m._m11 = (float)(2 * n) / (r - l);
-      m._m12 = (float)0;
-      m._m13 = (float)0;
-      m._m14 = (float)0;
-
-      m._m21 = (float)0;
-      m._m22 = (float)(2 * n) / (t - b);  // *-1.0f; // we added a neagtive here because IDK WHY this is not right
-      m._m23 = (float)0;
-      m._m24 = (float)0;
-
-      m._m31 = (float)(r + l) / (r - l);
-      m._m32 = (float)(t + b) / (t - b);
-      m._m33 = (float)-(f + n) / (f - n);
-      m._m34 = (float)-1;
-
-      m._m41 = (float)0;
-      m._m42 = (float)0;
-      m._m43 = (float)-(2 * f * n) / (f - n);
-      m._m44 = (float)0;
-
-      return m;
-    }
-    public mat4 getOrientToVector(in vec3 iv, in vec3 iup)
-    {
-      mat4 m = mat4.Identity;
-
-      vec3 v = new vec3(iv);
-      vec3 up = new vec3(iup);
-
-      if (up.x + up.y + up.z != 1.0)
+      mat4 mm = new mat4()
       {
-        up = up.normalize();
-      }
+       _m11 = (2 * n) / (r - l),  _m12 = 0                , _m13 =  (r + l) / (r - l) ,_m14 = 0                      ,
+       _m21 = 0                ,  _m22 = (2 * n) / (t - b), _m23 =  (t + b) / (t - b) ,_m24 = 0                      ,
+       _m31 = 0                ,  _m32 = 0                , _m33 = -(f + n) / (f - n) ,_m34 = -(2 * f * n) / (f - n) ,
+       _m41 = 0                ,  _m42 = 0                , _m43 = -1                 ,_m44 = 0                      ,
+      };
+      mm.transpose();
 
-      vec3 s = v.cross(up);
-      vec3 u = s.cross(v);
-
-      m._m11 = s.x;
-      m._m21 = u.x;
-      m._m31 = -v.x;
-
-      m._m12 = s.y;
-      m._m22 = u.y;
-      m._m32 = -v.y;
-
-      m._m13 = s.z;
-      m._m23 = u.z;
-      m._m33 = -v.z;
-
-      return m;
+      return mm;
     }
-    public static mat4 getLookAt(in vec3 eye, in vec3 center, in vec3 up)
+    public static mat4 lookAt(in vec3 eye, in vec3 center, in vec3 up)
     {
       vec3 zaxis = (center - eye).normalize();
       vec3 xaxis = zaxis.cross(up).normalize();//This produces -y,+z -> -x
@@ -3172,14 +3102,38 @@ namespace PirateCraft
       //vec3 xaxis = up.cross(zaxis).normalize();//This produces -y,+z -> -x
       //vec3 yaxis = zaxis.cross(xaxis);
 
-      mat4 mm = new mat4();
-      mm._m11 = xaxis.x; mm._m12 = yaxis.x; mm._m13 = zaxis.x; mm._m14 = 0;
-      mm._m21 = xaxis.y; mm._m22 = yaxis.y; mm._m23 = zaxis.y; mm._m24 = 0;
-      mm._m31 = xaxis.z; mm._m32 = yaxis.z; mm._m33 = zaxis.z; mm._m34 = 0;
-      mm._m41 = -xaxis.dot(eye); mm._m42 = -yaxis.dot(eye); mm._m43 = -zaxis.dot(eye); mm._m44 = 1;
+      mat4 mm = new mat4()
+      {
+       _m11 = xaxis.x        , _m12 = yaxis.x        , _m13 = zaxis.x        , _m14 = 0,
+       _m21 = xaxis.y        , _m22 = yaxis.y        , _m23 = zaxis.y        , _m24 = 0,
+       _m31 = xaxis.z        , _m32 = yaxis.z        , _m33 = zaxis.z        , _m34 = 0,
+       _m41 = -xaxis.dot(eye), _m42 = -yaxis.dot(eye), _m43 = -zaxis.dot(eye), _m44 = 1,
+      };
 
       return mm;
     }
+    public static mat4 ortho(float left, float right, float top, float bottom, float neard, float fard)
+    {
+      mat4 mm = new mat4();
+
+      float a1 = (float)2.0 / (right - left);
+      float a2 = (float)2.0 / (top - bottom);
+      float a3 = (float)-2.0 / (fard - neard);
+      float t1 = (right + left) / (right - left) * (float)-1.0;
+      float t2 = (top + bottom) / (top - bottom) * (float)-1.0;
+      float t3 = (fard + neard) / (fard - neard) * (float)-1.0;
+
+      mm = new mat4()
+      {
+        _m11 = a1, _m12 = 0 , _m13 = 0 , _m14 = 0,
+        _m21 = 0 , _m22 = a2, _m23 = 0 , _m24 = 0,
+        _m31 = 0 , _m32 = 0 , _m33 = a3, _m34 = 0,
+        _m41 = t1, _m42 = t2, _m43 = t3, _m44 = 1,
+      };
+
+
+      return mm;
+    }    
     public mat4 translate(float x, float y, float z)
     {
       this *= getTranslation(x, y, z);
@@ -3192,13 +3146,13 @@ namespace PirateCraft
     }
     public mat4 transpose()
     {
-      mat4 ret = new mat4(
-            _m11, _m21, _m31, _m41,
-            _m12, _m22, _m32, _m42,
-            _m13, _m23, _m33, _m43,
-            _m14, _m24, _m34, _m44
-          );
-      ret.clone(out this);
+      float tmp;
+      tmp = _m12; _m12 = _m21; _m21 = tmp;
+      tmp = _m13; _m13 = _m31; _m31 = tmp;
+      tmp = _m14; _m14 = _m41; _m41 = tmp;
+      tmp = _m23; _m23 = _m32; _m32 = tmp;
+      tmp = _m24; _m24 = _m42; _m42 = tmp;
+      tmp = _m34; _m34 = _m43; _m43 = tmp;
       return this;
     }
     public mat4 transposed()
@@ -3210,8 +3164,8 @@ namespace PirateCraft
     public void setIdentity()
     {
       _m11 = _m22 = _m33 = _m44 = 1.0f;
-      _m21 = _m31 = _m41 = _m12 = 0.0f;
-      _m32 = _m42 = _m13 = _m23 = 0.0f;
+      _m21 = _m31 = _m41 = _m12 =
+      _m32 = _m42 = _m13 = _m23 =
       _m43 = _m14 = _m24 = _m34 = 0.0f;
     }
     public float at(int row, int col)
@@ -3228,51 +3182,6 @@ namespace PirateCraft
     }
     public static int nRows() { return 4; }
     public static int nCols() { return 4; }
-    public mat3 minor(int r, int c)
-    {
-      //Returns the minor at the specified row and column.
-      mat3 m = new mat3();
-      m.setIdentity();
-      if (r < 0 || r > 3 || c < 0 || c > 3)
-      {
-        return m;
-      }
-
-      int ind, mind = 0;
-      for (ind = 0; ind < CompSize(); ++ind)
-      {
-        if (rowNum(ind) != r && colNum(ind) != c)
-        {
-          m[mind++] = this[ind];
-        }
-      }
-
-      return m;
-    }
-    float cofactor(int r, int c)
-    {
-      //Returns the cofactor of this matrix at the specified row and column.
-      // I.E. The determinant of the minor.
-      return (float)Math.Pow(-1.00f, (float)r + (float)c) * minor(r, c).det();  // ** May be incorrect
-    }
-    public float det()
-    {
-      float a = _m11 * ((_m22 * _m33 * _m44) + (_m23 * _m34 * _m42) + (_m24 * _m32 * _m43) - (_m22 * _m34 * _m43) - (_m23 * _m32 * _m44) - (_m24 * _m33 * _m42));
-      float b = -_m12 * ((_m21 * _m33 * _m44) + (_m23 * _m34 * _m41) + (_m24 * _m31 * _m43) - (_m21 * _m34 * _m43) - (_m23 * _m31 * _m44) - (_m24 * _m33 * _m41));
-      float c = +_m13 * ((_m21 * _m32 * _m44) + (_m22 * _m34 * _m41) + (_m24 * _m31 * _m42) - (_m21 * _m34 * _m42) - (_m22 * _m31 * _m44) - (_m24 * _m32 * _m41));
-      float d = -_m14 * ((_m21 * _m32 * _m43) + (_m22 * _m33 * _m41) + (_m23 * _m31 * _m42) - (_m21 * _m33 * _m42) - (_m22 * _m31 * _m43) - (_m23 * _m32 * _m41));
-      return a + b + c + d;
-    }
-    public mat4 adj()
-    {
-      //TODO:Optimize (transpose)
-      mat4 m = new mat4(
-          cofactor(0, 0), cofactor(0, 1), cofactor(0, 2), cofactor(0, 3),
-          cofactor(1, 0), cofactor(1, 1), cofactor(1, 2), cofactor(1, 3),
-          cofactor(2, 0), cofactor(2, 1), cofactor(2, 2), cofactor(2, 3),
-          cofactor(3, 0), cofactor(3, 1), cofactor(3, 2), cofactor(3, 3));
-      return m;
-    }
     public mat4 invert()
     {
       var m = this.ToOpenTK();
@@ -3463,44 +3372,59 @@ namespace PirateCraft
       }
 
       mat4 tMat = new mat4();
-      //|11 21 31 41|   |11 21 31 41|
-      //|12 22 32 42|   |12 22 32 42|
-      //|13 23 33 43| * |13 23 33 43|
-      //|14 24 34 44|   |14 24 34 44|
-      //64 mul
-      //48 add
-
       /*
-      //Multiply is backwards UGH - AB:= A=row B=column :=
       _m11, _m12, _m13, _m14,
       _m21, _m22, _m23, _m24,
       _m31, _m32, _m33, _m34,
       _m41, _m42, _m43, _m44
       */
       tMat._m11 = (a._m11 * b._m11) + (a._m12 * b._m21) + (a._m13 * b._m31) + (a._m14 * b._m41);
-      tMat._m21 = (a._m21 * b._m11) + (a._m22 * b._m21) + (a._m23 * b._m31) + (a._m24 * b._m41);
-      tMat._m31 = (a._m31 * b._m11) + (a._m32 * b._m21) + (a._m33 * b._m31) + (a._m34 * b._m41);
-      tMat._m41 = (a._m41 * b._m11) + (a._m42 * b._m21) + (a._m43 * b._m31) + (a._m44 * b._m41);
-
       tMat._m12 = (a._m11 * b._m12) + (a._m12 * b._m22) + (a._m13 * b._m32) + (a._m14 * b._m42);
-      tMat._m22 = (a._m21 * b._m12) + (a._m22 * b._m22) + (a._m23 * b._m32) + (a._m24 * b._m42);
-      tMat._m32 = (a._m31 * b._m12) + (a._m32 * b._m22) + (a._m33 * b._m32) + (a._m34 * b._m42);
-      tMat._m42 = (a._m41 * b._m12) + (a._m42 * b._m22) + (a._m43 * b._m32) + (a._m44 * b._m42);
-
       tMat._m13 = (a._m11 * b._m13) + (a._m12 * b._m23) + (a._m13 * b._m33) + (a._m14 * b._m43);
-      tMat._m23 = (a._m21 * b._m13) + (a._m22 * b._m23) + (a._m23 * b._m33) + (a._m24 * b._m43);
-      tMat._m33 = (a._m31 * b._m13) + (a._m32 * b._m23) + (a._m33 * b._m33) + (a._m34 * b._m43);
-      tMat._m43 = (a._m41 * b._m13) + (a._m42 * b._m23) + (a._m43 * b._m33) + (a._m44 * b._m43);
-
       tMat._m14 = (a._m11 * b._m14) + (a._m12 * b._m24) + (a._m13 * b._m34) + (a._m14 * b._m44);
+     
+      tMat._m21 = (a._m21 * b._m11) + (a._m22 * b._m21) + (a._m23 * b._m31) + (a._m24 * b._m41);
+      tMat._m22 = (a._m21 * b._m12) + (a._m22 * b._m22) + (a._m23 * b._m32) + (a._m24 * b._m42);
+      tMat._m23 = (a._m21 * b._m13) + (a._m22 * b._m23) + (a._m23 * b._m33) + (a._m24 * b._m43);
       tMat._m24 = (a._m21 * b._m14) + (a._m22 * b._m24) + (a._m23 * b._m34) + (a._m24 * b._m44);
+     
+      tMat._m31 = (a._m31 * b._m11) + (a._m32 * b._m21) + (a._m33 * b._m31) + (a._m34 * b._m41);
+      tMat._m32 = (a._m31 * b._m12) + (a._m32 * b._m22) + (a._m33 * b._m32) + (a._m34 * b._m42);
+      tMat._m33 = (a._m31 * b._m13) + (a._m32 * b._m23) + (a._m33 * b._m33) + (a._m34 * b._m43);
       tMat._m34 = (a._m31 * b._m14) + (a._m32 * b._m24) + (a._m33 * b._m34) + (a._m34 * b._m44);
+    
+      tMat._m41 = (a._m41 * b._m11) + (a._m42 * b._m21) + (a._m43 * b._m31) + (a._m44 * b._m41);
+      tMat._m42 = (a._m41 * b._m12) + (a._m42 * b._m22) + (a._m43 * b._m32) + (a._m44 * b._m42);
+      tMat._m43 = (a._m41 * b._m13) + (a._m42 * b._m23) + (a._m43 * b._m33) + (a._m44 * b._m43);
       tMat._m44 = (a._m41 * b._m14) + (a._m42 * b._m24) + (a._m43 * b._m34) + (a._m44 * b._m44);
+
+
+      // tMat._m11 = (b._m11 * a._m11) + (b._m12 * a._m21) + (b._m13 * a._m31) + (b._m14 * a._m41);
+      // tMat._m12 = (b._m11 * a._m12) + (b._m12 * a._m22) + (b._m13 * a._m32) + (b._m14 * a._m42);
+      // tMat._m13 = (b._m11 * a._m13) + (b._m12 * a._m23) + (b._m13 * a._m33) + (b._m14 * a._m43);
+      // tMat._m14 = (b._m11 * a._m14) + (b._m12 * a._m24) + (b._m13 * a._m34) + (b._m14 * a._m44);
+     
+      // tMat._m21 = (b._m21 * a._m11) + (b._m22 * a._m21) + (b._m23 * a._m31) + (b._m24 * a._m41);
+      // tMat._m22 = (b._m21 * a._m12) + (b._m22 * a._m22) + (b._m23 * a._m32) + (b._m24 * a._m42);
+      // tMat._m23 = (b._m21 * a._m13) + (b._m22 * a._m23) + (b._m23 * a._m33) + (b._m24 * a._m43);
+      // tMat._m24 = (b._m21 * a._m14) + (b._m22 * a._m24) + (b._m23 * a._m34) + (b._m24 * a._m44);
+     
+      // tMat._m31 = (b._m31 * a._m11) + (b._m32 * a._m21) + (b._m33 * a._m31) + (b._m34 * a._m41);
+      // tMat._m32 = (b._m31 * a._m12) + (b._m32 * a._m22) + (b._m33 * a._m32) + (b._m34 * a._m42);
+      // tMat._m33 = (b._m31 * a._m13) + (b._m32 * a._m23) + (b._m33 * a._m33) + (b._m34 * a._m43);
+      // tMat._m34 = (b._m31 * a._m14) + (b._m32 * a._m24) + (b._m33 * a._m34) + (b._m34 * a._m44);
+    
+      // tMat._m41 = (b._m41 * a._m11) + (b._m42 * a._m21) + (b._m43 * a._m31) + (b._m44 * a._m41);
+      // tMat._m42 = (b._m41 * a._m12) + (b._m42 * a._m22) + (b._m43 * a._m32) + (b._m44 * a._m42);
+      // tMat._m43 = (b._m41 * a._m13) + (b._m42 * a._m23) + (b._m43 * a._m33) + (b._m44 * a._m43);
+      // tMat._m44 = (b._m41 * a._m14) + (b._m42 * a._m24) + (b._m43 * a._m34) + (b._m44 * a._m44);
+
 
       return tMat;
     }
     public static vec4 operator *(in mat4 m, in vec4 v)
     {
+      //Rows A, Cols B
       vec4 vret = new vec4(
               m._m11 * v.x + m._m21 * v.y + m._m31 * v.z + m._m41 * v.w,
               m._m12 * v.x + m._m22 * v.y + m._m32 * v.z + m._m42 * v.w,
@@ -3531,39 +3455,6 @@ namespace PirateCraft
     {
       return base.Equals(obj);
     }
-    public vec3 ExtractTranslation()
-    {
-      vec3 ret = new vec3();
-      ret.x = _m41;
-      ret.y = _m42;
-      ret.z = _m43;
-      return ret;
-    }
-    public static mat4 ortho(float left, float right, float top, float bottom, float neard, float fard)
-    {
-      mat4 mm = new mat4();
-
-      float a1 = (float)2.0 / (right - left);
-      float a2 = (float)2.0 / (top - bottom);
-      float a3 = (float)-2.0 / (fard - neard);
-      float t1 = (right + left) / (right - left) * (float)-1.0;
-      float t2 = (top + bottom) / (top - bottom) * (float)-1.0;
-      float t3 = (fard + neard) / (fard - neard) * (float)-1.0;
-
-      //Row major order version
-      //mm._m11 =a1, mm._m12 = 0, mm._m13 = 0, mm._m14 =t1,
-      //mm._m21 = 0, mm._m22 =a2, mm._m23 = 0, mm._m24 =t2,
-      //mm._m31 = 0, mm._m32 = 0, mm._m33 =a3, mm._m34 =t3,
-      //mm._m41 = 0, mm._m42 = 0, mm._m43 = 0, mm._m44 = 1;
-
-      // ** OpenGL version - the transpose of the former.
-      mm._m11 = a1; mm._m12 = 0; mm._m13 = 0; mm._m14 = 0;
-      mm._m21 = 0; mm._m22 = a2; mm._m23 = 0; mm._m24 = 0;
-      mm._m31 = 0; mm._m32 = 0; mm._m33 = a3; mm._m34 = 0;
-      mm._m41 = t1; mm._m42 = t2; mm._m43 = t3; mm._m44 = 1;
-
-      return mm;
-    }
     public void decompose(out vec4 pos, out mat4 rot, out vec4 scale)
     {
       //http://math.stackexchange.com/questions/237369/given-this-transformation-matrix-how-do-i-decompose-it-into-translation-rotati
@@ -3577,21 +3468,21 @@ namespace PirateCraft
 
       pos = new vec4(ExtractTranslation(), 0);
 
-      scale.x = new vec3(_m11, _m21, _m31).length();
-      scale.y = new vec3(_m12, _m22, _m32).length();
-      scale.z = new vec3(_m13, _m23, _m33).length();
+      scale.x = new vec3(_m11, _m12, _m13).length();
+      scale.y = new vec3(_m21, _m22, _m23).length();
+      scale.z = new vec3(_m31, _m32, _m33).length();
 
       rot.setIdentity();
       rot._m11 = _m11 / scale.x;
-      rot._m21 = _m21 / scale.x;
-      rot._m31 = _m31 / scale.x;
+      rot._m12 = _m12 / scale.x;
+      rot._m13 = _m13 / scale.x;
 
-      rot._m12 = _m12 / scale.y;
+      rot._m21 = _m21 / scale.y;
       rot._m22 = _m22 / scale.y;
-      rot._m32 = _m32 / scale.y;
+      rot._m23 = _m23/ scale.y;
 
-      rot._m13 = _m13 / scale.z;
-      rot._m23 = _m23 / scale.z;
+      rot._m31 = _m31 / scale.z;
+      rot._m32 = _m32 / scale.z;
       rot._m33 = _m33 / scale.z;
     }
     public void decompose(out vec4 pos, out vec4 rot, out vec4 scale, bool bDegreeRotation)
@@ -3947,13 +3838,15 @@ namespace PirateCraft
     {
       mat3 m3 = new mat3();
       m3._m11 = 1 - 2 * y * y - 2 * z * z;
-      m3._m12 = 2 * x * y + 2 * w * z;
-      m3._m13 = 2 * x * z - 2 * w * y;
-      m3._m21 = 2 * x * y - 2 * w * z;
+      m3._m21 = 2 * x * y + 2 * w * z;
+      m3._m31 = 2 * x * z - 2 * w * y;
+      
+      m3._m12 = 2 * x * y - 2 * w * z;
       m3._m22 = 1 - 2 * x * x - 2 * z * z;
-      m3._m23 = 2 * y * z + 2 * w * x;
-      m3._m31 = 2 * x * z + 2 * w * y;
-      m3._m32 = 2 * y * z - 2 * w * x;
+      m3._m32 = 2 * y * z + 2 * w * x;
+     
+      m3._m13 = 2 * x * z + 2 * w * y;
+      m3._m23 = 2 * y * z - 2 * w * x;
       m3._m33 = 1 - 2 * x * x - 2 * y * y;
       return m3;
     }

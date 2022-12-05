@@ -333,9 +333,9 @@ namespace PirateCraft
       CompileAndAnimate(dt);
       ApplyParentMatrix();
 
-      _basisX_World = (WorldMatrix * new vec4(1, 0, 0, 0)).xyz.normalized();
-      _basisY_World = (WorldMatrix * new vec4(0, 1, 0, 0)).xyz.normalized();
-      _basisZ_World = (WorldMatrix * new vec4(0, 0, 1, 0)).xyz.normalized();
+      _basisX_World = (_world * new vec4(1, 0, 0, 0)).xyz.normalized();
+      _basisY_World = (_world * new vec4(0, 1, 0, 0)).xyz.normalized();
+      _basisZ_World = (_world * new vec4(0, 0, 1, 0)).xyz.normalized();
       DecomposeWorldMatrix();
 
       _boundBox.genResetLimits();
@@ -542,7 +542,7 @@ namespace PirateCraft
         _boundBoxMeshOO = new OOBox3f(Mesh.BoundBox_Extent._min, Mesh.BoundBox_Extent._max);
         for (int vi = 0; vi < OOBox3f.VertexCount; ++vi)
         {
-          vec4 v = WorldMatrix * _boundBoxMeshOO.Verts[vi].toVec4(1);
+          vec4 v = _world * _boundBoxMeshOO.Verts[vi].toVec4(1);
           _boundBoxMeshOO.Verts[vi] = v.xyz;
           _boundBoxMeshAA.genExpandByPoint(_boundBoxMeshOO.Verts[vi]);
           _boundBox.genExpandByPoint(_boundBoxMeshOO.Verts[vi]);
@@ -577,19 +577,7 @@ namespace PirateCraft
       parent.genExpandByPoint(_boundBox._max);
     }
     protected virtual void SubclassModifyBoundBox() { }
-    public void ApplyParentMatrix()
-    {
-      //TODO: Parent types
-      //if isBoneNode
-      if (Parent != null)
-      {
-        _world = _local * Parent.WorldMatrix;
-      }
-      else
-      {
-        _world = _local;
-      }
-    }
+
     // public void Animate(AnimationTransition par)
     // {
     //   Gu.BRThrowNotImplementedException();
@@ -804,7 +792,7 @@ namespace PirateCraft
       if (_currentClip != null && _currentKeys != null)
       {
         _currentClip.Update(dt, _currentKeys.MaxTime);
-        _local = _local * _currentKeys.Animate(_currentClip.Time);
+        _local = _local *_currentKeys.Animate(_currentClip.Time) ;
         if (_currentClip.State == ActionState.Stop)
         {
           _currentClip = null;
@@ -814,6 +802,19 @@ namespace PirateCraft
       //_local = (mScl * mSclA) * (mRot * mRotA) * (mPos * mPosA);
 
     }
+    public void ApplyParentMatrix()
+    {
+      //TODO: Parent types
+      //if isBoneNode
+      if (Parent != null)
+      {
+        _world = _local * Parent.WorldMatrix ;
+      }
+      else
+      {
+        _world = _local;
+      }
+    }    
     private void DecomposeLocalMatrix()
     {
       mat4 tmprot;

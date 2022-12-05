@@ -192,7 +192,7 @@ namespace PirateCraft
           float bloom_dp = dir.dot(cm.BasisZ_World);
           float bloom_dp_pw = (float)Math.Pow(bloom_dp, 64);
           bloom_mat.BaseColor = new vec4(sun_mat.BaseColor.x, sun_mat.BaseColor.y, sun_mat.BaseColor.z, bloom_dp_pw * horizon_mul * 0.9413f);
-          obj.Scale_Local = new vec3(1.1f + bloom_dp * 30.0f, 0, 1.1f + bloom_dp * 30.0f);
+        //  obj.Scale_Local = new vec3(1.1f + bloom_dp * 30.0f, 0, 1.1f + bloom_dp * 30.0f);
         }
 
       };
@@ -211,7 +211,6 @@ namespace PirateCraft
       };
       sun_moon_empty.AddChild(moon);
 
-
       var moon_bloom = Gu.World.CreateObject("moon_bloom", MeshGen.GenPlane("moon_bloom", moon_size, moon_size), bloom_mat);
       moon_bloom.OnUpdate = (obj) =>
       {
@@ -224,7 +223,7 @@ namespace PirateCraft
           float bloom_dp = dir.dot(cm.BasisZ_World);
           float bloom_dp_pw = (float)Math.Pow(bloom_dp, 64);
           obj.Material.BaseColor = new vec4(moon_mat.BaseColor.x, moon_mat.BaseColor.y, moon_mat.BaseColor.z, bloom_dp_pw * horizon_mul * 0.3f);
-          obj.Scale_Local = new vec3(1.1f + bloom_dp * 4.0f, 0, 1.1f + bloom_dp * 4.0f);
+        //  obj.Scale_Local = new vec3(1.1f + bloom_dp * 4.0f, 0, 1.1f + bloom_dp * 4.0f);
         }
       };
       moon.AddChild(moon_bloom);

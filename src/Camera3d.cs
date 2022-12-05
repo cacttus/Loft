@@ -733,7 +733,7 @@ namespace PirateCraft
       base.Update(dt, ref parentBoundBox);
 
       var p = this.WorldMatrix.ExtractTranslation();
-      _view = mat4.getLookAt(p, new vec3(p + BasisZ_World), new vec3(0, 1, 0));
+      _view = mat4.lookAt(p, new vec3(p + BasisZ_World), new vec3(0, 1, 0));
       if (_projectionMode == ProjectionMode.Orthographic)
       {
         float wn2 = _frustum.WidthNear / 2;

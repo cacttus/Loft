@@ -196,7 +196,7 @@ namespace PirateCraft
           DoMoveWSAD(obj, basis);
 
           //Rotate
-          rotX += Math.PI * 2 * mouse_delta_wh.x * _rotations_per_width * Gu.CoordinateSystemMultiplier;
+          rotX -= Math.PI * 2 * mouse_delta_wh.x * _rotations_per_width * Gu.CoordinateSystemMultiplier;
           if (rotX >= Math.PI * 2.0f)
           {
             rotX = (float)(rotX % (Math.PI * 2.0f));
@@ -206,7 +206,7 @@ namespace PirateCraft
             rotX = (float)(rotX % (Math.PI * 2.0f));
           }
 
-          rotY += Math.PI * 2 * mouse_delta_wh.y * _half_rotations_per_height * Gu.CoordinateSystemMultiplier;
+          rotY -= Math.PI * 2 * mouse_delta_wh.y * _half_rotations_per_height * Gu.CoordinateSystemMultiplier;
           if (rotY >= Math.PI / 2)
           {
             rotY = Math.PI / 2 - 0.001f;
@@ -219,7 +219,7 @@ namespace PirateCraft
           quat qy = quat.fromAxisAngle(new vec3(0, 1, 0), (float)rotX).normalized();
           quat qx = quat.fromAxisAngle(new vec3(1, 0, 0), (float)rotY).normalized();
 
-          obj.Rotation_Local = qy * qx;
+          obj.Rotation_Local = qx * qy;
           obj.SanitizeTransform();
           //cam.Rotation_Local = qx;
           //cam.SanitizeTransform();
