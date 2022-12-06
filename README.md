@@ -1,5 +1,5 @@
 
-# Slaver Game 
+# Loft Game 
 
 ### Controls:
 
