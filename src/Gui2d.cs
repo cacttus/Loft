@@ -109,9 +109,8 @@ namespace Loft
     Mouse_Move,//Mouse_Hover = Mouse_Move?
     Mouse_Leave,
 
-    Lost_Press_Focus,
-    Got_Press_Focus,
-    Release_Press_Focus,
+    Lost_Focus,
+    Got_Focus,
 
     Scrollbar_Pos_Change,
 
@@ -269,7 +268,7 @@ namespace Loft
     public ButtonState RightButtonState { get; private set; }
     public vec2 MousePosCur { get; private set; }
     public vec2 MousePosLast { get; private set; }
-    public UiElement? PressFocus { get; private set; } = null;
+    public UiElement? Focused { get; private set; } = null;
 
     public bool IsAnyGuiItemPicked()
     {
@@ -285,7 +284,7 @@ namespace Loft
       Current = cur_pick;
       LeftButtonState = leftState;
       RightButtonState = rightState;
-      PressFocus = pressFocus;
+      Focused = pressFocus;
     }
   }
   public class UiEvent
@@ -322,7 +321,7 @@ namespace Loft
     private ButtonState _eLast_Mmb = ButtonState.Up;
     public List<UiEvent> _events = new List<UiEvent>();
     private UiElement? _pressFocusLast = null;
-    private UiElement? _pressFocus = null;
+    private UiElement? _focused = null;
     private List<UiEvent> _new_events_frame = new List<UiEvent>();
 
     public UiEventThing()
@@ -358,32 +357,36 @@ namespace Loft
         ecur = picker.PickedObjectFrame as UiElement;
       }
 
+
       //button events
       var lb = Gu.Context.PCMouse.State(MouseButton.Left);
       var rb = Gu.Context.PCMouse.State(MouseButton.Right);
       var mpos = Gu.Context.PCMouse.Pos;
       var mlast = Gu.Context.PCMouse.LastPos;
 
-      //press focus (drag / mouse down)
-      if (Gu.Context.GameWindow.IsFocused == false)
+      //press focus "Focus" (drag / mouse down)
+      //  the element being dragged/interacted while mouse HELD, 
+      //  mouse need not be hovering over element to have press focus.      
+      if ((Gu.Context.GameWindow.IsFocused == false) || ((lb == ButtonState.Release || lb == ButtonState.Up) && (_focused != null)))
       {
-        var pold = _pressFocus;
-        _pressFocus = null;
-        SendEvent(UiEventId.Lost_Press_Focus, pold);
+        var pold = _focused;
+        _focused = null;
+        if (pold != ecur)
+        {
+          //Force a mouse release in case mouse not over focus
+          SendEvent(UiEventId.LmbRelease, pold);
+        }
+        SendEvent(UiEventId.Lost_Focus, pold);
       }
       else if (lb == ButtonState.Press)
       {
-        var pold = _pressFocus;
+        var pold = _focused;
         if (Gu.TryGetSelectedView(out var vv))
         {
-          _pressFocus = ecur;
+          _focused = ecur;
         }
-        SendEvent(UiEventId.Lost_Press_Focus, pold);
-        SendEvent(UiEventId.Got_Press_Focus, _pressFocus);
-      }
-      else if (lb == ButtonState.Release)
-      {
-        SendEvent(UiEventId.Release_Press_Focus, _pressFocus);
+        SendEvent(UiEventId.Lost_Focus, pold);
+        SendEvent(UiEventId.Got_Focus, _focused);
       }
 
       //lmb / rmb
@@ -409,32 +412,35 @@ namespace Loft
       }
 
       //move events
-      if (elast != null && elast != ecur)
-      {
-        SendEvent(UiEventId.Mouse_Leave, elast);
-      }
-      if (ecur != null && elast != ecur)
-      {
-        SendEvent(UiEventId.Mouse_Enter, ecur);
-      }
-      if (ecur != null && elast == ecur && mpos != mlast)
-      {
-        SendEvent(UiEventId.Mouse_Move, ecur);
 
-        if ((_eLast_Lmb == ButtonState.Press || _eLast_Lmb == ButtonState.Hold) && (lb == ButtonState.Hold))
+        if (elast != null && elast != ecur)
         {
-          SendEvent(UiEventId.LmbDrag, ecur);
+          SendEvent(UiEventId.Mouse_Leave, elast);
         }
-      }
+        if (ecur != null && elast != ecur)
+        {
+          SendEvent(UiEventId.Mouse_Enter, ecur);
+        }
+        if (ecur != null && elast == ecur && mpos != mlast)
+        {
+          SendEvent(UiEventId.Mouse_Move, ecur);
+        }
+  
+        //Pressed item 
+        if ((mpos != mlast) && (lb == ButtonState.Hold) && (_eLast_Lmb == ButtonState.Press || _eLast_Lmb == ButtonState.Hold))
+        {
+          SendEvent(UiEventId.LmbDrag, _focused);
+        }
+      
 
-      //Update state after events are sent
+      //Update state after events are sent (we use state in event)
       _eLast_Lmb = lb;
       _eLast_Rmb = rb;
 
       //send
       if (_new_events_frame.Count > 0)
       {
-        var state = new UiEventState(g, mpos, mlast, elast, ecur, lb, rb, _pressFocus);
+        var state = new UiEventState(g, mpos, mlast, elast, ecur, lb, rb, _focused);
         foreach (var ev in _new_events_frame)
         {
           ev.State = state;

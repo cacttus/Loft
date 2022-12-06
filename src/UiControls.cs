@@ -5,8 +5,6 @@ namespace Loft
 
   public class UiControl : UiElement
   {
-    private bool _hasFocus = false;//pick focus
-    private bool _hasClickFocus = false;//user holding  mouse button down
     public new UiControl Click(UiAction f)
     {
       if (f != null)
@@ -62,22 +60,18 @@ namespace Loft
     {
       AddEvent(UiEventId.Mouse_Enter, (e) =>
       {
-        _hasFocus = true;
         Style.MultiplyColor = new vec4(1.08f, 1.0f);
       });
       AddEvent(UiEventId.Mouse_Leave, (e) =>
       {
-        _hasFocus = false;
         Style.MultiplyColor = new vec4(1.0f, 1.0f);
       });
       AddEvent(UiEventId.LmbPress, (e) =>
       {
-        _hasClickFocus = true;
         Style.MultiplyColor = new vec4(0.82f, 1.0f);
       });
       AddEvent(UiEventId.LmbRelease, (e) =>
       {
-        _hasClickFocus = false;
         Style.MultiplyColor = new vec4(1.0f, 1.0f);
       });
     }
@@ -89,6 +83,7 @@ namespace Loft
     private bool _isTopLevel = true;
     private UiMenuItem? _parentMenuItem = null;
     public UiMenuItem? ParentMenuItem { get { return _parentMenuItem; } }
+    protected UiElement _label;
 
     public UiMenuItem(Phrase p = Phrase.None) : this(Gu.Translator.Translate(p))
     {
@@ -194,7 +189,6 @@ namespace Loft
         this.AddChild(test_shortcut);
       }
     }
-    protected UiElement _label;
     private void Init(string text)
     {
       this.Style.DisplayMode = UiDisplayMode.Inline;
@@ -223,7 +217,7 @@ namespace Loft
       this.Style.Padding = 0;//Do not use padding
 
       var that = this;
-      this.AddEvent(UiEventId.Lost_Press_Focus, (e) =>
+      this.AddEvent(UiEventId.Lost_Focus, (e) =>
       {
         CollapseDown();
         CollapseUp();
@@ -233,7 +227,7 @@ namespace Loft
         //mouse enters but PressFocus are a focus sitem
         if ((e.State.LeftButtonState == ButtonState.Hold ||
          e.State.LeftButtonState == ButtonState.Press ||
-              e.State.LeftButtonState == ButtonState.Up) && (e.State.PressFocus is UiMenuItem))
+              e.State.LeftButtonState == ButtonState.Up) && (e.State.Focused is UiMenuItem))
         {
           ShowContextMenu(true);
         }
@@ -265,7 +259,7 @@ namespace Loft
             CollapseUp();
           }
         }
-        else if (e.State.LeftButtonState != ButtonState.Hold && !(e.State.PressFocus is UiMenuItem))
+        else if (e.State.LeftButtonState != ButtonState.Hold && !(e.State.Focused is UiMenuItem))
         {
           CollapseDown();
         }
@@ -543,7 +537,6 @@ namespace Loft
         Parent.RemoveChild(this);
       }
     }
-
   }
 
   public class UiSlider : UiControl
@@ -631,10 +624,16 @@ namespace Loft
 
       UpdateValuesChanged();
 
-      _thumb.AddEvent(UiEventId.LmbDrag, (e) =>
+      this.AddEvent(UiEventId.LmbPress, (e) =>
       {
-
-        UpdateMovedThumb(e.State.MousePosCur.x - e.State.MousePosLast.x);
+        UpdateMovedThumb(e.State.MousePosCur);
+      });
+      this.AddEvent(UiEventId.Mouse_Move, (e) =>
+      {
+        if (e.State.Focused == this)
+        {
+          UpdateMovedThumb(e.State.MousePosCur);
+        }
       });
     }
     //_precision
@@ -681,13 +680,13 @@ namespace Loft
       }
       _thumb.Style.Left = (float)(pct * valw);
     }
-    private void UpdateMovedThumb(vec2 delta)
+    private void UpdateMovedThumb(vec2 mpos)
     {
       Gu.Assert(_thumb != null);
       Gu.Assert(_lblVal != null);
       Gu.Assert(_thumb.Parent != null);
 
-      _thumb.Style.Left = _thumb.Style._props.Left + delta.x;
+      _thumb.Style.Left = mpos.x - _thumb.Parent._quads._b2BorderQuad.Min.x - _thumb._quads._b2BorderQuad._width/2;
 
       double valw = _thumb.Parent._quads._b2BorderQuad._width - _thumb._quads._b2BorderQuad._width;
 
@@ -695,12 +694,12 @@ namespace Loft
       {
         _thumb.Style.Left = 0;
       }
-      if (_thumb.Style.Left > valw)
+      else if (_thumb.Style.Left > valw)
       {
         _thumb.Style.Left = (float)valw;
       }
 
-      double pct = (double)_thumb.Style._props.Left / valw;
+      var pct = _thumb.Style._props.Left / valw;
 
       if (_ismaxmin)
       {

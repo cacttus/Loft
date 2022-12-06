@@ -204,8 +204,8 @@ namespace Loft
 
     public void SetTexture(Texture tex, int index)
     {
-      Gu.Assert(index <= Gu.Context.Gpu.MaxTextureImageUnits,
-       $"Tried to add texture to index: {index}, which exceeded max shader samplers: {Gu.Context.Gpu.MaxTextureImageUnits}");
+      Gu.Assert(index <= Gu.Context.Gpu.MaxFragmentTextureImageUnits,
+       $"Tried to add texture to index: {index}, which exceeded max shader samplers: {Gu.Context.Gpu.MaxFragmentTextureImageUnits}");
       while (_textures.Count < index)
       {
         _textures.Add(new TextureSlot(PBRTextureInput.Other, index));

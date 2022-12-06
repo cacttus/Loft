@@ -1740,24 +1740,24 @@ namespace Loft
           {
             if (rv.Gui != null)
             {
-              if (rv.ControlsInfo.Visible)
+              List<UiElement> views = new List<UiElement>() { rv.ControlsInfo, rv.WorldDebugInfo, rv.GpuDebugInfo };
+              for (int i = 0; i < views.Count; ++i)
               {
-                rv.ControlsInfo.Visible = false;
-                rv.WorldDebugInfo.Visible = true;
+                if (views[i].Visible)
+                {
+                  views[i].Visible = false;
+                  if (i + 1 < views.Count)
+                  {
+                    views[i + 1].Visible = true;
+                  }
+                  else
+                  {
+                    views[0].Visible = true;
+                  }
+                  break;
+                }
               }
-              else if (rv.WorldDebugInfo.Visible)
-              {
-                rv.WorldDebugInfo.Visible = false;
-                rv.GpuDebugInfo.Visible = true;
-              }
-              else if (rv.GpuDebugInfo.Visible)
-              {
-                rv.GpuDebugInfo.Visible = false;
-              }
-              else
-              {
-                rv.ControlsInfo.Visible = true;
-              }
+
             }
           }
         }

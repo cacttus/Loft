@@ -8,450 +8,19 @@ using System.Text;
 
 namespace Loft
 {
-  public class GpuDataPtr
-  {
-    //these could be one class
-    //Sizing information from GPU data, and object pointer destined for gpu
-    private bool _locked = false;
-    private GCHandle pinnedArray;
-    private object _pt;
-
-    public int ItemSizeBytes { get; private set; } = 0;
-    public int Count { get; private set; } = 0;
-    public object Data { get { return _pt; } }
-
-    public static GpuDataPtr GetGpuDataPtr<T>(T[] data)
-    {
-      //takes an array of vertexes and marshals them for copying to the GPU
-      GpuDataPtr p = null;
-      if (data.Length == 0)
-      {
-        p = new GpuDataPtr(0, data.Length, data);
-      }
-      else
-      {
-        var size = Marshal.SizeOf(data[0]);
-        p = new GpuDataPtr(size, data.Length, data);
-      }
-      return p;
-    }
-
-    public GpuDataPtr(int itemSize, int count, object pt)
-    {
-      ItemSizeBytes = itemSize;
-      Count = count;
-      _pt = pt;
-    }
-    public IntPtr Lock()
-    {
-      _locked = true;
-      pinnedArray = GCHandle.Alloc(_pt, GCHandleType.Pinned);
-      return pinnedArray.AddrOfPinnedObject();
-    }
-    public void Unlock()
-    {
-      pinnedArray.Free();
-      _locked = false;
-    }
-    ~GpuDataPtr()
-    {
-      if (_locked)
-      {
-        Gu.Log.Error("GpuDataPtr unmanaged handle wasn't freed. Must call Unlock().");
-        Gu.DebugBreak();
-      }
-    }
-  }
-  [DataContract]
-  public class GpuRenderState
-  {
-    //Stores rendering state flags for GPU prior to drawing.
-    public bool DepthTest { get { return _depthTestEnabled; } set { _depthTestEnabled = value; } }
-    public bool CullFace { get { return _cullFaceEnabled; } set { _cullFaceEnabled = value; } }
-    public bool ScissorTest { get { return _scissorTestEnabled; } set { _scissorTestEnabled = value; } }
-    public bool Blend { get { return _blendEnabled; } set { _blendEnabled = value; } }
-    public BlendingFactor BlendFactor { get { return _blendFactor; } set { _blendFactor = value; } }
-    public BlendEquationMode BlendFunc { get { return _blendFunc; } set { _blendFunc = value; } }
-    public FrontFaceDirection FrontFaceDirection { get { return _frontFaceDirection; } set { _frontFaceDirection = value; } }
-    public bool DepthMask { get { return _depthMask; } set { _depthMask = value; } }
-    public CullFaceMode CullFaceMode { get { return _cullFaceMode; } set { _cullFaceMode = value; } }
-
-    //State switches to prevent unnecessary gpu context changes.
-    [DataMember] private bool _depthTestEnabled = true;
-    [DataMember] private bool _cullFaceEnabled = true;
-    [DataMember] private bool _scissorTestEnabled = true;
-    [DataMember] private bool _blendEnabled = false;
-    [DataMember] private BlendingFactor _blendFactor = BlendingFactor.OneMinusSrcAlpha;
-    [DataMember] private BlendEquationMode _blendFunc = BlendEquationMode.FuncAdd;
-    [DataMember] private FrontFaceDirection _frontFaceDirection = FrontFaceDirection.Ccw;
-    [DataMember] private bool _depthMask = true;//enable writing to depth bufer
-    [DataMember] private CullFaceMode _cullFaceMode = CullFaceMode.Back;
-
-    public GpuRenderState Clone()
-    {
-      return (GpuRenderState)this.MemberwiseClone();
-    }
-    public void SetState()
-    {
-      Gu.Context.Gpu.SetState(this);
-    }
-  }
-
-  public class GPULog
-  {
-    #region Members
-
-    private enum GpuLogLevel
-    {
-      Err_,
-      Wrn_,
-      Inf_,
-      Dbg_
-    }
-    bool _bPrintingGPULog = false;
-    int _maxMsgLen = -1;
-
-    #endregion
-    #region Public:Methods
-
-    public GPULog()
-    {
-#if _DEBUG
-      GL.Enable(EnableCap.DebugOutput);
-      GL.Enable(EnableCap.DebugOutputSynchronous);
-#endif
-    }
-    public bool CheckErrors(bool bDoNotBreak, bool doNotLog)
-    {
-      StringBuilder sb = new StringBuilder();
-      StringBuilder eb = new StringBuilder();
-
-      GetAndFlushGPULog(sb);
-      var hasErrors = GetOpenGLErrors(eb);
-
-      if (hasErrors)
-      {
-        if (doNotLog == false)
-        {
-          eb.Append(Environment.NewLine);
-          eb.Append(sb);
-          Gu.Log.Error(eb.ToString());
-        }
-
-        if (bDoNotBreak == false && Gu.EngineConfig.BreakOnGraphicsError == true)
-        {
-          Gu.DebugBreak();
-        }
-      }
-      else
-      {
-        if (sb != null && sb.Length > 0 && doNotLog == false)
-        {
-          Gu.Log.Error(sb.ToString());
-        }
-      }
-
-      return hasErrors;
-    }
-    public void ClearGPULog()
-    {
-      GetAndFlushGPULog(null);
-    }
-
-    #endregion
-    #region Private:Methods
-
-    private bool GetOpenGLErrors(StringBuilder? eb)
-    {
-      bool bError = false;
-
-      for (int ierr = 0; Gu.WhileTrueGuard(ierr, Gu.c_intMaxWhileTrueLoop); ierr++)
-      {
-        ErrorCode err = GL.GetError();
-        if (err != ErrorCode.NoError)
-        {
-          if (eb != null)
-          {
-            string errmsg = $"GL Error: {glErrToStr(err)} ({(int)err})";
-            eb.Append(errmsg);
-          }
-          bError = true;
-        }
-        else
-        {
-          break;
-        }
-      }
-
-      return bError;
-    }
-    private void GetAndFlushGPULog(StringBuilder? sb)
-    {
-      int numMsgs = 1;
-      int numFound;
-
-      if (_maxMsgLen == -1)
-      {
-        _maxMsgLen = GL.GetInteger((GetPName)0x9143 /*GL_MAX_DEBUG_MESSAGE_LENGTH*/);
-      }
-      if (_maxMsgLen <= 0)
-      {
-        Gu.Log.Error("GL_MAX_DEBUG_MESSAGE_LENGTH returned 0.");
-        _maxMsgLen = -2;
-        return;
-      }
-
-      bool graphicsLogHigh = Gu.EngineConfig.GraphicsErrorLogging_High;
-      bool graphicsLogMed = Gu.EngineConfig.GraphicsErrorLogging_Medium;
-      bool graphicsLogLow = Gu.EngineConfig.GraphicsErrorLogging_Low;
-      bool graphicsLogInfo = Gu.EngineConfig.GraphicsErrorLogging_Info;
-
-      do
-      {
-        DebugSource[] sources = new DebugSource[numMsgs];
-        DebugType[] types = new DebugType[numMsgs];
-        DebugSeverity[] severities = new DebugSeverity[numMsgs];
-        int[] ids = new int[numMsgs];
-        int[] lengths = new int[numMsgs];
-
-        string msgcopy = "";
-        numFound = GL.GetDebugMessageLog(numMsgs, numMsgs * _maxMsgLen, sources, types, ids, severities, lengths, out msgcopy);
-
-        if (numFound == 0)
-        {
-          return;
-        }
-        if (sb == null)//clearOnly
-        {
-          continue;
-        }
-
-        Array.Resize(ref sources, numFound);
-        Array.Resize(ref types, numFound);
-        Array.Resize(ref severities, numFound);
-        Array.Resize(ref ids, numFound);
-        Array.Resize(ref lengths, numFound);
-
-        int currPos = 0;
-        for (int iMsg = 0; iMsg < lengths.Length; ++iMsg)
-        {
-          int id = ids[iMsg];
-          if (!skipNVIDIA(id) && !skipATI(id))
-          {
-            DebugSeverity severity = severities[iMsg];
-            DebugType type = types[iMsg];
-            DebugSource source = sources[iMsg];
-            LogGPUMessageText(sb, msgcopy, id, severity, type, source, graphicsLogHigh, graphicsLogMed, graphicsLogLow, graphicsLogInfo);
-          }
-          currPos = currPos + lengths[iMsg];
-        }
-
-      } while (numFound > 0);
-    }
-    private void LogGPUMessageText(StringBuilder sb, string cstrMsg, int msgId, DebugSeverity severity, DebugType type,
-      DebugSource source, bool graphicsLogHigh, bool graphicsLogMed, bool graphicsLogLow, bool graphicsLogInfo)
-    {
-      string msg = "";
-      string shaderMsg = "";
-      Gu.Assert(sb != null);
-      string strId = " [id=0x" + msgId.ToString("X") + "]";
-
-      //Skip if the config.xml has turned off this kind of logging.
-      if (severity == DebugSeverity.DebugSeverityHigh && graphicsLogHigh == false)
-      {
-        return;
-      }
-      else if (severity == DebugSeverity.DebugSeverityMedium && graphicsLogMed == false)
-      {
-        return;
-      }
-      else if (severity == DebugSeverity.DebugSeverityLow && graphicsLogLow == false)
-      {
-        return;
-      }
-      else if (severity == DebugSeverity.DebugSeverityNotification && graphicsLogInfo == false)
-      {
-        return;
-      }
-
-      string strSev = "";
-      string strType = "";
-      string strSource = "";
-      GpuLogLevel level = GpuLogLevel.Dbg_;
-      GetTypeSevSourceLevel(type, severity, source, ref strType, ref strSev, ref strSource, ref level);
-
-      msg = $"GPU Log:{strId}{strType}{strSev}{strSource}{cstrMsg}";
-
-      if (sb != null)
-      {
-        if (type == DebugType.DebugTypeError)
-        {
-          sb.AppendLine(msg);
-        }
-        else if (severity == DebugSeverity.DebugSeverityNotification)
-        {
-          sb.AppendLine(msg);
-        }
-        else
-        {
-          sb.AppendLine(msg);
-        }
-      }
-    }
-    private bool skipNVIDIA(int id)
-    {
-      //NVidia - redundant messages / infos
-      return id == 0x00020071     // GL_DYANMIC_DRAW or GL_STATIC_DRAW memory usgae
-             || id == 0x00020084  // Texture state usage warning: Texture 0 is base level inconsistent. Check texture size.
-                                  // else if (id == 0x00020061) {
-                                  //   return true;
-                                  // }  // Framebuffer detailed info: The driver allocated storage for renderbuffer 1.
-                                  // else if (id == 0x00020004) {
-                                  //   return true;
-                                  // }  // Usage warning: Generic vertex attribute array ... uses a pointer with a small value (...). Is this intended to be used as an offset into a buffer object?
-                                  // else if (id == 0x00020072) {
-                                  //   return true;
-                                  // }  // Buffer performance warning: Buffer object ... (bound to ..., usage hint is GL_STATIC_DRAW) is being copied/moved from VIDEO memory to HOST memory.
-                                  // else if (id == 0x00020074) {
-                                  //   return true;
-                                  // }  // Buffer usage warning: Analysis of buffer object ... (bound to ...) usage indicates that the GPU is the primary producer and consumer of data for this buffer object.  The usage hint s upplied with this buffer object, GL_STATIC_DRAW, is inconsistent with this usage pattern.  Try using GL_STREAM_COPY_ARB, GL_STATIC_COPY_ARB, or GL_DYNAMIC_COPY_ARB instead.
-                                  // else if (id == 0x00020070) {
-                                  //   return true;
-                                  // }  // Total VBO Usage in the system... (Useful information)
-                                  // else if (id == 0x00020043) {
-                                  //   return true;
-                                  // }  // A non-Fullscreen clear caused a fallback from CSAA to MSAA; - probolem in clearing cube shadow buffers
-                                  //Other (mom's house) driver
-                                  // else if (id == 0x07) {
-                                  //   return true;
-                                  // }  // glLineWidth Deprecated (other driver)
-
-          ;
-
-      return false;
-    }
-    private bool skipATI(int id)
-    {
-      return false;
-    }
-    private static void GetTypeSevSourceLevel(DebugType type, DebugSeverity severity, DebugSource source, ref string strType, ref string strSev, ref string strSource, ref GpuLogLevel level)
-    {
-      if (type == DebugType.DebugTypeError)
-      {
-        strType = "[type=ERROR]";
-      }
-      else if (type == DebugType.DebugTypeDeprecatedBehavior)
-      {
-        strType = "[type=DEPRECATED_BEHAVIOR]";
-      }
-      else if (type == DebugType.DebugTypeUndefinedBehavior)
-      {
-        strType = "[type=UNDEFINED_BEHAVIOR]";
-      }
-      else if (type == DebugType.DebugTypePortability)
-      {
-        strType = "[type=PORTABILITY]";
-      }
-      else if (type == DebugType.DebugTypePerformance)
-      {
-        strType = "[type=PERFORMANCE]";
-      }
-      else if (type == DebugType.DebugTypeOther)
-      {
-        strType = "[type=OTHER]";
-      }
-      else
-      {
-        strType = "[type=(undefined(" + type + "))]";
-      }
-
-      if (severity == DebugSeverity.DebugSeverityHigh)
-      {
-        strSev = "[severity=HIGH]";
-        level = GpuLogLevel.Err_;
-      }
-      else if (severity == DebugSeverity.DebugSeverityMedium)
-      {
-        strSev = "[severity=MEDIUM]";
-        level = GpuLogLevel.Wrn_;
-      }
-      else if (severity == DebugSeverity.DebugSeverityLow)
-      {
-        strSev = "[severity=LOW]";
-        level = GpuLogLevel.Inf_;
-      }
-      else if (severity == DebugSeverity.DebugSeverityNotification)
-      {
-        strSev = "[severity=NOTIFICATION]";
-        level = GpuLogLevel.Inf_;
-      }
-      else
-      {
-        strSev = "[severity=(undefined(" + severity + ")))]";
-        level = GpuLogLevel.Inf_;
-      }
-
-      if (source == DebugSource.DebugSourceApi)
-      {
-        strSource = "[source=API]";
-      }
-      else if (source == DebugSource.DebugSourceWindowSystem)
-      {
-        strSource = "[source=WINDOW_SYSTEM]";
-      }
-      else if (source == DebugSource.DebugSourceShaderCompiler)
-      {
-        strSource = "[source=SHADER_COMPILER]";
-      }
-      else if (source == DebugSource.DebugSourceThirdParty)
-      {
-        strSource = "[source=THIRD_PARTY]";
-      }
-      else if (source == DebugSource.DebugSourceApplication)
-      {
-        strSource = "[source=APPLICATION]";
-      }
-      else if (source == DebugSource.DebugSourceOther)
-      {
-        strSource = "[source=OTHER]";
-      }
-    }
-    private static string glErrToStr(ErrorCode err)
-    {
-      switch (err)
-      {
-        case ErrorCode.NoError:
-          return "GL_NO_ERROR         ";
-        case ErrorCode.InvalidEnum:
-          return "GL_INVALID_ENUM     ";
-        case ErrorCode.InvalidValue:
-          return "GL_INVALID_VALUE    ";
-        case ErrorCode.InvalidOperation:
-          return "GL_INVALID_OPERATION";
-        case (ErrorCode)0x0503:
-          return "GL_STACK_OVERFLOW   ";
-        case (ErrorCode)0x0504:
-          return "GL_STACK_UNDERFLOW  ";
-        case ErrorCode.OutOfMemory:
-          return "GL_OUT_OF_MEMORY    ";
-      }
-      return " *GL Error code not recognized.";
-    }
-
-    #endregion
-  }
-
   public enum GPUVendor
   {
     Undefined, ATI, NVIDIA, INTEL
   }
+
   public class Gpu
   {
     private Dictionary<WindowContext, List<Action<WindowContext>>> RenderThreadActions = new Dictionary<WindowContext, List<Action<WindowContext>>>();
 
     //Limits
     public int MaxTextureSize { get; private set; } = 0;
-    public int MaxTextureImageUnits { get; private set; } = 0;
+    public int MaxFragmentTextureImageUnits { get; private set; } = 0;
+    public int MaxVertexTextureImageUnits { get; private set; } = 0;
     public int[] MaxWorkGroupDims { get; private set; } = new int[3] { 0, 0, 0 };
 
     public int RenderThreadID { get; private set; } = -1;
@@ -592,9 +161,17 @@ namespace Loft
       MaxTextureSize = maxTextureSize[0];
 
       int tmp = 0;
-      GL.GetInteger(GetPName.MaxCombinedTextureImageUnits, out tmp);
+      GL.GetInteger(GetPName.MaxTextureImageUnits, out tmp);
       Gpu.CheckGpuErrorsRt();
-      MaxTextureImageUnits = tmp;
+      MaxFragmentTextureImageUnits = tmp;
+
+      GL.GetInteger(GetPName.MaxVertexTextureImageUnits, out tmp);
+      Gpu.CheckGpuErrorsRt();
+      MaxVertexTextureImageUnits = tmp;
+
+      // GL.GetInteger(GetPName.MaxCombinedTextureImageUnits, out tmp);
+      // Gpu.CheckGpuErrorsRt();
+      // MaxCombinedTextureImageUnits = tmp;
 
       GL.GetInteger((GetIndexedPName)GLenum.GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0, out MaxWorkGroupDims[0]);
       GL.GetInteger((GetIndexedPName)GLenum.GL_MAX_COMPUTE_WORK_GROUP_COUNT, 1, out MaxWorkGroupDims[1]);
@@ -1074,7 +651,7 @@ namespace Loft
       strState.AppendLine($"==============================================");
       Gpu.CheckGpuErrorsRt();
 
-      DebugPrintShaderLimits(strState);
+      DebugPrintShaderLimitsAndState(strState);
 
       DebugGetLegacyViewAndMatrixStack(strState);
       Gpu.CheckGpuErrorsRt();
@@ -1870,77 +1447,102 @@ namespace Loft
         // glGetVertexAttribiv(iAttrib, GL_CURRENT_VERTEX_ATTRIB, ref iCurrentVertexAttrib);
       }
     }
-    private static void DebugPrintShaderLimits(StringBuilder strState)
+    public static void DebugPrintShaderLimitsAndState(StringBuilder strState, string tab = "")
     {
-
       strState.AppendLine("---------------- Window Info ----------------");
-      strState.AppendLine($"Cur Context: '{Gu.Context.GameWindow.Title.ToString()}'");
-      strState.AppendLine($"  Title: '{Gu.Context.GameWindow.Title.ToString()}'");
-      strState.AppendLine($"  WinDims: {Gu.Context.GameWindow.Width}x{Gu.Context.GameWindow.Height}");
-      strState.AppendLine($"  RenderDims: {Gu.Context.Renderer.CurrentStageFBOSize.ToString()}");
+      strState.AppendLine($"{tab}Cur Context: '{Gu.Context.GameWindow.Title.ToString()}'");
+      strState.AppendLine($"{tab}  Title: '{Gu.Context.GameWindow.Title.ToString()}'");
+      strState.AppendLine($"{tab}  WinDims: {Gu.Context.GameWindow.Width}x{Gu.Context.GameWindow.Height}");
+      strState.AppendLine($"{tab}  RenderDims: {(Gu.Context.Renderer.CurrentStage != null ? Gu.Context.Renderer.CurrentStageFBOSize.ToString() : "Not Rendering")}");
       //strState.AppendLine($"Screen Dims: {Gu.Context.GameWindow.monitor}x{Gu.Context.GameWindow.Height}");
       //strState.AppendLine($"This API: {Gu.Context.GameWindow.API.ToString()}");
-      strState.AppendLine($"  GL Profile: {Gu.Context.GameWindow.Profile.ToString()}");
-      strState.AppendLine($"  GL Version: {Gu.Context.GameWindow.APIVersion.ToString()}");
-      strState.AppendLine($"All Windows:");
+      strState.AppendLine($"{tab}  GL Profile: {Gu.Context.GameWindow.Profile.ToString()}");
+      strState.AppendLine($"{tab}  GL Version: {Gu.Context.GameWindow.APIVersion.ToString()}");
+      strState.AppendLine($"{tab}All Windows:");
       foreach (var c in Gu.Contexts)
       {
         strState.AppendLine($"  Title: '{c.Key.Title}'  Context is Current: {c.Key.Context.IsCurrent}");
       }
       strState.AppendLine("---------------- Gpu Info ----------------");
-      strState.AppendLine($"GPU: {GL.GetString​(StringName.Renderer)}");
-      strState.AppendLine($"Vendor: {GL.GetString​(StringName.Vendor)}");
-      strState.AppendLine($"Supported GL: {GL.GetString​(StringName.Version)}");
-      strState.AppendLine($"Supported GLSL: {GL.GetString​(StringName.ShadingLanguageVersion)}");
+      strState.AppendLine($"{tab}GPU: {GL.GetString​(StringName.Renderer)}");
+      strState.AppendLine($"{tab}Vendor: {GL.GetString​(StringName.Vendor)}");
+      strState.AppendLine($"{tab}Supported GL: {GL.GetString​(StringName.Version)}");
+      strState.AppendLine($"{tab}Supported GLSL: {GL.GetString​(StringName.ShadingLanguageVersion)}");
 
-      int iMaxVertexTextureUnits;
-      int iMaxVertexGeometryUnits;
-      int iMaxTextureUnits;
-      int iMaxCombinedTextureUnits;
-
-      GL.GetInteger(GetPName.MaxTextureImageUnits, out iMaxTextureUnits);
-      GL.GetInteger(GetPName.MaxVertexTextureImageUnits, out iMaxVertexTextureUnits);
-      GL.GetInteger(GetPName.MaxGeometryTextureImageUnits, out iMaxVertexGeometryUnits);
-      GL.GetInteger(GetPName.MaxCombinedTextureImageUnits, out iMaxCombinedTextureUnits);
       Gpu.CheckGpuErrorsRt();
 
-      strState.AppendLine("Max Texture Units: " + iMaxTextureUnits);
-      strState.AppendLine("Max Vertex Texture Units: " + iMaxVertexTextureUnits);
-      strState.AppendLine("Max Geometry Texture Units: " + iMaxVertexGeometryUnits);
-      strState.AppendLine("Max Combined Texture Units: " + iMaxCombinedTextureUnits);
+      List<GetPName> geti32 = new List<GetPName>()
+      {
+        (GetPName)GLenum.GL_MAX_TEXTURE_SIZE,
+        (GetPName)GLenum.GL_MAX_IMAGE_UNITS,
+        (GetPName)GLenum.GL_MAX_IMAGE_SAMPLES,
+        (GetPName)GLenum.GL_MAX_COLOR_ATTACHMENTS,
+        (GetPName)GLenum.GL_MAX_DRAW_BUFFERS,
+          (GetPName)0,
 
-      int maxColorAttachments;
-      int maxDrawBuffers;
-      int maxFragmentUniformBlocks;
-      int maxGeometryUniformBlocks;
-      int maxVertexUniformBlocks;
-      int maxVertexTextureImageUnits;
-      int maxGeometryTextureImageUnits;
-      int maxFragmentTextureImageUnits;
-      int maxVertexUniformComponents;
-      int maxGeometryUniformComponents;
-      int maxFragmentUniformComponents;
+        (GetPName)GLenum.GL_MAX_TEXTURE_SIZE,
+        (GetPName)GLenum.GL_MAX_TEXTURE_IMAGE_UNITS,
+        (GetPName)GLenum.GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS,
+        (GetPName)GLenum.GL_MAX_ARRAY_TEXTURE_LAYERS,
+          (GetPName)0,
+        
+        (GetPName)GLenum.GL_MAX_UNIFORM_LOCATIONS,
+        (GetPName)GLenum.GL_MAX_UNIFORM_BLOCK_SIZE,
+        (GetPName)GLenum.GL_MAX_UNIFORM_BUFFER_BINDINGS,
+        (GetPName)GLenum.GL_MAX_COMBINED_UNIFORM_BLOCKS,
+        (GetPName)GLenum.GL_MAX_COMBINED_IMAGE_UNIFORMS,
+        (GetPName)GLenum.GL_MAX_COMBINED_SHADER_STORAGE_BLOCKS,
+        (GetPName)GLenum.GL_MAX_SHADER_STORAGE_BLOCK_SIZE,
+        (GetPName)GLenum.GL_MAX_SHADER_STORAGE_BUFFER_BINDINGS,
+          (GetPName)0,
 
-      GL.GetInteger(GetPName.MaxColorAttachments, out maxColorAttachments);
-      GL.GetInteger(GetPName.MaxDrawBuffers, out maxDrawBuffers);
-      GL.GetInteger(GetPName.MaxFragmentUniformBlocks, out maxFragmentUniformBlocks);
-      GL.GetInteger(GetPName.MaxGeometryUniformBlocks, out maxGeometryUniformBlocks);
-      GL.GetInteger(GetPName.MaxVertexUniformBlocks, out maxVertexUniformBlocks);
-      GL.GetInteger(GetPName.MaxVertexTextureImageUnits, out maxVertexTextureImageUnits);
-      GL.GetInteger(GetPName.MaxGeometryTextureImageUnits, out maxGeometryTextureImageUnits);
-      GL.GetInteger(GetPName.MaxVertexUniformComponents, out maxVertexUniformComponents);
-      GL.GetInteger(GetPName.MaxGeometryUniformComponents, out maxGeometryUniformComponents);
-      GL.GetInteger(GetPName.MaxFragmentUniformComponents, out maxFragmentUniformComponents);
-      strState.AppendLine("Max Color Attachments: " + maxColorAttachments);
-      strState.AppendLine("Max Draw Buffers: " + maxDrawBuffers);
-      strState.AppendLine("Max Vertex Uniform Blocks: " + maxVertexUniformBlocks);
-      strState.AppendLine("Max Vertex Uniform Components: " + maxVertexUniformComponents);
-      strState.AppendLine("Max Vertex Texture Image Units: " + maxVertexTextureImageUnits);
-      strState.AppendLine("Max Geometry Uniform Components: " + maxGeometryUniformComponents);
-      strState.AppendLine("Max Geometry Uniform Blocks: " + maxGeometryUniformBlocks);
-      strState.AppendLine("Max Geometry Texture Image Units: " + maxGeometryTextureImageUnits);
-      strState.AppendLine("Max Fragment Uniform Components: " + maxFragmentUniformComponents);
-      strState.AppendLine("Max Fragment Uniform Blocks: " + maxFragmentUniformBlocks);
+        (GetPName)GLenum.GL_MAX_VERTEX_IMAGE_UNIFORMS,
+        (GetPName)GLenum.GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS,
+        (GetPName)GLenum.GL_MAX_VERTEX_SHADER_STORAGE_BLOCKS,
+        (GetPName)GLenum.GL_MAX_VERTEX_UNIFORM_COMPONENTS,
+        (GetPName)GLenum.GL_MAX_VERTEX_UNIFORM_BLOCKS,
+        (GetPName)GLenum.GL_MAX_VERTEX_UNIFORM_VECTORS,
+        (GetPName)GLenum.GL_MAX_COMBINED_VERTEX_UNIFORM_COMPONENTS,
+          (GetPName)0,
+
+        (GetPName)GLenum.GL_MAX_GEOMETRY_IMAGE_UNIFORMS,
+        (GetPName)GLenum.GL_MAX_GEOMETRY_TEXTURE_IMAGE_UNITS,
+        (GetPName)GLenum.GL_MAX_GEOMETRY_SHADER_STORAGE_BLOCKS,
+        (GetPName)GLenum.GL_MAX_GEOMETRY_UNIFORM_COMPONENTS,
+        (GetPName)GLenum.GL_MAX_GEOMETRY_UNIFORM_BLOCKS,
+        (GetPName)GLenum.GL_MAX_COMBINED_GEOMETRY_UNIFORM_COMPONENTS,
+          (GetPName)0,
+
+        (GetPName)GLenum.GL_MAX_FRAGMENT_IMAGE_UNIFORMS,
+        (GetPName)GLenum.GL_MAX_TEXTURE_IMAGE_UNITS,
+        (GetPName)GLenum.GL_MAX_FRAGMENT_SHADER_STORAGE_BLOCKS,
+        (GetPName)GLenum.GL_MAX_FRAGMENT_UNIFORM_COMPONENTS,
+        (GetPName)GLenum.GL_MAX_FRAGMENT_UNIFORM_BLOCKS,
+        (GetPName)GLenum.GL_MAX_FRAGMENT_UNIFORM_VECTORS,
+        (GetPName)GLenum.GL_MAX_COMBINED_FRAGMENT_UNIFORM_COMPONENTS,
+          (GetPName)0,
+
+        (GetPName)GLenum.GL_MAX_COMPUTE_IMAGE_UNIFORMS,
+        (GetPName)GLenum.GL_MAX_COMPUTE_TEXTURE_IMAGE_UNITS,
+        (GetPName)GLenum.GL_MAX_COMPUTE_SHADER_STORAGE_BLOCKS,
+        (GetPName)GLenum.GL_MAX_COMPUTE_UNIFORM_COMPONENTS,
+        (GetPName)GLenum.GL_MAX_COMPUTE_UNIFORM_BLOCKS,
+        (GetPName)GLenum.GL_MAX_COMBINED_COMPUTE_UNIFORM_COMPONENTS,
+          (GetPName)0,
+        
+      };
+      foreach (var get in geti32)
+      {
+        if ((int)get == 0)
+        {
+          strState.AppendLine("");
+        }
+        else
+        {
+          strState.AppendLine($"{tab}{((GLenum)get).ToString()}: {GL.GetInteger(get)}");
+        }
+      }
+
       Gpu.CheckGpuErrorsRt();
     }
 
@@ -2042,4 +1644,441 @@ namespace Loft
       return result == GLenum.GL_SIGNALED;
     }
   }
-}
+
+  public class GpuDataPtr
+  {
+    //these could be one class
+    //Sizing information from GPU data, and object pointer destined for gpu
+    private bool _locked = false;
+    private GCHandle pinnedArray;
+    private object _pt;
+
+    public int ItemSizeBytes { get; private set; } = 0;
+    public int Count { get; private set; } = 0;
+    public object Data { get { return _pt; } }
+
+    public static GpuDataPtr GetGpuDataPtr<T>(T[] data)
+    {
+      //takes an array of vertexes and marshals them for copying to the GPU
+      GpuDataPtr p = null;
+      if (data.Length == 0)
+      {
+        p = new GpuDataPtr(0, data.Length, data);
+      }
+      else
+      {
+        var size = Marshal.SizeOf(data[0]);
+        p = new GpuDataPtr(size, data.Length, data);
+      }
+      return p;
+    }
+
+    public GpuDataPtr(int itemSize, int count, object pt)
+    {
+      ItemSizeBytes = itemSize;
+      Count = count;
+      _pt = pt;
+    }
+    public IntPtr Lock()
+    {
+      _locked = true;
+      pinnedArray = GCHandle.Alloc(_pt, GCHandleType.Pinned);
+      return pinnedArray.AddrOfPinnedObject();
+    }
+    public void Unlock()
+    {
+      pinnedArray.Free();
+      _locked = false;
+    }
+    ~GpuDataPtr()
+    {
+      if (_locked)
+      {
+        Gu.Log.Error("GpuDataPtr unmanaged handle wasn't freed. Must call Unlock().");
+        Gu.DebugBreak();
+      }
+    }
+  }
+
+  [DataContract]
+  public class GpuRenderState
+  {
+    //Stores rendering state flags for GPU prior to drawing.
+    public bool DepthTest { get { return _depthTestEnabled; } set { _depthTestEnabled = value; } }
+    public bool CullFace { get { return _cullFaceEnabled; } set { _cullFaceEnabled = value; } }
+    public bool ScissorTest { get { return _scissorTestEnabled; } set { _scissorTestEnabled = value; } }
+    public bool Blend { get { return _blendEnabled; } set { _blendEnabled = value; } }
+    public BlendingFactor BlendFactor { get { return _blendFactor; } set { _blendFactor = value; } }
+    public BlendEquationMode BlendFunc { get { return _blendFunc; } set { _blendFunc = value; } }
+    public FrontFaceDirection FrontFaceDirection { get { return _frontFaceDirection; } set { _frontFaceDirection = value; } }
+    public bool DepthMask { get { return _depthMask; } set { _depthMask = value; } }
+    public CullFaceMode CullFaceMode { get { return _cullFaceMode; } set { _cullFaceMode = value; } }
+
+    //State switches to prevent unnecessary gpu context changes.
+    [DataMember] private bool _depthTestEnabled = true;
+    [DataMember] private bool _cullFaceEnabled = true;
+    [DataMember] private bool _scissorTestEnabled = true;
+    [DataMember] private bool _blendEnabled = false;
+    [DataMember] private BlendingFactor _blendFactor = BlendingFactor.OneMinusSrcAlpha;
+    [DataMember] private BlendEquationMode _blendFunc = BlendEquationMode.FuncAdd;
+    [DataMember] private FrontFaceDirection _frontFaceDirection = FrontFaceDirection.Ccw;
+    [DataMember] private bool _depthMask = true;//enable writing to depth bufer
+    [DataMember] private CullFaceMode _cullFaceMode = CullFaceMode.Back;
+
+    public GpuRenderState Clone()
+    {
+      return (GpuRenderState)this.MemberwiseClone();
+    }
+    public void SetState()
+    {
+      Gu.Context.Gpu.SetState(this);
+    }
+  }
+
+  public class GPULog
+  {
+    #region Members
+
+    private enum GpuLogLevel
+    {
+      Err_,
+      Wrn_,
+      Inf_,
+      Dbg_
+    }
+    bool _bPrintingGPULog = false;
+    int _maxMsgLen = -1;
+
+    #endregion
+    #region Public:Methods
+
+    public GPULog()
+    {
+#if _DEBUG
+      GL.Enable(EnableCap.DebugOutput);
+      GL.Enable(EnableCap.DebugOutputSynchronous);
+#endif
+    }
+    public bool CheckErrors(bool bDoNotBreak, bool doNotLog)
+    {
+      StringBuilder sb = new StringBuilder();
+      StringBuilder eb = new StringBuilder();
+
+      GetAndFlushGPULog(sb);
+      var hasErrors = GetOpenGLErrors(eb);
+
+      if (hasErrors)
+      {
+        if (doNotLog == false)
+        {
+          eb.Append(Environment.NewLine);
+          eb.Append(sb);
+          Gu.Log.Error(eb.ToString());
+        }
+
+        if (bDoNotBreak == false && Gu.EngineConfig.BreakOnGraphicsError == true)
+        {
+          Gu.DebugBreak();
+        }
+      }
+      else
+      {
+        if (sb != null && sb.Length > 0 && doNotLog == false)
+        {
+          Gu.Log.Error(sb.ToString());
+        }
+      }
+
+      return hasErrors;
+    }
+    public void ClearGPULog()
+    {
+      GetAndFlushGPULog(null);
+    }
+
+    #endregion
+    #region Private:Methods
+
+    private bool GetOpenGLErrors(StringBuilder? eb)
+    {
+      bool bError = false;
+
+      for (int ierr = 0; Gu.WhileTrueGuard(ierr, Gu.c_intMaxWhileTrueLoop); ierr++)
+      {
+        ErrorCode err = GL.GetError();
+        if (err != ErrorCode.NoError)
+        {
+          if (eb != null)
+          {
+            string errmsg = $"GL Error: {glErrToStr(err)} ({(int)err})";
+            eb.Append(errmsg);
+          }
+          bError = true;
+        }
+        else
+        {
+          break;
+        }
+      }
+
+      return bError;
+    }
+    private void GetAndFlushGPULog(StringBuilder? sb)
+    {
+      int numMsgs = 1;
+      int numFound;
+
+      if (_maxMsgLen == -1)
+      {
+        _maxMsgLen = GL.GetInteger((GetPName)0x9143 /*GL_MAX_DEBUG_MESSAGE_LENGTH*/);
+      }
+      if (_maxMsgLen <= 0)
+      {
+        Gu.Log.Error("GL_MAX_DEBUG_MESSAGE_LENGTH returned 0.");
+        _maxMsgLen = -2;
+        return;
+      }
+
+      bool graphicsLogHigh = Gu.EngineConfig.GraphicsErrorLogging_High;
+      bool graphicsLogMed = Gu.EngineConfig.GraphicsErrorLogging_Medium;
+      bool graphicsLogLow = Gu.EngineConfig.GraphicsErrorLogging_Low;
+      bool graphicsLogInfo = Gu.EngineConfig.GraphicsErrorLogging_Info;
+
+      do
+      {
+        DebugSource[] sources = new DebugSource[numMsgs];
+        DebugType[] types = new DebugType[numMsgs];
+        DebugSeverity[] severities = new DebugSeverity[numMsgs];
+        int[] ids = new int[numMsgs];
+        int[] lengths = new int[numMsgs];
+
+        string msgcopy = "";
+        numFound = GL.GetDebugMessageLog(numMsgs, numMsgs * _maxMsgLen, sources, types, ids, severities, lengths, out msgcopy);
+
+        if (numFound == 0)
+        {
+          return;
+        }
+        if (sb == null)//clearOnly
+        {
+          continue;
+        }
+
+        Array.Resize(ref sources, numFound);
+        Array.Resize(ref types, numFound);
+        Array.Resize(ref severities, numFound);
+        Array.Resize(ref ids, numFound);
+        Array.Resize(ref lengths, numFound);
+
+        int currPos = 0;
+        for (int iMsg = 0; iMsg < lengths.Length; ++iMsg)
+        {
+          int id = ids[iMsg];
+          if (!skipNVIDIA(id) && !skipATI(id))
+          {
+            DebugSeverity severity = severities[iMsg];
+            DebugType type = types[iMsg];
+            DebugSource source = sources[iMsg];
+            LogGPUMessageText(sb, msgcopy, id, severity, type, source, graphicsLogHigh, graphicsLogMed, graphicsLogLow, graphicsLogInfo);
+          }
+          currPos = currPos + lengths[iMsg];
+        }
+
+      } while (numFound > 0);
+    }
+    private void LogGPUMessageText(StringBuilder sb, string cstrMsg, int msgId, DebugSeverity severity, DebugType type,
+      DebugSource source, bool graphicsLogHigh, bool graphicsLogMed, bool graphicsLogLow, bool graphicsLogInfo)
+    {
+      string msg = "";
+      string shaderMsg = "";
+      Gu.Assert(sb != null);
+      string strId = " [id=0x" + msgId.ToString("X") + "]";
+
+      //Skip if the config.xml has turned off this kind of logging.
+      if (severity == DebugSeverity.DebugSeverityHigh && graphicsLogHigh == false)
+      {
+        return;
+      }
+      else if (severity == DebugSeverity.DebugSeverityMedium && graphicsLogMed == false)
+      {
+        return;
+      }
+      else if (severity == DebugSeverity.DebugSeverityLow && graphicsLogLow == false)
+      {
+        return;
+      }
+      else if (severity == DebugSeverity.DebugSeverityNotification && graphicsLogInfo == false)
+      {
+        return;
+      }
+
+      string strSev = "";
+      string strType = "";
+      string strSource = "";
+      GpuLogLevel level = GpuLogLevel.Dbg_;
+      GetTypeSevSourceLevel(type, severity, source, ref strType, ref strSev, ref strSource, ref level);
+
+      msg = $"GPU Log:{strId}{strType}{strSev}{strSource}{cstrMsg}";
+
+      if (sb != null)
+      {
+        if (type == DebugType.DebugTypeError)
+        {
+          sb.AppendLine(msg);
+        }
+        else if (severity == DebugSeverity.DebugSeverityNotification)
+        {
+          sb.AppendLine(msg);
+        }
+        else
+        {
+          sb.AppendLine(msg);
+        }
+      }
+    }
+    private bool skipNVIDIA(int id)
+    {
+      //NVidia - redundant messages / infos
+      return id == 0x00020071     // GL_DYANMIC_DRAW or GL_STATIC_DRAW memory usgae
+             || id == 0x00020084  // Texture state usage warning: Texture 0 is base level inconsistent. Check texture size.
+                                  // else if (id == 0x00020061) {
+                                  //   return true;
+                                  // }  // Framebuffer detailed info: The driver allocated storage for renderbuffer 1.
+                                  // else if (id == 0x00020004) {
+                                  //   return true;
+                                  // }  // Usage warning: Generic vertex attribute array ... uses a pointer with a small value (...). Is this intended to be used as an offset into a buffer object?
+                                  // else if (id == 0x00020072) {
+                                  //   return true;
+                                  // }  // Buffer performance warning: Buffer object ... (bound to ..., usage hint is GL_STATIC_DRAW) is being copied/moved from VIDEO memory to HOST memory.
+                                  // else if (id == 0x00020074) {
+                                  //   return true;
+                                  // }  // Buffer usage warning: Analysis of buffer object ... (bound to ...) usage indicates that the GPU is the primary producer and consumer of data for this buffer object.  The usage hint s upplied with this buffer object, GL_STATIC_DRAW, is inconsistent with this usage pattern.  Try using GL_STREAM_COPY_ARB, GL_STATIC_COPY_ARB, or GL_DYNAMIC_COPY_ARB instead.
+                                  // else if (id == 0x00020070) {
+                                  //   return true;
+                                  // }  // Total VBO Usage in the system... (Useful information)
+                                  // else if (id == 0x00020043) {
+                                  //   return true;
+                                  // }  // A non-Fullscreen clear caused a fallback from CSAA to MSAA; - probolem in clearing cube shadow buffers
+                                  //Other (mom's house) driver
+                                  // else if (id == 0x07) {
+                                  //   return true;
+                                  // }  // glLineWidth Deprecated (other driver)
+
+          ;
+
+      return false;
+    }
+    private bool skipATI(int id)
+    {
+      return false;
+    }
+    private static void GetTypeSevSourceLevel(DebugType type, DebugSeverity severity, DebugSource source, ref string strType, ref string strSev, ref string strSource, ref GpuLogLevel level)
+    {
+      if (type == DebugType.DebugTypeError)
+      {
+        strType = "[type=ERROR]";
+      }
+      else if (type == DebugType.DebugTypeDeprecatedBehavior)
+      {
+        strType = "[type=DEPRECATED_BEHAVIOR]";
+      }
+      else if (type == DebugType.DebugTypeUndefinedBehavior)
+      {
+        strType = "[type=UNDEFINED_BEHAVIOR]";
+      }
+      else if (type == DebugType.DebugTypePortability)
+      {
+        strType = "[type=PORTABILITY]";
+      }
+      else if (type == DebugType.DebugTypePerformance)
+      {
+        strType = "[type=PERFORMANCE]";
+      }
+      else if (type == DebugType.DebugTypeOther)
+      {
+        strType = "[type=OTHER]";
+      }
+      else
+      {
+        strType = "[type=(undefined(" + type + "))]";
+      }
+
+      if (severity == DebugSeverity.DebugSeverityHigh)
+      {
+        strSev = "[severity=HIGH]";
+        level = GpuLogLevel.Err_;
+      }
+      else if (severity == DebugSeverity.DebugSeverityMedium)
+      {
+        strSev = "[severity=MEDIUM]";
+        level = GpuLogLevel.Wrn_;
+      }
+      else if (severity == DebugSeverity.DebugSeverityLow)
+      {
+        strSev = "[severity=LOW]";
+        level = GpuLogLevel.Inf_;
+      }
+      else if (severity == DebugSeverity.DebugSeverityNotification)
+      {
+        strSev = "[severity=NOTIFICATION]";
+        level = GpuLogLevel.Inf_;
+      }
+      else
+      {
+        strSev = "[severity=(undefined(" + severity + ")))]";
+        level = GpuLogLevel.Inf_;
+      }
+
+      if (source == DebugSource.DebugSourceApi)
+      {
+        strSource = "[source=API]";
+      }
+      else if (source == DebugSource.DebugSourceWindowSystem)
+      {
+        strSource = "[source=WINDOW_SYSTEM]";
+      }
+      else if (source == DebugSource.DebugSourceShaderCompiler)
+      {
+        strSource = "[source=SHADER_COMPILER]";
+      }
+      else if (source == DebugSource.DebugSourceThirdParty)
+      {
+        strSource = "[source=THIRD_PARTY]";
+      }
+      else if (source == DebugSource.DebugSourceApplication)
+      {
+        strSource = "[source=APPLICATION]";
+      }
+      else if (source == DebugSource.DebugSourceOther)
+      {
+        strSource = "[source=OTHER]";
+      }
+    }
+    private static string glErrToStr(ErrorCode err)
+    {
+      switch (err)
+      {
+        case ErrorCode.NoError:
+          return "GL_NO_ERROR         ";
+        case ErrorCode.InvalidEnum:
+          return "GL_INVALID_ENUM     ";
+        case ErrorCode.InvalidValue:
+          return "GL_INVALID_VALUE    ";
+        case ErrorCode.InvalidOperation:
+          return "GL_INVALID_OPERATION";
+        case (ErrorCode)0x0503:
+          return "GL_STACK_OVERFLOW   ";
+        case (ErrorCode)0x0504:
+          return "GL_STACK_UNDERFLOW  ";
+        case ErrorCode.OutOfMemory:
+          return "GL_OUT_OF_MEMORY    ";
+      }
+      return " *GL Error code not recognized.";
+    }
+
+    #endregion
+  }
+
+
+
+}//ns 

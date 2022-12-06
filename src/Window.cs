@@ -11,7 +11,7 @@ using System.Runtime.Serialization;
 namespace Loft
 {
   [DataContract]
-  public class UiWindowBase : NativeWindow
+  public class AppWindowBase : NativeWindow
   {
     #region Public:Members
 
@@ -38,7 +38,7 @@ namespace Loft
     #endregion
     #region Public:Methods
 
-    public UiWindowBase(string name, string title, bool isMain,
+    public AppWindowBase(string name, string title, bool isMain,
                         ivec2 pos, ivec2 size, vec2? scale = null,
                         WindowBorder border = WindowBorder.Resizable,
                         bool visible = true, IGLFWGraphicsContext sharedCtx = null)
@@ -253,7 +253,7 @@ namespace Loft
 
     #endregion
   }
-  public class InfoWindow : UiWindowBase
+  public class InfoWindow : AppWindowBase
   {
     private UiElement? _info = null;
 
@@ -326,8 +326,7 @@ namespace Loft
       _info.Text = sb.ToString();
     }
   }
-
-  public class MainWindow : UiWindowBase
+  public class MainWindow : AppWindowBase
   {
     #region Private:Members
 
@@ -403,8 +402,10 @@ namespace Loft
       if (rv.GpuDebugInfo != null && rv.GpuDebugInfo.Visible)
       {
         System.Text.StringBuilder sb = new System.Text.StringBuilder();
+        GpuDebugInfo.DebugPrintShaderLimitsAndState(sb, "  ");
+        sb.AppendLine($"---------------- GL Allocations ----------------");
         sb.Append(GT.ToString());
-        sb.AppendLine($"GPU Mem:");
+        sb.AppendLine($"---------------- GPU Memory ----------------");
         Gu.Context.Gpu.GetMemoryInfo().ToString(sb, "  ");
         rv.GpuDebugInfo.Text = sb.ToString();
       }

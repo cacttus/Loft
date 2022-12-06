@@ -88,7 +88,7 @@ namespace Loft
     #endregion
     #region Public: Static Members
 
-    public static Dictionary<UiWindowBase, WindowContext> Contexts { get; private set; } = new Dictionary<UiWindowBase, WindowContext>();
+    public static Dictionary<AppWindowBase, WindowContext> Contexts { get; private set; } = new Dictionary<AppWindowBase, WindowContext>();
     public static CoordinateSystem CoordinateSystem { get; set; } = CoordinateSystem.Rhs;
     public static float CoordinateSystemMultiplier { get { return (Gu.CoordinateSystem == CoordinateSystem.Lhs ? -1 : 1); } }
     public static EngineConfig EngineConfig { get; set; } = null;
@@ -108,7 +108,7 @@ namespace Loft
     public static Gui2dManager Gui2dManager { get; private set; }
     public static FrameDataTimer GlobalTimer { get; private set; }//Global frame timer, for all windows;
     public static Translator Translator { get; private set; }
-    public static UiWindowBase? FocusedWindow { get; set; } = null;
+    public static AppWindowBase? FocusedWindow { get; set; } = null;
     public static FrameStats FrameStats { get; private set; } = new FrameStats();
 
     //Debug
@@ -121,7 +121,7 @@ namespace Loft
     #region Private: Static Members
 
     private static bool _exitPosted = false;
-    private static List<UiWindowBase> toClose = new List<UiWindowBase>();
+    private static List<AppWindowBase> toClose = new List<AppWindowBase>();
     private static bool _customDebugBreak = false;
 
     #endregion
@@ -211,7 +211,7 @@ namespace Loft
           {
             //Grab all windows from their given contexts so we can loop over windows only.
             //Not sure how to typically do this easily in C#
-            List<UiWindowBase> wins = new List<UiWindowBase>();
+            List<AppWindowBase> wins = new List<AppWindowBase>();
             foreach (var ct in Contexts)
             {
               wins.Add(ct.Key);
@@ -299,7 +299,7 @@ namespace Loft
         Environment.Exit(0);
       }
     }
-    private static void DestroyWindowSafe(UiWindowBase? win)
+    private static void DestroyWindowSafe(AppWindowBase? win)
     {
       try
       {
@@ -333,7 +333,7 @@ namespace Loft
         }
       }
     }
-    public static void CloseWindow(UiWindowBase win)
+    public static void CloseWindow(AppWindowBase win)
     {
       if (win != null)
       {
@@ -343,7 +343,7 @@ namespace Loft
         }
       }
     }
-    public static void CreateContext(string name, UiWindowBase uw, IGLFWGraphicsContext? glshared = null)
+    public static void CreateContext(string name, AppWindowBase uw, IGLFWGraphicsContext? glshared = null)
     {
       //try get shared context
       WindowContext? sharedCT = null;
@@ -376,7 +376,7 @@ namespace Loft
       Context = wc;
       wc.GameWindow.Context.MakeCurrent();
     }
-    public static void SetContext(UiWindowBase g)
+    public static void SetContext(AppWindowBase g)
     {
       if (Contexts.TryGetValue(g, out var ct))
       {
@@ -384,7 +384,7 @@ namespace Loft
         g.Context.MakeCurrent();
       }
     }
-    public static WindowContext GetContextForWindow(UiWindowBase g)
+    public static WindowContext GetContextForWindow(AppWindowBase g)
     {
       if (Contexts.TryGetValue(g, out var ct))
       {
@@ -792,7 +792,7 @@ namespace Loft
       }
       return w != null;
     }
-    public static bool TryGetWindowByName(string name, out UiWindowBase? win)
+    public static bool TryGetWindowByName(string name, out AppWindowBase? win)
     {
       //Note: Window name is not the window Title
       win = null;
@@ -806,7 +806,7 @@ namespace Loft
       }
       return win != null;
     }
-    public static bool TryGetFocusedWindow(out UiWindowBase? win)
+    public static bool TryGetFocusedWindow(out AppWindowBase? win)
     {
       win = null;
       foreach (var p in Contexts)

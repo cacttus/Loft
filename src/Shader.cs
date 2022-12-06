@@ -748,7 +748,7 @@ namespace Loft
       }
       Gpu.CheckGpuErrorsRt();
       GL.GetShader(_glId, ShaderParameter.CompileStatus, out int stat);
-      _success = (stat == (int)GLenum.GL_TRUE);
+      _success = (stat == 1);//GL_TRUE
       Gpu.CheckGpuErrorsRt();
     }
 
@@ -1659,7 +1659,7 @@ namespace Loft
       GL.GetProgram(this._glId, GetProgramParameterName.ValidateStatus, out iValid);
       Gpu.CheckGpuErrorsRt();
 
-      if (iValid == (int)GLenum.GL_FALSE)
+      if (iValid == 0)//GL_FALSE
       {
         // Program load faiiled
         _programErrors.Add($"{this.Name}:glValidateProgram failed.  Check the above logs for errors.");

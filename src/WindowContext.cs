@@ -16,14 +16,14 @@ namespace Loft
     public double FpsAvg { get { return ContextFrameTimer.FpsAvg; } }
     public double FrameDelta { get { return ContextFrameTimer.Delta; } }
     public Gpu Gpu { get; private set; } = null;
-    public UiWindowBase GameWindow { get; set; } = null;
+    public AppWindowBase GameWindow { get; set; } = null;
     public PCKeyboard PCKeyboard = new PCKeyboard();
     public PCMouse PCMouse = new PCMouse();
     public FrameDataTimer ContextFrameTimer = new FrameDataTimer();
     public Renderer Renderer { get; private set; } = null;
     public WindowContext? SharedContext { get; private set; } = null;
 
-    public WindowContext(string name, UiWindowBase g, WindowContext? shared = null)
+    public WindowContext(string name, AppWindowBase g, WindowContext? shared = null)
     {
       Name = name;
       GameWindow = g;
