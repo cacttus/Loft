@@ -1,6 +1,6 @@
 using System.Runtime.Serialization;
 
-namespace PirateCraft
+namespace Loft
 {
 
   public enum DataCreateMode

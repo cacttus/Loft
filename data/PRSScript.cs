@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using PirateCraft;
+using Loft;
 
-namespace PirateCraft
+namespace Loft
 {
   public class DoTheThing : IFunctionScript
   {

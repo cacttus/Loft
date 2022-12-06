@@ -1,6 +1,6 @@
 using System.ComponentModel;
 
-namespace PirateCraft
+namespace Loft
 {
   public static class EmbeddedResources
   {

@@ -1,6 +1,6 @@
   using System.Runtime.InteropServices;
 
-namespace PirateCraft{
+namespace Loft{
 
 
 // DllImport("User32.dll")]

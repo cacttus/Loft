@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL4;
 using System.Runtime.Serialization;
-namespace PirateCraft
+namespace Loft
 {
   public abstract class HasGpuResources : IDisposable
   {

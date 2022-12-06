@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace PirateCraft
+namespace Loft
 {
     public static class OperatingSystem
     {

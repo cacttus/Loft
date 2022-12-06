@@ -1,7 +1,7 @@
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
-namespace PirateCraft
+namespace Loft
 {
   public enum LightType
   {

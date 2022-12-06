@@ -7,7 +7,7 @@ using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 
-namespace PirateCraft
+namespace Loft
 {
   public class MainClass
   {

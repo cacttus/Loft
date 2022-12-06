@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 
-namespace PirateCraft
+namespace Loft
 {
   public enum ButtonState
   {

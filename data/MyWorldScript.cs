@@ -1,7 +1,7 @@
 
 using System;
 using System.Collections.Generic;
-using PirateCraft;
+using Loft;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -13,7 +13,7 @@ using OpenTK.Windowing.GraphicsLibraryFramework;
 using System.Runtime.Serialization;
 
 
-namespace PirateCraft
+namespace Loft
 {
   public class MyWorldScript : IWorldScript
   {

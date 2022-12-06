@@ -2,7 +2,7 @@ using System;
 using System.Reflection;
 using System.Text.RegularExpressions;
 
-namespace PirateCraft
+namespace Loft
 {
   public class CSSAttribute : Attribute
   {

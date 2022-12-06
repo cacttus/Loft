@@ -1,5 +1,5 @@
 ﻿
-namespace PirateCraft
+namespace Loft
 {
   public class Random
   {

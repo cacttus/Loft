@@ -6,7 +6,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Runtime.Serialization;
 
-namespace PirateCraft
+namespace Loft
 {
   public enum FileMode
   {

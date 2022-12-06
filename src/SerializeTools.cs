@@ -6,7 +6,7 @@ using System.Reflection;
 using System.Text;
 using System.Runtime.Serialization.Formatters.Binary;
 
-namespace PirateCraft
+namespace Loft
 {
   public class WrappedBinaryWriter
   {

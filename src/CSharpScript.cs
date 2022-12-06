@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using System.Text;
-namespace PirateCraft
+namespace Loft
 {
   //Script interfaces to implement in the .cs script file
   public interface IFunctionScript
@@ -185,7 +185,7 @@ namespace PirateCraft
           "System.Runtime.dll",
           "System.Collections.dll",
           "System.Linq.dll",//IEnumerable.ToArray
-          System.IO.Path.Combine(Gu.ExePath, "PirateCraft.dll"),
+          System.IO.Path.Combine(Gu.ExePath, "Loft.dll"),
           System.IO.Path.Combine(Gu.ExePath, "OpenTK.Core.dll"),
           System.IO.Path.Combine(Gu.ExePath, "OpenTK.Graphics.dll"),
           System.IO.Path.Combine(Gu.ExePath, "OpenTK.Windowing.Common.dll"),

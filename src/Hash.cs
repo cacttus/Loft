@@ -1,4 +1,4 @@
-namespace PirateCraft
+namespace Loft
 {
   public class Hash
   {

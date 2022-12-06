@@ -1,7 +1,7 @@
 ﻿using System.Runtime.CompilerServices;
 using System.Runtime.Serialization;
 
-namespace PirateCraft
+namespace Loft
 {
   public enum WorldObjectCloneMode
   {

@@ -2,7 +2,7 @@
 using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
 
-namespace PirateCraft
+namespace Loft
 {
   //What to do when we are outside the bounds of the grid
   public enum IndexMode

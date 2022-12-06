@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 using OpenTK.Audio.OpenAL;
 
 //Translation: This is full of bugs. This needs to be fixed.
-namespace PirateCraft
+namespace Loft
 {
   public class AudioManager : IDisposable
   {

@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace PirateCraft
+namespace Loft
 {
   //Extension methods - google what this is if you don't know
   public static class OtherExtensions

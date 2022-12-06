@@ -6,7 +6,7 @@ using System.Runtime.InteropServices;
 using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
 
-namespace PirateCraft
+namespace Loft
 {
   public class GPUBuffer : OpenGLResource
   {

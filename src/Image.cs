@@ -4,7 +4,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
 
-namespace PirateCraft
+namespace Loft
 {
   [StructLayout(LayoutKind.Sequential)]
   public struct Pixel4ub

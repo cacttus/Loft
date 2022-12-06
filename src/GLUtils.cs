@@ -3,7 +3,7 @@ using System.Text;
 using OpenTK.Graphics.OpenGL4;
 
 
-namespace PirateCraft
+namespace Loft
 {
   public enum GLenum
   {

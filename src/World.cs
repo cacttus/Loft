@@ -6,7 +6,7 @@ using System.Text;
 using Newtonsoft.Json;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 
-namespace PirateCraft
+namespace Loft
 {
 
   #region Enums

@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
 
-namespace PirateCraft
+namespace Loft
 {
   [StructLayout(LayoutKind.Sequential)]
   public struct GpuFaceData

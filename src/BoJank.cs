@@ -1,5 +1,5 @@
 using System.Text;
-namespace PirateCraft
+namespace Loft
 {
   //BoJank data library. (It is what it sounds like)
   // Headers and row keys are enum.

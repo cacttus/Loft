@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using System.Runtime.Serialization;
-namespace PirateCraft
+namespace Loft
 {
   public enum KeyframeInterpolation
   {

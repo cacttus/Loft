@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Runtime.Serialization;
 using System.ComponentModel;
 
-namespace PirateCraft
+namespace Loft
 {
   public enum PBRTextureInput
   {

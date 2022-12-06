@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
 using OpenTK.Graphics.OpenGL4;
 
-namespace PirateCraft
+namespace Loft
 {
   public enum NormalMapFormat
   {

@@ -4,7 +4,7 @@ using System.Runtime.Serialization;
 using System.Runtime.CompilerServices;
 using System.Text;
 //File Loaders / Generators / Data sources
-namespace PirateCraft
+namespace Loft
 {
   using GLTF_DATA_TYPE = glTFLoader.Schema.Accessor.TypeEnum;
   using GLTF_COMP_TYPE = glTFLoader.Schema.Accessor.ComponentTypeEnum;

@@ -6,7 +6,7 @@ using System.Text;
 using Newtonsoft.Json;
 using System.Runtime.Serialization;
 
-namespace PirateCraft
+namespace Loft
 {
   public enum ResourceLoadResult
   {

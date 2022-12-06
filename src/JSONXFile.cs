@@ -1,7 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Reflection;
-namespace PirateCraft
+namespace Loft
 {
   public class JSONXIgnore : Attribute
   {

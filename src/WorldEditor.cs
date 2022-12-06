@@ -3,7 +3,7 @@ using System.Runtime.Serialization;
 using System.Runtime.InteropServices;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using System.Text;
-namespace PirateCraft
+namespace Loft
 {
   public enum InputState
   {

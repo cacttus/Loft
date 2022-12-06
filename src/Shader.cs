@@ -5,7 +5,7 @@ using OpenTK.Graphics.OpenGL4;
 using System.Runtime.Serialization;
 using System.Reflection;
 
-namespace PirateCraft
+namespace Loft
 {
   #region Enums
 

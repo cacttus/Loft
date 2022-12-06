@@ -9,7 +9,7 @@ using System.Runtime.Serialization;
 //This is a very simple and useful math class in just one file
 //Copied this stuff from legend of kevin
 //Copied from VulkanGame
-namespace PirateCraft
+namespace Loft
 {
   public class MathUtils
   {

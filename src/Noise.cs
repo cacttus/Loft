@@ -2,7 +2,7 @@
 using System.Drawing;
 using System.Collections.Generic;
 
-namespace PirateCraft
+namespace Loft
 {
   public class Noise3D
   {

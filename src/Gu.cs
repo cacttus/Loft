@@ -9,7 +9,7 @@ using System.Diagnostics;
 using System.Linq.Expressions;
 using OpenTK.Windowing.Common;
 
-namespace PirateCraft
+namespace Loft
 {
   public class SystemInfo
   {
@@ -83,7 +83,7 @@ namespace PirateCraft
     public const int c_intMaxWhileTrueLoopSmall = 1000;//dummy infinite loop blocker
     public const int c_intMaxWhileTrueLoop = 100000;//dummy infinite loop blocker
     public const int c_intMaxWhileTrueLoopLONG = 100000000;//dummy infinite loop blocker
-    public const string EmbeddedDataPath = "PirateCraft.data.";
+    public const string EmbeddedDataPath = "Loft.data.";
 
     #endregion
     #region Public: Static Members

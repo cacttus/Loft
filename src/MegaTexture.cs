@@ -24,7 +24,7 @@ using OpenTK.Graphics.OpenGL4;
 //  Gu.DebugBreak();
 //}
 
-namespace PirateCraft
+namespace Loft
 {
 
   public class MtNode

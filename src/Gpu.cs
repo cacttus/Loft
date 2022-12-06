@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using System;
 using System.Text;
 
-namespace PirateCraft
+namespace Loft
 {
   public class GpuDataPtr
   {

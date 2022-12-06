@@ -1,7 +1,7 @@
 ﻿using OpenTK.Graphics.OpenGL4;
 using System.Runtime.Serialization;
 
-namespace PirateCraft
+namespace Loft
 {
   public enum RenderViewMode
   {

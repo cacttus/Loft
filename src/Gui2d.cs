@@ -8,7 +8,7 @@ using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Reflection;
 
-namespace PirateCraft
+namespace Loft
 {
   #region Enums
 
@@ -549,7 +549,7 @@ namespace PirateCraft
     public vec4 BorderColorRight = new vec4(0, 0, 0, 1);
     public vec4 BorderColorBot = new vec4(0, 0, 0, 1);
     public vec4 BorderColorLeft = new vec4(0, 0, 0, 1);
-    public PirateCraft.FontFace FontFace = PirateCraft.FontFace.Calibri;
+    public Loft.FontFace FontFace = Loft.FontFace.Calibri;
     public float FontSize = 12;
     public UiFontStyle FontStyle = UiFontStyle.Normal;
     public vec4 FontColor = new vec4(0, 0, 0, 1);

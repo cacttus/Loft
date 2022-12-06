@@ -2,7 +2,7 @@
 using OpenTK.Windowing.Desktop;
 using System;
 
-namespace PirateCraft
+namespace Loft
 {
   public class WindowContext
   {

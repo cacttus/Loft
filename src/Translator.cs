@@ -7,7 +7,7 @@ using System.Reflection;
 using System.Globalization;
 using System.Text.Unicode;
 
-namespace PirateCraft
+namespace Loft
 {
   #region Enums
   public enum RegionCode

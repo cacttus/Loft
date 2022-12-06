@@ -1,5 +1,5 @@
 
-namespace PirateCraft
+namespace Loft
 {
   using UiAction = System.Action<UiEvent>;
 
