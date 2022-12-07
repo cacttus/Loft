@@ -31,140 +31,6 @@ namespace Loft
     public Type? Type = null;
     public TypeAttribute(Type t) { Type = t; }
   }
-  public class MultiMap<TKey, TValue> : IEnumerable<KeyValuePair<TKey, TValue>> where TKey : notnull
-  {
-    public SortedDictionary<TKey, List<TValue>> _dict = new SortedDictionary<TKey, List<TValue>>();
-    //Returns the number of Keys in the dictionary
-    public int Count
-    {
-      get
-      {
-        return _dict.Count;
-      }
-    }
-    public MultiMap() { }
-    public MultiMap(MultiMap<TKey, TValue> rhs)
-    {
-      _dict = new SortedDictionary<TKey, List<TValue>>(rhs._dict);
-    }
-    public SortedDictionary<TKey, List<TValue>>.KeyCollection Keys
-    {
-      get
-      {
-        return _dict.Keys;
-      }
-    }
-    public KeyValuePair<TKey, TValue> First()
-    {
-      var l = _dict.First();
-      if (l.Value.Count > 0)
-      {
-        return new KeyValuePair<TKey, TValue>(l.Key, l.Value[0]);
-      }
-      return default(KeyValuePair<TKey, TValue>);
-    }
-    public void Add(TKey x, TValue y)
-    {
-      List<TValue> ret = null;
-      if (!_dict.TryGetValue(x, out ret))
-      {
-        ret = new List<TValue>();
-        _dict.Add(x, ret);
-      }
-      ret.Add(y);
-    }
-    public void AddRange(TKey x, List<TValue> y)
-    {
-      List<TValue> ret = null;
-      if (!_dict.TryGetValue(x, out ret))
-      {
-        ret = new List<TValue>();
-        _dict.Add(x, ret);
-      }
-      ret.AddRange(y);
-    }
-    public List<TValue> this[TKey k]
-    {
-      //operator[]
-      get
-      {
-        return ItemsAt(k);
-      }
-      set
-      {
-        AddRange(k, value);
-      }
-    }
-    public bool Contains(TKey key, TValue value)
-    {
-      if (_dict.TryGetValue(key, out var ret))
-      {
-        return ret.Contains(value);
-      }
-      return false;
-    }
-    public List<TValue> ItemsAt(TKey key)
-    {
-      if (_dict.TryGetValue(key, out var ret))
-      {
-        return ret;
-      }
-      return null;
-    }
-    public void SetValueList(TKey key, List<TValue> val)
-    {
-      _dict.Remove(key);
-      _dict.Add(key, val);
-    }
-    public bool Remove(KeyValuePair<TKey, TValue> val)
-    {
-      return Remove(val.Key, val.Value);
-    }
-    public bool Remove(TKey key)
-    {
-      return _dict.Remove(key);
-    }
-    public bool Remove(TKey x, TValue y)
-    {
-      List<TValue> ret = null;
-      if (_dict.TryGetValue(x, out ret))
-      {
-        ret.Remove(y);
-
-        if (ret.Count == 0)
-        {
-          _dict.Remove(x);
-        }
-
-        return true;
-      }
-      return false;
-    }
-    public void Clear()
-    {
-      _dict.Clear();
-    }
-    public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator()
-    {
-      foreach (var di in _dict)
-      {
-        foreach (var li in di.Value)
-        {
-          yield return new KeyValuePair<TKey, TValue>(di.Key, li);
-        }
-      }
-    }
-    IEnumerator IEnumerable.GetEnumerator()
-    {
-      foreach (var di in _dict)
-      {
-        foreach (var li in di.Value)
-        {
-          yield return new KeyValuePair<TKey, TValue>(di.Key, li);
-        }
-      }
-    }
-  }
   public class FileLoc : ISerializeBinary
   {
     /// FileLoc represents a virtual file location on disk, embed, or web
@@ -2245,7 +2111,20 @@ namespace Loft
       }
     }
   }
-
+  public class FloatSort : IComparer<float>
+  {
+    public int Compare(float a, float b)
+    {
+      return a < b ? -1 : 1;
+    }
+  }
+  public class DoubleSort : IComparer<double>
+  {
+    public int Compare(double a, double b)
+    {
+      return a < b ? -1 : 1;
+    }
+  }
 
 
 }//ns

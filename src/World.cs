@@ -1326,7 +1326,7 @@ namespace Loft
     private Dictionary<ivec3, Glob> _visibleRenderGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //globs that must be drawn this frame
     private Dictionary<ivec3, Glob> _globs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //All globs, which may be null if the glob region has been visible, but does not exist
     private Dictionary<ivec3, Glob> _existingGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //globs that are loaded, and exist
-    private MultiMap<float, GlobArray> _queuedGlobs = new MultiMap<float, GlobArray>();// queued for topology
+    private SortedList<float, GlobArray> _queuedGlobs = new SortedList<float, GlobArray>(new FloatSort());// queued for topology
     private Dictionary<ivec3, Glob> _renderGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //globs that can be drawn this frame. 
     private Dictionary<ushort, WorldTile>? _blockTiles = null;
     private WorldProps? _worldProps = null; //Environment props.

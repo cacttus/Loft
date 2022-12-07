@@ -312,6 +312,18 @@ namespace Loft
     }
     public UiLabel(string text) : base(text)
     {
+      if (Translator.TextFlow == LanguageTextFlow.Left)
+      {
+        this.Style.LayoutDirection = UiLayoutDirection.Left;
+      }
+      else if (Translator.TextFlow == LanguageTextFlow.Right)
+      {
+        this.Style.LayoutDirection = UiLayoutDirection.Right;
+      }
+      else
+      {
+        Gu.BRThrowNotImplementedException();
+      }
     }
   }
   public class UiToast : UiControl
@@ -560,70 +572,68 @@ namespace Loft
 
     private int _precision = 1;
 
-    public UiSlider(double leftval, double rightval, double defaultval, Action<UiElement, double> onValueChange)
+    private UiLayoutOrientation _direction { get { return this.Style.LayoutOrientation.Value; } }
+
+    private UiElement _labelRow;
+    private UiElement _trackRow;
+
+    public UiSlider(double leftval, double rightval, double defaultval, bool showValue, UiLayoutOrientation direction, Action<UiElement, double> onValueChange)
     {
       //allow for left/right to be less or equal, not necessarily LTR
       Gu.Assert(onValueChange != null);
 
+      this.Style.LayoutOrientation = direction;
+      //_direction = direction;
       _onValueChange = onValueChange;
       _minvalue = leftval;
       _maxvalue = rightval;
       _value = defaultval;
 
+
       Style.RenderMode = UiRenderMode.Color;
-      Style.SizeModeWidth = UiSizeMode.Fixed;
-      Style.SizeModeHeight = UiSizeMode.Shrink;
-      Style.Width = 200;
-      Style.MinHeight = 20;
       Style.Margin = 2;
       Style.Border = 2;
       Style.BorderColorLeft = Style.BorderColorBot = OffColor.Charcoal;
       Style.BorderColorRight = Style.BorderColorTop = OffColor.VeryLightGray;
 
-      var trackRow = new UiElement();
-      trackRow.Style.SizeModeWidth = UiSizeMode.Expand;
-      trackRow.Style.SizeModeHeight = UiSizeMode.Shrink;
-      trackRow.Style.MinHeight = 20;
-      trackRow.Style.MinWidth = 10;
-      trackRow.Style.Margin = trackRow.Style.Border = 0;
-      AddChild(trackRow);
+      _trackRow = new UiElement();
+      _trackRow.Style.Margin = _trackRow.Style.Border = 0;
+      AddChild(_trackRow);
 
-      var labelRow = new UiElement();
-      labelRow.Style.SizeModeWidth = UiSizeMode.Expand;
-      labelRow.Style.SizeModeHeight = UiSizeMode.Shrink;
-      labelRow.Style.MinHeight = 10;
-      labelRow.Style.MinWidth = 10;
-      labelRow.Style.Margin = labelRow.Style.Border = 0;
-      labelRow.Style.BorderTop = 1;
-      labelRow.Style.BorderColorTop = OffColor.VeryLightGray;
-      labelRow.Style.MarginLeft = labelRow.Style.MarginRight = 6;
-      AddChild(labelRow);
+      _labelRow = new UiElement();
+      _labelRow.Style.Margin = _labelRow.Style.Border = 0;
+      _labelRow.Style.BorderColorTop = OffColor.VeryLightGray;
+      _labelRow.Style.MarginLeft = _labelRow.Style.MarginRight = 6;
+      AddChild(_labelRow);
 
       _lblMin = new UiLabel(leftval.ToString());
       _lblMax = new UiLabel(rightval.ToString());
       _lblVal = new UiLabel(defaultval.ToString());
-      _lblMin.Style.Alignment = UiAlignment.Left;
-      _lblMax.Style.Alignment = UiAlignment.Right;
-      _lblVal.Style.Alignment = UiAlignment.Center;
       _lblMin.Style.FontSize = _lblMax.Style.FontSize = _lblVal.Style.FontSize = 10;
       _lblMin.Style.FontColor = _lblMax.Style.FontColor = _lblVal.Style.FontColor = OffColor.MediumGray;
+      _lblMin.Style.LayoutOrientation = _lblMax.Style.LayoutOrientation = _lblVal.Style.LayoutOrientation = UiLayoutOrientation.Horizontal;
 
-      labelRow.AddChild(_lblMin);
-      labelRow.AddChild(_lblMax);
-      labelRow.AddChild(_lblVal);
+      _labelRow.AddChild(_lblMin);
+      _labelRow.AddChild(_lblMax);
+      _labelRow.AddChild(_lblVal);
+
+
+
+      if (showValue == false)
+      {
+        _labelRow.Hide();
+      }
 
       _thumb = new UiControl();
-      _thumb.Style.SizeModeWidth = UiSizeMode.Fixed;
-      _thumb.Style.SizeModeHeight = UiSizeMode.Expand;
       _thumb.Style.PositionMode = UiPositionMode.Relative;
       _thumb.Style.RenderMode = UiRenderMode.Color;
-      _thumb.Style.MinHeight = 19;
-      _thumb.Style.Width = 12;
       _thumb.Style.BorderLeft = _thumb.Style.BorderBot = 1;
       _thumb.Style.BorderRight = _thumb.Style.BorderTop = 1;
       _thumb.Style.BorderColorLeft = _thumb.Style.BorderColorBot = OffColor.Charcoal;
       _thumb.Style.BorderColorRight = _thumb.Style.BorderColorTop = OffColor.VeryLightGray;
-      trackRow.AddChild(_thumb);
+      _trackRow.AddChild(_thumb);
+
+      UpdateHorV();
 
       UpdateValuesChanged();
 
@@ -642,6 +652,60 @@ namespace Loft
       {
         UpdateMovedThumb(e.State.MousePosCur);
       });
+    }
+    private void UpdateHorV()
+    {
+      if (_direction == UiLayoutOrientation.Horizontal)
+      {
+        Style.SizeModeWidth = UiSizeMode.Fixed;
+        Style.SizeModeHeight = UiSizeMode.Shrink;
+        Style.Width = 200;
+        Style.MinHeight = 20;
+        _trackRow.Style.SizeModeWidth = UiSizeMode.Expand;
+        _trackRow.Style.SizeModeHeight = UiSizeMode.Shrink;
+        _trackRow.Style.MinHeight = 20;
+        _trackRow.Style.MinWidth = 10;
+        _labelRow.Style.SizeModeWidth = UiSizeMode.Expand;
+        _labelRow.Style.SizeModeHeight = UiSizeMode.Shrink;
+        _labelRow.Style.MinHeight = 10;
+        _labelRow.Style.MinWidth = 10;
+        _labelRow.Style.BorderTop = 1;
+        _lblMin.Style.Alignment = UiAlignment.Left;
+        _lblMax.Style.Alignment = UiAlignment.Right;
+        _lblVal.Style.Alignment = UiAlignment.Center;
+        _thumb.Style.SizeModeWidth = UiSizeMode.Fixed;
+        _thumb.Style.SizeModeHeight = UiSizeMode.Expand;
+        _thumb.Style.MinHeight = 19;
+        _thumb.Style.Width = 12;
+      }
+      else if (_direction == UiLayoutOrientation.Vertical)
+      {
+        Style.SizeModeWidth = UiSizeMode.Shrink;
+        Style.SizeModeHeight = UiSizeMode.Fixed;
+        Style.Height = 200;
+        Style.MinWidth = 20;
+        _trackRow.Style.SizeModeWidth = UiSizeMode.Shrink;
+        _trackRow.Style.SizeModeHeight = UiSizeMode.Expand;
+        _trackRow.Style.MinWidth = 20;
+        _trackRow.Style.MinHeight = 10;
+        _labelRow.Style.SizeModeWidth = UiSizeMode.Shrink;
+        _labelRow.Style.SizeModeHeight = UiSizeMode.Expand;
+        _labelRow.Style.MinHeight = 10;
+        _labelRow.Style.MinWidth = 10;
+        _labelRow.Style.BorderRight = 1; // Label to left
+        _lblMin.Style.Alignment = UiAlignment.Left;
+        _lblMax.Style.Alignment = UiAlignment.Left;
+        _lblVal.Style.Alignment = UiAlignment.Left;
+        _thumb.Style.SizeModeWidth = UiSizeMode.Expand;
+        _thumb.Style.SizeModeHeight = UiSizeMode.Fixed;
+        _thumb.Style.MinWidth = 19;
+        _thumb.Style.Height = 12;
+      }
+      else
+      {
+        Gu.BRThrowNotImplementedException();
+      }
+
     }
     //_precision
     private void UpdateValuesChanged()
@@ -676,7 +740,7 @@ namespace Loft
       Gu.Assert(_lblVal != null);
       Gu.Assert(_thumb.Parent != null);
 
-      double valw = _thumb.Parent._quads._b2BorderQuad._width - _thumb._quads._b2BorderQuad._width;
+      double valw = _thumb.Parent._quads._b2BorderQuad.LSize(_direction) - _thumb._quads._b2BorderQuad.LSize(_direction);
 
       value = Math.Clamp(value, _minvalue, _maxvalue);
 
@@ -685,7 +749,7 @@ namespace Loft
       {
         pct = 1 - pct;
       }
-      _thumb.Style.Left = (float)(pct * valw);
+      _thumb.Style.LMin(_direction, (float)(pct * valw));
     }
     private void UpdateMovedThumb(vec2 mpos)
     {
@@ -693,20 +757,22 @@ namespace Loft
       Gu.Assert(_lblVal != null);
       Gu.Assert(_thumb.Parent != null);
 
-      _thumb.Style.Left = mpos.x - _thumb.Parent._quads._b2BorderQuad.Min.x - _thumb._quads._b2BorderQuad._width / 2;
+      float mp = _direction == UiLayoutOrientation.Horizontal ? mpos.x : mpos.y;
 
-      double valw = _thumb.Parent._quads._b2BorderQuad._width - _thumb._quads._b2BorderQuad._width;
+      _thumb.Style.LMin(_direction, mp - _thumb.Parent._quads._b2BorderQuad.LMin(_direction) - _thumb._quads._b2BorderQuad.LSize(_direction) / 2);
 
-      if (_thumb.Style.Left < 0)
+      double valw = _thumb.Parent._quads._b2BorderQuad.LSize(_direction) - _thumb._quads._b2BorderQuad.LSize(_direction);
+
+      if (_thumb.Style.LMin(_direction) < 0)
       {
-        _thumb.Style.Left = 0;
+        _thumb.Style.LMin(_direction, 0);
       }
-      else if (_thumb.Style.Left > valw)
+      else if (_thumb.Style.LMin(_direction) > valw)
       {
-        _thumb.Style.Left = (float)valw;
+        _thumb.Style.LMin(_direction, (float)valw);
       }
 
-      var pct = _thumb.Style._props.Left / valw;
+      var pct = (double)_thumb.Style.LMin(_direction).Value / valw;
 
       if (_ismaxmin)
       {

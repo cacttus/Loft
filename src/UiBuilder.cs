@@ -194,7 +194,7 @@ namespace Loft
                       .AddItem(Phrase.AtlasParameters)
                       .AddItem(Phrase.RemoveItem)
                       ;
-      
+
       UiElement spacer = new UiElement();
       spacer.Style.MinWidth = 100;
       spacer.Style.SizeModeWidth = UiSizeMode.Shrink;
@@ -207,7 +207,14 @@ namespace Loft
       {
         defaultfov = cc33.FOV;
       }
-      toolbar.AddChild(new UiSlider(170.0, 1.0, defaultfov, (e, val) =>
+      toolbar.AddChild(new UiSlider(170.0, 1.0, defaultfov, true, UiLayoutOrientation.Horizontal, (e, val) =>
+      {
+        if (Gu.TryGetSelectedViewCamera(out var cc))
+        {
+          cc.FOV = (float)MathUtils.ToRadians(val);
+        }
+      }));
+      toolbar.AddChild(new UiSlider(170.0, 1.0, defaultfov, true, UiLayoutOrientation.Vertical, (e, val) =>
       {
         if (Gu.TryGetSelectedViewCamera(out var cc))
         {

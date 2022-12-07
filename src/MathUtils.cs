@@ -13,7 +13,7 @@ namespace Loft
 {
   public class MathUtils
   {
-    
+
     public const double FUZZY_EQUALS_EPSILON = 0.0002f;
     public const float M_PI = (float)(Math.PI);
     public const float M_2PI = (float)(Math.PI * 2.0f);
@@ -684,6 +684,41 @@ namespace Loft
       ret.y = (float)Math.Max(a.y, b.y);
       return ret;
     }
+    public float this[int i]
+    {
+      get
+      {
+        if (i == 0)
+        {
+          return x;
+        }
+        else if (i == 1)
+        {
+          return y;
+        }
+        else
+        {
+          Gu.BRThrowException("invalid index " + i);
+        }
+        return 0;
+      }
+      set
+      {
+        if (i == 0)
+        {
+          x = value;
+        }
+        else if (i == 1)
+        {
+          y = value;
+        }
+        else
+        {
+          Gu.BRThrowException("invalid index " + i);
+        }
+      }
+    }
+
     public override string ToString() { return $"({x},{y})"; }
     public string ToString(int prec) { return "(" + StringUtil.FormatPrec(x, prec) + "," + StringUtil.FormatPrec(y, prec) + ")"; }
   }
@@ -1995,7 +2030,6 @@ namespace Loft
           Gu.BRThrowException("invalid index " + i + " to vec4");
         }
       }
-
     }
     public vec4 construct(float dx, float dy, float dz, float dw)
     {
@@ -2979,7 +3013,7 @@ namespace Loft
     {
       mat3 m = new mat3(this);
       return m.toQuat();
-    }    
+    }
     public mat4 SetTranslation(vec3 v)
     {
       SetTranslation(v.x, v.y, v.z);
@@ -2992,7 +3026,7 @@ namespace Loft
       _m43 = z;
 
       return this;
-    }    
+    }
     public static mat4 getTranslation(in vec3 vTrans)
     {
       return getTranslation(vTrans.x, vTrans.y, vTrans.z);
@@ -3014,7 +3048,7 @@ namespace Loft
       ret.y = _m42;
       ret.z = _m43;
       return ret;
-    }    
+    }
     public static mat4 getRotation(in quat q)
     {
       return q.toMat4();
@@ -3082,10 +3116,22 @@ namespace Loft
 
       mat4 mm = new mat4()
       {
-       _m11 = (2 * n) / (r - l),  _m12 = 0                , _m13 =  (r + l) / (r - l) ,_m14 = 0                      ,
-       _m21 = 0                ,  _m22 = (2 * n) / (t - b), _m23 =  (t + b) / (t - b) ,_m24 = 0                      ,
-       _m31 = 0                ,  _m32 = 0                , _m33 = -(f + n) / (f - n) ,_m34 = -(2 * f * n) / (f - n) ,
-       _m41 = 0                ,  _m42 = 0                , _m43 = -1                 ,_m44 = 0                      ,
+        _m11 = (2 * n) / (r - l),
+        _m12 = 0,
+        _m13 = (r + l) / (r - l),
+        _m14 = 0,
+        _m21 = 0,
+        _m22 = (2 * n) / (t - b),
+        _m23 = (t + b) / (t - b),
+        _m24 = 0,
+        _m31 = 0,
+        _m32 = 0,
+        _m33 = -(f + n) / (f - n),
+        _m34 = -(2 * f * n) / (f - n),
+        _m41 = 0,
+        _m42 = 0,
+        _m43 = -1,
+        _m44 = 0,
       };
       mm.transpose();
 
@@ -3104,10 +3150,22 @@ namespace Loft
 
       mat4 mm = new mat4()
       {
-       _m11 = xaxis.x        , _m12 = yaxis.x        , _m13 = zaxis.x        , _m14 = 0,
-       _m21 = xaxis.y        , _m22 = yaxis.y        , _m23 = zaxis.y        , _m24 = 0,
-       _m31 = xaxis.z        , _m32 = yaxis.z        , _m33 = zaxis.z        , _m34 = 0,
-       _m41 = -xaxis.dot(eye), _m42 = -yaxis.dot(eye), _m43 = -zaxis.dot(eye), _m44 = 1,
+        _m11 = xaxis.x,
+        _m12 = yaxis.x,
+        _m13 = zaxis.x,
+        _m14 = 0,
+        _m21 = xaxis.y,
+        _m22 = yaxis.y,
+        _m23 = zaxis.y,
+        _m24 = 0,
+        _m31 = xaxis.z,
+        _m32 = yaxis.z,
+        _m33 = zaxis.z,
+        _m34 = 0,
+        _m41 = -xaxis.dot(eye),
+        _m42 = -yaxis.dot(eye),
+        _m43 = -zaxis.dot(eye),
+        _m44 = 1,
       };
 
       return mm;
@@ -3125,15 +3183,27 @@ namespace Loft
 
       mm = new mat4()
       {
-        _m11 = a1, _m12 = 0 , _m13 = 0 , _m14 = 0,
-        _m21 = 0 , _m22 = a2, _m23 = 0 , _m24 = 0,
-        _m31 = 0 , _m32 = 0 , _m33 = a3, _m34 = 0,
-        _m41 = t1, _m42 = t2, _m43 = t3, _m44 = 1,
+        _m11 = a1,
+        _m12 = 0,
+        _m13 = 0,
+        _m14 = 0,
+        _m21 = 0,
+        _m22 = a2,
+        _m23 = 0,
+        _m24 = 0,
+        _m31 = 0,
+        _m32 = 0,
+        _m33 = a3,
+        _m34 = 0,
+        _m41 = t1,
+        _m42 = t2,
+        _m43 = t3,
+        _m44 = 1,
       };
 
 
       return mm;
-    }    
+    }
     public mat4 translate(float x, float y, float z)
     {
       this *= getTranslation(x, y, z);
@@ -3382,17 +3452,17 @@ namespace Loft
       tMat._m12 = (a._m11 * b._m12) + (a._m12 * b._m22) + (a._m13 * b._m32) + (a._m14 * b._m42);
       tMat._m13 = (a._m11 * b._m13) + (a._m12 * b._m23) + (a._m13 * b._m33) + (a._m14 * b._m43);
       tMat._m14 = (a._m11 * b._m14) + (a._m12 * b._m24) + (a._m13 * b._m34) + (a._m14 * b._m44);
-     
+
       tMat._m21 = (a._m21 * b._m11) + (a._m22 * b._m21) + (a._m23 * b._m31) + (a._m24 * b._m41);
       tMat._m22 = (a._m21 * b._m12) + (a._m22 * b._m22) + (a._m23 * b._m32) + (a._m24 * b._m42);
       tMat._m23 = (a._m21 * b._m13) + (a._m22 * b._m23) + (a._m23 * b._m33) + (a._m24 * b._m43);
       tMat._m24 = (a._m21 * b._m14) + (a._m22 * b._m24) + (a._m23 * b._m34) + (a._m24 * b._m44);
-     
+
       tMat._m31 = (a._m31 * b._m11) + (a._m32 * b._m21) + (a._m33 * b._m31) + (a._m34 * b._m41);
       tMat._m32 = (a._m31 * b._m12) + (a._m32 * b._m22) + (a._m33 * b._m32) + (a._m34 * b._m42);
       tMat._m33 = (a._m31 * b._m13) + (a._m32 * b._m23) + (a._m33 * b._m33) + (a._m34 * b._m43);
       tMat._m34 = (a._m31 * b._m14) + (a._m32 * b._m24) + (a._m33 * b._m34) + (a._m34 * b._m44);
-    
+
       tMat._m41 = (a._m41 * b._m11) + (a._m42 * b._m21) + (a._m43 * b._m31) + (a._m44 * b._m41);
       tMat._m42 = (a._m41 * b._m12) + (a._m42 * b._m22) + (a._m43 * b._m32) + (a._m44 * b._m42);
       tMat._m43 = (a._m41 * b._m13) + (a._m42 * b._m23) + (a._m43 * b._m33) + (a._m44 * b._m43);
@@ -3403,17 +3473,17 @@ namespace Loft
       // tMat._m12 = (b._m11 * a._m12) + (b._m12 * a._m22) + (b._m13 * a._m32) + (b._m14 * a._m42);
       // tMat._m13 = (b._m11 * a._m13) + (b._m12 * a._m23) + (b._m13 * a._m33) + (b._m14 * a._m43);
       // tMat._m14 = (b._m11 * a._m14) + (b._m12 * a._m24) + (b._m13 * a._m34) + (b._m14 * a._m44);
-     
+
       // tMat._m21 = (b._m21 * a._m11) + (b._m22 * a._m21) + (b._m23 * a._m31) + (b._m24 * a._m41);
       // tMat._m22 = (b._m21 * a._m12) + (b._m22 * a._m22) + (b._m23 * a._m32) + (b._m24 * a._m42);
       // tMat._m23 = (b._m21 * a._m13) + (b._m22 * a._m23) + (b._m23 * a._m33) + (b._m24 * a._m43);
       // tMat._m24 = (b._m21 * a._m14) + (b._m22 * a._m24) + (b._m23 * a._m34) + (b._m24 * a._m44);
-     
+
       // tMat._m31 = (b._m31 * a._m11) + (b._m32 * a._m21) + (b._m33 * a._m31) + (b._m34 * a._m41);
       // tMat._m32 = (b._m31 * a._m12) + (b._m32 * a._m22) + (b._m33 * a._m32) + (b._m34 * a._m42);
       // tMat._m33 = (b._m31 * a._m13) + (b._m32 * a._m23) + (b._m33 * a._m33) + (b._m34 * a._m43);
       // tMat._m34 = (b._m31 * a._m14) + (b._m32 * a._m24) + (b._m33 * a._m34) + (b._m34 * a._m44);
-    
+
       // tMat._m41 = (b._m41 * a._m11) + (b._m42 * a._m21) + (b._m43 * a._m31) + (b._m44 * a._m41);
       // tMat._m42 = (b._m41 * a._m12) + (b._m42 * a._m22) + (b._m43 * a._m32) + (b._m44 * a._m42);
       // tMat._m43 = (b._m41 * a._m13) + (b._m42 * a._m23) + (b._m43 * a._m33) + (b._m44 * a._m43);
@@ -3479,7 +3549,7 @@ namespace Loft
 
       rot._m21 = _m21 / scale.y;
       rot._m22 = _m22 / scale.y;
-      rot._m23 = _m23/ scale.y;
+      rot._m23 = _m23 / scale.y;
 
       rot._m31 = _m31 / scale.z;
       rot._m32 = _m32 / scale.z;
@@ -3765,10 +3835,10 @@ namespace Loft
         //floating point or double conversion error 
         dot = 1;
       }
-      if (dot <0 && dot > -0.000001)
+      if (dot < 0 && dot > -0.000001)
       {
         dot = 0;
-      }      
+      }
       float theta = (float)Math.Acos((double)dot);
       float sintheta = (float)Math.Sin((double)theta);
       if (sintheta == 0)
@@ -3840,11 +3910,11 @@ namespace Loft
       m3._m11 = 1 - 2 * y * y - 2 * z * z;
       m3._m21 = 2 * x * y + 2 * w * z;
       m3._m31 = 2 * x * z - 2 * w * y;
-      
+
       m3._m12 = 2 * x * y - 2 * w * z;
       m3._m22 = 1 - 2 * x * x - 2 * z * z;
       m3._m32 = 2 * y * z + 2 * w * x;
-     
+
       m3._m13 = 2 * x * z + 2 * w * y;
       m3._m23 = 2 * y * z - 2 * w * x;
       m3._m33 = 1 - 2 * x * x - 2 * y * y;
