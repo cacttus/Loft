@@ -98,12 +98,12 @@ namespace Loft
     LmbHold,
     LmbRelease,
     LmbUp,
+    LmbDrag,
     RmbPress,
     RmbHold,
     RmbRelease,
     RmbUp,
 
-    LmbDrag,
 
     Mouse_Enter,
     Mouse_Move,//Mouse_Hover = Mouse_Move?
@@ -113,9 +113,6 @@ namespace Loft
     Got_Focus,
 
     Scrollbar_Pos_Change,
-
-    Drag,
-    Tick, //tick event like every x ms
   };
 
   public enum UiMouseState
@@ -168,6 +165,8 @@ namespace Loft
     , Texture
     , ImageTilingX
     , ImageTilingY
+    , ImageScaleX
+    , ImageScaleY
     , DisplayMode
     , PositionMode
     , OverflowMode
@@ -192,7 +191,7 @@ namespace Loft
     public UiRef() { }
     public UiRef(T val) { Value = val; }
   }
-  public class UiDebugDraw
+  public class UiDebug
   {
     public bool DisableClip = false;
     public bool ShowOverlay = false;
@@ -413,25 +412,25 @@ namespace Loft
 
       //move events
 
-        if (elast != null && elast != ecur)
-        {
-          SendEvent(UiEventId.Mouse_Leave, elast);
-        }
-        if (ecur != null && elast != ecur)
-        {
-          SendEvent(UiEventId.Mouse_Enter, ecur);
-        }
-        if (ecur != null && elast == ecur && mpos != mlast)
-        {
-          SendEvent(UiEventId.Mouse_Move, ecur);
-        }
-  
-        //Pressed item 
-        if ((mpos != mlast) && (lb == ButtonState.Hold) && (_eLast_Lmb == ButtonState.Press || _eLast_Lmb == ButtonState.Hold))
-        {
-          SendEvent(UiEventId.LmbDrag, _focused);
-        }
-      
+      if (elast != null && elast != ecur)
+      {
+        SendEvent(UiEventId.Mouse_Leave, elast);
+      }
+      if (ecur != null && elast != ecur)
+      {
+        SendEvent(UiEventId.Mouse_Enter, ecur);
+      }
+      if (ecur != null && elast == ecur && mpos != mlast)
+      {
+        SendEvent(UiEventId.Mouse_Move, ecur);
+      }
+
+      //Pressed item 
+      if ((mpos != mlast) && (lb == ButtonState.Hold) && (_eLast_Lmb == ButtonState.Press || _eLast_Lmb == ButtonState.Hold))
+      {
+        SendEvent(UiEventId.LmbDrag, _focused);
+      }
+
 
       //Update state after events are sent (we use state in event)
       _eLast_Lmb = lb;
@@ -563,6 +562,8 @@ namespace Loft
     public MtTex Texture = null;
     public UiImageTiling ImageTilingX = UiImageTiling.Expand;
     public UiImageTiling ImageTilingY = UiImageTiling.Expand;
+    public float ImageScaleX = 1;
+    public float ImageScaleY = 1;
     public UiDisplayMode DisplayMode = UiDisplayMode.Block;
     public UiPositionMode PositionMode = UiPositionMode.Static;
     public UiOverflowMode OverflowMode = UiOverflowMode.Hide;
@@ -735,21 +736,6 @@ namespace Loft
       return true;
     }
 
-  }
-
-  public class SyncThen
-  {
-    //synchronous promise
-    private DeltaTimer _timer;
-    public Action<double> _then;
-    public SyncThen(Action<double> act) { _then = act; }
-    public SyncThen Then(Action<double> act)
-    {
-      return new SyncThen(act);
-    }
-    public void Update(double dt)
-    {
-    }
   }
   public interface IUiPropAnimation
   {
@@ -944,6 +930,8 @@ namespace Loft
     public UiDisplayMode? DisplayMode { get { return (UiDisplayMode?)GetClassProp(UiPropName.DisplayMode); } set { SetProp(UiPropName.DisplayMode, (UiDisplayMode?)value); } }
     public UiImageTiling? ImageTilingX { get { return (UiImageTiling?)GetClassProp(UiPropName.ImageTilingX); } set { SetProp(UiPropName.ImageTilingX, (UiImageTiling?)value); } }
     public UiImageTiling? ImageTilingY { get { return (UiImageTiling?)GetClassProp(UiPropName.ImageTilingY); } set { SetProp(UiPropName.ImageTilingY, (UiImageTiling?)value); } }
+    public float? ImageScaleX { get { return (float?)GetClassProp(UiPropName.ImageScaleX); } set { SetProp(UiPropName.ImageScaleX, (float?)value); } }
+    public float? ImageScaleY { get { return (float?)GetClassProp(UiPropName.ImageScaleY); } set { SetProp(UiPropName.ImageScaleY, (float?)value); } }
     public MtTex Texture { get { return (MtTex)GetClassProp(UiPropName.Texture); } set { SetProp(UiPropName.Texture, (MtTex)value); } }
     public float? ZIndex { get { return (float?)GetClassProp(UiPropName.ZIndex); } set { SetProp(UiPropName.ZIndex, (float?)value); } }
     public UiFloatMode? FloatMode { get { return (UiFloatMode?)GetClassProp(UiPropName.FloatMode); } set { SetProp(UiPropName.FloatMode, (UiFloatMode?)value); } }
@@ -1394,7 +1382,7 @@ namespace Loft
     public abstract float Top { get; }
     public abstract UiDisplayMode DisplayMode { get; }
     public virtual float WordWidth { get { return 0; } }
-    public abstract vec4 GetPadding(UiDebugDraw dd);
+    public abstract vec4 GetPadding(UiDebug dd);
     public UiQuads _quads = new UiQuads();
   }
   public class UiGlyphChar
@@ -1424,14 +1412,35 @@ namespace Loft
     {
       _reference = dref;
     }
-    public override vec4 GetPadding(UiDebugDraw dd)
+    public override vec4 GetPadding(UiDebug dd)
     {
       return _padding;
     }
   }
   public class UiElement : UiBlock
   {
+    private const int c_iMaxLayers = 1000000;
+    private const int c_iMaxChildren = c_iMaxLayers - 1;
+
     #region Classes 
+    private class SortKeys
+    {
+      //claculate sub-sort layers in an element
+      public float _ekey;
+      public float _dbgkey;
+      public float _bdkey;
+      public float _gkey;
+      public float _gdbkey;
+
+      public SortKeys(int sort, int layer)
+      {
+        _ekey = (float)(layer * c_iMaxLayers + sort);
+        _gkey = _ekey + 0.3f;
+        _gdbkey = _ekey + 0.4f;
+        _bdkey = _ekey + 0.5f;
+        _dbgkey = _ekey + 0.6f;
+      }
+    }
     private class UiCol
     {
       public float _height = 0;
@@ -1500,6 +1509,9 @@ namespace Loft
     public override float Left { get { return Style._props.Left; } }
     public override float Top { get { return Style._props.Top; } }
     public override UiDisplayMode DisplayMode { get { return Style._props.DisplayMode; } }
+    public int Sort { get { return _sort; } set { _sort = value; } }
+    public bool PickEnabled { get { return _pickEnabled; } set { _pickEnabled = value; UpdatePickID(); } }
+
 
     #endregion
     #region Private: Members
@@ -1508,34 +1520,29 @@ namespace Loft
     protected UiStyle? _style = null;
     protected List<UiElement>? _children = null;
     private UiElement? _parent = null;
-    private MtFontLoader? _cachedFont = null;//For labels that contain glyphs
+    private MtFontLoader? _cachedFont = null;//For labe(ls that contain glyphs
     private Dictionary<int, UiGlyphChar> _glyphChars = null;
     private List<UiGlyph> _glyphs = null;
-    private static long s_idgen = 100;
-    protected long _id = 0;
-    private vec2 _tileScale = new vec2(1, 1); //Texture Scale (UiImageSizeMode == Tile) this should be on the Props
-    public uint _iPickId = 0;
+    public uint _iPickId = Picker.c_iInvalidPickId;
     protected string _strText = "";
     private string _strTextLast = "";
-    private bool _bMustRedoTextBecauseOfStyle = false;
     private Dictionary<UiEventId, List<UiAction>>? _events = null;
-    private int _treeDepth = -1;
-    private int _defaultSortKey = 0;
+    protected int _sort = -1;  //sort order within layer
 
-    //Flags
+    //Flags (TODO: bitset)
     private bool _pickEnabled = false;
     private bool _visible = true;
     private bool _textChanged = false;
     private bool _dragEnabled = false;
     private bool _contentChanged = true;
     private bool _topMost = false;
+    private bool _bMustRedoTextBecauseOfStyle = false;
 
     #endregion
     #region Public: Methods
 
     public UiElement()
     {
-      _id = s_idgen++;
     }
     public UiElement(string name) : this()
     {
@@ -1669,7 +1676,7 @@ namespace Loft
       }
       return true;
     }
-    public vec4 GetMarginAndBorder(UiDebugDraw dd)
+    public vec4 GetMarginAndBorder(UiDebug dd)
     {
       if (dd.DisableMargins && dd.DisableBorders)
       {
@@ -1682,7 +1689,7 @@ namespace Loft
         (dd.DisableMargins ? 0 : Style._props.MarginLeft) + (dd.DisableBorders ? 0 : Style._props.BorderLeft)
       );
     }
-    public vec4 GetMargin(UiDebugDraw dd)
+    public vec4 GetMargin(UiDebug dd)
     {
       if (dd.DisableMargins)
       {
@@ -1695,7 +1702,7 @@ namespace Loft
         Style._props.MarginLeft
       );
     }
-    public override vec4 GetPadding(UiDebugDraw dd)
+    public override vec4 GetPadding(UiDebug dd)
     {
       if (dd.DisablePadding)
       {
@@ -1708,7 +1715,7 @@ namespace Loft
         Style._props.PadLeft
       );
     }
-    public vec4 GetBorder(UiDebugDraw? dd)
+    public vec4 GetBorder(UiDebug? dd)
     {
       if (dd != null && dd.DisableBorders)
       {
@@ -1721,7 +1728,7 @@ namespace Loft
         Style._props.BorderLeft
       );
     }
-    public vec4 GetBorderRadius(UiDebugDraw dd)
+    public vec4 GetBorderRadius(UiDebug dd)
     {
       if (dd.DisableBorders)
       {
@@ -1734,10 +1741,6 @@ namespace Loft
         Style._props.BorderBotLeftRadius
       );
     }
-    // public UiElement AddChild(string stylename)
-    // {
-    //   return AddChild(new UiElement(stylename));
-    // }
     public UiElement AddChild(UiElement e)
     {
       Gu.Assert(e != null);
@@ -1749,9 +1752,21 @@ namespace Loft
         _children = new List<UiElement>();
       }
       _children.Add(e);
-      e._parent = this;
 
-      e.UpdateSortKeys();
+      e._parent = this;
+      // e._layer = this._layer + 1;
+      // if (e._layer > c_iMaxLayers)
+      // {
+      //   e._layer = c_iMaxLayers;
+      //   Gu.DebugBreak();//this will cause errors due to sort key.
+      // }
+      e._sort = this._children.Count + 1; // sort 0 is reserved
+      if (e._sort > c_iMaxChildren)
+      {
+        e._sort = c_iMaxChildren;
+        Gu.DebugBreak();
+      }
+
       e.OnAddedToParent(this);
 
       return e;
@@ -1764,7 +1779,8 @@ namespace Loft
         if (_children.Remove(e))
         {
           e._parent = null;
-          e._treeDepth = -1;//this doesnt really matert
+          //e._layer = -1;
+          e._sort = -1;
           ret = true;
         }
         if (_children.Count == 0)
@@ -1774,35 +1790,6 @@ namespace Loft
       }
       //could not remove.
       return ret;
-    }
-    public int DefaultSortKey { get { return _defaultSortKey; } }
-    private void UpdateSortKeys()
-    {
-      // //this may not be needed -- remove if we dont use ti
-
-      // if ((_children == null || _children.Count == 0) && (_glyphs == null || _glyphs.Count == 0))
-      // {
-      //   return;
-      // }
-
-      // int c_iSortFactor = 10000;
-
-      // IterateAllElements((e, e_idx) =>
-      // {
-      //   if (e.Parent == null)
-      //   {
-      //     e._treeDepth = 0;
-      //   }
-      //   else
-      //   {
-      //     e._treeDepth = e.Parent._treeDepth;
-      //   }
-
-      //   e._defaultSortKey = e._treeDepth * c_iSortFactor + e_idx;
-
-      //   e.UpdateSortKeys();
-      //   return LambdaBool.Continue;
-      // });
     }
     public void ClearChildren()
     {
@@ -1848,10 +1835,7 @@ namespace Loft
         _events.Add(evId, acts);
       }
       acts.Add(f);
-      _pickEnabled = true;
-
-      //Automatic pick root here - this will override GUI root as pick root
-      _iPickId = Gu.Context.Renderer.Picker.GenPickId();
+      PickEnabled = true;
     }
     public bool RemoveEvents(UiEventId evId)
     {
@@ -1859,8 +1843,7 @@ namespace Loft
       bool ret = _events.Remove(evId);
       if (_events.Count == 0)
       {
-        _pickEnabled = false;
-        _iPickId = Picker.c_iInvalidPickId;
+        PickEnabled = false;
       }
       return ret;
     }
@@ -1918,6 +1901,20 @@ namespace Loft
         }
       }
     }
+    private void UpdatePickID()
+    {
+      if (_pickEnabled)
+      {
+        if (_iPickId == Picker.c_iInvalidPickId)
+        {
+          _iPickId = Gu.Context.Renderer.Picker.GenPickId();
+        }
+      }
+      else
+      {
+        _iPickId = Picker.c_iInvalidPickId;
+      }
+    }
     private bool IsFullyClipped(UiQuad b2ClipRect)
     {
       var ret = false;
@@ -1961,7 +1958,7 @@ namespace Loft
       }
       return ret;
     }
-    protected virtual void PerformLayout_SizeElements(MegaTex mt, bool bForce, vec2 parentMaxWH, UiStyle? parent, UiStyleSheet sheet, long framesatmp, UiDebugDraw dd)
+    protected virtual void PerformLayout_SizeElements(MegaTex mt, bool bForce, vec2 parentMaxWH, UiStyle? parent, UiStyleSheet sheet, long framesatmp, UiDebug dd)
     {
       //if (_layoutChanged || bForce)
       {
@@ -2119,8 +2116,8 @@ namespace Loft
 
       }
     }
-    protected void PerformLayout_PositionElements(bool bForce, UiDebugDraw dd, ReverseGrowList<v_v4v4v4v2u2v4v4> verts, UiQuad parentClip, MtTex defaultPixel,
-      uint rootPickId, ref Dictionary<uint, UiElement>? pickable)
+    protected void PerformLayout_PositionElements(bool bForce, UiDebug dd, SortedList<float, v_v4v4v4v2u2v4v4> verts, UiQuad parentClip, MtTex defaultPixel,
+      uint rootPickId, ref Dictionary<uint, UiElement>? pickable, int layer)
     {
       //Position elements after size and relative position calculated
       //clip regions must be calculated on the position step
@@ -2152,6 +2149,7 @@ namespace Loft
 
         //copy, shrink clip rect 
         UiQuad clip = ShrinkClipRect(parentClip);
+        SortKeys keys = new SortKeys(_sort, this._topMost ? 0 : layer);
 
         if (_children != null && _children.Count > 0)
         {
@@ -2159,7 +2157,9 @@ namespace Loft
           {
             if (ele.Visible)
             {
-              ele.PerformLayout_PositionElements(bForce, dd, verts, clip, defaultPixel, pickId, ref pickable);
+              var child_layer = ele._topMost ? 0 : layer + 1;
+
+              ele.PerformLayout_PositionElements(bForce, dd, verts, clip, defaultPixel, pickId, ref pickable, child_layer);
 
               //expand clip
               _quads._b2ClipQuad.ExpandByPoint(ele._quads._b2ClipQuad.Min);
@@ -2171,8 +2171,9 @@ namespace Loft
         //glyph spans.
         if (_glyphs != null)
         {
-          foreach (var glyph in _glyphs)
+          for (int gi = 0; gi < _glyphs.Count; ++gi)
           {
+            var glyph = _glyphs[gi];
             if (glyph != null)
             {
               //apply parent
@@ -2189,7 +2190,7 @@ namespace Loft
                 dbgv._quadrant = new vec3(0, 0, 999);
                 ComputeVertexTexcoord(ref dbgv, defaultPixel, UiImageTiling.Expand, UiImageTiling.Expand, 0);
                 SetVertexPickAndColor(ref dbgv, (new vec4(1, 0, 0, .3f)), pickId);
-                verts.Add(dbgv);//This is because of the new sorting issue
+                verts.Add(keys._gdbkey, dbgv);//This is because of the new sorting issue
               }
 
               //Make Glyph Vert
@@ -2201,7 +2202,7 @@ namespace Loft
               vc._quadrant = new vec3(0, 0, 999);
               ComputeVertexGlyphTCoord(ref vc, glyph._reference._cachedGlyph, adjust);
               SetVertexPickAndColor(ref vc, new vec4(Style._props.FontColor.xyz, Style._props.FontColor.w * (float)Style._props.Opacity), pickId);
-              verts.Add(vc);//This is because of the new sorting issue
+              verts.Add(keys._gkey, vc);//This is because of the new sorting issue
             }
           }
         }
@@ -2210,17 +2211,18 @@ namespace Loft
 
         if (Style._props.FloatMode == UiFloatMode.Floating)
         {
-          GetOpenGLQuadVerts(verts, _quads._b2ClipQuad, defaultPixel, pickId, dd);
+          GetOpenGLQuadVerts(verts, _quads._b2ClipQuad, defaultPixel, pickId, dd, keys);
         }
         else if (IsFullyClipped(parentClip) == false)
         {
-          GetOpenGLQuadVerts(verts, parentClip, defaultPixel, pickId, dd);
+          GetOpenGLQuadVerts(verts, parentClip, defaultPixel, pickId, dd, keys);
         }
 
         _contentChanged = false;
 
       }
     }
+
     private bool ShrinkExpanderW()
     {
       //shrink expander to minimum width of parent children, if parent is a shrinking element
@@ -2231,7 +2233,7 @@ namespace Loft
     {
       return (Style._props.SizeModeHeight == UiSizeMode.Expand && Parent != null && Parent.Style._props.SizeModeHeight == UiSizeMode.Shrink);
     }
-    private void SizeElement(vec2 contentWH, vec2 outerMaxWH, UiDebugDraw dd)
+    private void SizeElement(vec2 contentWH, vec2 outerMaxWH, UiDebug dd)
     {
       //Compute content minimum width/height of static element to compute size of parent
       //Size is preliminary and static elements will be shortened up to their content size if they go outside parent boundary
@@ -2277,7 +2279,7 @@ namespace Loft
 
       _quads._b2LocalQuad.Validate();
     }
-    private void LayoutStaticElement(UiElement ele, UiAlignment align, List<UiLine> vecLines, vec2 pmaxInnerWH, vec2 pcontentWH, UiDebugDraw dd, ref int lineidx)
+    private void LayoutStaticElement(UiElement ele, UiAlignment align, List<UiLine> vecLines, vec2 pmaxInnerWH, vec2 pcontentWH, UiDebug dd, ref int lineidx)
     {
       //compute static element left/top
       if (vecLines.Count == 0)
@@ -2298,7 +2300,7 @@ namespace Loft
       LayoutBlock(ele, align, vecLines, pmaxInnerWH, pcontentWH, dd, ref lineidx);
 
     }
-    private void LayoutBlock(UiBlock ele, UiAlignment align, List<UiLine> vecLines, vec2 pmaxInnerWH, vec2 pcontentWH, UiDebugDraw dd, ref int lineidx)
+    private void LayoutBlock(UiBlock ele, UiAlignment align, List<UiLine> vecLines, vec2 pmaxInnerWH, vec2 pcontentWH, UiDebug dd, ref int lineidx)
     {
       //lays out a span of glyph elements, or just the element.
       float pspacex = pmaxInnerWH.x;//maximally equal to the Screen WH
@@ -2394,7 +2396,7 @@ namespace Loft
         x = min;
       }
     }
-    protected void ComputeQuads(UiDebugDraw dd)
+    protected void ComputeQuads(UiDebug dd)
     {
       //Add parent offsets to child quads.
       float w1 = 1.0f, h1 = 1.0f;
@@ -2461,8 +2463,7 @@ namespace Loft
       this._quads._dbg_b2PaddingQuad._height += (pd.bot + pd.top);
       this._quads._dbg_b2PaddingQuad.Validate();
     }
-    public static bool disableoff = false;
-    private void GetOpenGLQuadVerts(ReverseGrowList<v_v4v4v4v2u2v4v4> all_verts, UiQuad b2ClipRect, MtTex defaultPixel, uint rootPickId, UiDebugDraw dd)
+    private void GetOpenGLQuadVerts(SortedList<float, v_v4v4v4v2u2v4v4> all_verts, UiQuad b2ClipRect, MtTex defaultPixel, uint rootPickId, UiDebug dd, SortKeys keys)
     {
       if (Visible == false || Style._props.RenderMode == UiRenderMode.None)
       {
@@ -2476,7 +2477,6 @@ namespace Loft
       //Debug overlay
       if (dd.ShowOverlay)
       {
-        //preoffset border
         v_v4v4v4v2u2v4v4 dbgv = new v_v4v4v4v2u2v4v4();
         SetVertexRasterArea(ref dbgv, in _quads._dbg_b2ContentQuad, in b2ClipRect, dd);
         dbgv._rtl_rtr = new vec4(0, 0, 0, 0);
@@ -2484,15 +2484,7 @@ namespace Loft
         dbgv._quadrant = new vec3(0, 0, 999);
         ComputeVertexTexcoord(ref dbgv, defaultPixel, UiImageTiling.Expand, UiImageTiling.Expand, 0);
         SetVertexPickAndColor(ref dbgv, (new vec4(0, 1, 0, .3f)), rootPickId);
-        all_verts.Add(dbgv);//This is because of the new sorting issue
-
-        // SetVertexRasterArea(ref dbgv, in _quads._b2BorderQuad, in b2ClipRect, dd);
-        // dbgv._rtl_rtr = new vec4(0, 0, 0, 0);
-        // dbgv._rbr_rbl = new vec4(0, 0, 0, 0);
-        // dbgv._quadrant = new vec3(0, 0, 999);
-        // ComputeVertexTexcoord(ref dbgv, defaultPixel, UiImageTiling.Expand, UiImageTiling.Expand, 0);
-        // SetVertexPickAndColor(ref dbgv, (new vec4(1, 0, 1, .3f)), rootPickId);
-        // all_verts.Add(dbgv);//This is because of the new sorting issue  
+        all_verts.Add(keys._dbgkey, dbgv);//This is because of the new sorting issue
 
         SetVertexRasterArea(ref dbgv, in _quads._dbg_b2PaddingQuad, in b2ClipRect, dd);
         dbgv._rtl_rtr = new vec4(0, 0, 0, 0);
@@ -2500,7 +2492,7 @@ namespace Loft
         dbgv._quadrant = new vec3(0, 0, 999);
         ComputeVertexTexcoord(ref dbgv, defaultPixel, UiImageTiling.Expand, UiImageTiling.Expand, 0);
         SetVertexPickAndColor(ref dbgv, (new vec4(1, 1, 0, 0.3)), rootPickId);
-        all_verts.Add(dbgv);//This is because of the new sorting issue        
+        all_verts.Add(keys._dbgkey, dbgv);
       }
 
       var bd = GetBorder(dd);
@@ -2533,16 +2525,13 @@ namespace Loft
 
       vec4 cmul = Style._props.Color * Style._props.MultiplyColor;
       SetVertexPickAndColor(ref vc, new vec4(cmul.xyz, cmul.w * (float)Style._props.Opacity).Clamp(0.0f, 1.0f), rootPickId);
-      all_verts.Add(vc);//This is because of the new sorting issue
+      all_verts.Add(keys._ekey, vc);
 
       //TODO: border radius is still broken 
-      //Borders here don't work with border radius.
-
-      //Border
-      DoBorders(bd, radius, all_verts, b2ClipRect, defaultPixel, rootPickId, dd, false);
+      DoBorders(bd, radius, all_verts, b2ClipRect, defaultPixel, rootPickId, dd, false, keys);
     }
-    private void DoBorders(vec4 bd, vec4 radius, ReverseGrowList<v_v4v4v4v2u2v4v4> all_verts,
-                           UiQuad b2ClipRect, MtTex defaultPixel, uint rootPickId, UiDebugDraw dd, bool usequad)
+    private void DoBorders(vec4 bd, vec4 radius, SortedList<float, v_v4v4v4v2u2v4v4> all_verts,
+                           UiQuad b2ClipRect, MtTex defaultPixel, uint rootPickId, UiDebug dd, bool usequad, SortKeys keys)
     {
       //Quadrant version works with border radius but may not produce correct border
       //Accurate version make perfect borders without radius.
@@ -2558,7 +2547,7 @@ namespace Loft
           bt._height = _quads._dbg_b2ContentQuad._top - _quads._b2BorderQuad._top;
         }
         var r2 = usequad ? new vec4(radius.x, radius.y, 0, 0) : radius;
-        DoBorder(bt, Style._props.BorderColorTop, r2, all_verts, b2ClipRect, defaultPixel, rootPickId, dd, new vec3(0, 1, usequad ? 0 : 999));
+        DoBorder(bt, Style._props.BorderColorTop, r2, all_verts, b2ClipRect, defaultPixel, rootPickId, dd, new vec3(0, 1, usequad ? 0 : 999), keys);
       }
       if (bd.right > 0)
       {
@@ -2569,7 +2558,7 @@ namespace Loft
           bt._width -= _quads._dbg_b2ContentQuad._width;
         }
         var r2 = usequad ? new vec4(0, radius.y, radius.z, 0) : radius;
-        DoBorder(bt, Style._props.BorderColorRight, r2, all_verts, b2ClipRect, defaultPixel, rootPickId, dd, new vec3(1, 0, usequad ? 0 : 999));
+        DoBorder(bt, Style._props.BorderColorRight, r2, all_verts, b2ClipRect, defaultPixel, rootPickId, dd, new vec3(1, 0, usequad ? 0 : 999), keys);
       }
       if (bd.bot > 0)
       {
@@ -2580,7 +2569,7 @@ namespace Loft
           bt._height -= _quads._dbg_b2ContentQuad._height;
         }
         var r2 = usequad ? new vec4(0, 0, radius.z, radius.w) : radius;
-        DoBorder(bt, Style._props.BorderColorBot, r2, all_verts, b2ClipRect, defaultPixel, rootPickId, dd, new vec3(0, -1, usequad ? 0 : 999));
+        DoBorder(bt, Style._props.BorderColorBot, r2, all_verts, b2ClipRect, defaultPixel, rootPickId, dd, new vec3(0, -1, usequad ? 0 : 999), keys);
       }
       if (bd.left > 0)
       {
@@ -2590,11 +2579,11 @@ namespace Loft
           bt._width = _quads._dbg_b2ContentQuad._left - _quads._b2BorderQuad._left;
         }
         var r2 = usequad ? new vec4(radius.x, 0, 0, radius.w) : radius;
-        DoBorder(bt, Style._props.BorderColorLeft, r2, all_verts, b2ClipRect, defaultPixel, rootPickId, dd, new vec3(-1, 0, usequad ? 0 : 999));
+        DoBorder(bt, Style._props.BorderColorLeft, r2, all_verts, b2ClipRect, defaultPixel, rootPickId, dd, new vec3(-1, 0, usequad ? 0 : 999), keys);
       }
     }
-    private void DoBorder(UiQuad borderquad, vec4 bodfercolor, vec4 radius, ReverseGrowList<v_v4v4v4v2u2v4v4> all_verts,
-                          UiQuad b2ClipRect, MtTex defaultPixel, uint rootPickId, UiDebugDraw dd, vec3 quadrant)
+    private void DoBorder(UiQuad borderquad, vec4 bodfercolor, vec4 radius, SortedList<float, v_v4v4v4v2u2v4v4> all_verts,
+                          UiQuad b2ClipRect, MtTex defaultPixel, uint rootPickId, UiDebug dd, vec3 quadrant, SortKeys keys)
     {
       v_v4v4v4v2u2v4v4 vb = new v_v4v4v4v2u2v4v4();
       vb._rtl_rtr = new vec4(radius.top, radius.right);
@@ -2603,7 +2592,7 @@ namespace Loft
       SetVertexRasterArea(ref vb, in borderquad, in b2ClipRect, dd);
       ComputeVertexTexcoord(ref vb, defaultPixel, UiImageTiling.Expand, UiImageTiling.Expand, 0);
       SetVertexPickAndColor(ref vb, new vec4(bodfercolor.xyz, bodfercolor.w * (float)Style._props.Opacity), rootPickId);
-      all_verts.Add(vb);//This is because of the new sorting issue
+      all_verts.Add(keys._bdkey, vb);//This is because of the new sorting issue
     }
     private void ComputeVertexTexcoord(ref v_v4v4v4v2u2v4v4 vc, MtTex pTex, UiImageTiling xtile, UiImageTiling ytile, float adjust)
     {
@@ -2619,7 +2608,7 @@ namespace Loft
       {
         float wPx = _quads._b2LocalQuad._width;
         q2Tex._min.x = pTex.uv0.x;
-        q2Tex._max.x = pTex.uv1.x + (pTex.uv1.x - pTex.uv0.x) * _tileScale.x;
+        q2Tex._max.x = pTex.uv1.x + (pTex.uv1.x - pTex.uv0.x) * Style._props.ImageScaleX;
       }
       else if (xtile == UiImageTiling.Computed)
       {
@@ -2639,7 +2628,7 @@ namespace Loft
       {
         float hPx = _quads._b2LocalQuad._height;
         q2Tex._min.y = pTex.uv0.y;
-        q2Tex._max.y = pTex.uv1.y + (pTex.uv1.y - pTex.uv0.y) * _tileScale.y;
+        q2Tex._max.y = pTex.uv1.y + (pTex.uv1.y - pTex.uv0.y) * Style._props.ImageScaleY;
       }
       else if (ytile == UiImageTiling.Computed)
       {
@@ -2721,7 +2710,7 @@ namespace Loft
         vc._tex.w -= h1px;
       }
     }
-    private static void SetVertexRasterArea(ref v_v4v4v4v2u2v4v4 vc, in UiQuad rasterQuad, in UiQuad b2ClipRect, UiDebugDraw dd)
+    private static void SetVertexRasterArea(ref v_v4v4v4v2u2v4v4 vc, in UiQuad rasterQuad, in UiQuad b2ClipRect, UiDebug dd)
     {
       //BL = min TR = max
       vc._rect.x = rasterQuad.Min.x;
@@ -3000,7 +2989,7 @@ namespace Loft
     public const int SlidingDiffWindow = 16;//16 chars for the string difference window. Replacement of a full float string.
 
     public RenderView RenderView { get; private set; }
-    public UiDebugDraw DebugDraw { get; set; } = new UiDebugDraw();
+    public UiDebug DebugDraw { get; set; } = new UiDebug();
     public MeshData Mesh { get; set; } = null;
     public MeshView MeshView { get; set; } = null;
     public long _dbg_UpdateMs { get; private set; } = 0;
@@ -3041,11 +3030,6 @@ namespace Loft
     }
     public void Update(double dt)
     {
-      if (Gu.Context.PCKeyboard.Press(Keys.U))
-      {
-        disableoff = !disableoff;
-      }
-
       UpdatePropAnimations(dt);
 
       //queue update if processed events.
@@ -3186,12 +3170,20 @@ namespace Loft
       }
     }
     private int _async_framestamp = 0;
-    //TODO: use some kind of expanding buffer
-    ReverseGrowList<v_v4v4v4v2u2v4v4> _async_verts = new ReverseGrowList<v_v4v4v4v2u2v4v4>();
+    //ReverseGrowList<v_v4v4v4v2u2v4v4> _async_verts = new ReverseGrowList<v_v4v4v4v2u2v4v4>();
+    public class FloatDupes : IComparer<float>
+    {
+      public int Compare(float a, float b)
+      {
+        return a < b ? -1 : 1;
+      }
+    }
+    SortedList<float, v_v4v4v4v2u2v4v4> _async_verts = new SortedList<float, v_v4v4v4v2u2v4v4>(new FloatDupes());
     private void UpdateLayout_Async(MegaTex mt, PCMouse mouse, RenderView rv, ref Dictionary<uint, UiElement>? pickable)
     {
       //not sure if this is faster doesnt seem to make too much differnts.
-      _async_verts.Reset();
+      //_async_verts.Reset();
+      _async_verts.Clear();
       //for now - the layout changed thing does not work, partially due to async, (but the async is actually faster than that anyway).
       bool force = true;
 
@@ -3200,7 +3192,7 @@ namespace Loft
       //pass 2 compute absolute positions elements, compute quads.
       ComputeQuads(DebugDraw);
       PerformLayout_SizeElements(mt, force, new vec2(Style._props.MaxWidth, Style._props.MaxHeight), null, StyleSheet, _async_framestamp, DebugDraw);
-      PerformLayout_PositionElements(force, DebugDraw, _async_verts, this._quads._b2ClipQuad, mt.DefaultPixel, _iPickId, ref pickable);
+      PerformLayout_PositionElements(force, DebugDraw, _async_verts, this._quads._b2ClipQuad, mt.DefaultPixel, _iPickId, ref pickable, 1);
 
       //TODO: we need to have a sort - debug &c is not showing
       // _eles_tmp.List.Sort((x, y) => { return x.DefaultSortKey - y.DefaultSortKey; });
@@ -3220,10 +3212,12 @@ namespace Loft
     private void SendMeshToGpu_Sync(RenderView rv)
     {
       //RegenMesh
+      var vts = _async_verts.Values.ToArray();
+
       if (Mesh == null)
       {
         Mesh = new MeshData(rv.Name + "gui-mesh", OpenTK.Graphics.OpenGL4.PrimitiveType.Points,
-        Gpu.CreateVertexBuffer(rv.Name + "gui-mesh", _async_verts.ToArray()), null, false);
+        Gpu.CreateVertexBuffer(rv.Name + "gui-mesh", vts), null, false);
       }
       else
       {
@@ -3231,7 +3225,7 @@ namespace Loft
         Gu.Assert(Mesh.VertexBuffers != null);
         Gu.Assert(Mesh.VertexBuffers.Count == 1);
 
-        var dat = GpuDataPtr.GetGpuDataPtr(_async_verts.ToArray());
+        var dat = GpuDataPtr.GetGpuDataPtr(vts);
         Mesh.VertexBuffers[0].ExpandBuffer(_async_verts.Count);
         Mesh.VertexBuffers[0].CopyToGPU(dat);
       }
@@ -3261,6 +3255,9 @@ namespace Loft
         _viewy = rv.Viewport.Y;
         _vieww = rv.Viewport.Width;
         _viewh = rv.Viewport.Height;
+
+        _sort = 1;
+        //_layer = 1;
 
         //We are probably getting rid of width height
         Style.Top = rv.Viewport.Y;

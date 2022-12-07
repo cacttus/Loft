@@ -538,7 +538,10 @@ namespace Loft
       }
     }
   }
+  public class UiScrollbar : UiControl
+  {
 
+  }
   public class UiSlider : UiControl
   {
     public double Value { get { return _value; } set { _value = value; UpdateValuesChanged(); } }
@@ -630,10 +633,14 @@ namespace Loft
       });
       this.AddEvent(UiEventId.Mouse_Move, (e) =>
       {
-        if (e.State.Focused == this)
+        if (e.State.Focused == this || e.State.Focused == _thumb)
         {
           UpdateMovedThumb(e.State.MousePosCur);
         }
+      });
+      _thumb.AddEvent(UiEventId.LmbDrag, (e) =>
+      {
+        UpdateMovedThumb(e.State.MousePosCur);
       });
     }
     //_precision
@@ -686,7 +693,7 @@ namespace Loft
       Gu.Assert(_lblVal != null);
       Gu.Assert(_thumb.Parent != null);
 
-      _thumb.Style.Left = mpos.x - _thumb.Parent._quads._b2BorderQuad.Min.x - _thumb._quads._b2BorderQuad._width/2;
+      _thumb.Style.Left = mpos.x - _thumb.Parent._quads._b2BorderQuad.Min.x - _thumb._quads._b2BorderQuad._width / 2;
 
       double valw = _thumb.Parent._quads._b2BorderQuad._width - _thumb._quads._b2BorderQuad._width;
 

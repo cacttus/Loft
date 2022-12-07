@@ -112,6 +112,9 @@ namespace Loft
 
     public GPUDataFormat(Type dataType) : base(dataType.Name)
     {
+      Gu.Assert(dataType.IsValueType);
+      Gu.Assert(!dataType.IsGenericType);
+      
       _type = dataType;
       _sizeBytes = Marshal.SizeOf(dataType);
 
