@@ -25,6 +25,9 @@
   * Fix current active view for moving objects (mouse movement and editing)
 
 ## TODO:
+* Refactor: UI:  use a UiFloat4 for the margin padding and fix the LayoutH/V to use the LMin/LMax functions and remove LayoutH/V for a single layout
+                do not comibne UIQuad with UiFloat4 because it messes up.
+                remove vertical layout
 * Optimize: BindBuffer called too much, call GL.BindBuffers and GL.BindBuffersBase with all buffers at one time.
 * Optimize: Move animation data to GPU update all bone / node instances at one time
     [{sequencer, count, index,index..}, {sequencer,count,i..}]

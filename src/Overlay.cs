@@ -18,12 +18,15 @@ namespace Loft
     public static vec4 Magenta { get; } = new vec4(0.0129f, 0.8923f, 0.8894f, 1);
     public static vec4 VeryDarkGray { get; } = new vec4(0.0914f, 0.0914f, 0.0914f, 1);
     public static vec4 DarkGray { get; } = new vec4(0.1914f, 0.1914f, 0.1914f, 1);
+    public static vec4 MediumDarkGray { get; } = new vec4(0.3014f, 0.3014f, 0.3014f, 1);
     public static vec4 MediumGray { get; } = new vec4(0.4914f, 0.4914f, 0.4914f, 1);
     public static vec4 LightGray { get; } = new vec4(0.7214f, 0.7214f, 0.7214f, 1);
     public static vec4 VeryLightGray { get; } = new vec4(0.9614f, 0.9614f, 0.9614f, 1);
     public static vec4 LightBlue { get; } = new vec4(0.4021f, 0.6134f, 0.9859f, 1);
     public static vec4 LightGreen { get; } = new vec4(0.4221f, 0.9934f, 0.4259f, 1);
     public static vec4 LightYellow { get; } = new vec4(0.9234f, 0.9914f, 0.5034f, 1);
+    public static vec4 ControlColor {get;} = vec4.rgba_ub(230,230,230, 255);
+    public static vec4 ControlFontColor {get;} = vec4.rgba_ub(42,42,42, 255);
   }
   public enum MeshRenderMode
   {

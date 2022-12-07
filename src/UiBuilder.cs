@@ -25,6 +25,7 @@ namespace Loft
     MenuItem,
     HBar,
     ToolbarButton,
+    
   }
   //Hard coded User interface stuff.
   //Gui build
@@ -53,8 +54,8 @@ namespace Loft
         new UiStyle(UiStyleName.BaseControl)
         {
           RenderMode = UiRenderMode.Color,
-          FontColor = vec4.rgba_ub(42,42,42, 255),
-          Color = vec4.rgba_ub(230,230,230, 255),
+          FontColor = OffColor.ControlFontColor,
+          Color = OffColor.ControlColor,
           BorderColor = new vec4(0.14f, 0.16f, 0.16f, 1),
           Padding = 0,
           Margin = 0,
@@ -76,9 +77,6 @@ namespace Loft
         },
         new UiStyle(UiStyleName.Label, UiStyleName.BaseControl)
         {
-          SizeModeWidth = UiSizeMode.Shrink,
-          SizeModeHeight = UiSizeMode.Shrink,
-          PositionMode = UiPositionMode.Static,
           FontSize = 18,
           MarginLeft = 5,
           MarginRight = 5,
@@ -207,20 +205,34 @@ namespace Loft
       {
         defaultfov = cc33.FOV;
       }
-      toolbar.AddChild(new UiSlider(170.0, 1.0, defaultfov, true, UiLayoutOrientation.Horizontal, (e, val) =>
+      toolbar.AddChild(new UiSlider(170.0, 1.0, defaultfov, 100, UiSlider.LabelDisplay.Inside, UiLayoutOrientation.Horizontal, (e, val) =>
       {
         if (Gu.TryGetSelectedViewCamera(out var cc))
         {
           cc.FOV = (float)MathUtils.ToRadians(val);
         }
       }));
-      toolbar.AddChild(new UiSlider(170.0, 1.0, defaultfov, true, UiLayoutOrientation.Vertical, (e, val) =>
+      toolbar.AddChild(new UiSlider(170.0, 1.0, defaultfov, 100, UiSlider.LabelDisplay.Inside, UiLayoutOrientation.Vertical, (e, val) =>
       {
         if (Gu.TryGetSelectedViewCamera(out var cc))
         {
           cc.FOV = (float)MathUtils.ToRadians(val);
         }
       }));
+      // toolbar.AddChild(new UiSlider(170.0, 1.0, defaultfov, 100, UiSlider.LabelDisplay.Outside, UiLayoutOrientation.Horizontal, (e, val) =>
+      // {
+      //   if (Gu.TryGetSelectedViewCamera(out var cc))
+      //   {
+      //     cc.FOV = (float)MathUtils.ToRadians(val);
+      //   }
+      // }));
+      // toolbar.AddChild(new UiSlider(170.0, 1.0, defaultfov, 100, UiSlider.LabelDisplay.Outside, UiLayoutOrientation.Vertical, (e, val) =>
+      // {
+      //   if (Gu.TryGetSelectedViewCamera(out var cc))
+      //   {
+      //     cc.FOV = (float)MathUtils.ToRadians(val);
+      //   }
+      // }));
 
       //*** Debug info panels
       rv.WorldDebugInfo = new UiElement(UiStyleName.DebugLabel);

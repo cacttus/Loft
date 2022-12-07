@@ -1877,6 +1877,7 @@ namespace Loft
     public vec2 yz { get { return new vec2(y, z); } set { y = value.y; z = value.y; } }
 
     public vec3 xyz { get { return new vec3(x, y, z); } set { x = value.x; y = value.y; z = value.z; } }
+    public vec3 rgb { get { return new vec3(x, y, z); } set { x = value.x; y = value.y; z = value.z; } }
 
     public float r { get { return x; } set { x = value; } }
     public float g { get { return y; } set { y = value; } }

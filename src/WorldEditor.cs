@@ -1685,7 +1685,7 @@ namespace Loft
         {
           if (Gu.TryGetSelectedViewGui(out var g))
           {
-            g.DebugDraw.ShowOverlay = !g.DebugDraw.ShowOverlay;
+            g.DebugDraw.ShowDebug = !g.DebugDraw.ShowDebug;
           }
         }
         else if (code == WorldEditEvent.Debug_UI_Toggle_DisableMargins)
