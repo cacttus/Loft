@@ -270,7 +270,7 @@ namespace Loft
     public override void OnLoad()
     {
       //Returns an instance of the shader.
-      _shader = new Shader(this.Name, _generic_name, _storage, _primType);
+      _shader = new Shader(this.Name, _generic_name, _primType);
     }
     public override void OnDestroy()
     {

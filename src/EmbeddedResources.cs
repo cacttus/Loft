@@ -24,44 +24,44 @@ namespace Loft
       CreateNormalPixel(g);
 
       //shaders
-      s = g.AddE(new Shader(Rs.Shader.GuiShader, "v_gui", FileStorage.Embedded, OpenTK.Graphics.OpenGL4.PrimitiveType.Points));
-      s = g.AddE(new Shader(Rs.Shader.DefaultFlatColorShader, "v_v3", FileStorage.Embedded));
-      s = g.AddE(new Shader(Rs.Shader.DefaultObjectShader, "v_DefaultObjectShader", FileStorage.Embedded));
-      s = g.AddE(new Shader(Rs.Shader.DefaultBillboardPoints, "v_billboard_points", FileStorage.Embedded, OpenTK.Graphics.OpenGL4.PrimitiveType.Points));
+      s = g.AddE(new Shader(Rs.Shader.GuiShader, "v_gui", OpenTK.Graphics.OpenGL4.PrimitiveType.Points));
+      s = g.AddE(new Shader(Rs.Shader.DefaultFlatColorShader, "v_v3" ));
+      s = g.AddE(new Shader(Rs.Shader.DefaultObjectShader, "v_DefaultObjectShader"));
+      s = g.AddE(new Shader(Rs.Shader.DefaultBillboardPoints, "v_billboard_points", OpenTK.Graphics.OpenGL4.PrimitiveType.Points));
 
       s = g.AddE(new Shader(Rs.Shader.DebugDraw_Lines, new List<FileLoc>(){
-          new FileLoc("v_debugdraw_shared.vs.glsl", FileStorage.Embedded),
-          new FileLoc("v_lines.gs.glsl", FileStorage.Embedded),
-          new FileLoc("v_debugdraw_shared.fs.glsl", FileStorage.Embedded),
+          new FileLoc("v_debugdraw_shared.vs.glsl", EmbeddedFolder.Shader),
+          new FileLoc("v_lines.gs.glsl", EmbeddedFolder.Shader),
+          new FileLoc("v_debugdraw_shared.fs.glsl", EmbeddedFolder.Shader),
         }, OpenTK.Graphics.OpenGL4.PrimitiveType.Lines));
       s = g.AddE(new Shader(Rs.Shader.DebugDraw_Points,
       new List<FileLoc>(){
-          new FileLoc("v_debugdraw_shared.vs.glsl", FileStorage.Embedded),
-          new FileLoc("v_points.gs.glsl", FileStorage.Embedded),
-          new FileLoc("v_debugdraw_shared.fs.glsl", FileStorage.Embedded),
+          new FileLoc("v_debugdraw_shared.vs.glsl", EmbeddedFolder.Shader),
+          new FileLoc("v_points.gs.glsl", EmbeddedFolder.Shader),
+          new FileLoc("v_debugdraw_shared.fs.glsl", EmbeddedFolder.Shader),
         }, OpenTK.Graphics.OpenGL4.PrimitiveType.Points));
       s = g.AddE(new Shader(Rs.Shader.DebugDraw_Tris,
       new List<FileLoc>(){
-          new FileLoc("v_debugdraw_shared.vs.glsl", FileStorage.Embedded),
-          new FileLoc("v_tris.gs.glsl", FileStorage.Embedded),
-          new FileLoc("v_debugdraw_shared.fs.glsl", FileStorage.Embedded),
+          new FileLoc("v_debugdraw_shared.vs.glsl", EmbeddedFolder.Shader),
+          new FileLoc("v_tris.gs.glsl", EmbeddedFolder.Shader),
+          new FileLoc("v_debugdraw_shared.fs.glsl", EmbeddedFolder.Shader),
         }, OpenTK.Graphics.OpenGL4.PrimitiveType.Triangles));
       s = g.AddE(new Shader(Rs.Shader.VertexFaceNormals,
       new List<FileLoc>(){
-          new FileLoc("v_obj_dbg_shared.vs.glsl", FileStorage.Embedded),
-          new FileLoc("v_normals.gs.glsl", FileStorage.Embedded),
-          new FileLoc("v_obj_dbg_shared.fs.glsl", FileStorage.Embedded),
+          new FileLoc("v_obj_dbg_shared.vs.glsl", EmbeddedFolder.Shader),
+          new FileLoc("v_normals.gs.glsl", EmbeddedFolder.Shader),
+          new FileLoc("v_obj_dbg_shared.fs.glsl", EmbeddedFolder.Shader),
         }, OpenTK.Graphics.OpenGL4.PrimitiveType.Triangles));
       s = g.AddE(new Shader(Rs.Shader.Wireframe,
       new List<FileLoc>(){
-          new FileLoc("v_obj_dbg_shared.vs.glsl", FileStorage.Embedded),
-          new FileLoc("v_wire.gs.glsl", FileStorage.Embedded),
-          new FileLoc("v_obj_dbg_shared.fs.glsl", FileStorage.Embedded),
+          new FileLoc("v_obj_dbg_shared.vs.glsl", EmbeddedFolder.Shader),
+          new FileLoc("v_wire.gs.glsl", EmbeddedFolder.Shader),
+          new FileLoc("v_obj_dbg_shared.fs.glsl", EmbeddedFolder.Shader),
         }, OpenTK.Graphics.OpenGL4.PrimitiveType.Triangles));
       s = g.AddE(new Shader(Rs.Shader.Solid,
       new List<FileLoc>(){
-          new FileLoc("v_solid.vs.glsl", FileStorage.Embedded),
-          new FileLoc("v_solid.fs.glsl", FileStorage.Embedded),
+          new FileLoc("v_solid.vs.glsl", EmbeddedFolder.Shader),
+          new FileLoc("v_solid.fs.glsl", EmbeddedFolder.Shader),
         }, OpenTK.Graphics.OpenGL4.PrimitiveType.Triangles));
 
       //Obj material
@@ -126,20 +126,20 @@ namespace Loft
       //models
       //camera = load(models.camera)
       //var newcam = camera.clone()
-      gtf = g.AddE(new ModelFile(Rs.Model.Camera, new FileLoc("camera.glb", FileStorage.Embedded), new List<ModelFile.ImportInfo>(){
+      gtf = g.AddE(new ModelFile(Rs.Model.Camera, new FileLoc("camera.glb", EmbeddedFolder.Model), new List<ModelFile.ImportInfo>(){
         new ModelFile.ImportInfo(){
           _nameInFile = "Cube",
           _pos = new vec3(-14, 8, -4),
         }
       }));
-      gtf = g.AddE(new ModelFile(Rs.Model.Gear, new FileLoc("gear.glb", FileStorage.Embedded), new List<ModelFile.ImportInfo>(){
+      gtf = g.AddE(new ModelFile(Rs.Model.Gear, new FileLoc("gear.glb", EmbeddedFolder.Model), new List<ModelFile.ImportInfo>(){
         new ModelFile.ImportInfo(){
           _nameInFile = "Gear",
           _pos = new vec3(4, 8, -14),
           _playAnimation ="RotateGear",
         }
       }));
-      gtf = g.AddE(new ModelFile(Rs.Model.Barrel, new FileLoc("barrel.glb", FileStorage.Embedded), new List<ModelFile.ImportInfo>(){
+      gtf = g.AddE(new ModelFile(Rs.Model.Barrel, new FileLoc("barrel.glb", EmbeddedFolder.Model), new List<ModelFile.ImportInfo>(){
         new ModelFile.ImportInfo(){
           _nameInFile = "Barrel",
           _pos = new vec3(-4, 8, -4),

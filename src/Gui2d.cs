@@ -18,13 +18,12 @@ namespace Loft
   {
     public string Name = "";
     public FontFace() { }
-    protected FontFace(string name, FileLoc loc) : base(loc.RawPath, loc.FileStorage) { Name = name; }
-    public static FontFace Parisienne = new FontFace("Parisienne", new FileLoc("Parisienne-Regular.ttf", FileStorage.Embedded));
-    public static FontFace RobotoMono = new FontFace("RobotoMono", new FileLoc("RobotoMono-Regular.ttf", FileStorage.Embedded));
-    public static FontFace PressStart2P = new FontFace("PressStart2P", new FileLoc("PressStart2P-Regular.ttf", FileStorage.Embedded));
-    //public static FontFace Entypo = new FontFace("Entypo", new FileLoc("Entypo.ttf", FileStorage.Embedded));
-    public static FontFace Calibri = new FontFace("Calibri", new FileLoc("calibri.ttf", FileStorage.Embedded));
-    public static FontFace EmilysCandy = new FontFace("EmilysCandy", new FileLoc("EmilysCandy-Regular.ttf", FileStorage.Embedded));
+    protected FontFace(string name, string file) : base(file, EmbeddedFolder.Font) { Name = name; }
+    public static FontFace Parisienne = new FontFace("Parisienne", "Parisienne-Regular.ttf");
+    public static FontFace RobotoMono = new FontFace("RobotoMono", "RobotoMono-Regular.ttf");
+    public static FontFace PressStart2P = new FontFace("PressStart2P", "PressStart2P-Regular.ttf");
+    public static FontFace Calibri = new FontFace("Calibri", "calibri.ttf");
+    public static FontFace EmilysCandy = new FontFace("EmilysCandy", "EmilysCandy-Regular.ttf");
   }
   public enum UiDisplayMode // display mode for static elements
   {
@@ -117,8 +116,6 @@ namespace Loft
 
     Lost_Focus,
     Got_Focus,
-
-    Scrollbar_Pos_Change,
   };
 
   public enum UiMouseState
@@ -2077,7 +2074,7 @@ namespace Loft
         Style.CompileStyleTree(sheet, framesatmp, parent);
         Style._props.Validate();
 
-        if (((_textChanged || styleChanged) && (framesatmp % 5 == 0 || _bNeverDoneText)) )
+        if (((_textChanged || styleChanged) && (framesatmp % 5 == 0 || _bNeverDoneText)))
         {
           UpdateGlyphSpans(mt);
           _textChanged = false;
@@ -2295,9 +2292,10 @@ namespace Loft
       //put stuff left, center, right
       var ori = this.Style._props.LayoutOrientation;
 
-if(this.Text =="170.0"){
-  Gu.Trap();
-}
+      if (this.Text == "170.0")
+      {
+        Gu.Trap();
+      }
 
       foreach (var line in spanLines)
       {
@@ -3059,15 +3057,13 @@ if(this.Text =="170.0"){
   public class UiStyleSheet
   {
     //stylesheet for css-like styling
-    private FileLoc _location = null;
     private Dictionary<string, UiStyle> Styles = new Dictionary<string, UiStyle>();
     private List<string> _errors = new List<string>();
     public string Name { get; private set; } = Lib.UnsetName;
 
-    public UiStyleSheet(FileLoc loc)
+    public UiStyleSheet(string name)
     {
-      _location = loc;
-      Name = System.IO.Path.GetFileName(loc.RawPath) + "-stylesheet";
+      Name = name+"-ss";
       LoadCSSFile();
     }
     public void Update()
@@ -3147,6 +3143,8 @@ if(this.Text =="170.0"){
     public const int MaxSize = 9999999;
     public const int SlidingDiffWindow = 16;//16 chars for the string difference window. Replacement of a full float string.
 
+    public static string Paragraph(string s) { return $"<p>{s}</p>"; }
+
     public RenderView RenderView { get; private set; }
     public UiDebug DebugDraw { get; set; } = new UiDebug();
     public MeshData Mesh { get; set; } = null;
@@ -3175,7 +3173,7 @@ if(this.Text =="170.0"){
 
     public Gui2d(Gui2dShared shared, RenderView cam)
     {
-      StyleSheet = new UiStyleSheet(new FileLoc("ui-default.css", FileStorage.Embedded));
+      StyleSheet = new UiStyleSheet("ui-default");
       _shared = shared;
       RenderView = cam;
       Name = "screen(root)";

@@ -462,7 +462,7 @@ namespace Loft
       BlitObj = new WorldObject($"{names}-wo");
       BlitObj.MeshView = new MeshView(MeshGen.CreateScreenQuadMesh($"{names}-mesh", width, height));
 
-      BlitObj.Material = new Material($"{names}-mat", new Shader($"{names}-shr", generic_name, FileStorage.Embedded));
+      BlitObj.Material = new Material($"{names}-mat", new Shader($"{names}-shr", generic_name));
 
       BlitObj.Material.GpuRenderState.CullFace = false;
       BlitObj.Material.GpuRenderState.DepthTest = false;

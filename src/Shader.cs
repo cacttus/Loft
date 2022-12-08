@@ -2125,7 +2125,7 @@ namespace Loft
             fs = inc;
           }
 
-          IncludeHeaders(new FileLoc(fs, loc.FileStorage), file_lines, errors, uniqueFiles);
+          IncludeHeaders(new FileLoc(fs, loc.EmbeddedFolder), file_lines, errors, uniqueFiles);
         }
         else
         {
@@ -2326,14 +2326,14 @@ namespace Loft
 
     #endregion
     #region Public: Methods  
-    public Shader(string name, string generic_name, FileStorage storage, OpenTK.Graphics.OpenGL4.PrimitiveType? gs_primType = null) : base(name)
+    public Shader(string name, string generic_name, OpenTK.Graphics.OpenGL4.PrimitiveType? gs_primType = null) : base(name)
     {
       //We must do away with the generic name thing, if files dont exist then they wont be reported.
       var locs = new List<FileLoc>() {
-        new FileLoc($"{generic_name}.vs.glsl", storage),
-        new FileLoc($"{generic_name}.gs.glsl", storage),
-        new FileLoc($"{generic_name}.fs.glsl", storage),
-        new FileLoc($"{generic_name}.cs.glsl", storage)
+        new FileLoc($"{generic_name}.vs.glsl", EmbeddedFolder.Shader),
+        new FileLoc($"{generic_name}.gs.glsl", EmbeddedFolder.Shader),
+        new FileLoc($"{generic_name}.fs.glsl", EmbeddedFolder.Shader),
+        new FileLoc($"{generic_name}.cs.glsl", EmbeddedFolder.Shader)
       };
       Init(locs, gs_primType, false);
     }

@@ -463,7 +463,7 @@ namespace Loft
       //No, we don't adhere to any CSV standard.
       try
       {
-        FileLoc f = new FileLoc("phrases.csv", FileStorage.Embedded);
+        FileLoc f = new FileLoc("phrases.csv", EmbeddedFolder.Root);
         var csvData = new BoJankEnumCSV<LanguageCode, Phrase, String>(f, (x) => { return x; });
 
         if (Gu.EngineConfig.Debug_PrintTranslationTable)

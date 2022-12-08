@@ -24,8 +24,8 @@ namespace Loft
     }
     protected void SetControlStyle()
     {
-//      this.AddStyle(UiStyleName.Control);
-      
+      //      this.AddStyle(UiStyleName.Control);
+
       this.Style.Padding = 0;
       this.Style.Margin = 0;
       this.Style.Border = 0;
@@ -219,7 +219,7 @@ namespace Loft
       _label.Style.MinWidth = 100;
       _label.Style.Margin = _label.Style.Border = _label.Style.Padding = 0;
       this.AddChild(_label);
-      
+
 
       var that = this;
       this.AddEvent(UiEventId.Lost_Focus, (e) =>
@@ -312,7 +312,7 @@ namespace Loft
   }
   public class UiLabel : UiControl
   {
-    public UiLabel(){}
+    public UiLabel() { }
     public UiLabel(Phrase p) : this(Gu.Translator.Translate(p))
     {
     }
@@ -320,8 +320,8 @@ namespace Loft
     {
       this.Text = text;
       this.Style.RenderMode = UiRenderMode.None;
-this.Style.SizeModeWidth = UiSizeMode.Shrink;
-this.Style.SizeModeHeight = UiSizeMode.Shrink;
+      this.Style.SizeModeWidth = UiSizeMode.Shrink;
+      this.Style.SizeModeHeight = UiSizeMode.Shrink;
       if (Translator.TextFlow == LanguageTextFlow.Left)
       {
         this.Style.LayoutDirection = UiLayoutDirection.Left;
@@ -505,68 +505,6 @@ this.Style.SizeModeHeight = UiSizeMode.Shrink;
     }
   }
 
-  public class UiWindow : UiElement
-  {
-    private UiElement _titleBar;
-    public UiWindow(string title, vec2 pos, vec2 wh, string text = "") : base(UiStyleName.BaseControl)
-    {
-      this.Style.PositionMode = UiPositionMode.Absolute;
-      this.Style.RenderMode = UiRenderMode.Color;
-      this.Style.SizeModeWidth = UiSizeMode.Fixed;
-      this.Style.SizeModeHeight = UiSizeMode.Fixed;
-      this.Style.Border = 2;
-      this.Style.BorderColor = vec4.rgba_ub(140, 140, 140);
-      this.Style.Left = pos.x;
-      this.Style.Top = pos.y;
-      this.Style.Width = wh.width;
-      this.Style.Height = wh.height;
-
-      _titleBar = new UiElement(UiStyleName.BaseControl);
-      _titleBar.Style.RenderMode = UiRenderMode.Color;
-      _titleBar.Style.SizeModeWidth = UiSizeMode.Expand;
-      _titleBar.Style.SizeModeHeight = UiSizeMode.Shrink;
-      _titleBar.Style.MinHeight = 20;
-      _titleBar.Style.MaxHeight = 80;
-      _titleBar.Text = title;
-      _titleBar.Style.Margin = 4;
-      _titleBar.Style.TextAlign = UiAlignment.Center;
-
-      var closebt = new UiElement(UiStyleName.BaseControl);
-      closebt = new UiElement();
-      closebt.Style.RenderMode = UiRenderMode.Color;
-      closebt.Style.Alignment = UiAlignment.Right;
-      closebt.Style.SizeModeWidth = UiSizeMode.Shrink;
-      closebt.Style.SizeModeHeight = UiSizeMode.Shrink;
-      closebt.Style.Height = 18;
-      closebt.Style.DisplayMode = UiDisplayMode.Inline;
-      closebt.Text = "X";
-      closebt.Style.FontSize = 14;
-      closebt.Click(x => this.Close());
-      _titleBar.AddChild(closebt);
-
-      var contentArea = new UiElement(UiStyleName.BaseControl);
-      contentArea.Style.SizeModeHeight = UiSizeMode.Expand;
-      contentArea.Style.SizeModeWidth = UiSizeMode.Expand;
-      contentArea.Style.Margin = 10;
-      contentArea.Text = text;
-
-      AddChild(_titleBar);
-      AddChild(contentArea);
-    }
-    public void Close()
-    {
-      if (Parent != null)
-      {
-        Parent.RemoveChild(this);
-      }
-    }
-  }
-  public class UiScrollbar : UiControl
-  {
-    public UiScrollbar() : base(false) { }
-
-  }
-
   public class UiSlider : UiControl
   {
     public enum LabelDisplay
@@ -723,7 +661,7 @@ this.Style.SizeModeHeight = UiSizeMode.Shrink;
         else if (_labelDisplay == LabelDisplay.Inside)
         {
           _lblVal.Style.Alignment = UiAlignment.Center;
-          _lblVal.Style.Height = _thickness; 
+          _lblVal.Style.Height = _thickness;
         }
 
         _thumb.Style.SizeModeWidth = UiSizeMode.Fixed;
@@ -756,7 +694,7 @@ this.Style.SizeModeHeight = UiSizeMode.Shrink;
         else if (_labelDisplay == LabelDisplay.Inside)
         {
           _lblVal.Style.Alignment = UiAlignment.Center;
-          _lblVal.Style.Width = _thickness; 
+          _lblVal.Style.Width = _thickness;
         }
 
         _thumb.Style.SizeModeWidth = UiSizeMode.Expand;
@@ -862,6 +800,78 @@ this.Style.SizeModeHeight = UiSizeMode.Shrink;
     }
 
 
-  }//slider
+  }//cls
+  public class UiScrollRegion : UiElement
+  {
+    private UiSlider _hscroll;
+    private UiSlider _vscroll;
+    private UiPanel _panel;
+
+    public UiScrollRegion()
+    {
+      this.Style.SizeModeHeight = UiSizeMode.Expand;
+      this.Style.SizeModeWidth = UiSizeMode.Expand;
+      this.Style.Margin = 10;
+      this.Text = Ipsum.Get(3);
+      
+
+
+    }
+
+  }//cls
+  public class UiWindow : UiElement
+  {
+    private UiElement _titleBar;
+    private UiScrollRegion _scrollRegion;
+    public UiWindow(string title, vec2 pos, vec2 wh, string text = "") : base(UiStyleName.BaseControl)
+    {
+      this.Style.PositionMode = UiPositionMode.Absolute;
+      this.Style.RenderMode = UiRenderMode.Color;
+      this.Style.SizeModeWidth = UiSizeMode.Fixed;
+      this.Style.SizeModeHeight = UiSizeMode.Fixed;
+      this.Style.Border = 2;
+      this.Style.BorderColor = vec4.rgba_ub(140, 140, 140);
+      this.Style.Left = pos.x;
+      this.Style.Top = pos.y;
+      this.Style.Width = wh.width;
+      this.Style.Height = wh.height;
+
+      _titleBar = new UiElement(UiStyleName.BaseControl);
+      _titleBar.Style.RenderMode = UiRenderMode.Color;
+      _titleBar.Style.SizeModeWidth = UiSizeMode.Expand;
+      _titleBar.Style.SizeModeHeight = UiSizeMode.Shrink;
+      _titleBar.Style.MinHeight = 20;
+      _titleBar.Style.MaxHeight = 80;
+      _titleBar.Text = title;
+      _titleBar.Style.Margin = 4;
+      _titleBar.Style.TextAlign = UiAlignment.Center;
+
+      var closebt = new UiElement(UiStyleName.BaseControl);
+      closebt = new UiElement();
+      closebt.Style.RenderMode = UiRenderMode.Color;
+      closebt.Style.Alignment = UiAlignment.Right;
+      closebt.Style.SizeModeWidth = UiSizeMode.Shrink;
+      closebt.Style.SizeModeHeight = UiSizeMode.Shrink;
+      closebt.Style.Height = 18;
+      closebt.Style.DisplayMode = UiDisplayMode.Inline;
+      closebt.Text = "X";
+      closebt.Style.FontSize = 14;
+      closebt.Click(x => this.Close());
+      _titleBar.AddChild(closebt);
+
+      _scrollRegion = new UiScrollRegion();
+
+      AddChild(_titleBar);
+      AddChild(_scrollRegion);
+    }
+    public void Close()
+    {
+      if (Parent != null)
+      {
+        Parent.RemoveChild(this);
+      }
+    }
+  }//cls
+
 
 }//ns

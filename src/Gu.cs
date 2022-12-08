@@ -73,6 +73,10 @@ namespace Loft
       return sb.ToString();
     }
   }
+  public class Files
+  {
+
+  }
   public static class Gu
   {
     // Global Utils. static Class
@@ -83,7 +87,45 @@ namespace Loft
     public const int c_intMaxWhileTrueLoopSmall = 1000;//dummy infinite loop blocker
     public const int c_intMaxWhileTrueLoop = 100000;//dummy infinite loop blocker
     public const int c_intMaxWhileTrueLoopLONG = 100000000;//dummy infinite loop blocker
-    public const string EmbeddedDataPath = "Loft.data.";
+
+    private const string EmbeddedDataPathRoot = "Loft.data";
+    private const string EmbeddedFolder_Root = "";
+    private const string EmbeddedFolder_Font = "font";
+    private const string EmbeddedFolder_Icon = "icon";
+    private const string EmbeddedFolder_Image = "image";
+    private const string EmbeddedFolder_Model = "model";
+    private const string EmbeddedFolder_Script = "script";
+    private const string EmbeddedFolder_Sfx = "sfx";
+    private const string EmbeddedFolder_Shader = "shader";
+    public static string GetEmbeddedPath(EmbeddedFolder folder, string file)
+    {
+      string stfolder = GetEmbeddedFolder(folder);
+      if (!string.IsNullOrEmpty(stfolder))
+      {
+        return $"{Gu.EmbeddedDataPathRoot}.{stfolder}.{file}";
+      }
+      else
+      {
+        return $"{Gu.EmbeddedDataPathRoot}.{file}";
+      }
+    }
+    public static string GetWorkspacePath(EmbeddedFolder folder, string file)
+    {
+      return System.IO.Path.Combine(Gu.WorkspaceDataPath, GetEmbeddedFolder(folder), file);
+    }
+    public static string GetEmbeddedFolder(EmbeddedFolder folder)
+    {
+      if (folder == EmbeddedFolder.Root) { return $""; }
+      else if (folder == EmbeddedFolder.Font) { return $"{Gu.EmbeddedFolder_Font}"; }
+      else if (folder == EmbeddedFolder.Icon) { return $"{Gu.EmbeddedFolder_Icon}"; }
+      else if (folder == EmbeddedFolder.Image) { return $"{Gu.EmbeddedFolder_Image}"; }
+      else if (folder == EmbeddedFolder.Model) { return $"{Gu.EmbeddedFolder_Model}"; }
+      else if (folder == EmbeddedFolder.Script) { return $"{Gu.EmbeddedFolder_Script}"; }
+      else if (folder == EmbeddedFolder.Sfx) { return $"{Gu.EmbeddedFolder_Sfx}"; }
+      else if (folder == EmbeddedFolder.Shader) { return $"{Gu.EmbeddedFolder_Shader}"; }
+      Gu.BRThrowNotImplementedException();
+      return "";
+    }
 
     #endregion
     #region Public: Static Members
@@ -145,7 +187,7 @@ namespace Loft
       Gu.Log.Info("CurrentDirectory =" + System.IO.Directory.GetCurrentDirectory());
 
       //Config
-      EngineConfig = EngineConfig.LoadEngineConfig(new FileLoc("config.json", FileStorage.Embedded));
+      EngineConfig = EngineConfig.LoadEngineConfig(new FileLoc("config.json", EmbeddedFolder.Root));
 
       if (StringUtil.IsNotEmpty(EngineConfig.UserSavePath))
       {

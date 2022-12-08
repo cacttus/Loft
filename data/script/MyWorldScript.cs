@@ -94,11 +94,11 @@ namespace Loft
     {
       var that = this;
 
-      Texture? tx_sky = new Texture("tx_sky", Gu.Lib.GetOrLoadImage(new FileLoc("hdri_sky2.jpg", FileStorage.Embedded)), true, TexFilter.Trilinear);
-      Texture? tx_sky_stars = new Texture("tx_sky_stars", Gu.Lib.GetOrLoadImage(new FileLoc("hdri_stars.jpg", FileStorage.Embedded)), true, TexFilter.Trilinear);
-      Texture? tx_sun = new Texture("tx_sun", Gu.Lib.GetOrLoadImage(new FileLoc("tx64_sun.png", FileStorage.Embedded)), true, TexFilter.Trilinear);
-      Texture? tx_moon = new Texture("tx_moon", Gu.Lib.GetOrLoadImage(new FileLoc("tx64_moon.png", FileStorage.Embedded)), true, TexFilter.Trilinear);
-      Texture? tx_bloom = new Texture("tx_bloom", Gu.Lib.GetOrLoadImage(new FileLoc("bloom.png", FileStorage.Embedded)), true, TexFilter.Trilinear);
+      Texture? tx_sky = new Texture("tx_sky", Gu.Lib.GetOrLoadImage(new FileLoc("hdri_sky2.jpg", EmbeddedFolder.Image)), true, TexFilter.Trilinear);
+      Texture? tx_sky_stars = new Texture("tx_sky_stars", Gu.Lib.GetOrLoadImage(new FileLoc("hdri_stars.jpg", EmbeddedFolder.Image)), true, TexFilter.Trilinear);
+      Texture? tx_sun = new Texture("tx_sun", Gu.Lib.GetOrLoadImage(new FileLoc("tx64_sun.png", EmbeddedFolder.Image)), true, TexFilter.Trilinear);
+      Texture? tx_moon = new Texture("tx_moon", Gu.Lib.GetOrLoadImage(new FileLoc("tx64_moon.png", EmbeddedFolder.Image)), true, TexFilter.Trilinear);
+      Texture? tx_bloom = new Texture("tx_bloom", Gu.Lib.GetOrLoadImage(new FileLoc("bloom.png", EmbeddedFolder.Image)), true, TexFilter.Trilinear);
 
       //Sky 
       Material sky_mat = new Material("sky",  tx_sky);
@@ -152,7 +152,7 @@ namespace Loft
       ob.OnUpdateForView(rv)
       ob.OnBeforeRender()
       */
-      Material sun_moon_mat = new Material("sunmoon", new Shader("Shader_SunMoonShader", "v_sun_moon", FileStorage.Embedded));
+      Material sun_moon_mat = new Material("sunmoon", new Shader("Shader_SunMoonShader", "v_sun_moon"));
       sun_moon_mat.GpuRenderState.DepthTest = false;//Disable depth test.
       sun_moon_mat.GpuRenderState.CullFace = false;//Disable depth test.
       sun_moon_mat.GpuRenderState.Blend = false;
@@ -231,9 +231,9 @@ namespace Loft
     private void TestCreateDebugObjects()
     {
       //Textures
-      Texture tx_c = new Texture("tx_c", Gu.Lib.GetOrLoadImage(new FileLoc("mario.jpg", FileStorage.Embedded)), true, TexFilter.Nearest);
-      Texture tx_d = new Texture("tx_d", Gu.Lib.GetOrLoadImage(new FileLoc("ganon.jpg", FileStorage.Embedded)), true, TexFilter.Bilinear);
-      Texture tx_e = new Texture("tx_e", Gu.Lib.GetOrLoadImage(new FileLoc("peach.jpg", FileStorage.Embedded)), true, TexFilter.Trilinear);
+      Texture tx_c = new Texture("tx_c", Gu.Lib.GetOrLoadImage(new FileLoc("mario.jpg", EmbeddedFolder.Image)), true, TexFilter.Nearest);
+      Texture tx_d = new Texture("tx_d", Gu.Lib.GetOrLoadImage(new FileLoc("ganon.jpg", EmbeddedFolder.Image)), true, TexFilter.Bilinear);
+      Texture tx_e = new Texture("tx_e", Gu.Lib.GetOrLoadImage(new FileLoc("peach.jpg", EmbeddedFolder.Image)), true, TexFilter.Trilinear);
  
       //normal map test (slow)
       //new Texture2D(ResourceManager.LoadImage().CreateNormalMap(false), true, TexFilter.Linear)
@@ -252,7 +252,7 @@ namespace Loft
       Sphere_Rotate_Quat_Test3.Position_Local = new vec3(3, 3, 0);
 
       //Test STB laoding EXR images.
-      Texture tx_exr = new Texture("tx_exr", Gu.Lib.GetOrLoadImage(new FileLoc("hilly_terrain_01_2k.hdr", FileStorage.Embedded)), true, TexFilter.Bilinear);
+      Texture tx_exr = new Texture("tx_exr", Gu.Lib.GetOrLoadImage(new FileLoc("hilly_terrain_01_2k.hdr", EmbeddedFolder.Image)), true, TexFilter.Bilinear);
       var exr_test = MeshGen.GenPlane("tx_exr", 10, 10);
       var exr_test_mat = new Material("plane", tx_exr);
       var exr_test_ob = Gu.World.CreateAndAddObject("EXR test", exr_test, exr_test_mat);
@@ -283,13 +283,13 @@ namespace Loft
       // mod.CreateObjectInstances(new vec3(10,0,10));      
       // mod = new ModelFile("guyonlytest", new FileLoc("guy_only_test.glb", FileStorage.Embedded));
       // mod.CreateObjectInstances(new vec3(3,3,3));
-      mod = new ModelFile("angelina", new FileLoc("angelina.glb", FileStorage.Embedded));
+      mod = new ModelFile("angelina", new FileLoc("angelina.glb", EmbeddedFolder.Model));
       var obb = mod.CreateObject("Armature", new vec3(-2, 3, 10), quat.fromAxisAngle(new vec3(0, 1, 0), MathUtils.M_PI), new vec3(9, 9, 9));
 
       obb.Play(new AnimationClip("Walk"));
 
       //).CreateObjects(new vec3(-2, 3, 10), quat.fromAxisAngle(new vec3(0, 1, 0), MathUtils.M_PI));
-      mod = new ModelFile("elecro", new FileLoc("guy_only_test.glb", FileStorage.Embedded));
+      mod = new ModelFile("elecro", new FileLoc("guy_only_test.glb", EmbeddedFolder.Model));
       mod.CreateObjects(new vec3(4, 3, 10), quat.fromAxisAngle(new vec3(0, 1, 0), MathUtils.M_PI));
 
     }

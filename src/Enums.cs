@@ -35,11 +35,5 @@ namespace Loft
     AxisAngle,
     Quaternion
   }
-  public enum FileStorage
-  {
-    Disk,
-    Embedded,
-    Web,
-    Generated,
-  }
+
 }

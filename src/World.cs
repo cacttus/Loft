@@ -197,40 +197,40 @@ namespace Loft
     // };
 
     public static Dictionary<TileImage, FileLoc> TileImages = new Dictionary<TileImage, FileLoc>() {
-            { TileImage.Grass, new FileLoc("tx64_grass.png", FileStorage.Embedded) },
-            { TileImage.GrassSide, new FileLoc("tx64_grass_side.png", FileStorage.Embedded) },
-            { TileImage.Dirt, new FileLoc("tx64_dirt.png", FileStorage.Embedded) },
-            { TileImage.Plank, new FileLoc("tx64_plank.png", FileStorage.Embedded) },
-            { TileImage.Brick, new FileLoc("tx64_brick.png", FileStorage.Embedded) },
-            { TileImage.Brick2, new FileLoc("tx64_brick2.png", FileStorage.Embedded) },
-            { TileImage.Gravel, new FileLoc("tx64_gravel.png", FileStorage.Embedded) },
-            { TileImage.Sand, new FileLoc("tx64_sand.png", FileStorage.Embedded) },
-            { TileImage.Cedar, new FileLoc("tx64_cedar.png", FileStorage.Embedded) },
-            { TileImage.Cedar_Needles, new FileLoc("tx64_cedar_needles.png", FileStorage.Embedded) },
-            { TileImage.Cedar_Top, new FileLoc("tx64_cedar_top.png", FileStorage.Embedded) },
-            { TileImage.Feldspar, new FileLoc("tx64_plagioclase_feldspar.png", FileStorage.Embedded) },
-            { TileImage.Tussock, new FileLoc("tx64_tussock.png", FileStorage.Embedded) },
-            { TileImage.Tussock2, new FileLoc("tx64_tussock2.png", FileStorage.Embedded) },
-            { TileImage.Tussock_Stalk_Bot, new FileLoc("tx64_tussock_stalk_bot.png", FileStorage.Embedded) },
-            { TileImage.Tussock_Stalk_Mid, new FileLoc("tx64_tussock_stalk_mid.png", FileStorage.Embedded) },
-            { TileImage.Tussock_Stalk_Top, new FileLoc("tx64_tussock_stalk_top.png", FileStorage.Embedded) },
-            { TileImage.Blank, new FileLoc("tx64_blank.png", FileStorage.Embedded) },
-            { TileImage.Dandilion, new FileLoc("tx64_dandilion.png", FileStorage.Embedded) },
-            { TileImage.Cracks1, new FileLoc("tx64_cracks1.png", FileStorage.Embedded) },
-            { TileImage.Cracks2, new FileLoc("tx64_cracks2.png", FileStorage.Embedded) },
-            { TileImage.Cracks3, new FileLoc("tx64_cracks3.png", FileStorage.Embedded) },
-            { TileImage.Cracks4, new FileLoc("tx64_cracks4.png", FileStorage.Embedded) },
-            { TileImage.Feldspar_Coal, new FileLoc("tx64_plagioclase_coal.png", FileStorage.Embedded) },
-            { TileImage.Marble_Green, new FileLoc("tx64_marble_green.png", FileStorage.Embedded) },
-            { TileImage.Marble_White, new FileLoc("tx64_marble_white.png", FileStorage.Embedded) },
-            { TileImage.Water, new FileLoc("tx64_water.png", FileStorage.Embedded) },
-            { TileImage.Seaweed, new FileLoc("tx64_seaweed.png", FileStorage.Embedded) },
-            { TileImage.Clay, new FileLoc("tx64_clay.png", FileStorage.Embedded) },
-            { TileImage.RedClay, new FileLoc("tx64_red_clay.png", FileStorage.Embedded) },
-            { TileImage.RosePink, new FileLoc("tx64_rose_pink.png", FileStorage.Embedded) },
-            { TileImage.RoseRed, new FileLoc("tx64_rose_red.png", FileStorage.Embedded) },
-            { TileImage.Oak, new FileLoc("tx64_oak_side.png", FileStorage.Embedded) },
-            { TileImage.Oak_Leaves, new FileLoc("tx64_oak_leaves.png", FileStorage.Embedded) },
+            { TileImage.Grass, new FileLoc("tx64_grass.png", EmbeddedFolder.Image) },
+            { TileImage.GrassSide, new FileLoc("tx64_grass_side.png", EmbeddedFolder.Image) },
+            { TileImage.Dirt, new FileLoc("tx64_dirt.png", EmbeddedFolder.Image) },
+            { TileImage.Plank, new FileLoc("tx64_plank.png", EmbeddedFolder.Image) },
+            { TileImage.Brick, new FileLoc("tx64_brick.png", EmbeddedFolder.Image) },
+            { TileImage.Brick2, new FileLoc("tx64_brick2.png", EmbeddedFolder.Image) },
+            { TileImage.Gravel, new FileLoc("tx64_gravel.png", EmbeddedFolder.Image) },
+            { TileImage.Sand, new FileLoc("tx64_sand.png", EmbeddedFolder.Image) },
+            { TileImage.Cedar, new FileLoc("tx64_cedar.png", EmbeddedFolder.Image) },
+            { TileImage.Cedar_Needles, new FileLoc("tx64_cedar_needles.png", EmbeddedFolder.Image) },
+            { TileImage.Cedar_Top, new FileLoc("tx64_cedar_top.png", EmbeddedFolder.Image) },
+            { TileImage.Feldspar, new FileLoc("tx64_plagioclase_feldspar.png", EmbeddedFolder.Image) },
+            { TileImage.Tussock, new FileLoc("tx64_tussock.png", EmbeddedFolder.Image) },
+            { TileImage.Tussock2, new FileLoc("tx64_tussock2.png", EmbeddedFolder.Image) },
+            { TileImage.Tussock_Stalk_Bot, new FileLoc("tx64_tussock_stalk_bot.png", EmbeddedFolder.Image) },
+            { TileImage.Tussock_Stalk_Mid, new FileLoc("tx64_tussock_stalk_mid.png", EmbeddedFolder.Image) },
+            { TileImage.Tussock_Stalk_Top, new FileLoc("tx64_tussock_stalk_top.png", EmbeddedFolder.Image) },
+            { TileImage.Blank, new FileLoc("tx64_blank.png", EmbeddedFolder.Image) },
+            { TileImage.Dandilion, new FileLoc("tx64_dandilion.png", EmbeddedFolder.Image) },
+            { TileImage.Cracks1, new FileLoc("tx64_cracks1.png", EmbeddedFolder.Image) },
+            { TileImage.Cracks2, new FileLoc("tx64_cracks2.png", EmbeddedFolder.Image) },
+            { TileImage.Cracks3, new FileLoc("tx64_cracks3.png", EmbeddedFolder.Image) },
+            { TileImage.Cracks4, new FileLoc("tx64_cracks4.png", EmbeddedFolder.Image) },
+            { TileImage.Feldspar_Coal, new FileLoc("tx64_plagioclase_coal.png", EmbeddedFolder.Image) },
+            { TileImage.Marble_Green, new FileLoc("tx64_marble_green.png", EmbeddedFolder.Image) },
+            { TileImage.Marble_White, new FileLoc("tx64_marble_white.png", EmbeddedFolder.Image) },
+            { TileImage.Water, new FileLoc("tx64_water.png", EmbeddedFolder.Image) },
+            { TileImage.Seaweed, new FileLoc("tx64_seaweed.png", EmbeddedFolder.Image) },
+            { TileImage.Clay, new FileLoc("tx64_clay.png", EmbeddedFolder.Image) },
+            { TileImage.RedClay, new FileLoc("tx64_red_clay.png", EmbeddedFolder.Image) },
+            { TileImage.RosePink, new FileLoc("tx64_rose_pink.png", EmbeddedFolder.Image) },
+            { TileImage.RoseRed, new FileLoc("tx64_rose_red.png", EmbeddedFolder.Image) },
+            { TileImage.Oak, new FileLoc("tx64_oak_side.png", EmbeddedFolder.Image) },
+            { TileImage.Oak_Leaves, new FileLoc("tx64_oak_leaves.png", EmbeddedFolder.Image) },
          };
 
     // private static vec3[] bx_box = new vec3[8];
@@ -1381,7 +1381,7 @@ namespace Loft
 
       //this should be set via the script
       _worldProps.EnvironmentMap = new Texture("_worldProps.EnvironmentMap",
-        Gu.Lib.GetOrLoadImage(new FileLoc("hilly_terrain_01_2k.hdr", FileStorage.Embedded)), true, TexFilter.Nearest);
+        Gu.Lib.GetOrLoadImage(new FileLoc("hilly_terrain_01_2k.hdr", EmbeddedFolder.Image)), true, TexFilter.Nearest);
       _worldProps.DayNightCycle = new DayNightCycle();
       _worldProps.DayNightCycle.Update(0);
     }
@@ -2476,7 +2476,7 @@ namespace Loft
       _worldMaterial_Tp.DrawMode = DrawMode.Deferred;
 
       //Block Material
-      _blockObjectMaterial = new Material("BlockObjectMaterial", new Shader("v_v3n3x2_BlockObject_Instanced", "v_v3n3x2_BlockObject_Instanced", FileStorage.Embedded));
+      _blockObjectMaterial = new Material("BlockObjectMaterial", new Shader("v_v3n3x2_BlockObject_Instanced", "v_v3n3x2_BlockObject_Instanced"));
     }
     private void DefineWorldTiles()
     {

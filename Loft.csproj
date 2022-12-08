@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <ApplicationIcon>data\icon.ico</ApplicationIcon>
+    <ApplicationIcon>data\icon\icon.ico</ApplicationIcon>
     <PackageIcon>icon.ico</PackageIcon>
     <AssemblyVersion>1.0.0.1</AssemblyVersion>
     <!--

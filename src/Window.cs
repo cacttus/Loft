@@ -437,7 +437,7 @@ namespace Loft
       Gu.WorldLoader = new WorldLoader(Gu.GetContextForWindow(this));
 
       //uh.
-      var w = Gu.WorldLoader.GoToWorld(new WorldInfo("MyWorld", new FileLoc("MyWorldScript.cs", FileStorage.Embedded), DELETE_WORLD_START_FRESH, 2));
+      var w = Gu.WorldLoader.GoToWorld(new WorldInfo("MyWorld", new FileLoc("MyWorldScript.cs", EmbeddedFolder.Script), DELETE_WORLD_START_FRESH, 2));
 
       SetGameMode(Gu.World.GameMode);
 

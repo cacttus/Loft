@@ -1,7 +1,0 @@
-{
-    "TestField" : {
-        "Test Class Val 1" : [ "ArrayVal1", 2, 3.5, {"InnerClassField" : "InnerClassValue"}, "Good Burger"]
-    },
-    "TestField2" : 2.2,
-    "TestField3" : "Some Value"
-}

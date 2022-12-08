@@ -148,6 +148,7 @@ namespace Loft
           if (f.FileStorage == FileStorage.Embedded)
           {
             ScriptWarn($"Embedded scripts can't be sent to the compiler (for now), using workspace path ({f.WorkspacePath})");
+            //Gu.DebugBreak();
           }
           files += $" {f.WorkspacePath}";
           if (!f.ExistsOnDisk())

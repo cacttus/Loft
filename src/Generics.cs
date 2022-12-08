@@ -8,6 +8,24 @@ using System.Runtime.Serialization;
 
 namespace Loft
 {
+  public enum FileStorage
+  {
+    Disk,
+    Embedded,
+    Web,
+    Generated,
+  }
+  public enum EmbeddedFolder
+  {
+    Root,
+    Font,
+    Icon,
+    Image,
+    Model,
+    Script,
+    Sfx,
+    Shader
+  }
   public enum FileMode
   {
     Text, Binary
@@ -37,12 +55,11 @@ namespace Loft
     //The name here has to be unique or it will cause conflicts.
 
     #region Public: Members
-    private int c_newline = '\n';
-    private int c_EOF = -1;//I guess, -1 in .net
 
     public static FileLoc Generated = new FileLoc("<generated>", FileStorage.Generated);
     public FileStorage FileStorage { get; set; } = FileStorage.Disk;
     public string RawPath { get; set; } = "";
+    public EmbeddedFolder EmbeddedFolder { get; set; } = EmbeddedFolder.Root;
 
     public string Extension
     {
@@ -51,12 +68,11 @@ namespace Loft
         return System.IO.Path.GetExtension(this.QualifiedPath);
       }
     }
-
     public string WorkspacePath
     {
       get
       {
-        var p = System.IO.Path.Combine(Gu.WorkspaceDataPath, this.RawPath);
+        var p = Gu.GetWorkspacePath(this.EmbeddedFolder, this.RawPath);
         return p;
       }
     }
@@ -89,7 +105,7 @@ namespace Loft
         string path = RawPath;
         if (FileStorage == FileStorage.Embedded)
         {
-          path = Gu.EmbeddedDataPath + path;
+          path = Gu.GetEmbeddedPath(EmbeddedFolder, path);
         }
         else if (FileStorage == FileStorage.Generated)
         {
@@ -128,6 +144,12 @@ namespace Loft
     }
 
     #endregion
+    #region Private: Members
+
+    private int c_newline = '\n';
+    private int c_EOF = -1;//I guess, -1 in .net
+
+    #endregion
     #region Public: Methods
 
     public FileLoc() { }
@@ -136,8 +158,15 @@ namespace Loft
       RawPath = System.IO.Path.Combine(directory, filename);
       FileStorage = storage;
     }
+    public FileLoc(string path, EmbeddedFolder folder)
+    {
+      RawPath = path;
+      EmbeddedFolder = folder;
+      FileStorage = FileStorage.Embedded;
+    }
     public FileLoc(string path, FileStorage storage)
     {
+      Gu.Assert(storage != FileStorage.Embedded); // use the folder CTOR for embedded
       RawPath = path;
       FileStorage = storage;
     }
@@ -475,11 +504,13 @@ namespace Loft
     public void Serialize(BinaryWriter bw)
     {
       bw.Write((Int32)FileStorage);
+      bw.Write((Int32)EmbeddedFolder);
       bw.Write((string)RawPath);
     }
     public void Deserialize(BinaryReader br, SerializedFileVersion version)
     {
       FileStorage = (FileStorage)br.ReadInt32();
+      EmbeddedFolder = (EmbeddedFolder)br.ReadInt32();
       RawPath = br.ReadString();
     }
 
