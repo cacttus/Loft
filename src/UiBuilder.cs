@@ -25,13 +25,11 @@ namespace Loft
     MenuItem,
     HBar,
     ToolbarButton,
-
   }
   //Hard coded User interface stuff.
   //Gui build
   public class UiBuilder
   {
-
     public static List<FileLoc> GetSharedGUIResources()
     {
       return new List<FileLoc>(){
@@ -196,7 +194,7 @@ namespace Loft
       UiElement spacer = new UiElement();
       spacer.Style.MinWidth = 100;
       spacer.Style.SizeModeWidth = UiSizeMode.Shrink;
-      spacer.Style.SizeModeHeight = UiSizeMode.Expand;
+      spacer.Style.SizeModeHeight = UiSizeMode.Percent;
       spacer.Style.Margin = spacer.Style.Border = spacer.Style.Padding = 0;
       toolbar.AddChild(spacer);
 
@@ -205,37 +203,38 @@ namespace Loft
       {
         defaultfov = cc33.FOV;
       }
-      toolbar.AddChild(new UiSlider(170.0, 1.0, defaultfov, 100, UiSlider.LabelDisplay.Inside, UiLayoutOrientation.Horizontal, (e, val) =>
+      toolbar.AddChild(new UiSlider(1.0, 170.0, defaultfov, UiSlider.LabelDisplayMode.Inside, UiLayoutOrientation.Horizontal, (e, val) =>
       {
         if (Gu.TryGetSelectedViewCamera(out var cc))
         {
           cc.FOV = (float)MathUtils.ToRadians(val);
         }
       }));
-      toolbar.AddChild(new UiSlider(170.0, 1.0, defaultfov, 100, UiSlider.LabelDisplay.Inside, UiLayoutOrientation.Vertical, (e, val) =>
+      toolbar.AddChild(new UiSlider(1, 170, defaultfov, UiSlider.LabelDisplayMode.Inside, UiLayoutOrientation.Vertical, (e, val) =>
       {
         if (Gu.TryGetSelectedViewCamera(out var cc))
         {
           cc.FOV = (float)MathUtils.ToRadians(val);
         }
       }));
-      // toolbar.AddChild(new UiSlider(170.0, 1.0, defaultfov, 100, UiSlider.LabelDisplay.Outside, UiLayoutOrientation.Horizontal, (e, val) =>
-      // {
-      //   if (Gu.TryGetSelectedViewCamera(out var cc))
-      //   {
-      //     cc.FOV = (float)MathUtils.ToRadians(val);
-      //   }
-      // }));
-      // toolbar.AddChild(new UiSlider(170.0, 1.0, defaultfov, 100, UiSlider.LabelDisplay.Outside, UiLayoutOrientation.Vertical, (e, val) =>
-      // {
-      //   if (Gu.TryGetSelectedViewCamera(out var cc))
-      //   {
-      //     cc.FOV = (float)MathUtils.ToRadians(val);
-      //   }
-      // }));
+      toolbar.AddChild(new UiSlider(1, 170, defaultfov,  UiSlider.LabelDisplayMode.Outside, UiLayoutOrientation.Horizontal, (e, val) =>
+      {
+        if (Gu.TryGetSelectedViewCamera(out var cc))
+        {
+          cc.FOV = (float)MathUtils.ToRadians(val);
+        }
+      }));
+      toolbar.AddChild(new UiSlider(1, 170, defaultfov, UiSlider.LabelDisplayMode.Outside, UiLayoutOrientation.Vertical, (e, val) =>
+      {
+        if (Gu.TryGetSelectedViewCamera(out var cc))
+        {
+          cc.FOV = (float)MathUtils.ToRadians(val);
+        }
+      }));
 
       //*** Debug info panels
       rv.WorldDebugInfo = new UiElement(UiStyleName.DebugLabel);
+      rv.WorldDebugInfo.Style.MaxWidth = 400;
       rv.WorldDebugInfo.Visible = true;
 
       rv.GpuDebugInfo = new UiElement(UiStyleName.DebugLabel);
@@ -248,8 +247,8 @@ namespace Loft
 
       //Root the edit GUI so we can hide it.
       var editgui_root = new UiElement();
-      editgui_root.Style.SizeModeWidth = UiSizeMode.Expand;
-      editgui_root.Style.SizeModeHeight = UiSizeMode.Expand;
+      editgui_root.Style.SizeModeWidth = UiSizeMode.Percent;
+      editgui_root.Style.SizeModeHeight = UiSizeMode.Percent;
       editgui_root.Style.MinWidth = 0;
       editgui_root.Style.MinHeight = 0;
       editgui_root.Style.MaxWidth = Gui2d.MaxSize;
@@ -275,7 +274,7 @@ namespace Loft
       UiElement lefttest = new UiElement("left");
       lefttest.Style.RenderMode = UiRenderMode.Color;
       lefttest.Style.Color = new vec4(.7f, 1, 1, 1);
-      lefttest.Style.SizeModeWidth = UiSizeMode.Expand;
+      lefttest.Style.SizeModeWidth = UiSizeMode.Percent;
       lefttest.Style.SizeModeHeight = UiSizeMode.Shrink;
       lefttest.Style.TextAlign = UiAlignment.Left;
       lefttest.Style.FontSize = 22;
@@ -286,7 +285,7 @@ namespace Loft
       UiElement righttest = new UiElement("ret");
       righttest.Style.RenderMode = UiRenderMode.Color;
       righttest.Style.Color = new vec4(.7f, 1, .7f, 1);
-      righttest.Style.SizeModeWidth = UiSizeMode.Expand;
+      righttest.Style.SizeModeWidth = UiSizeMode.Percent;
       righttest.Style.SizeModeHeight = UiSizeMode.Shrink;
       righttest.Style.TextAlign = UiAlignment.Right;
       righttest.Style.FontSize = 22;
@@ -298,7 +297,7 @@ namespace Loft
       centertest.Style.RenderMode = UiRenderMode.Color;
       centertest.Style.Color = new vec4(.7f, .7f, .7f, 1);
       centertest.Style.PositionMode = UiPositionMode.Static;
-      centertest.Style.SizeModeWidth = UiSizeMode.Expand;
+      centertest.Style.SizeModeWidth = UiSizeMode.Percent;
       centertest.Style.SizeModeHeight = UiSizeMode.Shrink;
       centertest.Style.TextAlign = UiAlignment.Center;
       centertest.Style.FontSize = 22;
@@ -310,7 +309,7 @@ namespace Loft
       testcont.Style.Color = new vec4(1, 1, 1, 1);
       testcont.Style.Left = 700;
       testcont.Style.Top = 200;
-      testcont.Style.Width = 200;
+      testcont.Style.FixedWidth = 200;
       testcont.Style.Margin = 0;
       testcont.Style.SizeModeHeight = UiSizeMode.Shrink;
       testcont.Style.SizeModeWidth = UiSizeMode.Fixed;
@@ -349,7 +348,7 @@ namespace Loft
 
   public static class Ipsum
   {
-    public static string Get(int parcount)
+    public static string GetIpsum(int parcount)//generateipsum 
     {
       parcount = Math.Min(parcount, 100);
       var s = String.Join('\n', ipsum.GetRange(0, parcount).ToArray());

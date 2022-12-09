@@ -46,7 +46,7 @@ namespace Loft
   }
   public enum UiSizeMode
   {
-    Expand, //Expand to parent
+    Percent, //Expand to parent%
     Shrink, //Shrink container. Note: parent=shrink + child=expand -> child width is minimum of all children mininmum widths in parent
     Fixed // Fixed width/height
   }
@@ -63,8 +63,8 @@ namespace Loft
   }
   public enum UiOverflowMode
   {
-    Show, //show overflow - elements outside of the clip region (not element region)
-    Hide // hide overflow 
+    Show, //show elements outside of clip region (not element region)
+    Hide
   };
   public enum UiImageTiling
   {
@@ -89,7 +89,6 @@ namespace Loft
     //https://www.w3.org/TR/CSS2/visuren.html#propdef-direction
     Horizontal,
     Vertical,
-    //For r to l or., b to t we can just use a "reverse"
   }
   public enum UiLayoutDirection
   {
@@ -117,7 +116,6 @@ namespace Loft
     Lost_Focus,
     Got_Focus,
   };
-
   public enum UiMouseState
   {
     //This differs from ButtonState in the fact
@@ -138,6 +136,10 @@ namespace Loft
     , MinHeight
     , MaxWidth
     , MaxHeight
+    , FixedWidth
+    , FixedHeight
+    , PercentWidth
+    , PercentHeight
     , PadTop
     , PadRight
     , PadBot
@@ -236,7 +238,20 @@ namespace Loft
     }
     public bool Validate(bool debug_break = true, float min_volume = 0)
     {
-      return this.ToBox().Validate(debug_break, min_volume);
+      bool v = this.ToBox().Validate(debug_break, min_volume);
+
+      //"sane" parameters for debugging, shold never go beyond 99999 on 4k
+      if (_left > 99999 || _width > 99999 || _top > 99999 || _height > 99999 ||
+          _left < -99999 || _width < -99999 || _top < -99999 || _height < -99999)
+      {
+        v = false;
+        if (debug_break)
+        {
+          Gu.DebugBreak();
+        }
+      }
+
+      return v;
     }
     public void ExpandByPoint(vec2 v)
     {
@@ -557,6 +572,10 @@ namespace Loft
     public float MinHeight = 0;
     public float MaxWidth = Gui2d.MaxSize;
     public float MaxHeight = Gui2d.MaxSize;
+    public float FixedWidth = 100;
+    public float FixedHeight = 100;
+    public float PercentWidth = 100;
+    public float PercentHeight = 100;
     public float PadTop = 0;
     public float PadRight = 0;
     public float PadBot = 0;
@@ -592,8 +611,8 @@ namespace Loft
     public UiDisplayMode DisplayMode = UiDisplayMode.Block;
     public UiPositionMode PositionMode = UiPositionMode.Static;
     public UiOverflowMode OverflowMode = UiOverflowMode.Hide;
-    public UiSizeMode SizeModeWidth = UiSizeMode.Expand;
-    public UiSizeMode SizeModeHeight = UiSizeMode.Expand;
+    public UiSizeMode SizeModeWidth = UiSizeMode.Percent;
+    public UiSizeMode SizeModeHeight = UiSizeMode.Percent;
     public float ZIndex = 0;
     public UiFloatMode FloatMode = UiFloatMode.None;
     public UiRenderMode RenderMode = UiRenderMode.None;
@@ -663,6 +682,16 @@ namespace Loft
     }
     public void Validate()
     {
+      //yes css does let width outside 100 but this is for sanity and well
+      if (!Gu.AssertDebug(PercentWidth >= 0 && PercentWidth <= 100))
+      {
+        PercentWidth = Math.Clamp(PercentWidth, 0, 100);
+      }
+      if (!Gu.AssertDebug(PercentHeight >= 0 && PercentHeight <= 100))
+      {
+        PercentHeight = Math.Clamp(PercentHeight, 0, 100);
+      }
+
       if (!Gu.AssertDebug(MinWidth >= 0))
       {
         MinWidth = 0;
@@ -754,7 +783,10 @@ namespace Loft
         || p == UiPropName.BorderRight
         || p == UiPropName.BorderBot
         || p == UiPropName.BorderLeft
-
+        || p == UiPropName.FixedWidth
+        || p == UiPropName.FixedHeight
+        || p == UiPropName.PercentWidth
+        || p == UiPropName.PercentHeight
       //|| p == UiPropName.RenderMode
 
       )
@@ -849,9 +881,11 @@ namespace Loft
   }
   public class UiStyle
   {
-    #region Public: Aggregate Prop Setters
+    #region Props
 
     public string Name { get; set; } = "";
+    public bool Modified { get { return _bMustCompile; } }
+    public bool IsInline { get; set; }
 
     public float? Margin
     {
@@ -893,40 +927,18 @@ namespace Loft
         PadTop = PadRight = PadBot = PadLeft = value;
       }
     }
-    public float? Width
-    {
-      set
-      {
-        SetProp(UiPropName.MinWidth, (float?)value);
-        SetProp(UiPropName.MaxWidth, (float?)value);
-      }
-    }
-    public float? Height
-    {
-      set
-      {
-        SetProp(UiPropName.MinHeight, (float?)value);
-        SetProp(UiPropName.MaxHeight, (float?)value);
-      }
-    }
-    // public float? Bottom { get { return (float?)GetClassValue(UiPropName.Top) + Width; } }
-    // public float? Right { get { return (float?)GetClassValue(UiPropName.Left) + Height; } }
+    public UiSizeMode SizeMode { set { SizeModeWidth = value; SizeModeHeight = value; } }
 
-    public bool Modified { get { return _bMustCompile; } }
-    public bool IsInline { get; set; }
 
-    #endregion
-    #region Public: User Prop Setters
-
-    //Manual setters.. these will cause this style class to own this property
-    //**Note: Do not use nullable<> or ? types on class types here. This will return (null) even if the class type is set on the nullable boxer.
-    //OK so you could actually just return _props.Top .. etc here, but for now we're doing this to simplify things (as they are written)
+    //Do not use nullable<> or ? types on class types here. This will return (null) even if the class type is set on the nullable boxed.
     public float? Top { get { return (float?)GetClassProp(UiPropName.Top); } set { SetProp(UiPropName.Top, (float?)value); } }
     public float? Left { get { return (float?)GetClassProp(UiPropName.Left); } set { SetProp(UiPropName.Left, (float?)value); } }
     public float? MinWidth { get { return (float?)GetClassProp(UiPropName.MinWidth); } set { SetProp(UiPropName.MinWidth, (float?)value); } }
     public float? MinHeight { get { return (float?)GetClassProp(UiPropName.MinHeight); } set { SetProp(UiPropName.MinHeight, (float?)value); } }
     public float? MaxWidth { get { return (float?)GetClassProp(UiPropName.MaxWidth); } set { SetProp(UiPropName.MaxWidth, (float?)value); } }
     public float? MaxHeight { get { return (float?)GetClassProp(UiPropName.MaxHeight); } set { SetProp(UiPropName.MaxHeight, (float?)value); } }
+    public float? FixedWidth { get { return (float?)GetClassProp(UiPropName.FixedWidth); } set { SetProp(UiPropName.FixedWidth, (float?)value); } }
+    public float? FixedHeight { get { return (float?)GetClassProp(UiPropName.FixedHeight); } set { SetProp(UiPropName.FixedHeight, (float?)value); } }
     public float? PadTop { get { return (float?)GetClassProp(UiPropName.PadTop); } set { SetProp(UiPropName.PadTop, (float?)value); } }
     public float? PadRight { get { return (float?)GetClassProp(UiPropName.PadRight); } set { SetProp(UiPropName.PadRight, (float?)value); } }
     public float? PadBot { get { return (float?)GetClassProp(UiPropName.PadBot); } set { SetProp(UiPropName.PadBot, (float?)value); } }
@@ -972,14 +984,15 @@ namespace Loft
     public double? Opacity { get { return (double?)GetClassProp(UiPropName.Opacity); } set { SetProp(UiPropName.Opacity, (double?)value); } }
     public UiLayoutOrientation? LayoutOrientation { get { return (UiLayoutOrientation?)GetClassProp(UiPropName.LayoutOrientation); } set { SetProp(UiPropName.LayoutOrientation, (UiLayoutOrientation?)value); } }
     public UiLayoutDirection? LayoutDirection { get { return (UiLayoutDirection?)GetClassProp(UiPropName.LayoutDirection); } set { SetProp(UiPropName.LayoutDirection, (UiLayoutDirection?)value); } }
+    public float? PercentWidth { get { return (float?)GetClassProp(UiPropName.PercentWidth); } set { SetProp(UiPropName.PercentWidth, (float?)value); } }
+    public float? PercentHeight { get { return (float?)GetClassProp(UiPropName.PercentHeight); } set { SetProp(UiPropName.PercentHeight, (float?)value); } }
 
     #endregion
-    #region Public: Methods
+    #region Members 
 
     public UiProps _props = new UiProps();//Gets the compiled / final props
     public bool IsPropsOnly { get; set; } = false;//For glyph, don't inherit parent or compile, and re-compile the class every time.. we set _props manually
     public WeakReference<UiStyleSheet> StyleSheet { get; private set; } = null;
-
     public long CompiledFrameId { get; private set; } = 0;
     private HashSet<WeakReference<UiElement>> _eles = null;
     private BitArray _owned = new BitArray((int)UiPropName.MaxUiProps);//This bitset tells us which props were set
@@ -992,6 +1005,10 @@ namespace Loft
     private bool _bMustTranslateInheritedStyles = false;
     private bool _bMustCompile = true;
     private long _changedFrameId = 0;
+
+    #endregion
+    #region Public: Methods
+
     public UiStyle(UiStyleName name)
       : this(name.ToString(), new List<string>() { })
     {
@@ -1143,6 +1160,7 @@ namespace Loft
           _changed.SetAll(false);
           CompiledFrameId = framestamp;
           _bMustCompile = false;
+          _props.Validate();
         }
       }
     }
@@ -1383,28 +1401,9 @@ namespace Loft
     public UiQuad _b2BorderQuad = new UiQuad(); // Final quad. content area + margin + border area
     public vec2 ContentWH = new vec2(0, 0);
     public vec2 GlyphWH = new vec2(0, 0);//max width/height of all glyphs
-    public vec2 OuterMaxWH = new vec2(0, 0);
-    public vec2 InnerMaxWH = new vec2(0, 0);
+    public vec2 OuterMaxWH = new vec2(0, 0);//parent wh clamped to this element's min/max 
+    public vec2 InnerMaxWH = new vec2(0, 0);//outermaxwh - border -margin
   }
-  //TODO:
-  //this may help using vec4 is annoying due to toprightbotleft amgiguity, plus the UiOrientation LMin/Max would reduce a lot of code
-  //issue is using UiQuad as a size, the w/h makes it difficult because there ends up being errors
-  // replace mar/pad with this and remove LayoutV
-  //   [StructLayout(LayoutKind.Sequential)]
-  //   public struct UiFloat4
-  //   {
-  //     public vec4 _val;
-  //     public static UiFloat4 Zero {get{return new UiFloat4(){_val=vec4.Zero};}}
-  // public UiFloat4(){}
-  // public UiFloat4(float t, float r, float b, float l){
-  //   top=t;right=r;bot=b;left=l;
-  // }
-  //   public float top { get { return _val.x; } set { _val.x = value; } }
-  //   public float right { get { return _val.y; } set { _val.y = value; } }
-  //   public float bot { get { return _val.z; } set { _val.z = value; } }
-  //   public float left { get { return _val.w; } set { _val.w = value; } }
-  // }
-
   public abstract class UiBlock //base interface for for glyphs / eles
   {
     //for debug only
@@ -1483,7 +1482,7 @@ namespace Loft
         _dbgkey = _ekey + 0.6f;
       }
     }
-    private class UiCol
+    private class UiAlignCol
     {
       public float _height = 0;
       public float _width = 0;
@@ -1523,7 +1522,7 @@ namespace Loft
     }
     private class UiLine
     {
-      public UiCol[] _cols = new UiCol[3] { new UiCol(), new UiCol(), new UiCol() };
+      public UiAlignCol[] _cols = new UiAlignCol[3] { new UiAlignCol(), new UiAlignCol(), new UiAlignCol() };//left/center/right
       public float _top = 0;//not null depending on UiBuildOrder
       public float _left = 0;
       public float Height(UiLayoutOrientation o)
@@ -2022,32 +2021,32 @@ namespace Loft
         _iPickId = Picker.c_iInvalidPickId;
       }
     }
-    private bool IsFullyClipped(UiQuad b2ClipRect)
+    private static bool IsFullyClipped(UiQuad quad, UiQuad clip, UiOverflowMode mode, UiDebug dd)
     {
-      var ret = false;
-      // This simple test saves us a ton of GPU pixel tests
-
-      if (Style._props.OverflowMode == UiOverflowMode.Hide)
+      if (dd.DisableClip)
       {
-        if (this._quads._b2ClipQuad.Max.x < b2ClipRect.Min.x)
+        return false;
+      }
+      if (mode == UiOverflowMode.Hide)
+      {
+        if (quad.Max.x < clip.Min.x)
         {
-          ret = true;
+          return true;
         }
-        if (this._quads._b2ClipQuad.Max.y < b2ClipRect.Min.y)
+        if (quad.Max.y < clip.Min.y)
         {
-          ret = true;
+          return true;
         }
-        if (this._quads._b2ClipQuad.Min.x > b2ClipRect.Max.x)
+        if (quad.Min.x > clip.Max.x)
         {
-          ret = true;
+          return true;
         }
-        if (this._quads._b2ClipQuad.Min.y > b2ClipRect.Max.y)
+        if (quad.Min.y > clip.Max.y)
         {
-          ret = true;
+          return true;
         }
       }
-
-      return ret;
+      return false;
     }
     private UiQuad ShrinkClipRect(UiQuad parentClip)
     {
@@ -2065,14 +2064,13 @@ namespace Loft
       }
       return ret;
     }
-    protected virtual void PerformLayout_SizeElements(MegaTex mt, bool bForce, vec2 parentMaxWH, UiStyle? parent, UiStyleSheet sheet, long framesatmp, UiDebug dd)
+    protected virtual void PerformLayout_SizeElements(MegaTex mt, bool bForce, vec2 parentMaxWH, UiStyle? parent, UiStyleSheet sheet, long framesatmp, UiDebug dd, List<UiElement> parentexpanders)
     {
       //if (_layoutChanged || bForce)
       {
         bool styleChanged = Style.Modified;
 
         Style.CompileStyleTree(sheet, framesatmp, parent);
-        Style._props.Validate();
 
         if (((_textChanged || styleChanged) && (framesatmp % 5 == 0 || _bNeverDoneText)))
         {
@@ -2081,17 +2079,11 @@ namespace Loft
           _bNeverDoneText = false;
         }
 
-        if (Style._props.MaxWidth < 0 || Style._props.MaxHeight < 0 || Style._props.MaxWidth < Style._props.MinWidth)
-        {
-          //must fix style
-          Gu.DebugBreak();
-        }
-
         //shrink max rect by parent 
         //remove margins from maxwh before sending into child, then compute our w/h by removing padding from our parent maxwh
         _quads.OuterMaxWH = new vec2(
-          Math.Max(Math.Min(parentMaxWH.width, Style._props.MaxWidth), 0),
-          Math.Max(Math.Min(parentMaxWH.height, Style._props.MaxHeight), 0)
+          Math.Max(Math.Min(parentMaxWH.width, MaxWidthE()), 0),
+          Math.Max(Math.Min(parentMaxWH.height, MaxHeightE()), 0)
         );
 
         //all elements & ele pads NO PARENT MARGIN OR BORDER
@@ -2110,19 +2102,21 @@ namespace Loft
         );
 
         //size, then layout children
-        List<UiLine> spanLines = new List<UiLine>();
+        var spanLines = new List<UiLine>();
+        var expanders = new List<UiElement>();
         spanLines.Add(new UiLine(0, 0));
         int lineidx = 0;
+
 
         if (_children != null && _children.Count > 0)
         {
           //compute min content WH first
           foreach (var ele in _children)
           {
-            //Hide opacity=0 elements??
+            //do not hide opacity=0 elements they still take up block space
             if (ele.Visible)
             {
-              ele.PerformLayout_SizeElements(mt, bForce, _quads.InnerMaxWH, this.Style, sheet, framesatmp, dd);
+              ele.PerformLayout_SizeElements(mt, bForce, _quads.InnerMaxWH, this.Style, sheet, framesatmp, dd, expanders);
 
               if (ele.Style._props.FloatMode != UiFloatMode.Floating)
               {
@@ -2157,7 +2151,6 @@ namespace Loft
               LayoutStaticElement(ele, ele.Style._props.Alignment, spanLines, _quads.InnerMaxWH, _quads.ContentWH, dd, ref lineidx);
             }
           }
-
         }
 
         //glyph spans
@@ -2170,9 +2163,10 @@ namespace Loft
           }
         }
 
-        ComputeFinalWH(pmarb, spanLines, dd);
-
+        ComputeContentWH(pmarb, spanLines, dd);
+        SizeElement(_quads.ContentWH, _quads.InnerMaxWH, dd, parentexpanders);
         AlignElements(spanLines);
+        FixExpanders(expanders, dd);
 
       }
     }
@@ -2234,27 +2228,35 @@ namespace Loft
               glyph._quads._b2BorderQuad._left += this._quads._b2BorderQuad._left;
               glyph._quads._b2BorderQuad._top += this._quads._b2BorderQuad._top;
 
-              GetGlyphQuadVerts(glyph, verts, dd, defaultPixel, pickId, keys);
+              //note glyph border=clipp
+              if (IsFullyClipped(glyph._quads._b2BorderQuad, parentClip, Style._props.OverflowMode, dd) == false)
+              {
+                GetGlyphQuadVerts(glyph, verts, dd, defaultPixel, pickId, keys);
+              }
             }
           }
         }
 
+        UiOverflowMode parentOverflowMode = UiOverflowMode.Hide;
+        if (this.Parent != null && this.Parent.Style != null)
+        {
+          parentOverflowMode = this.Parent.Style._props.OverflowMode;
+        }
 
         if (Style._props.FloatMode == UiFloatMode.Floating)
         {
           GetElementQuadVerts(verts, _quads._b2ClipQuad, defaultPixel, pickId, dd, keys);
         }
-        else if (IsFullyClipped(parentClip) == false)
+        else if (IsFullyClipped(this._quads._b2ClipQuad, parentClip, parentOverflowMode, dd) == false)
         {
           GetElementQuadVerts(verts, parentClip, defaultPixel, pickId, dd, keys);
         }
-
 
         _contentChanged = false;
 
       }
     }
-    private void ComputeFinalWH(vec4 pmarb, List<UiLine> spanLines, UiDebug dd)
+    private void ComputeContentWH(vec4 pmarb, List<UiLine> spanLines, UiDebug dd)
     {
       var ori = Style._props.LayoutOrientation;
 
@@ -2284,12 +2286,10 @@ namespace Loft
         Gu.BRThrowNotImplementedException();
       }
 
-      //Compute final width/h
-      SizeElement(_quads.ContentWH, _quads.OuterMaxWH, dd);
     }
     private void AlignElements(List<UiLine> spanLines)
     {
-      //put stuff left, center, right
+      //layout is to the left, align left, center, right
       var ori = this.Style._props.LayoutOrientation;
 
       if (this.Text == "170.0")
@@ -2327,61 +2327,127 @@ namespace Loft
 
       }
     }
-    private bool ShrinkExpanderW()
+    private void FixExpanders(List<UiElement> expanders, UiDebug dd)
     {
-      //shrink expander to minimum width of parent children, if parent is a shrinking element
-      //else - grow child to parent boundary 
-      return (Style._props.SizeModeWidth == UiSizeMode.Expand && Parent != null && Parent.Style._props.SizeModeWidth == UiSizeMode.Shrink);
+      foreach (var ele in expanders)
+      {
+        //parent=shrink, child=grow (race condition), set child to min content
+        //the cur w/h is the MINIMUM w/h and must be respected.
+        var erw = ele.ExpandRaceW();
+        var erh = ele.ExpandRaceH();
+
+        if (erw)
+        {
+          ele._quads._b2LocalQuad._width = Math.Max(_quads._b2BorderQuad._width - ele._quads._b2LocalQuad._left, ele._quads._b2LocalQuad._width);
+        }
+        if (erh)
+        {
+          ele._quads._b2LocalQuad._height = Math.Max(_quads._b2BorderQuad._height - ele._quads._b2LocalQuad._top, ele._quads._b2LocalQuad._height);
+        }
+      }
     }
-    private bool ShrinkExpanderH()
+    private void SizeElement(vec2 contentWH, vec2 innerMaxWH, UiDebug dd, List<UiElement> parentexpanders)
     {
-      return (Style._props.SizeModeHeight == UiSizeMode.Expand && Parent != null && Parent.Style._props.SizeModeHeight == UiSizeMode.Shrink);
-    }
-    private void SizeElement(vec2 contentWH, vec2 outerMaxWH, UiDebug dd)
-    {
+      //Compute final width/h
       //Compute content minimum width/height of static element to compute size of parent
       //Size is preliminary and static elements will be shortened up to their content size if they go outside parent boundary
       //conttnetwh is min wh 
       var epad = GetPadding(dd);
 
-      //shrink expanders if parent controls child expanders
-      bool shrinkExpanderW = ShrinkExpanderW();
-      bool shrinkExpanderH = ShrinkExpanderH();
-
-      if (Style._props.SizeModeWidth == UiSizeMode.Shrink || shrinkExpanderW)
+      if (ExpandRaceW() || ExpandRaceH())
       {
-        //shrnk to size of contents
+        parentexpanders.Add(this);
+      }
+
+      if (ExpandRaceW())//|| Style._props.SizeModeWidth == UiSizeMode.Average
+      {
+        //set expander race condition to contentwh
         _quads._b2LocalQuad._width = contentWH.width;
       }
-      else if (Style._props.SizeModeWidth == UiSizeMode.Expand && !shrinkExpanderW)
+      else if (Style._props.SizeModeWidth == UiSizeMode.Percent)
       {
-        //take up 100% of parent max if Parent is ShrinkMax, or maximum of parent content if parent is ShrinkContent
-        _quads._b2LocalQuad._width = Math.Max(outerMaxWH.width - epad.left - epad.right, contentWH.width);
+        //% of parent w/h
+        _quads._b2LocalQuad._width = Math.Max(innerMaxWH.width * (Style._props.PercentWidth * 0.01f), contentWH.width);
+      }
+      else if (Style._props.SizeModeWidth == UiSizeMode.Shrink)
+      {
+        //shrnk to size of contents (min size), child will be set to min of parent content in the layout
+        _quads._b2LocalQuad._width = contentWH.width;
       }
       else if (Style._props.SizeModeWidth == UiSizeMode.Fixed)
       {
-        //note: max=min when fixed
-        _quads._b2LocalQuad._width = Style._props.MaxWidth - Style._props.MinWidth;
+        _quads._b2LocalQuad._width = Style._props.FixedWidth;
       }
 
-      if (Style._props.SizeModeHeight == UiSizeMode.Shrink || shrinkExpanderH)
+      if (ExpandRaceH())
       {
         _quads._b2LocalQuad._height = contentWH.height;
       }
-      else if (Style._props.SizeModeHeight == UiSizeMode.Expand && !shrinkExpanderH)
+      else if (Style._props.SizeModeHeight == UiSizeMode.Percent)
       {
-        _quads._b2LocalQuad._height = Math.Max(outerMaxWH.height - epad.top - epad.bot, contentWH.height);
+        _quads._b2LocalQuad._height = Math.Max(innerMaxWH.height * (Style._props.PercentHeight * 0.01f), contentWH.height);
+      }
+      else if (Style._props.SizeModeHeight == UiSizeMode.Shrink)
+      {
+        _quads._b2LocalQuad._height = contentWH.height;
       }
       else if (Style._props.SizeModeHeight == UiSizeMode.Fixed)
       {
-        _quads._b2LocalQuad._height = Style._props.MaxHeight - Style._props.MinHeight;
+        _quads._b2LocalQuad._height = Style._props.FixedHeight;
       }
 
-      //maxw/h are the penultimate parameters and you cant go past them even if clipping happens
-      _quads._b2LocalQuad._width = Math.Clamp(_quads._b2LocalQuad._width, Style._props.MinWidth, Style._props.MaxWidth);
-      _quads._b2LocalQuad._height = Math.Clamp(_quads._b2LocalQuad._height, Style._props.MinHeight, Style._props.MaxHeight);
+      //for static elements maxw/h are the penultimate parameters and you cant go past them even if clipping happens
+      _quads._b2LocalQuad._width = Math.Clamp(_quads._b2LocalQuad._width, MinWidthE(), MaxWidthE());
+      _quads._b2LocalQuad._height = Math.Clamp(_quads._b2LocalQuad._height, MinHeightE(), MaxHeightE());
 
       _quads._b2LocalQuad.Validate();
+    }
+    private bool ExpandRaceW()
+    {
+      //race condtion: parent=shrink, child=expand
+      return (Style._props.SizeModeWidth == UiSizeMode.Percent && Parent != null && Parent.Style._props.SizeModeWidth == UiSizeMode.Shrink);
+    }
+    private bool ExpandRaceH()
+    {
+      return (Style._props.SizeModeHeight == UiSizeMode.Percent && Parent != null && Parent.Style._props.SizeModeHeight == UiSizeMode.Shrink);
+    }
+    protected float MinWidthE() { return EffectiveMinMax(Style._props.SizeModeWidth, true, true); }
+    protected float MinHeightE() { return EffectiveMinMax(Style._props.SizeModeHeight, false, true); }
+    protected float MaxWidthE() { return EffectiveMinMax(Style._props.SizeModeWidth, true, false); }
+    protected float MaxHeightE() { return EffectiveMinMax(Style._props.SizeModeHeight, false, false); }
+    private float EffectiveMinMax(UiSizeMode m, bool w, bool i)
+    {
+      //effective min/max based on sizing mode.
+      if (w == true)
+      {
+        if (m == UiSizeMode.Fixed)
+        {
+          return Style._props.FixedWidth;
+        }
+        else if (i)
+        {
+          return Style._props.MinWidth;
+        }
+        else
+        {
+          return Style._props.MaxWidth;
+        }
+      }
+      else
+      {
+        if (m == UiSizeMode.Fixed)
+        {
+          return Style._props.FixedHeight;
+        }
+        else if (i)
+        {
+          return Style._props.MinHeight;
+        }
+        else
+        {
+          return Style._props.MaxHeight;
+        }
+      }
     }
     private void LayoutStaticElement(UiElement ele, UiAlignment align, List<UiLine> vecLines, vec2 pmaxInnerWH, vec2 pcontentWH, UiDebug dd, ref int lineidx)
     {
@@ -2391,27 +2457,10 @@ namespace Loft
         Gu.BRThrowException("GUI error - tried to run calc algorithm without any UILines created");
       }
 
-      if (ele.ShrinkExpanderW())
-      {
-        //parent=shrink, child=grow (race condition), set child to min content
-        ele._quads._b2LocalQuad._width = Math.Min(pcontentWH.width, pmaxInnerWH.width);
-      }
-      if (ele.ShrinkExpanderH())
-      {
-        ele._quads._b2LocalQuad._height = Math.Min(pcontentWH.height, pmaxInnerWH.height);
-      }
-
       LayoutBlock(ele, align, vecLines, pmaxInnerWH, pcontentWH, dd, ref lineidx);
     }
     private void LayoutBlock(UiBlock ele, UiAlignment align, List<UiLine> vecLines, vec2 pmaxInnerWH, vec2 pcontentWH, UiDebug dd, ref int lineidx)
     {
-      if (ele is UiElement)
-      {
-        if ((ele as UiElement)._strText == "45.0")
-        {
-          Gu.Trap();
-        }
-      }
       //TODO: remove dupe code using LMin/LSize
       if (Style._props.LayoutOrientation == UiLayoutOrientation.Horizontal)
       {
@@ -2426,49 +2475,17 @@ namespace Loft
         Gu.BRThrowNotImplementedException();
       }
     }
-    private bool CheckLineBreak(UiBlock ele, float word_size, float l_width, float space, float e_size, float e_pad_a, float e_pad_b)
-    {
-      //ele, ele.WordWidth, line.Width(ori), pspacex, e_width, e_pad.left , e_pad.right; 
-      bool bLineBreak = false;
-      if (ele.DisplayMode == UiDisplayMode.Inline || ele.DisplayMode == UiDisplayMode.Word)
-      {
-        float wordwidth = 0;
-        if (ele.DisplayMode == UiDisplayMode.Word)
-        {
-          wordwidth = word_size;
-        }
-        else
-        {
-          wordwidth = e_size + e_pad_a + e_pad_b;
-        }
-
-        if (wordwidth + l_width > space)
-        {
-          bLineBreak = true;
-        }
-      }
-      else if (ele.DisplayMode == UiDisplayMode.Block)
-      {
-        bLineBreak = true;
-      }
-      else if (ele.DisplayMode == UiDisplayMode.InlineNoWrap)
-      {
-        bLineBreak = false;
-      }
-      return bLineBreak;
-    }
     private void LayoutBlockH(UiBlock ele, UiAlignment align, List<UiLine> vecLines, vec2 pmaxInnerWH, vec2 pcontentWH, UiDebug dd, ref int lineidx)
     {
       //lay out elements
       var ori = UiLayoutOrientation.Horizontal;
-      float pspacex = pmaxInnerWH.x;
       UiLine line = vecLines[lineidx];
-      UiCol col = line._cols[(int)align];
+      UiAlignCol col = line._cols[(int)align];
       float e_width = ele._quads._b2LocalQuad._width;
       float e_height = ele._quads._b2LocalQuad._height;
       var e_pad = ele.GetPadding(dd);
 
-      if (CheckLineBreak(ele, ele.WordWidth, line.Width(ori), pspacex, e_width, e_pad.left, e_pad.right))
+      if (CheckLineBreak(ele, ele.WordWidth, line.Width(ori), pmaxInnerWH.x, e_width, e_pad.left, e_pad.right))
       {
         if (lineidx + 1 >= vecLines.Count)
         {
@@ -2508,14 +2525,13 @@ namespace Loft
     private void LayoutBlockV(UiBlock ele, UiAlignment align, List<UiLine> vecLines, vec2 pmaxInnerWH, vec2 pcontentWH, UiDebug dd, ref int lineidx)
     {
       var ori = UiLayoutOrientation.Vertical;
-      float pspacey = pmaxInnerWH.y;
       UiLine line = vecLines[lineidx];
-      UiCol col = line._cols[(int)align];
+      UiAlignCol col = line._cols[(int)align];
       float e_width = ele._quads._b2LocalQuad._width;
       float e_height = ele._quads._b2LocalQuad._height;
       var e_pad = ele.GetPadding(dd);
 
-      if (CheckLineBreak(ele, ele.WordHeight, line.Height(ori), pspacey, e_height, e_pad.top, e_pad.bot))
+      if (CheckLineBreak(ele, ele.WordHeight, line.Height(ori), pmaxInnerWH.y, e_height, e_pad.top, e_pad.bot))
       {
         if (lineidx + 1 >= vecLines.Count)
         {
@@ -2551,6 +2567,37 @@ namespace Loft
       col._eles.Add(ele);
 
       ele._quads._b2LocalQuad.Validate();
+    }
+    private bool CheckLineBreak(UiBlock ele, float word_size, float l_width, float space, float e_size, float e_pad_a, float e_pad_b)
+    {
+      //ele, ele.WordWidth, line.Width(ori), pspacex, e_width, e_pad.left , e_pad.right; 
+      bool bLineBreak = false;
+      if (ele.DisplayMode == UiDisplayMode.Inline || ele.DisplayMode == UiDisplayMode.Word)
+      {
+        float wordwidth = 0;
+        if (ele.DisplayMode == UiDisplayMode.Word)
+        {
+          wordwidth = word_size;
+        }
+        else
+        {
+          wordwidth = e_size + e_pad_a + e_pad_b;
+        }
+
+        if (wordwidth + l_width > space)
+        {
+          bLineBreak = true;
+        }
+      }
+      else if (ele.DisplayMode == UiDisplayMode.Block)
+      {
+        bLineBreak = true;
+      }
+      else if (ele.DisplayMode == UiDisplayMode.InlineNoWrap)
+      {
+        bLineBreak = false;
+      }
+      return bLineBreak;
     }
     private void ConstrainValue(float min, float max, ref float x, float size)
     {
@@ -2609,7 +2656,6 @@ namespace Loft
 
       //initial clip
 
-      if (this._quads._b2LocalQuad._left > 99999 || this._quads._b2LocalQuad._width > 99999) { Gu.DebugBreak(); }
 
       // Set to false if we're controllig coordinates of this element (cursor, or window position)
       this._quads._b2BorderQuad._left *= w1;
@@ -2637,6 +2683,9 @@ namespace Loft
       this._quads._dbg_b2PaddingQuad._width += (pd.right + pd.left);
       this._quads._dbg_b2PaddingQuad._height += (pd.bot + pd.top);
       this._quads._dbg_b2PaddingQuad.Validate();
+
+      this._quads._b2LocalQuad.Validate();
+      this._quads._b2BorderQuad.Validate();
     }
     private void GetElementQuadVerts(SortedList<float, v_v4v4v4v2u2v4v4> all_verts, UiQuad b2ClipRect, MtTex defaultPixel, uint rootPickId, UiDebug dd, SortKeys keys)
     {
@@ -3063,7 +3112,7 @@ namespace Loft
 
     public UiStyleSheet(string name)
     {
-      Name = name+"-ss";
+      Name = name + "-ss";
       LoadCSSFile();
     }
     public void Update()
@@ -3328,33 +3377,16 @@ namespace Loft
     }
     private void UpdateLayout_Async(MegaTex mt, PCMouse mouse, RenderView rv, ref Dictionary<uint, UiElement>? pickable)
     {
-      //not sure if this is faster doesnt seem to make too much differnts.
-      //_async_verts.Reset();
-      _async_verts.Clear();
-      //for now - the layout changed thing does not work, partially due to async, (but the async is actually faster than that anyway).
-      bool force = true;
-
-      _async_framestamp++;
       //pass 1 compute minimum sizes for children,  child relative positions, relative clip quads
-      //pass 2 compute absolute positions elements, compute quads.
-      ComputeQuads(DebugDraw);
-      PerformLayout_SizeElements(mt, force, new vec2(Style._props.MaxWidth, Style._props.MaxHeight), null, StyleSheet, _async_framestamp, DebugDraw);
-      PerformLayout_PositionElements(force, DebugDraw, _async_verts, this._quads._b2ClipQuad, mt.DefaultPixel, _iPickId, ref pickable, 1);
+      //pass 2 compute absolute positions elements, compute absolute quads.
+      //for now - the layout changed thing does not work, partially due to async, (but the async is actually faster than that anyway).
 
-      //TODO: we need to have a sort - debug &c is not showing
-      // _eles_tmp.List.Sort((x, y) => { return x.DefaultSortKey - y.DefaultSortKey; });
-      // if (_eles_tmp.Count > _async_verts.Count)
-      // {
-      //   _async_verts = new List<v_v4v4v4v2u2v4v4>(_eles_tmp.Count);
-      // }
-      // foreach (var e in _eles_tmp)
-      // {
-      //   //calc vert
-      // }
-      //sort the vertexes based on the sort algorithm
-      //sort: 
-      // tree depth * 10000 + Child index + z-index
-      //_async_verts.Sort((x, y) => x.);
+      _async_verts.Clear();
+      bool force = true;
+      _async_framestamp++;
+      ComputeQuads(DebugDraw);
+      PerformLayout_SizeElements(mt, force, new vec2(MaxWidthE(), MaxHeightE()), null, StyleSheet, _async_framestamp, DebugDraw, new List<UiElement>());
+      PerformLayout_PositionElements(force, DebugDraw, _async_verts, this._quads._b2ClipQuad, mt.DefaultPixel, _iPickId, ref pickable, 1);
     }
     private void SendMeshToGpu_Sync(RenderView rv)
     {
@@ -3409,10 +3441,8 @@ namespace Loft
         //We are probably getting rid of width height
         Style.Top = rv.Viewport.Y;
         Style.Left = rv.Viewport.X;
-        Style.MinWidth = 0;
-        Style.MinHeight = 0;
-        Style.MaxWidth = rv.Viewport.Width;//Make sure stuff doesn't go off the screen.
-        Style.MaxHeight = rv.Viewport.Height;//Make sure stuff doesn't go off the screen.
+        Style.FixedWidth = rv.Viewport.Width;
+        Style.FixedHeight = rv.Viewport.Height;
         Style.SizeModeWidth = UiSizeMode.Fixed;
         Style.SizeModeHeight = UiSizeMode.Fixed;
         Style.PositionMode = UiPositionMode.Absolute;

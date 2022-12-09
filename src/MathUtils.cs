@@ -1893,6 +1893,8 @@ namespace Loft
         );
     }
 
+    public vec4 setW(float dw) { w = dw; return this; }
+
     public float top { get { return x; } set { x = value; } }
     public float right { get { return y; } set { y = value; } }
     public float bot { get { return z; } set { z = value; } }

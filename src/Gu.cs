@@ -73,10 +73,6 @@ namespace Loft
       return sb.ToString();
     }
   }
-  public class Files
-  {
-
-  }
   public static class Gu
   {
     // Global Utils. static Class

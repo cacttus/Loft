@@ -81,15 +81,17 @@ namespace Loft
       var v = new RenderView(viewname, mode, xy_pct, wh_pct, this.Width, this.Height);
       RenderViews.Add(v);
 
-      OnCreateGUI(v);
+      if (mode == RenderViewMode.UIOnly || mode == RenderViewMode.UIAndWorld)
+      {
+        OnCreateGUI(v);
+      }
+
+      if (mode == RenderViewMode.WorldOnly || mode == RenderViewMode.UIAndWorld)
+      {
+        v.CreateDefaultCamera();
+      }
 
       return v;
-    }
-    protected void CreateCameraView(vec2 xy_pct, vec2 wh_pct)
-    {
-      //Technically since this is a "world view" this should be on a separate window class that can view the world.
-      var v = CreateRenderView(RenderViewMode.UIAndWorld, xy_pct, wh_pct);
-      v.CreateDefaultCamera();
     }
     public virtual void Load()
     {
@@ -382,18 +384,18 @@ namespace Loft
         info.AppendLine($" Mouse:{Gu.Context.PCMouse.Pos.ToString()}");
         info.AppendLine($" Profile:{Profile.ToString()}");
         info.AppendLine($" Camera:{cpos.ToString(2)} ");
-        info.AppendLine($" FOV:{StringUtil.FormatPrec(MathUtils.ToDegrees(rv.Camera.FOV),0)}°,{StringUtil.FormatPrec(rv.Camera.Near,1)},{StringUtil.FormatPrec(rv.Camera.Far,1)},{rv.Camera.ProjectionMode.ToString()} ");
+        info.AppendLine($" FOV:{StringUtil.FormatPrec(MathUtils.ToDegrees(rv.Camera.FOV), 0)}°,{StringUtil.FormatPrec(rv.Camera.Near, 1)},{StringUtil.FormatPrec(rv.Camera.Far, 1)},{rv.Camera.ProjectionMode.ToString()} ");
         info.AppendLine($"Stats:");
         info.AppendLine($"{Gu.FrameStats.ToString()}");
         info.AppendLine($"UI:");
         info.AppendLine($" update={rv.Gui?._dbg_UpdateMs}ms mesh={rv.Gui?._dbg_MeshMs}ms event={rv.Gui?._dbg_EventsMs}ms");
         info.AppendLine($"Scripts:");
-        info.AppendLine($" {StringUtil.FormatPrec((float)CSharpScript.TotalLoadedScriptAssemblyBytes/(float)(1024*1024),1)}MB");
+        info.AppendLine($" {StringUtil.FormatPrec((float)CSharpScript.TotalLoadedScriptAssemblyBytes / (float)(1024 * 1024), 1)}MB");
         info.AppendLine($"World:");
         info.AppendLine($" globs: count={Gu.World.NumGlobs} visible={Gu.World.NumVisibleRenderGlobs}");
         info.AppendLine($" objs: visible={Gu.World.NumVisibleObjects} culled={Gu.World.NumCulledObjects}");
-        info.AppendLine($" icked={Gu.Context.Renderer.Picker.PickedObjectName}");
-        info.AppendLine($" selected={Gu.World.Editor.SelectedObjects.ToString()}");
+        info.AppendLine($" picked={Gu.Context.Renderer.Picker.PickedObjectName}");
+        info.AppendLine($" selected={String.Join(",", Gu.World.Editor.SelectedObjects.Select((i) => i.Name)).ToString()}");
         info.AppendLine($"Gpu:");
         info.AppendLine($"{Gu.Context.Gpu.GetMemoryInfo().ToString()}");
 
@@ -458,21 +460,20 @@ namespace Loft
         Gu.BRThrowNotImplementedException();
       }
     }
+    private void CreateWorldViewsIfNeeded(int view)
+    {
+      for (int i = 0; i < view; i++)
+      {
+        if (RenderViews.Count == i)
+        {
+          var v = CreateRenderView(RenderViewMode.UIAndWorld, new vec2(0, 0), new vec2(1, 1));
+        }
+      }
+    }
     public void SetGameMode(GameMode g)
     {
       //Global Game mode
       Gu.World.GameMode = g;
-
-      // 4 views, disable if they are not rendering
-      if (this.RenderViews.Count == 0)
-      {
-        //Create initial 4-up view
-        CreateCameraView(new vec2(0.0f, 0.0f), new vec2(0.5f, 0.5f));
-        CreateCameraView(new vec2(0.5f, 0.0f), new vec2(1.0f, 0.5f));
-        CreateCameraView(new vec2(0.0f, 0.5f), new vec2(0.5f, 1.0f));
-        CreateCameraView(new vec2(0.5f, 0.5f), new vec2(1.0f, 1.0f));
-      }
-      Gu.Assert(this.RenderViews.Count == 4);
 
       foreach (var rv in this.RenderViews)
       {
@@ -482,6 +483,7 @@ namespace Loft
       //Set view size
       if ((Gu.World.GameMode == GameMode.Edit && Gu.World.Editor.EditView == 1) || Gu.World.GameMode == GameMode.Play)
       {
+        CreateWorldViewsIfNeeded(1);
         RenderViews[0].SetSize(new vec2(0.0f, 0.0f), new vec2(1.0f, 1.0f), this.Width, this.Height);
         RenderViews[0].Enabled = true;
       }
@@ -489,6 +491,7 @@ namespace Loft
       {
         if (Gu.World.Editor.EditView == 2)
         {
+          CreateWorldViewsIfNeeded(2);
           RenderViews[0].SetSize(new vec2(0.0f, 0.0f), new vec2(0.5f, 1.0f), this.Width, this.Height);
           RenderViews[1].SetSize(new vec2(0.5f, 0.0f), new vec2(1.0f, 1.0f), this.Width, this.Height);
           RenderViews[0].Enabled = true;
@@ -496,6 +499,7 @@ namespace Loft
         }
         else if (Gu.World.Editor.EditView == 3)
         {
+          CreateWorldViewsIfNeeded(3);
           RenderViews[0].SetSize(new vec2(0.0f, 0.0f), new vec2(0.5f, 0.5f), this.Width, this.Height);
           RenderViews[1].SetSize(new vec2(0.5f, 0.0f), new vec2(1.0f, 0.5f), this.Width, this.Height);
           RenderViews[2].SetSize(new vec2(0.0f, 0.5f), new vec2(1.0f, 1.0f), this.Width, this.Height);
@@ -505,7 +509,7 @@ namespace Loft
         }
         else if (Gu.World.Editor.EditView == 4)
         {
-          //4-up, this.Width, this.Height
+          CreateWorldViewsIfNeeded(4);
           RenderViews[0].SetSize(new vec2(0.0f, 0.0f), new vec2(0.5f, 0.5f), this.Width, this.Height);
           RenderViews[1].SetSize(new vec2(0.5f, 0.0f), new vec2(1.0f, 0.5f), this.Width, this.Height);
           RenderViews[2].SetSize(new vec2(0.0f, 0.5f), new vec2(0.5f, 1.0f), this.Width, this.Height);

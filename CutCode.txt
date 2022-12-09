@@ -2988,3 +2988,25 @@ if model name exists
       if (dir == UiLayoutOrientation.Horizontal)
       {
         return _width;
+
+
+
+      // //**TEST
+      //flow expanders, this is probably not needed
+      // if (ele is UiElement)
+      // {
+      //   var eui = ele as UiElement;
+      //   if (eui.Style._props.SizeModeWidth == UiSizeMode.Expand && Style._props.ExpandModeWidth == UiExpandMode.Flow)
+      //   {
+      //     var remaining_space = Math.Max(pmaxInnerWH.x - line.Width(ori) - col_adv, 0);
+      //     ele._quads._b2LocalQuad._width = remaining_space;
+      //     e_width = ele._quads._b2LocalQuad._width;
+      //   }
+      //   if (eui.Style._props.SizeModeHeight == UiSizeMode.Expand && Style._props.ExpandModeHeight == UiExpandMode.Flow)
+      //   {
+      //     var remaining_space = Math.Max(pmaxInnerWH.y - line._top, 0);
+      //     ele._quads._b2LocalQuad._height = remaining_space;
+      //     e_height = ele._quads._b2LocalQuad._height;
+      //   }
+      // }
+      // //**TEST
