@@ -398,6 +398,7 @@ namespace Loft
         info.AppendLine($" selected={String.Join(",", Gu.World.Editor.SelectedObjects.Select((i) => i.Name)).ToString()}");
         info.AppendLine($"Gpu:");
         info.AppendLine($"{Gu.Context.Gpu.GetMemoryInfo().ToString()}");
+        info.AppendLine($"ThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapT hisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrap");
 
         rv.WorldDebugInfo.Text = info.ToString();
       }

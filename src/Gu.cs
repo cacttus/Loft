@@ -993,10 +993,18 @@ namespace Loft
           v.Gui.AddChild(win);
         }
       }
-
-
-
     }
+    public static bool IsGuiFocused()
+    {
+      //currnelty we update object components before updating the picked element so use last picked
+      var ob = Gu.Context.Renderer.Picker.PickedObjectFrameLast;
+      
+      bool f = (ob != null) && (ob is UiElement);
+      
+      return f;
+    }
+
+
     #endregion
 
 

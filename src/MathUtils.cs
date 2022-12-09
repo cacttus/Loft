@@ -616,15 +616,15 @@ namespace Loft
       vec2 v = new vec2(this);
       v.normalize();
       return v;
-
     }
     public float length2() { return Dot(this, this); }
     public OpenTK.Mathematics.Vector2 toXNA() { return new OpenTK.Mathematics.Vector2(x, y); }
 
-    static public implicit operator vec2(float f)
-    {
-      return new vec2(f, f);
-    }
+    //NO
+    // static public implicit operator vec2(float f)
+    // {
+    //   return new vec2(f, f);
+    // }
     public static float Dot(vec2 a, vec2 b)
     {
       return (a.x * b.x) + (a.y * b.y);
@@ -633,10 +633,12 @@ namespace Loft
     {
       return (x * b.x) + (y * b.y);
     }
+    
     public static vec2 operator -(vec2 d)
     {
       return new vec2(-d.x, -d.y);
     }
+
     public static vec2 operator +(vec2 a, vec2 b)
     {
       return new vec2(a.x + b.x, a.y + b.y);
@@ -645,22 +647,32 @@ namespace Loft
     {
       return new vec2(a.x - b.x, a.y - b.y);
     }
-    public static vec2 operator *(vec2 a, float b)
-    {
-      return new vec2(a.x * b, a.y * b);
-    }
     public static vec2 operator *(vec2 a, vec2 b)
     {
       return new vec2(a.x * b.x, a.y * b.y);
+    }
+    public static vec2 operator /(vec2 a, vec2 b)
+    {
+      return new vec2(a.x / b.x, a.y / b.y);
+    }
+
+    public static vec2 operator +(vec2 a, float b)
+    {
+      return new vec2(a.x + b, a.y + b);
+    }
+    public static vec2 operator -(vec2 a, float b)
+    {
+      return new vec2(a.x - b, a.y - b);
+    }
+    public static vec2 operator *(vec2 a, float b)
+    {
+      return new vec2(a.x * b, a.y * b);
     }
     public static vec2 operator /(vec2 a, float b)
     {
       return new vec2(a.x / b, a.y / b);
     }
-    public static vec2 operator -(vec2 a, float f)
-    {
-      return new vec2(a.x - f, a.y - f);
-    }
+
     public static bool operator !=(vec2 a, vec2 b)
     {
       return (a.x != b.x || a.y != b.y);
@@ -1057,6 +1069,7 @@ namespace Loft
     {
       return new dvec3(-d.x, -d.y, -d.z);
     }
+
     public static dvec3 operator +(in dvec3 a, in dvec3 b)
     {
       return new dvec3(a.x + b.x, a.y + b.y, a.z + b.z);
@@ -1073,6 +1086,7 @@ namespace Loft
     {
       return new dvec3(a.x / b.x, a.y / b.y, a.z / b.z);
     }
+
     public static dvec3 operator +(in dvec3 a, double f)
     {
       return new dvec3(a.x + f, a.y + f, a.z + f);
@@ -1089,6 +1103,7 @@ namespace Loft
     {
       return new dvec3(a.x / b, a.y / b, a.z / b);
     }
+
     public static dvec3 operator +(in double a, in dvec3 b)
     {
       return new dvec3(a + b.x, a + b.y, a + b.z);
@@ -1105,6 +1120,7 @@ namespace Loft
     {
       return new dvec3(a / b.x, a / b.y, a / b.z);
     }
+
     public static bool operator >(in dvec3 v1, in dvec3 v2)
     {
       return (v1.x > v2.x && v1.y > v2.y && v1.z > v2.z);
@@ -1633,10 +1649,12 @@ namespace Loft
 
       return outv;
     }
+
     public static vec3 operator -(in vec3 d)
     {
       return new vec3(-d.x, -d.y, -d.z);
     }
+
     public static vec3 operator +(in vec3 a, in vec3 b)
     {
       return new vec3(a.x + b.x, a.y + b.y, a.z + b.z);
@@ -1653,6 +1671,7 @@ namespace Loft
     {
       return new vec3(a.x / b.x, a.y / b.y, a.z / b.z);
     }
+
     public static vec3 operator +(in vec3 a, float f)
     {
       return new vec3(a.x + f, a.y + f, a.z + f);
@@ -1669,6 +1688,7 @@ namespace Loft
     {
       return new vec3(a.x / b, a.y / b, a.z / b);
     }
+
     public static vec3 operator +(in float a, in vec3 b)
     {
       return new vec3(a + b.x, a + b.y, a + b.z);
@@ -1685,6 +1705,7 @@ namespace Loft
     {
       return new vec3(a / b.x, a / b.y, a / b.z);
     }
+
     public static bool operator >(in vec3 v1, in vec3 v2)
     {
       return (v1.x > v2.x && v1.y > v2.y && v1.z > v2.z);
@@ -2197,10 +2218,10 @@ namespace Loft
     [DataMember] public Int32 x;
     [DataMember] public Int32 y;
     public ivec2(int dx, int dy) { x = dx; y = dy; }
-    static public implicit operator ivec2(int f)
-    {
-      return new ivec2(f, f);
-    }
+    // static public implicit operator ivec2(int f)
+    // {
+    //   return new ivec2(f, f);
+    // }
     public Int32 width { get { return x; } }
     public Int32 height { get { return y; } }
     public static ivec2 operator -(ivec2 d)
@@ -2271,10 +2292,10 @@ namespace Loft
     [DataMember] public uint x;
     [DataMember] public uint y;
     public uvec2(uint dx, uint dy) { x = dx; y = dy; }
-    static public implicit operator uvec2(uint f)
-    {
-      return new uvec2(f, f);
-    }
+    // static public implicit operator uvec2(uint f)
+    // {
+    //   return new uvec2(f, f);
+    // }
     public static uvec2 operator +(uvec2 a, uvec2 b)
     {
       return new uvec2(a.x + b.x, a.y + b.y);
@@ -2395,6 +2416,7 @@ namespace Loft
     {
       return new ivec3(a.x / b.x, a.y / b.y, a.z / b.z);
     }
+    
     public static bool operator ==(in ivec3 a, in ivec3 b)
     {
       return (a.x == b.x) && (a.y == b.y) && (a.z == b.z);

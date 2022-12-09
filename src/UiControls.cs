@@ -5,6 +5,9 @@ namespace Loft
 
   public class UiControl : UiElement
   {
+    public vec4 v_defaultUp = new vec4(.88, .88, .89, 1);
+    public vec4 v_defaultHover = new vec4(.96, .96, .97, 1);
+    public vec4 v_defaultDown = new vec4(.66, .66, .67, 1);
     public new UiControl Click(UiAction f)
     {
       if (f != null)
@@ -18,7 +21,7 @@ namespace Loft
     {
       if (registerStyleEvents)
       {
-        RegisterStyleEvents();
+        RegisterStyleEvents(v_defaultUp, v_defaultHover, v_defaultDown);
       }
       //SetControlStyle screws up inheritance Set manually if needed
     }
@@ -47,33 +50,33 @@ namespace Loft
       this.Style.BorderColorLeft = this.Style.BorderColorBot = OffColor.Charcoal;
       this.Style.BorderColorRight = this.Style.BorderColorTop = OffColor.VeryLightGray;
     }
-    protected void RegisterStyleEvents()
+    public void RegisterStyleEvents(vec4 up, vec4 hover, vec4 down)
     {
       AddEvent(UiEventId.Mouse_Enter, (e) =>
       {
         if (e.State.Focused != this)
         {
-          Style.MultiplyColor = new vec4(1.08f, 1.0f);
+          Style.Color = hover;
         }
       });
       AddEvent(UiEventId.Mouse_Leave, (e) =>
       {
         if (e.State.Focused != this)
         {
-          Style.MultiplyColor = vec4.One;
+          Style.Color = up;
         }
       });
       AddEvent(UiEventId.LmbPress, (e) =>
       {
-        Style.MultiplyColor = new vec4(0.82f, 1.0f);
+        Style.Color = down;
       });
       AddEvent(UiEventId.Lost_Focus, (e) =>
       {
-        Style.MultiplyColor = vec4.One;
+        Style.Color = up;
       });
       AddEvent(UiEventId.LmbRelease, (e) =>
       {
-        Style.MultiplyColor = vec4.One;
+        Style.Color = up;
       });
     }
   }
@@ -183,7 +186,7 @@ namespace Loft
         shortcut.Style.PositionMode = UiPositionMode.Static;
         shortcut.Style.SizeModeWidth = UiSizeMode.Shrink;
         shortcut.Style.SizeModeHeight = UiSizeMode.Percent;
-        shortcut.Style.DisplayMode = UiDisplayMode.InlineNoWrap;
+        shortcut.Style.DisplayMode = UiDisplayMode.NoWrap;
         shortcut.Style.Alignment = UiAlignment.Right;
         shortcut.Style.TextAlign = UiAlignment.Right;
         shortcut.Style.Border = 0;
@@ -213,7 +216,7 @@ namespace Loft
       _label.Style.SizeModeWidth = UiSizeMode.Shrink;
       _label.Style.SizeModeHeight = UiSizeMode.Shrink;
       _label.Style.PositionMode = UiPositionMode.Static;
-      _label.Style.DisplayMode = UiDisplayMode.InlineNoWrap;
+      _label.Style.DisplayMode = UiDisplayMode.NoWrap;
       _label.Style.MinWidth = 100;
       _label.Style.Margin = _label.Style.Border = _label.Style.Padding = 0;
       this.AddChild(_label);
@@ -322,11 +325,11 @@ namespace Loft
       this.Style.SizeModeHeight = UiSizeMode.Shrink;
       if (Translator.TextFlow == LanguageTextFlow.Left)
       {
-        this.Style.LayoutDirection = UiLayoutDirection.Left;
+        this.Style.LayoutDirection = UiLayoutDirection.RightToLeft;
       }
       else if (Translator.TextFlow == LanguageTextFlow.Right)
       {
-        this.Style.LayoutDirection = UiLayoutDirection.Right;
+        this.Style.LayoutDirection = UiLayoutDirection.LeftToRight;
       }
       else
       {
@@ -506,6 +509,8 @@ namespace Loft
 
   public class UiSlider : UiControl
   {
+    public const int c_iMinThumbSize = 10;
+
     public enum LabelDisplayMode
     {
       Outside,
@@ -516,13 +521,14 @@ namespace Loft
     public double MinValue { get { return _minvalue; } set { _minvalue = value; UpdateValuesChanged(); } }
     public double MaxValue { get { return _maxvalue; } set { _maxvalue = value; UpdateValuesChanged(); } }
     public LabelDisplayMode LabelDisplay { get { return _labelDisplayMode; } set { _labelDisplayMode = value; UpdateLabelDisplayMode(); } }
-    public float Thickness { get { return _thickness; } set { _thickness = value; } }
+    public float Thickness { get { return _thickness; } set { _thickness = value; UpdateStyle(); } }
     public int Precision { get { return _precision; } set { _precision = value; UpdateLabels(); } }
+    public float ThumbSize { get { return _thumbsize; } set { _thumbsize = value; UpdateValuesChanged(); } }
+    public float ScrollSize { get { return _scrollSize; } set { _scrollSize = value; } }
 
-    protected virtual float ThumbSize { get { return _thumbsize; } set { _thumbsize = value; } }
+    private UiOrientation _direction { get { return this.Style.LayoutOrientation.Value; } }
 
-    private UiLayoutOrientation _direction { get { return this.Style.LayoutOrientation.Value; } }
-
+    private float _scrollSize = 10;
     private double _value = 0;
     private double _minvalue = 0;
     private double _maxvalue = 100;
@@ -538,9 +544,11 @@ namespace Loft
     private int _precision = 1;
     private float _thickness = 20;
     private float _thumbsize = 10;
-    private int _minSize = 10;
+    private int _minSize = c_iMinThumbSize;
 
-    public UiSlider(double leftval, double rightval, double defaultval, LabelDisplayMode labeldisply, UiLayoutOrientation direction, Action<UiElement, double> onValueChange)
+    private vec2 _thumb_mouse_rel_click = new vec2(0, 0);
+
+    public UiSlider(double leftval, double rightval, double defaultval, LabelDisplayMode labeldisply, UiOrientation direction, Action<UiElement, double> onValueChange)
     {
       //**Leftval & Rightval - we allow having min/max on either end of the slider.. 
       //allow for left/right to be less or equal, not necessarily LTR
@@ -590,19 +598,47 @@ namespace Loft
 
       this.AddEvent(UiEventId.LmbPress, (e) =>
       {
-        UpdateMovedThumb(e.State.MousePosCur);
+        UpdateMovedThumb(e.State.MousePosCur, false);
       });
-      this.AddEvent(UiEventId.Mouse_Move, (e) =>
+      this.AddEvent(UiEventId.LmbDrag, (e) =>
       {
-        if (e.State.Focused == this || e.State.Focused == _thumb)
-        {
-          UpdateMovedThumb(e.State.MousePosCur);
-        }
+        UpdateMovedThumb(e.State.MousePosCur, false);
       });
       _thumb.AddEvent(UiEventId.LmbDrag, (e) =>
       {
-        UpdateMovedThumb(e.State.MousePosCur);
+        UpdateMovedThumb(e.State.MousePosCur - _thumb_mouse_rel_click, true);
+        _thumb_mouse_rel_click = e.State.MousePosCur;
       });
+      _thumb.AddEvent(UiEventId.Got_Focus, (e) =>
+      {
+        _thumb_mouse_rel_click = e.State.MousePosCur;
+      });
+      _thumb.AddEvent(UiEventId.Mouse_Scroll, (e) =>
+      {
+        ScrollThumb(e.State.Scroll.y);
+      });
+      this.AddEvent(UiEventId.Mouse_Scroll, (e) =>
+      {
+        ScrollThumb(e.State.Scroll.y);
+      });
+    }
+    public void ScrollThumb(float scrollamt)
+    {
+      vec2 scrollpx = new vec2();
+      if (_direction == UiOrientation.Vertical)
+      {
+        scrollpx = new vec2(0, -scrollamt * _scrollSize);
+      }
+      else if (_direction == UiOrientation.Horizontal)
+      {
+        scrollpx = new vec2(-scrollamt * _scrollSize, 0);
+      }
+      else
+      {
+        Gu.BRThrowNotImplementedException();
+      }
+
+      UpdateMovedThumb(scrollpx, true);
     }
     private void UpdateLabelDisplayMode()
     {
@@ -645,7 +681,7 @@ namespace Loft
     }
     private void UpdateStyle()
     {
-      if (_direction == UiLayoutOrientation.Horizontal)
+      if (_direction == UiOrientation.Horizontal)
       {
         Style.SizeModeWidth = UiSizeMode.Percent;
         Style.SizeModeHeight = UiSizeMode.Shrink; //shrink to label
@@ -672,7 +708,7 @@ namespace Loft
           _lblVal.Style.FixedHeight = _thickness;
         }
       }
-      else if (_direction == UiLayoutOrientation.Vertical)
+      else if (_direction == UiOrientation.Vertical)
       {
         Style.SizeModeWidth = UiSizeMode.Shrink;
         Style.SizeModeHeight = UiSizeMode.Percent;
@@ -705,9 +741,9 @@ namespace Loft
       }
 
       //make sure text doesn't bloop.
-      if (_lblMin != null) { _lblMin.Style.LayoutOrientation = UiLayoutOrientation.Horizontal; }
-      if (_lblMax != null) { _lblMax.Style.LayoutOrientation = UiLayoutOrientation.Horizontal; }
-      if (_lblVal != null) { _lblVal.Style.LayoutOrientation = UiLayoutOrientation.Horizontal; }
+      if (_lblMin != null) { _lblMin.Style.LayoutOrientation = UiOrientation.Horizontal; }
+      if (_lblMax != null) { _lblMax.Style.LayoutOrientation = UiOrientation.Horizontal; }
+      if (_lblVal != null) { _lblVal.Style.LayoutOrientation = UiOrientation.Horizontal; }
 
       SizeThumb();
     }
@@ -729,21 +765,21 @@ namespace Loft
     }
     private void SizeThumb()
     {
-      if (_direction == UiLayoutOrientation.Horizontal)
+      if (_direction == UiOrientation.Horizontal)
       {
         _thumb.Style.SizeModeWidth = UiSizeMode.Fixed;
-        _thumb.Style.FixedWidth = ThumbSize;
+        _thumb.Style.FixedWidth = _thumbsize;
         _thumb.Style.SizeModeHeight = UiSizeMode.Percent;
         _thumb.Style.PercentHeight = 100;
         _thumb.Style.MaxHeight = Gui2d.MaxSize;
         _thumb.Style.MinHeight = 0;
       }
-      else if (_direction == UiLayoutOrientation.Vertical)
+      else if (_direction == UiOrientation.Vertical)
       {
         _thumb.Style.SizeModeWidth = UiSizeMode.Percent;
         _thumb.Style.PercentWidth = 100;
         _thumb.Style.SizeModeHeight = UiSizeMode.Fixed;
-        _thumb.Style.FixedHeight = ThumbSize;
+        _thumb.Style.FixedHeight = _thumbsize;
         _thumb.Style.MaxWidth = Gui2d.MaxSize;
         _thumb.Style.MinWidth = 0;
       }
@@ -763,6 +799,10 @@ namespace Loft
       {
         pct = value / denom;
       }
+      else
+      {
+        Gu.Trap();
+      }
       if (_ismaxmin)
       {
         pct = 1 - pct;
@@ -774,14 +814,21 @@ namespace Loft
       var d = (double)(_thumb.Parent._quads._b2BorderQuad.LSize(_direction) - _thumb._quads._b2BorderQuad.LSize(_direction));
       return d;
     }
-    private void UpdateMovedThumb(vec2 mpos)
+    private void UpdateMovedThumb(vec2 mpos, bool relative)
     {
       Gu.Assert(_thumb != null);
       Gu.Assert(_thumb.Parent != null);
 
-      float mp = _direction == UiLayoutOrientation.Horizontal ? mpos.x : mpos.y;
+      float mp = _direction == UiOrientation.Horizontal ? mpos.x : mpos.y;
 
-      _thumb.Style.LMin(_direction, mp - _thumb.Parent._quads._b2BorderQuad.LMin(_direction) - _thumb._quads._b2BorderQuad.LSize(_direction) / 2);
+      if (relative)
+      {
+        _thumb.Style.LMin(_direction, _thumb.Style.LMin(_direction).Value + mp);
+      }
+      else
+      {
+        _thumb.Style.LMin(_direction, mp - _thumb.Parent._quads._b2BorderQuad.LMin(_direction) - _thumb._quads._b2BorderQuad.LSize(_direction) / 2);
+      }
 
       double valw = ScrollWH();
 
@@ -798,6 +845,10 @@ namespace Loft
       if (valw > 0)
       {
         pct = (double)_thumb.Style.LMin(_direction).Value / valw;
+      }
+      else
+      {
+        Gu.Trap();
       }
 
       if (_ismaxmin)
@@ -851,38 +902,138 @@ namespace Loft
 
       //_vscroll = new UiSlider()
     }
-
   }//cls
+  public class ExpandRow : UiElement
+  {
+    public ExpandRow()
+    {
+      Style.SizeMode = UiSizeMode.Percent;
+      Style.PercentWidth = Style.PercentHeight = 100;
+    }
+  }
   public class UiTextBox : UiElement
   {
     private UiElement _textArea;
-    private UiSlider _scroll;
+    private UiSlider _vscroll;
+    private UiSlider _hscroll;
 
     public override string Text { get { return _textArea.Text; } set { _textArea.Text = value; } }
+    public bool ScrollPastEOLX { get { return _scrollPastEOLX; } set { _scrollPastEOLX = value; } }
+    public bool ScrollPastEOLY { get { return _scrollPastEOLY; } set { _scrollPastEOLY = value; } }
+    public UiElement TextArea { get { return _textArea; } }
+
+    bool _scrollPastEOLX = false;
+    float _scrollPastEOLPercentX = 0.1f;//scrolls % of the way past the EOL
+
+    bool _scrollPastEOLY = true;
+    float _scrollPastEOLPercentY = 0.10f;
 
     public UiTextBox()
     {
+      this.Name = "textbox";
       this.Style.RenderMode = UiRenderMode.Color;
+      this.Style.LayoutDirection = UiLayoutDirection.LeftToRight;
+      this.Style.LayoutOrientation = UiOrientation.Horizontal;
 
-      _scroll = new UiSlider(0, 0, 1, UiSlider.LabelDisplayMode.None, UiLayoutOrientation.Vertical, (e, v) => {
-        
-       });
-      _scroll.Style.PositionMode = UiPositionMode.Static;
-      _scroll.Style.SizeModeHeight = UiSizeMode.Percent;
-      _scroll.Style.PercentHeight = 100;
-      _scroll.Style.RenderMode = UiRenderMode.Color;
+      this.Style.Padding = 10;
+
+      _vscroll = new UiSlider(0, 1, 0, UiSlider.LabelDisplayMode.None, UiOrientation.Vertical, (e, v) =>
+      {
+        Scroll(UiOrientation.Vertical, (float)v);
+      });
+      _vscroll.Style.PositionModeX = UiPositionMode.Static;
+      _vscroll.Style.PositionModeY = UiPositionMode.Static;
+      _vscroll.Style.SizeModeHeight = UiSizeMode.Percent;
+      _vscroll.Style.PercentHeight = 100;
+      _vscroll.Style.RenderMode = UiRenderMode.Color;
+      _vscroll.Thickness = 15;
+
+      _hscroll = new UiSlider(0, 1, 0, UiSlider.LabelDisplayMode.None, UiOrientation.Horizontal, (e, v) =>
+      {
+        Scroll(UiOrientation.Horizontal, (float)v);
+      });
+      _hscroll.Style.PositionModeX = UiPositionMode.Static;
+      _hscroll.Style.PositionModeY = UiPositionMode.Static;
+      _hscroll.Style.SizeModeWidth = UiSizeMode.Percent;
+      _hscroll.Style.PercentWidth = 100;
+      _hscroll.Style.RenderMode = UiRenderMode.Color;
+      _hscroll.Thickness = 15;
 
       _textArea = new UiElement();
-      _textArea.Style.PositionMode = UiPositionMode.Static;
-      _textArea.Text = "hi";
-      //_textArea.Style.SizeMode = UiSizeMode.Fill;
+      _textArea.Style.PositionModeX = UiPositionMode.Static;
+      _textArea.Style.PositionModeY = UiPositionMode.Static;
+      _textArea.Text = "text";
       _textArea.Style.RenderMode = UiRenderMode.Color;
+      _textArea.Style.Margin = 10;
+      _textArea.Style.TextWrap = UiWrapMode.Line;
+      _textArea.Style.SizeMode = UiSizeMode.Shrink;
+      _textArea.Style.DisplayMode = UiDisplayMode.NoWrap;
 
-      this.AddChild(_textArea);
-      this.AddChild(_scroll);
+      var row = new ExpandRow();
+      row.Style.LayoutDirection = UiLayoutDirection.RightToLeft;
+      row.AddChild(_vscroll);
+      row.AddChild(_textArea);
+
+      this.AddChild(row);
+      this.AddChild(_hscroll);
+
+      SizeThumb(UiOrientation.Horizontal);
+      SizeThumb(UiOrientation.Vertical);
+
+      this.AddEvent(UiEventId.Mouse_Scroll, (e) =>
+      {
+        if (_vscroll.Visible)
+        {
+          _vscroll.ScrollThumb(e.State.Scroll.y);
+        }
+        else if (_hscroll.Visible)
+        {
+          _hscroll.ScrollThumb(e.State.Scroll.y);
+        }
+      });
+    }
+    public override void OnContentChanged()
+    {
+      SizeThumb(UiOrientation.Horizontal);
+      SizeThumb(UiOrientation.Vertical);
+    }
+    private void SizeThumb(UiOrientation dir)
+    {
+      UiSlider scroll = (dir == UiOrientation.Vertical) ? _vscroll : _hscroll;
+
+      float textsz = _textArea._quads._b2BorderQuad.LSize(dir);
+      if (textsz > 0)
+      {
+        float thpct = Math.Clamp(this._quads._b2ContentQuad.LSize(dir) / textsz, 0, 1);
+        if (thpct == 1)
+        {
+          scroll.Visible = false;
+        }
+        else
+        {
+          scroll.Visible = true;
+          float thsiz = thpct * scroll._quads._b2ContentQuad.LSize(dir);
+          scroll.ThumbSize = Math.Max(UiSlider.c_iMinThumbSize, thsiz);
+        }
+      }
+    }
+    private void Scroll(UiOrientation dir, float v)
+    {
+      float tbh = this._quads._b2ContentQuad.LSize(dir);
+      float eol = 0;
+      if (dir == UiOrientation.Horizontal) { eol = tbh * (_scrollPastEOLX ? (1.0f - _scrollPastEOLPercentX) : 1); }
+      if (dir == UiOrientation.Vertical) { eol = tbh * (_scrollPastEOLY ? (1.0f - _scrollPastEOLPercentY) : 1); }
+
+      float s = Math.Max(_textArea._quads._b2BorderQuad.LSize(dir) - eol, 0);
+
+      _textArea.Style.LMin(dir, s * (float)v * -1);
+
+      //TESTINg - need content updates
+      SizeThumb(dir);
     }
 
-  }
+
+  }//cls
   public class UiWindow : UiElement
   {
     private UiElement _titleBar;

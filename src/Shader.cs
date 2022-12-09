@@ -59,7 +59,7 @@ namespace Loft
     public GpuInstanceData() { }
     public mat4 _model = mat4.Identity;
     public mat4 _model_inverse = mat4.Identity;
-    public uvec2 _pickId = 0;
+    public uvec2 _pickId = new uvec2(0,0);
     public float _pad0 = 0.0f;
     public float _pad1 = 0.0f;
   }

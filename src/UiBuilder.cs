@@ -14,7 +14,7 @@ namespace Loft
     Inline,
     BaseControl,
     Label,
-    DebugLabel,
+    DebugInfo,
     Panel,
     Button,
     Toolbar,
@@ -81,16 +81,26 @@ namespace Loft
           MarginTop = 1,
           MarginBot = 3,
         },
-        new UiStyle(UiStyleName.DebugLabel, UiStyleName.Label)
+        new UiStyle(UiStyleName.DebugInfo, UiStyleName.Label)
         {
-          MaxWidth = 500
-          ,FontSize = 16
+           FontSize = 16
           ,DisplayMode = UiDisplayMode.Block
-          ,Margin = 5
-          ,Padding = 3
+          ,Margin = 2
           , FontFace = FontFace.RobotoMono
         },
       };
+    }
+    private static void ToggleInfo(bool world, bool gpu, bool controls)
+    {
+      if (Gu.TryGetSelectedView(out var rv))
+      {
+        if (rv.Gui != null)
+        {
+          rv.ControlsInfo.Visible = controls;
+          rv.WorldDebugInfo.Visible = world;
+          rv.GpuDebugInfo.Visible = gpu;
+        }
+      }
     }
     public static void MakeGui(RenderView rv)
     {
@@ -100,24 +110,18 @@ namespace Loft
         .AddItem("Toggle VSync", e => Gu.World.Editor.DoEvent(WorldEditEvent.Debug_ToggleVSync))
         .AddItem("Quit", e => Gu.World.Editor.DoEvent(WorldEditEvent.Quit))
         ;
-
       toolbar.AddItem(new UiToolbarButton(Phrase.Edit))
         .AddItem("Undo", "Ctrl+Z", e => Gu.World.Editor.DoEvent(WorldEditEvent.Edit_Undo))
         .AddItem("Redo", "Ctrl+Shift+Z", e => Gu.World.Editor.DoEvent(WorldEditEvent.Edit_Redo))
         .AddItem("Delete", "X", e => Gu.World.Editor.DoEvent(WorldEditEvent.Edit_Delete))
         ;
-
-      string ipsum = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Id cursus metus aliquam eleifend mi. Cras ornare arcu dui vivamus arcu felis. Eu ultrices vitae auctor eu augue ut lectus arcu bibendum. Etiam tempor orci eu lobortis elementum nibh. Aliquet porttitor lacus luctus accumsan tortor posuere ac ut. Nulla aliquet enim tortor at auctor urna nunc. Ultricies lacus sed turpis tincidunt id aliquet. Elit pellentesque habitant morbi tristique senectus et netus. Ac turpis egestas integer eget aliquet nibh. Amet commodo nulla facilisi nullam vehicula ipsum a arcu cursus. Tellus in hac habitasse platea dictumst vestibulum rhoncus. Dis parturient montes nascetur ridiculus. Augue interdum velit euismod in pellentesque massa placerat duis. Consectetur adipiscing elit ut aliquam purus sit amet luctus venenatis. Egestas purus viverra accumsan in nisl nisi.";
-      string ipsum_long = "Sodales ut etiam sit amet nisl purus in. Porta non pulvinar neque laoreet suspendisse interdum consectetur. Gravida arcu ac tortor dignissim. Nisl suscipit adipiscing" +
-       "bibendum est ultricies integer quis auctor. Molestie at elementum eu facilisis sed odio morbi. Magna ac placerat vestibulum lectus mauris ultrices eros in cursus. Lacus laoreet non curabitur " +
-       "gravida arcu ac. Est velit egestas dui id ornare arcu odio ut sem. Dictum varius duis at consectetur. Mus mauris vitae ultricies leo integer. Tellus orci ac auctor augue mauris augue neque gravida " +
-       "in. Purus non enim praesent elementum facilisis leo vel fringilla est. Quam adipiscing vitae proin sagittis nisl rhoncus mattis rhoncus urna. Proin sagittis nisl " +
-      "rhoncus mattis rhoncus. Velit scelerisque in dictum non. Tristique senectus et netus et. Egestas maecenas pharetra convallis posuere. Bibendum arcu vitae elementum curabitur." +
-      "Turpis egestas maecenas pharetra convallis posuere morbi leo. Elit sed vulputate mi sit amet mauris commodo. Nulla facilisi morbi tempus iaculis urna id volutpat. Convallis posuere morbi leo" +
-       "urna molestie at elementum. Nec dui nunc mattis enim ut. Pharetra sit amet aliquam id diam maecenas ultricies mi. Elementum curabitur vitae nunc sed velit dignissim. Nec ultrices dui sapien" +
-        "eget mi proin sed libero enim. Nibh cras pulvinar mattis nunc sed blandit libero volutpat sed. Sed augue lacus viverra vitae. Sed ullamcorper morbi tincidunt ornare massa eget egestas. Eget nunc " +
-        "scelerisque viverra mauris in. Maecenas volutpat blandit aliquam etiam. Sagittis vitae et leo duis. Vel orci porta non pulvinar. Praesent elementum facilisis leo vel fringilla.";
-
+      toolbar.AddItem(new UiToolbarButton("View"))
+        .AddItem("Debug Info", e => ToggleInfo(true,false,false))
+        .AddItem("Gpu Info", e => ToggleInfo(false,true,false))
+        .AddItem("Controls Info", e => ToggleInfo(false,false,true))
+        .AddItem("Hide Debug", e => ToggleInfo(false,false,false))
+        ;
+        
       toolbar.AddItem(new UiToolbarButton("Test"))
         .AddItem("Show Message Box", e => Gu.MessageBox("Guess what?", $"Calling you direct from 1-800-{e.Element._iPickId}"))
         .AddSubMenu("toasts..")
@@ -191,19 +195,12 @@ namespace Loft
                       .AddItem(Phrase.RemoveItem)
                       ;
 
-      UiElement spacer = new UiElement();
-      spacer.Style.MinWidth = 100;
-      spacer.Style.SizeModeWidth = UiSizeMode.Shrink;
-      spacer.Style.SizeModeHeight = UiSizeMode.Percent;
-      spacer.Style.Margin = spacer.Style.Border = spacer.Style.Padding = 0;
-      toolbar.AddChild(spacer);
-
       double defaultfov = 45;
       if (Gu.TryGetSelectedViewCamera(out var cc33))
       {
         defaultfov = cc33.FOV;
       }
-      var slider = new UiSlider(1.0, 170.0, defaultfov, UiSlider.LabelDisplayMode.Inside, UiLayoutOrientation.Horizontal, (e, val) =>
+      var slider = new UiSlider(1.0, 170.0, defaultfov, UiSlider.LabelDisplayMode.Inside, UiOrientation.Horizontal, (e, val) =>
       {
         if (Gu.TryGetSelectedViewCamera(out var cc))
         {
@@ -236,19 +233,21 @@ namespace Loft
       // }));
 
       //*** Debug info panels
-      rv.WorldDebugInfo = new UiElement(UiStyleName.DebugLabel);
+      rv.WorldDebugInfo = new UiTextBox();
+      rv.WorldDebugInfo.AddStyle(UiStyleName.DebugInfo.ToString());
       rv.WorldDebugInfo.Style.MaxWidth = 400;
       rv.WorldDebugInfo.Style.MaxHeight = 600;
       rv.WorldDebugInfo.Visible = true;
 
       rv.GpuDebugInfo = new UiTextBox();
-      rv.GpuDebugInfo.AddStyle(UiStyleName.DebugLabel.ToString());
-      rv.GpuDebugInfo.Style.MaxWidth = 600;
+      rv.GpuDebugInfo.AddStyle(UiStyleName.DebugInfo.ToString());
+      rv.GpuDebugInfo.Style.MaxWidth = 400;
       rv.GpuDebugInfo.Style.MaxHeight = 600;
       rv.GpuDebugInfo.Visible = false;
 
-      rv.ControlsInfo = new UiElement(UiStyleName.DebugLabel);
-      rv.ControlsInfo.Style.MaxWidth = 999;
+      rv.ControlsInfo = new UiTextBox();
+      rv.ControlsInfo.AddStyle(UiStyleName.DebugInfo.ToString());
+      rv.ControlsInfo.Style.MaxWidth = 400;
       rv.ControlsInfo.Style.MaxHeight = 600;
       rv.ControlsInfo.Visible = false;
 

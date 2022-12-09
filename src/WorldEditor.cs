@@ -486,7 +486,7 @@ namespace Loft
     private Line3f? GetWrappedScreenRay(RenderView? renderview)
     {
       //update - wrap mouse - wrap and count wraps, then project into world.
-      var vwrap = Gu.Context.PCMouse.WarpMouse(renderview, WarpMode.Wrap, 0.001f);
+      var vwrap = Gu.Context.PCMouse.WarpMouse(renderview, PCMouse.WarpMode.Wrap, 0.001f);
       if (vwrap != null)
       {
         _mouse_wrapcount += vwrap.Value;

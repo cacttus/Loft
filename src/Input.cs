@@ -214,14 +214,16 @@ namespace Loft
     }
 
   }
-  public enum WarpMode
-  {
-    Center,
-    Wrap,
-    Clamp
-  }
+
   public class PCMouse : ButtonInputDevice<MouseState, MouseButton>
   {
+    public enum WarpMode
+    {
+      Center,
+      Wrap,
+      Clamp
+    }
+
     private long _warp_frame_stamp = 0;
     private vec2 _last = new vec2(0, 0);
     private vec2 _pos = new vec2(0, 0);

@@ -168,15 +168,21 @@ namespace Loft
       bool ms_move_editing_must_warp = false;
 
       //** Mimicking Blender Defaults ** 
-      if (Gu.Context.PCMouse.ScrollDelta.y != 0)
+      if (!Gu.IsGuiFocused())
       {
-        obj.Position_Local += basis.z * Gu.Context.PCMouse.ScrollDelta.y * _scroll_zoom_meters_per_pixel;
-        ms_move_editing_must_warp = true;
+        if (Gu.Context.PCMouse.ScrollDelta.y != 0)
+        {
+          obj.Position_Local += basis.z * Gu.Context.PCMouse.ScrollDelta.y * _scroll_zoom_meters_per_pixel;
+          ms_move_editing_must_warp = true;
+        }
       }
       if (Gu.Context.PCMouse.PressOrDown(MouseButton.Middle))
       {
         //Allow shift or control to affect speed instead, if WSAD is down.
-        bool bMoving = Gu.Context.PCKeyboard.PressOrDown(Keys.W) || Gu.Context.PCKeyboard.PressOrDown(Keys.S) || Gu.Context.PCKeyboard.PressOrDown(Keys.A) || Gu.Context.PCKeyboard.PressOrDown(Keys.D);
+        bool bMoving = Gu.Context.PCKeyboard.PressOrDown(Keys.W) ||
+                        Gu.Context.PCKeyboard.PressOrDown(Keys.S) ||
+                        Gu.Context.PCKeyboard.PressOrDown(Keys.A) ||
+                        Gu.Context.PCKeyboard.PressOrDown(Keys.D);
 
         if (!bMoving && (Gu.Context.PCKeyboard.PressOrDown(Keys.LeftShift) || Gu.Context.PCKeyboard.PressOrDown(Keys.RightShift)))
         {
@@ -228,7 +234,7 @@ namespace Loft
         }
         if (ms_move_editing_must_warp)
         {
-          Gu.Context.PCMouse.WarpMouse(view, WarpMode.Wrap, 0.001f);
+          Gu.Context.PCMouse.WarpMouse(view, PCMouse.WarpMode.Wrap, 0.001f);
         }
       }
 
