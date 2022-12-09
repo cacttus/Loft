@@ -556,6 +556,8 @@ namespace Loft
 
       SetControlStyle();
 
+      float roundness = 3.5f;
+
       this.Style.LayoutOrientation = direction;
       this.Style.RenderMode = UiRenderMode.Color;
       this.Style.Margin = 0;
@@ -564,8 +566,8 @@ namespace Loft
       this.Style.Color = OffColor.ControlColor * 0.96f;
       this.Style.BorderColor = OffColor.Charcoal;
       this.Style.FontSize = 14;
-      this.Style.BorderRadius = 3;
-      this.Style.FontColor = new vec4(OffColor.DarkGray.rgb, 0.75f);
+      this.Style.BorderRadius = roundness;
+      this.Style.FontColor = new vec4(OffColor.DarkGray.rgb, 0.85f);
 
       _trackRow = new UiElement();
       _trackRow.Style.RenderMode = UiRenderMode.None;
@@ -575,11 +577,11 @@ namespace Loft
       _thumb.Name = "thumb";
       _thumb.Style.PositionMode = UiPositionMode.Relative;
       _thumb.Style.RenderMode = UiRenderMode.Color;
-      _thumb.Style.Border = 1;
+      _thumb.Style.Border = 0;
       _thumb.Style.Color = (OffColor.ControlColor * 1.13f).setW(1);
       _thumb.Style.Opacity = 1;
       _thumb.Style.BorderColor = OffColor.LightGray;
-      _thumb.Style.BorderRadius = 3;
+      _thumb.Style.BorderRadius = roundness;
 
       _trackRow.AddChild(_thumb);
 
@@ -755,7 +757,12 @@ namespace Loft
 
       value = Math.Clamp(value, _minvalue, _maxvalue);
 
-      var pct = value / (_maxvalue - _minvalue);
+      var denom = (_maxvalue - _minvalue);
+      double pct = 0;
+      if (denom != 0)
+      {
+        pct = value / denom;
+      }
       if (_ismaxmin)
       {
         pct = 1 - pct;
@@ -846,6 +853,36 @@ namespace Loft
     }
 
   }//cls
+  public class UiTextBox : UiElement
+  {
+    private UiElement _textArea;
+    private UiSlider _scroll;
+
+    public override string Text { get { return _textArea.Text; } set { _textArea.Text = value; } }
+
+    public UiTextBox()
+    {
+      this.Style.RenderMode = UiRenderMode.Color;
+
+      _scroll = new UiSlider(0, 0, 1, UiSlider.LabelDisplayMode.None, UiLayoutOrientation.Vertical, (e, v) => {
+        
+       });
+      _scroll.Style.PositionMode = UiPositionMode.Static;
+      _scroll.Style.SizeModeHeight = UiSizeMode.Percent;
+      _scroll.Style.PercentHeight = 100;
+      _scroll.Style.RenderMode = UiRenderMode.Color;
+
+      _textArea = new UiElement();
+      _textArea.Style.PositionMode = UiPositionMode.Static;
+      _textArea.Text = "hi";
+      //_textArea.Style.SizeMode = UiSizeMode.Fill;
+      _textArea.Style.RenderMode = UiRenderMode.Color;
+
+      this.AddChild(_textArea);
+      this.AddChild(_scroll);
+    }
+
+  }
   public class UiWindow : UiElement
   {
     private UiElement _titleBar;

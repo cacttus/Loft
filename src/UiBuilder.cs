@@ -203,58 +203,69 @@ namespace Loft
       {
         defaultfov = cc33.FOV;
       }
-      toolbar.AddChild(new UiSlider(1.0, 170.0, defaultfov, UiSlider.LabelDisplayMode.Inside, UiLayoutOrientation.Horizontal, (e, val) =>
+      var slider = new UiSlider(1.0, 170.0, defaultfov, UiSlider.LabelDisplayMode.Inside, UiLayoutOrientation.Horizontal, (e, val) =>
       {
         if (Gu.TryGetSelectedViewCamera(out var cc))
         {
           cc.FOV = (float)MathUtils.ToRadians(val);
         }
-      }));
-      toolbar.AddChild(new UiSlider(1, 170, defaultfov, UiSlider.LabelDisplayMode.Inside, UiLayoutOrientation.Vertical, (e, val) =>
-      {
-        if (Gu.TryGetSelectedViewCamera(out var cc))
-        {
-          cc.FOV = (float)MathUtils.ToRadians(val);
-        }
-      }));
-      toolbar.AddChild(new UiSlider(1, 170, defaultfov,  UiSlider.LabelDisplayMode.Outside, UiLayoutOrientation.Horizontal, (e, val) =>
-      {
-        if (Gu.TryGetSelectedViewCamera(out var cc))
-        {
-          cc.FOV = (float)MathUtils.ToRadians(val);
-        }
-      }));
-      toolbar.AddChild(new UiSlider(1, 170, defaultfov, UiSlider.LabelDisplayMode.Outside, UiLayoutOrientation.Vertical, (e, val) =>
-      {
-        if (Gu.TryGetSelectedViewCamera(out var cc))
-        {
-          cc.FOV = (float)MathUtils.ToRadians(val);
-        }
-      }));
+      });
+      slider.Style.MaxWidth = 200;
+      toolbar.AddChild(slider);
+
+      // toolbar.AddChild(new UiSlider(1, 170, defaultfov, UiSlider.LabelDisplayMode.Inside, UiLayoutOrientation.Vertical, (e, val) =>
+      // {
+      //   if (Gu.TryGetSelectedViewCamera(out var cc))
+      //   {
+      //     cc.FOV = (float)MathUtils.ToRadians(val);
+      //   }
+      // }));
+      // toolbar.AddChild(new UiSlider(1, 170, defaultfov,  UiSlider.LabelDisplayMode.Outside, UiLayoutOrientation.Horizontal, (e, val) =>
+      // {
+      //   if (Gu.TryGetSelectedViewCamera(out var cc))
+      //   {
+      //     cc.FOV = (float)MathUtils.ToRadians(val);
+      //   }
+      // }));
+      // toolbar.AddChild(new UiSlider(1, 170, defaultfov, UiSlider.LabelDisplayMode.Outside, UiLayoutOrientation.Vertical, (e, val) =>
+      // {
+      //   if (Gu.TryGetSelectedViewCamera(out var cc))
+      //   {
+      //     cc.FOV = (float)MathUtils.ToRadians(val);
+      //   }
+      // }));
 
       //*** Debug info panels
       rv.WorldDebugInfo = new UiElement(UiStyleName.DebugLabel);
       rv.WorldDebugInfo.Style.MaxWidth = 400;
+      rv.WorldDebugInfo.Style.MaxHeight = 600;
       rv.WorldDebugInfo.Visible = true;
 
-      rv.GpuDebugInfo = new UiElement(UiStyleName.DebugLabel);
+      rv.GpuDebugInfo = new UiTextBox();
+      rv.GpuDebugInfo.AddStyle(UiStyleName.DebugLabel.ToString());
       rv.GpuDebugInfo.Style.MaxWidth = 600;
+      rv.GpuDebugInfo.Style.MaxHeight = 600;
       rv.GpuDebugInfo.Visible = false;
 
       rv.ControlsInfo = new UiElement(UiStyleName.DebugLabel);
       rv.ControlsInfo.Style.MaxWidth = 999;
+      rv.ControlsInfo.Style.MaxHeight = 600;
       rv.ControlsInfo.Visible = false;
 
       //Root the edit GUI so we can hide it.
       var editgui_root = new UiElement();
       editgui_root.Style.SizeModeWidth = UiSizeMode.Percent;
       editgui_root.Style.SizeModeHeight = UiSizeMode.Percent;
+      editgui_root.Style.PercentWidth = 100;
+      editgui_root.Style.PercentHeight = 100;
       editgui_root.Style.MinWidth = 0;
       editgui_root.Style.MinHeight = 0;
       editgui_root.Style.MaxWidth = Gui2d.MaxSize;
       editgui_root.Style.MaxHeight = Gui2d.MaxSize;
       editgui_root.Style.DisplayMode = UiDisplayMode.Inline;
       editgui_root.Style.PositionMode = UiPositionMode.Relative;
+      editgui_root.Style.Top = 0;
+      editgui_root.Style.Left = 0;
       editgui_root.AddChild(toolbar);//testing all the jacked up chagnes
       editgui_root.AddChild(rv.WorldDebugInfo);
       editgui_root.AddChild(rv.GpuDebugInfo);

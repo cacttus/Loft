@@ -236,22 +236,33 @@ namespace Loft
         _height = this._height
       };
     }
-    public bool Validate(bool debug_break = true, float min_volume = 0)
+    public void Validate(bool debug_break = true)
     {
-      bool v = this.ToBox().Validate(debug_break, min_volume);
+      float dbgmax = 99999;
 
-      //"sane" parameters for debugging, shold never go beyond 99999 on 4k
-      if (_left > 99999 || _width > 99999 || _top > 99999 || _height > 99999 ||
-          _left < -99999 || _width < -99999 || _top < -99999 || _height < -99999)
-      {
-        v = false;
-        if (debug_break)
-        {
-          Gu.DebugBreak();
-        }
-      }
+      if (Left > Right && debug_break) { Gu.DebugBreak(); }
+      if (Top > Bottom && debug_break) { Gu.DebugBreak(); }
 
-      return v;
+      if (Single.IsNaN(_left) && debug_break) { Gu.DebugBreak(); }
+      if (Single.IsNaN(_top) && debug_break) { Gu.DebugBreak(); }
+      if (Single.IsNaN(_width) && debug_break) { Gu.DebugBreak(); }
+      if (Single.IsNaN(_height) && debug_break) { Gu.DebugBreak(); }
+
+      if (Single.IsInfinity(_left) && debug_break) { Gu.DebugBreak(); }
+      if (Single.IsInfinity(_top) && debug_break) { Gu.DebugBreak(); }
+      if (Single.IsInfinity(_width) && debug_break) { Gu.DebugBreak(); }
+      if (Single.IsInfinity(_height) && debug_break) { Gu.DebugBreak(); }
+
+      if (_left > dbgmax && debug_break) { Gu.DebugBreak(); }
+      if (_top > dbgmax && debug_break) { Gu.DebugBreak(); }
+      if (_width > dbgmax && debug_break) { Gu.DebugBreak(); }
+      if (_height > dbgmax && debug_break) { Gu.DebugBreak(); }
+
+      if (_left < -dbgmax && debug_break) { Gu.DebugBreak(); }
+      if (_top < -dbgmax && debug_break) { Gu.DebugBreak(); }
+      if (_width < -dbgmax && debug_break) { Gu.DebugBreak(); }
+      if (_height < -dbgmax && debug_break) { Gu.DebugBreak(); }
+
     }
     public void ExpandByPoint(vec2 v)
     {
@@ -1059,12 +1070,33 @@ namespace Loft
     }
     public void SetProp(UiPropName p, object? value)
     {
+      ValidateProp(value);
+
       //set a property 
       // * set value to null to clear/inherit value
       if (CheckValueEnabled(p, value))
       {
         SetClassValueDirect(p, value);
       }
+    }
+    static bool _debug_break_validate_props = true;
+    private void ValidateProp(object? value)
+    {
+      //debug/testing validation
+      if (value != null && _debug_break_validate_props)
+      {
+        if (value.GetType() == typeof(float))
+        {
+          if (float.IsNaN((float)value)) { Gu.DebugBreak(); }
+          if (float.IsInfinity((float)value)) { Gu.DebugBreak(); }
+        }
+        else  if (value.GetType() == typeof(double))
+        {
+          if (double.IsNaN((double)value)) { Gu.DebugBreak(); }
+          if (double.IsInfinity((double)value)) { Gu.DebugBreak(); }
+        }
+      }
+
     }
     public object? GetProp(UiPropName p)
     {
@@ -1574,7 +1606,7 @@ namespace Loft
     public string Name { get { return _name; } set { _name = value; } }
     public string Tag { get; set; } = "";
 
-    public string Text
+    public virtual string Text
     {
       get { return _strText; }
       set
@@ -1869,8 +1901,6 @@ namespace Loft
         Gu.DebugBreak();
       }
 
-      e.OnAddedToParent(this);
-
       return e;
     }
     public bool RemoveChild(UiElement e)
@@ -1975,15 +2005,14 @@ namespace Loft
 
       return level;
     }
-    #endregion
-    #region Private/Protected: Methods
-
-    protected virtual void OnAddedToParent(UiElement parent) { }
-
     public void AddStyle(string name)
     {
       this.Style.InheritFrom(name);
     }
+
+    #endregion
+    #region Private/Protected: Methods
+
     private void Init(List<UiStyleName> styleClasses, string? name = null, string? phrase = null, List<UiElement> children = null)
     {
       this.Style.SetInheritStyles(styleClasses.ConvertAll(x => x.ToString()));
@@ -2029,19 +2058,19 @@ namespace Loft
       }
       if (mode == UiOverflowMode.Hide)
       {
-        if (quad.Max.x < clip.Min.x)
+        if (quad.Max.x <= clip.Min.x)
         {
           return true;
         }
-        if (quad.Max.y < clip.Min.y)
+        if (quad.Max.y <= clip.Min.y)
         {
           return true;
         }
-        if (quad.Min.x > clip.Max.x)
+        if (quad.Min.x >= clip.Max.x)
         {
           return true;
         }
-        if (quad.Min.y > clip.Max.y)
+        if (quad.Min.y >= clip.Max.y)
         {
           return true;
         }
@@ -2060,7 +2089,7 @@ namespace Loft
       else if (Style._props.OverflowMode == UiOverflowMode.Hide)
       {
         ret.ShrinkByBox(_quads._b2ClipQuad);
-        ret.Validate(true, 0);
+        ret.Validate();
       }
       return ret;
     }
@@ -2106,7 +2135,6 @@ namespace Loft
         var expanders = new List<UiElement>();
         spanLines.Add(new UiLine(0, 0));
         int lineidx = 0;
-
 
         if (_children != null && _children.Count > 0)
         {
@@ -2306,6 +2334,7 @@ namespace Loft
         foreach (var ele in col_c._eles)
         {
           ele._quads._b2LocalQuad.LMin(ori, ele._quads._b2LocalQuad.LMin(ori) + _quads._b2LocalQuad.LSize(ori) / 2 - col_c.LSize(ori) / 2);
+          ele._quads._b2LocalQuad.Validate();
         }
         foreach (var ele in col_r._eles)
         {
@@ -2313,11 +2342,13 @@ namespace Loft
           {
             //roman
             ele._quads._b2LocalQuad.LMin(ori, _quads._b2LocalQuad.LSize(ori) - col_r.LSize(ori) + ele._quads._b2LocalQuad.LMin(ori));
+            ele._quads._b2LocalQuad.Validate();
           }
           else if (Style._props.LayoutDirection == UiLayoutDirection.Left)
           {
             //arabic
             ele._quads._b2LocalQuad.LMin(ori, _quads._b2LocalQuad.LSize(ori) - ele._quads._b2LocalQuad.LMin(ori) - ele._quads._b2LocalQuad.LSize(ori));
+            ele._quads._b2LocalQuad.Validate();
           }
           else
           {
@@ -2336,14 +2367,19 @@ namespace Loft
         var erw = ele.ExpandRaceW();
         var erh = ele.ExpandRaceH();
 
-        if (erw)
+        if (erw || erh)
         {
-          ele._quads._b2LocalQuad._width = Math.Max(_quads._b2BorderQuad._width - ele._quads._b2LocalQuad._left, ele._quads._b2LocalQuad._width);
+          if (erw)
+          {
+            ele._quads._b2LocalQuad._width = Math.Max(_quads._b2BorderQuad._width - ele._quads._b2LocalQuad._left, ele._quads._b2LocalQuad._width);
+          }
+          if (erh)
+          {
+            ele._quads._b2LocalQuad._height = Math.Max(_quads._b2BorderQuad._height - ele._quads._b2LocalQuad._top, ele._quads._b2LocalQuad._height);
+          }
+          ele._quads._b2LocalQuad.Validate();
         }
-        if (erh)
-        {
-          ele._quads._b2LocalQuad._height = Math.Max(_quads._b2BorderQuad._height - ele._quads._b2LocalQuad._top, ele._quads._b2LocalQuad._height);
-        }
+
       }
     }
     private void SizeElement(vec2 contentWH, vec2 innerMaxWH, UiDebug dd, List<UiElement> parentexpanders)
@@ -2624,6 +2660,7 @@ namespace Loft
       float w1 = 1.0f, h1 = 1.0f;
       w1 = 1;//UiScreen::getDesignMultiplierW();
       h1 = 1;//UiScreen::getDesignMultiplierH();
+      this._quads._b2LocalQuad.Validate();
 
       //Position relative/float elements to absolute pixels
       if (this.Style._props.PositionMode == UiPositionMode.Relative || this.Style._props.PositionMode == UiPositionMode.Static)
@@ -2662,10 +2699,11 @@ namespace Loft
       this._quads._b2BorderQuad._top *= h1;
       this._quads._b2BorderQuad._width *= w1;
       this._quads._b2BorderQuad._height *= h1;
+      this._quads._b2BorderQuad.Validate();
 
       this._quads._b2ClipQuad = this._quads._b2BorderQuad.Clone();
+      this._quads._b2ClipQuad.Validate();
 
-      this._quads._b2BorderQuad.Validate();
 
       //separate the border quad from the content area quad
       var bd = this.GetBorder(dd);
@@ -2684,8 +2722,6 @@ namespace Loft
       this._quads._dbg_b2PaddingQuad._height += (pd.bot + pd.top);
       this._quads._dbg_b2PaddingQuad.Validate();
 
-      this._quads._b2LocalQuad.Validate();
-      this._quads._b2BorderQuad.Validate();
     }
     private void GetElementQuadVerts(SortedList<float, v_v4v4v4v2u2v4v4> all_verts, UiQuad b2ClipRect, MtTex defaultPixel, uint rootPickId, UiDebug dd, SortKeys keys)
     {
@@ -3092,7 +3128,6 @@ namespace Loft
       _quads.GlyphWH.x = Math.Max(_quads.GlyphWH.x, glyph._glyphQuad._width);
       _quads.GlyphWH.y = Math.Max(_quads.GlyphWH.y, glyph._glyphQuad._height);
     }
-
     private void ShowOrHide(bool show)
     {
       if (_visible != show)
@@ -3100,6 +3135,7 @@ namespace Loft
         _visible = show;
       }
     }
+
     #endregion
 
   }//UiElement
@@ -3453,6 +3489,7 @@ namespace Loft
         _quads._dbg_b2ContentQuad._height = _quads._b2LocalQuad._height = rv.Viewport.Height;
         _quads._b2ClipQuad = _quads._dbg_b2ContentQuad.Clone();
         _quads._b2LocalQuad = _quads._dbg_b2ContentQuad.Clone();
+        _quads._b2BorderQuad = _quads._dbg_b2ContentQuad.Clone();
       }
     }
 
