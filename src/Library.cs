@@ -83,7 +83,7 @@ namespace Loft
   }
 
   [DataContract]
-  public class DynamicFileLoader
+  public class FileWatcher
   {
     //dynamically check for file changes
     public DateTime MaxModifyTime { get { return _maxModifyTime; } }
@@ -96,8 +96,12 @@ namespace Loft
     private long _poll = 500;
     private DateTime _lastFailTime = DateTime.MinValue;
 
-    protected DynamicFileLoader() { } //clone/serialize
-    public DynamicFileLoader(List<FileLoc> files, Func<List<FileLoc>, bool> onFilesChanged, long pollInterval = 500)
+    protected FileWatcher() { } //clone/serialize
+    public FileWatcher(FileLoc file, Func<List<FileLoc>, bool> onFilesChanged, long pollInterval = 500)
+    : this(new List<FileLoc>(){file}, onFilesChanged, pollInterval)
+    {
+    }
+    public FileWatcher(List<FileLoc> files, Func<List<FileLoc>, bool> onFilesChanged, long pollInterval = 500)
     {
       _files = files;
       _poll = pollInterval;
@@ -142,7 +146,6 @@ namespace Loft
     }
   }
 
-
   [DataContract]
   public class Lib
   {
@@ -153,7 +156,7 @@ namespace Loft
     private class DynamicLoaderInfo
     {
       //update compiled things so we don't gotta compile and run again and we can easily see changes
-      public List<WeakReference<DynamicFileLoader>> _loaders = new List<WeakReference<DynamicFileLoader>>();
+      public List<WeakReference<FileWatcher>> _loaders = new List<WeakReference<FileWatcher>>();
       private DeltaTimer _timer;
       public Type _type;
 
@@ -178,10 +181,10 @@ namespace Loft
           }
         });
       }
-      public void AddLoader(DynamicFileLoader ll)
+      public void AddLoader(FileWatcher ll)
       {
         //allow system to dispose the object
-        var loaderref = new WeakReference<DynamicFileLoader>(ll);
+        var loaderref = new WeakReference<FileWatcher>(ll);
         _loaders.Add(loaderref);
       }
       public void Update(double dt)
@@ -448,7 +451,7 @@ namespace Loft
         }
       }
     }
-    public static void AddDynamicLoader(DynamicFileLoader loader)
+    public static void AddDynamicLoader(FileWatcher loader)
     {
       Gu.Assert(loader != null);
       var t = loader.GetType();

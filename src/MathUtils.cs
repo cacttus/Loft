@@ -211,6 +211,63 @@ namespace Loft
       //https://numpy.org/doc/stable/reference/generated/numpy.isclose.html
       return Math.Abs(a - b) <= (atol + rtol * Math.Abs(b));
     }
+
+    public static void BoxShrink(
+      ref float minx, ref float miny, ref float maxx, ref float maxy,
+      float bminx, float bminy, float bmaxx, float bmaxy)
+    {
+      if (bminx < maxx)
+      {
+        if (bminx > minx)
+        {
+          minx = bminx;
+        }
+      }
+      else
+      {
+        minx = maxx;
+        return;
+      }
+      if (bmaxx > minx)
+      {
+        if (bmaxx < maxx)
+        {
+          maxx = bmaxx;
+        }
+      }
+      else
+      {
+        maxx = minx;
+        return;
+      }
+
+      if (bminy < maxy)
+      {
+        if (bminy > miny)
+        {
+          miny = bminy;
+        }
+      }
+      else
+      {
+        miny = maxy;
+        return;
+      }
+      if (bmaxy > miny)
+      {
+        if (bmaxy < maxy)
+        {
+          maxy = bmaxy;
+        }
+      }
+      else
+      {
+        maxy = miny;
+        return;
+      }
+
+    }
+
   }
   public struct RaycastHit
   {
@@ -633,7 +690,7 @@ namespace Loft
     {
       return (x * b.x) + (y * b.y);
     }
-    
+
     public static vec2 operator -(vec2 d)
     {
       return new vec2(-d.x, -d.y);
@@ -1913,13 +1970,23 @@ namespace Loft
         Math.Clamp((float)a / 255.0f, 0, 1)
         );
     }
-
+    public static vec4 rgb_ub(uint hex)
+    {
+      var r = (byte)(hex >> 16 & 0xFF);
+      var g = (byte)(hex >> 8 & 0xFF);
+      var b = (byte)(hex >> 0 & 0xFF);
+      return rgb_ub(r, g, b);
+    }
+    public static vec4 rgb_ub(byte r, byte g, byte b)
+    {
+      return new vec4(
+        Math.Clamp((float)r / 255.0f, 0, 1),
+        Math.Clamp((float)g / 255.0f, 0, 1),
+        Math.Clamp((float)b / 255.0f, 0, 1),
+        1
+        );
+    }
     public vec4 setW(float dw) { w = dw; return this; }
-
-    public float top { get { return x; } set { x = value; } }
-    public float right { get { return y; } set { y = value; } }
-    public float bot { get { return z; } set { z = value; } }
-    public float left { get { return w; } set { w = value; } }
 
     public vec4(vec3 d, float dw) { x = d.x; y = d.y; z = d.z; w = dw; }
     public vec4(vec4 dxy) { x = dxy.x; y = dxy.y; z = dxy.z; w = dxy.w; }
@@ -2338,6 +2405,7 @@ namespace Loft
     [DataMember] public uint y;
     [DataMember] public uint z;
     [DataMember] public uint w;
+    public uvec4(uint dx, uint dy, uint dz, uint dw) { x = dx; y = dy; z = dz; w = dw; }
   }
   [DataContract]
   [StructLayout(LayoutKind.Sequential)]
@@ -2416,7 +2484,7 @@ namespace Loft
     {
       return new ivec3(a.x / b.x, a.y / b.y, a.z / b.z);
     }
-    
+
     public static bool operator ==(in ivec3 a, in ivec3 b)
     {
       return (a.x == b.x) && (a.y == b.y) && (a.z == b.z);
@@ -3041,7 +3109,9 @@ namespace Loft
     }
     public mat4 SetTranslation(vec3 v)
     {
-      SetTranslation(v.x, v.y, v.z);
+      _m41 = v.x;
+      _m42 = v.y;
+      _m43 = v.z;
       return this;
     }
     public mat4 SetTranslation(float x, float y, float z)
@@ -3049,12 +3119,17 @@ namespace Loft
       _m41 = x;
       _m42 = y;
       _m43 = z;
-
       return this;
     }
     public static mat4 getTranslation(in vec3 vTrans)
     {
-      return getTranslation(vTrans.x, vTrans.y, vTrans.z);
+      mat4 m = mat4.Identity;
+
+      m._m41 = vTrans.x;
+      m._m42 = vTrans.y;
+      m._m43 = vTrans.z;
+
+      return m;
     }
     public static mat4 getTranslation(float x, float y, float z)
     {

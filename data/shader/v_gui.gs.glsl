@@ -4,14 +4,16 @@ layout(points) in;
 layout(triangle_strip, max_vertices=4) out;
 
 //Since we are points, it is already flat.
-in vec4 _rectVS[];//min, max
-in vec4 _clipVS[];
+flat in vec4 _rectVS[];//min, max
+flat in vec4 _clipVS[];
 in vec4 _texVS[];
-in vec4 _rtl_rtrVS[];
-in vec4 _rbr_rblVS[];
-in vec2 _texsizVS[];
+flat in vec4 _rtl_rtrVS[];
+flat in vec4 _rbr_rblVS[];
+flat in vec2 _texsizVS[];
 flat in uvec2 _pick_colorVS[];
-in vec3 _quadrantVS[];
+flat in vec4 _borderVS[];
+flat in uvec4 _borderColorVS[];
+flat in float _weightVS[];
 
 out vec2 _vert;
 out vec2 _tex;
@@ -22,7 +24,9 @@ flat out vec2 _texPos;//don't interpolate
 flat out vec4 _rtl_rtr;
 flat out vec4 _rbr_rbl;
 flat out vec4 _rect;
-flat out vec3 _quadrant;
+flat out vec4 _border;
+flat out uvec4 _borderColor;
+flat out float _weight;
 
 //note:GL: bottom left corner
 float p0x(vec4 f) { return f.x; }
@@ -39,7 +43,9 @@ void setGS(){
   _rtl_rtr     = _rtl_rtrVS[0];
   _rbr_rbl     = _rbr_rblVS[0];
   _rect        = _rectVS[0];
-  _quadrant    = _quadrantVS[0];
+  _border      = _borderVS[0];
+  _borderColor = _borderColorVS[0];
+  _weight = _weightVS[0];
 }
 
 void main() {

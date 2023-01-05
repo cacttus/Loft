@@ -3010,3 +3010,477 @@ if model name exists
       //   }
       // }
       // //**TEST
+
+
+    private MtFontLoader? GetFontLoader(MegaTex mt, FontFace face)
+    {
+      MtFontLoader? loader = null;
+      if (_cachedFont == null || mt.GetFont(face) != _cachedFont)
+      {
+        loader = mt.GetFont(face);
+      }
+      else
+      {
+        loader = _cachedFont;
+      }
+
+      if (loader == null)
+      {
+        Gu.Log.ErrorCycle("Font loader could not be found for " + face.QualifiedPath + " font possibly loaded with error", 500);
+        loader = mt.GetFont(FontFace.Default);
+      }
+
+      return loader;
+    }
+
+
+        // private UiGlyphChar GetOrCreateGlyphChar(UiFontLayoutData dat, Dictionary<int, UiGlyphChar> glyphChars)
+    // {
+    //   //Get glyph char
+    //   //Note: in text processing glyph origin is at the CENTER of the glyph
+    //   //see image in /dev folder
+
+    //   UiGlyphChar? gg = null;
+    //   if (glyphChars.TryGetValue(dat._ch, out gg))
+    //   {
+    //     return gg;
+    //   }
+    //   gg = new UiGlyphChar();
+
+    //   if (dat._ch == ',')
+    //   {
+    //     Gu.Trap();
+    //   }
+
+    //   // scale = fontsize / bakedcharsize (pixels)
+    //   // font_scale = converts ttf units to pixel units
+    //   if (!dat._patch.GetChar(dat._ch, dat._fontHeight, out gg._cachedGlyph))
+    //   {
+    //     Gu.Log.Debug($"Glpyh char '{(char)dat._ch}' (u={dat._ch}) not found");//Unicode ch not found
+    //     Gu.DebugBreak();//Unicode ch not found
+    //     return null;
+    //   }
+
+    //   //we will multiply by scale later. 
+    //   float gleft = gg._cachedGlyph.ch_left * dat._scale;
+    //   float gtop = gg._cachedGlyph.ch_top * dat._scale;
+    //   float gright = gg._cachedGlyph.ch_right * dat._scale;
+    //   float gbot = gg._cachedGlyph.ch_bot * dat._scale;
+    //   float gwidth = (gright - gleft);
+    //   float gheight = (gbot - gtop);
+
+    //   gg._lineHeight = gg._cachedGlyph.font_lineHeight * dat._scale * dat._lineHeight;
+
+    //   float gadvance = gg._cachedGlyph.ch_advance * dat._scale;
+    //   float gascent = gg._cachedGlyph.font_ascent * dat._scale;
+    //   float gkern = dat._loader.GetKerning(dat._patch, dat._ch, dat._chnext) * dat._scale;
+    //   float gtopsp = (gg._lineHeight - gg._glyphQuad._top - gg._glyphQuad._height) / 2.0f; //this will push the glyph from top to bottom of line
+
+    //   //we need padding due to the width of the glyph being the texture quad, plus, space to the next (which has no texture!)
+
+    //   gg._top_off = gtopsp;
+    //   gg._left_off = gleft;
+    //   gg._advance = gadvance - gright + gkern;
+    //   gg._glyphQuad._top = gtop + gascent;
+    //   gg._glyphQuad._width = gwidth;
+    //   gg._glyphQuad._height = gheight;
+    //   gg._glyphQuad._left = gg._glyphQuad._top = 0;
+    //   gg._glyphQuad.ValidateQuad();
+
+    //   glyphChars.Add(dat._ch, gg);
+    //   return gg;
+    // }
+
+
+        //Layout non-glyph elements
+        // lineidx = 0;
+        // foreach (var ele in _children)
+        // {
+        //   if (ele.Visible)
+        //   {
+        //     if (
+        //       (Style._props.LayoutOrientation == UiOrientation.Horizontal && ele.Style._props.PositionModeX == UiPositionMode.Static) ||
+        //       (Style._props.LayoutOrientation == UiOrientation.Vertical && ele.Style._props.PositionModeY == UiPositionMode.Static))
+        //     {
+        //       LayoutBlock(ele, dd, ref lineidx, 0, 0);
+        //       //ProcessAutoForLine(ele);
+        //     }
+        //   }
+        // }
+      // //glyph spans
+      // lineidx = 0;
+      // if (_font != null && _font._glyphs != null && _font._glyphs.Count > 0)
+      // {
+      //   foreach (var gc in _font._glyphs)
+      //   {
+      //     LayoutBlock(gc, dd, ref lineidx, gc._advance, gc._lineHeight);
+      //   }
+      // }
+
+      // if (_static != null && _static._lines != null && _static._lines.Count > 0)
+      // {
+      //   //expand by final line
+      //   FinishLine(_static._lines[_static._lines.Count - 1]);
+      //   // if (_layout._autoInf != null)
+      //   // {
+      //   //   //expand by vertical max
+      //   //   ExpandContentByAuto(UiUtils.Perp(Style._props.LayoutOrientation), _layout._autoInf);
+      //   // }
+      // }
+
+
+
+      //Check if we can break out of the race condition (multiple children have relative size, with a shrinking parent)
+      //CheckRace(UiOrientation.Horizontal, ref race);
+      //CheckRace(UiOrientation.Vertical, ref race);
+
+      //size, then layout children
+      //UiSize2 auto_max;
+
+
+    // private void ExpandPercentExpander()
+    // {
+    //   //Expand percent expanders after parent size has been computed.
+    //   ExpandPercentExpander(UiOrientation.Horizontal);
+    //   ExpandPercentExpander(UiOrientation.Vertical);
+    // }
+    // private void ExpandPercentExpander(UiOrientation ori)
+    // {
+    //   //this works for its purpose
+    //   //same issue with content autos -- should we keep the content, or specify an EXACT percentage of parent?
+    //   //I think in case of percents, we want the exact percent sans everything else.
+    //   if (this._parent != null && Style._props.L_SizeMode(ori) == UiSizeMode.Percent)
+    //   {
+    //     var val = _parent._layout._b2ContentQuad.L_Width(ori) * Style._props.L_PercentWidth(ori) * 0.01f;
+
+    //     float diff = 0;
+
+    //     if (_static != null && _static._race.L_Width(ori))
+    //     {
+    //       //parent = shrink, child=grow, keep child min content
+    //       diff = Math.Max(val - this._layout._b2LayoutQuad.L_Width(ori), 0);
+    //     }
+    //     else
+    //     {
+    //       diff = Math.Max(val - this.MBP_LR(ori), 0);
+    //     }
+
+    //     if (diff > 0)
+    //     {
+    //       ResizeStaticElement(ori, this, this._parent, diff);
+    //     }
+    //   }
+    // }
+
+        // private void CheckRace(UiOrientation ori, ref UiBool2 race)
+    // {
+    //   //Just do percents for now, content and auto .. technically are also races 
+    //   var expand =
+    //   //this.Style._props.L_SizeMode(ori) == UiSizeMode.Content ||
+    //   //this.Style._props.L_SizeMode(ori) == UiSizeMode.Auto ||
+    //   this.Style._props.L_SizeMode(ori) == UiSizeMode.Percent;
+
+    //   if (_parent != null && _parent.Style._props.L_SizeMode(ori) == UiSizeMode.Shrink && expand)
+    //   {
+    //     //start of race condition
+    //     race.L_Width(ori, true);
+    //   }
+    //   else if (!expand)
+    //   {
+    //     //end of race condition
+    //     race.L_Width(ori, false);
+    //   }
+    // }
+
+        private bool CheckExpander(UiOrientation ori)
+    {
+      //race condtion: parent=shrink, child=expand
+      bool race = Style._props.L_SizeMode(ori) == UiSizeMode.Percent && Parent != null && Parent.Style._props.L_SizeMode(ori) == UiSizeMode.Shrink;
+      return race;
+    }
+
+        private void ProcessAutoForLine(UiElement ele)
+    {
+      // Expand line or col width by min and max of auto
+      ProcessAutoForLine(ele, UiOrientation.Horizontal);
+      ProcessAutoForLine(ele, UiOrientation.Vertical);
+    }
+    private void ProcessAutoForLine(UiElement ele, UiOrientation ori)
+    {
+      //Figure out the parent height including limited by max w/h of autos 
+      if (IsAuto(ele, ori))
+      {
+        var line = ele._block._line;
+        line._autoInf = line._autoInf.ConstructIfNeeded();
+
+        float e_rem = Math.Max(ele._container._maxWH.L_Width(ori) - (ele._block._b2LayoutQuad.L_Width(ori) + ele.MBP_LR(ori)), 0);
+        //line._autoInf._autoCount.L_Width(ori, line._autoInf._autoCount.L_Width(ori) + 1);
+
+        if (Style._props.LayoutOrientation == ori)
+        {
+          //sum of auto max's
+          float sum_max = Math.Min(line._autoInf._autoMax.L_Width(ori) + e_rem, _container._contentMaxWH.L_Width(ori));
+          line._autoInf._autoMax.L_Width(ori, sum_max);
+        }
+        else
+        {
+          //max of max in the vertical.
+          line._autoInf._autoMax.L_Width(ori, Math.Max(line._autoInf._autoMax.L_Width(ori), e_rem));
+        }
+      }
+    }
+
+        // private void ExpandContentByAuto(UiOrientation ori, AutoInfo inf)
+    // {
+    //   //Autos expand parent to 100% of its maximum width. however autos can also have a maxw/h
+    //   //so the range an auto can expand is (0, max) for autos or (content,max) for contents
+    //   //autos have no min, but cna have a max
+    //   // autos will expand remaining content of parent up to content max. 
+    //   // if a content has min it can go beyond parent content
+    //   //contents can have a min + max, min is content or min
+    //   var contw = _layout._contentWH.L_Width(ori);
+    //   var maxw = _layout._contentMaxWH.L_Width(ori);
+    //   if (contw < maxw)
+    //   {
+    //     //dont use line L_Left and top here. they are the MPB, and not part of content
+    //     float maxcontent = 0;
+    //     if (Style._props.LayoutOrientation == ori)
+    //     {
+    //       maxcontent = Math.Min(_layout._contentWH.L_Width(ori) + inf._autoMax.L_Width(ori), _layout._contentMaxWH.L_Width(ori));
+    //     }
+    //     else
+    //     {
+    //       // ** TODO: this is invalid we must sum the vertical maxes and expand content by that
+    //       //vertical max
+    //       maxcontent = Math.Min(_layout._contentWH.L_Width(ori) + inf._autoMax.L_Width(ori), _layout._contentMaxWH.L_Width(ori));
+    //     }
+    //     _layout._contentWH.L_Width(ori, maxcontent);
+    //   }
+    // }
+    // private static AutoInfo GetAutoInfo(UiOrientation ori, UiElement parent, UiElement child, bool create = false)
+    // {
+    //   if (parent.Style._props.LayoutOrientation == ori)
+    //   {
+    //     if (create)
+    //     {
+    //       child._layout._line._autoInf = child._layout._line._autoInf.ConstructIfNeeded();
+    //     }
+    //     return child._layout._line._autoInf;
+    //   }
+    //   else
+    //   {
+    //     if (create)
+    //     {
+    //       parent._layout._autoInf = parent._layout._autoInf.ConstructIfNeeded();
+    //     }
+    //     return parent._layout._autoInf;
+    //   }
+    // }
+    // private static UiLayoutLine? GetLine(UiBlock e, UiElement parent)
+    // {
+    //   Gu.Assert(parent != null);
+    //   Gu.Assert(parent._static != null);
+    //   Gu.Assert(parent._static._lines != null);
+
+    //   var ori = parent.Style._props.LayoutOrientation;
+    //   var index = e._layout._index.L_Width(ori);
+    //   Gu.Assert(index < parent._static._lines.Count != null);
+    //   Gu.Assert(index >= 0);
+
+    //   return parent._static._lines[index];
+    // }
+    private void ExpandAutos()
+    {
+      //Expand autos
+      //Note: auto does not make sense for non-static
+      //Note: moved this from expandauto -reason is we are moving rows and cols of elements which could be hudnreds of glyphs,,
+      //so this must be a parent function to move children
+      //note this wont work in the size phase, parent elements are not computed , so we don't know our final width
+
+      if (this._static != null)
+      {
+        if (this._static._autoInfo != null)
+        {
+          //layout direction
+          foreach (var line in _static._lines)
+          {
+            if (line._autoInfo != null)
+            {
+              if (line._autoInfo._autos != null)
+              {
+                foreach (var auto in line._autoInfo._autos.L_Width(Style._props.LayoutOrientation))
+                {
+
+                }
+              }
+            }
+
+          }
+
+          //perp direction
+          foreach (var auto in _static._autoInfo._autos)
+          {
+
+          }
+
+
+        }
+      }
+
+      // if (!IsAuto(ele, ori))
+      // {
+      //   return;
+      // }
+      // // NTrap(ele, "ScrollRegionExpandRow");
+      // // NTrap(ele, "ScrollRegionContent");
+      // // NTrap(ele, "UiWindow");
+      // // NTrap(ele, "FOV");
+      // // NTrap(ele, "TrackRow");
+
+      // // AutoInfo? inf = GetAutoInfo(ori, parent, ele);
+      // // if (inf == null || inf._autos.Count == 0)
+      // // {
+      // //   Gu.Trap();
+      // // }
+
+      // //first compute the new widths of all autos, h + v
+      // //then offset all the neighboring children by the new widths.
+
+      // var inf = parent._static._auto;
+      // Gu.Assert(parent._static._auto._autos.L_Width(ori).Count > 0);
+
+      // var autospace = inf._autoSpace.L_Width(ori);
+      // if (autospace == 0)
+      // {
+      //   return;
+      // }
+      // var autocount = inf._autos.L_Width(ori).Count;
+
+      // var line = ele.GetLine(e, parent);
+      // float total_space = 0;
+      // if (parent.Style._props.LayoutOrientation == ori)
+      // {
+      //   total_space = Math.Max(parent._element._contentMaxWH.L_Width(ori) - line._quad.L_Width(ori), 0);
+      // }
+      // else
+      // {
+      //   total_space = Math.Max(parent._element._contentMaxWH.L_Width(ori) - parent._static._lineSize.L_Width(ori), 0);
+      // }
+
+      // //** All auto stuff
+      // if (autospace == -1)
+      // {
+      //   inf._autoSpace.L_Width(ori, total_space);
+      // }
+      // var equal_w = total_space / (float)autocount;
+      // var min_w = ele._layout._b2LayoutQuad.L_Width(ori); //either 0, or, content
+      // var max_w = ele._element._maxWH.L_Width(ori);
+      // Gu.Assert(min_w <= max_w);
+      // if (min_w > equal_w)
+      // {
+      //   //min takes up some auto space, sub from auto space
+      //   inf._autoSpace.L_Width(ori, Math.Max(autospace - (min_w - equal_w), 0));
+      //   equal_w = 0;
+      // }
+      // if (max_w < equal_w)
+      // {
+      //   //max is less than equal width, add remainder to auto space
+      //   inf._autoSpace.L_Width(ori, Math.Max(autospace + (equal_w - max_w), 0));
+      //   equal_w = max_w;
+      // }
+
+      // ResizeStaticElement(ori, ele, parent, equal_w);
+    }
+    // private static void ResizeStaticElement(UiOrientation ori, UiElement ele, UiElement parent, float add_space)
+    // {
+    //   //resize element and push neighbor elements and lines
+    //   // //also accounts for line space
+
+    //   if (add_space <= 0)
+    //   {
+    //     return;
+    //   }
+    //   var line = ele._block._line;
+
+    //   // //expand the child
+    //   ele._block._b2LayoutQuad.L_Width(ori, ele._block._b2LayoutQuad.L_Width(ori) + add_space);
+    //   ele._block._b2LayoutQuad.ValidateQuad();
+
+    //   //Would not you need to re-layout the child elements? I mean the lines would be different.
+    //   //You would need to re-compute the lines.
+
+    //   if (parent.Style._props.LayoutOrientation == ori)
+    //   {
+    //     //move siblings
+    //     for (var i = ele._block._index.L_Width(ori) + 1; i < line._eles.Count; i++)
+    //     {
+    //       line._eles[i]._block._b2LayoutQuad.L_Left(ori, line._eles[i]._block._b2LayoutQuad.L_Left(ori) + add_space);
+    //       line._eles[i]._block._b2LayoutQuad.ValidateQuad();
+    //     }
+    //     line._quad.L_Width(ori, line._quad.L_Width(ori) + add_space);
+    //     line._quad.ValidateQuad();
+    //   }
+    //   else
+    //   {
+    //     //check if we went past the line height
+    //     var linespace = Math.Max(parent._block._lineSize.L_Width(ori) - line._quad.L_Width(ori), 0);
+    //     add_space -= linespace;
+
+    //     if (add_space > 0)
+    //     {
+    //       line._quad.L_Width(ori, line._quad.L_Width(ori) + add_space);
+
+    //       //move rows
+    //       for (var i = line._index + 1; i < parent._block._lines.Count; i++)
+    //       {
+    //         var next_line = parent._block._lines[i];
+    //         next_line._quad.L_Left(ori, next_line._quad.L_Left(ori) + add_space);
+    //         next_line._quad.ValidateQuad();
+    //       }
+    //     }
+    //   }
+    // }
+
+        private static void ComputeLineQuad(UiBlock block, UiOrientation parentOrientation, UiPositionMode posmodeX, UiPositionMode posmodeY, float offH, float offV)
+    {
+      //TODO:
+      var p_ori = parentOrientation;//_parent.Style._props.LayoutOrientation;
+      block._block._container._b2LineQuad.Zero();
+      // if (posmodeX != UiPositionMode.Static)//this.Style._props.PositionModeX
+      // {
+      //   block._layout._b2LineQuad._left = block._layout._b2BorderQuad._left;
+      //   block._layout._b2LineQuad._width = block._layout._b2BorderQuad._width;
+      // }
+      // else
+      // {
+      //   block._layout._b2LineQuad._left = block._layout._b2BorderQuad._left - offH - block._layout._staticOffset.width;
+      //   block._layout._b2LineQuad._width = block._layout._b2BorderQuad._width + offH + block._layout._staticOffset.width;
+      // }
+      // if (posmodeY != UiPositionMode.Static)//this.Style._props.PositionModeY
+      // {
+      //   block._layout._b2LineQuad._top = block._layout._b2BorderQuad._top;
+      //   block._layout._b2LineQuad._height = block._layout._b2BorderQuad._height;
+      // }
+      // else
+      // {
+      //   block._layout._b2LineQuad._top = block._layout._b2BorderQuad._top - offV - block._layout._staticOffset.height;
+      //   block._layout._b2LineQuad._height = block._layout._b2BorderQuad._height + offV + block._layout._staticOffset.height;
+      // }
+      // //todo
+      // block._layout._b2LineQuad.L_Height(p_ori, block._layout._row.L_Height(parentOrientation));
+    }
+
+
+
+
+
+            if (ori == UiOrientation.Horizontal)
+            {
+              //TODO: remove the left/top business.
+              line2 = new UiLayoutLine(0, line._quad._top + line._quad.L_Height(UiOrientation.Horizontal), _static._lines.Count);
+            }
+            else
+            {
+              line2 = new UiLayoutLine(line._quad._left + line._quad.L_Width(UiOrientation.Horizontal), 0, _static._lines.Count);
+            }
+            

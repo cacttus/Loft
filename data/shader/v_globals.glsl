@@ -2,6 +2,101 @@
 
 
 //Global funcs
+vec4 uintToVec4(uint val) {
+  return vec4(
+    float((val>>24) & 0xFF) / 255.0,
+    float((val>>16) & 0xFF) / 255.0,
+    float((val>>8) & 0xFF) / 255.0,
+    float((val>>0) & 0xFF) / 255.0
+  );
+}
+vec4 clip_to_screen(vec4 p) {
+  //to screen space, p has been multiplied by MVP matrix
+  vec2 rwh = vec2(_ufGpuCamera._vWindowViewport.z, 
+                  _ufGpuCamera._vWindowViewport.w);
+
+  //**NOTE: this does not put the screen origin in top 
+  // 1 - p.y for top origin
+  p.xyz /= p.w;
+  p.xy = (p.xy + 1.0) * rwh * 0.5;
+
+  return p;
+}
+vec4 screen_to_clip(vec4 p) {
+  //back to clip
+  vec2 rwh = vec2(_ufGpuCamera._vWindowViewport.z, 
+                  _ufGpuCamera._vWindowViewport.w);
+
+  p.xy = p.xy / rwh * 2.0 - 1.0;
+  p.xyz *= p.w;
+  return p;
+}
+vec2 device_vert_to_window_vert(in vec2 vert) {
+    // Xw = Window x, Xv = Viewport x, Xd = device X, Wv = Viewport width
+  float rh = _ufGpuCamera._fRenderHeight;
+  float vx = _ufGpuCamera._vWindowViewport.x;
+  float vy = _ufGpuCamera._vWindowViewport.y;
+  float vw = _ufGpuCamera._vWindowViewport.z;
+  float vh = _ufGpuCamera._vWindowViewport.w;
+
+  //*this piece resizes the GUI to be the size of the current FBO (_fRenderHeight)
+  float rx = _ufGpuCamera._fRenderWidth / _ufGpuCamera._fWindowWidth;
+  float ry = _ufGpuCamera._fRenderHeight / _ufGpuCamera._fWindowHeight;
+ 
+  vec2 ret = vec2(0, 0);
+  vy = -vy - vh + rh ;
+
+  ret.x = (vert.x + 1.0f) * (vw / 2.0f)  + vx ;
+  ret.y = (vert.y + 1.0f) * (vh / 2.0f)  + vy ;
+ 
+  ret.y = -ret.y + rh;
+
+  ret.x /= rx;
+  ret.y /= ry;
+
+  return ret;
+}
+vec4 window_rect_to_device_rect(in vec4 screen) {
+  // convert a top-left origin quad in screen (pixel) coords to a quad in device coords
+  // Layout quad is in pixel screen coordinates relative to the window/screen Top Left
+  // The resulting coordinates for the GPU are -0.5 +0.5 in both axes with the center being in the center of the screen
+  // Translate a 2D screen quad to be rendered in a shader.
+  // So* our quad is from TOP Left - OpenGL is Bottom Left - this fixes this. 
+  //Device coordinates = [-0.5,+0.5] see glViewport
+  // Xw = (Xd+1) (Wv/2) + Xv
+  // Xd = (Xw-Xv)/(Wv/2) - 1
+  // Xw = Window x, Xv = Viewport x, Xd = device X, Wv = Viewport width
+  float rh = _ufGpuCamera._fRenderHeight;
+  float vx = _ufGpuCamera._vWindowViewport.x;
+  float vy = _ufGpuCamera._vWindowViewport.y;
+  float vw = _ufGpuCamera._vWindowViewport.z;
+  float vh = _ufGpuCamera._vWindowViewport.w;
+
+  vy = rh - vy - vh;
+
+  //*this piece resizes the GUI to be the size of the current FBO (_fRenderHeight)
+  float rx = _ufGpuCamera._fRenderWidth / _ufGpuCamera._fWindowWidth;
+  float ry = _ufGpuCamera._fRenderHeight / _ufGpuCamera._fWindowHeight;
+  screen.x *= rx;
+  screen.y *= ry;
+  screen.z *= rx;
+  screen.w *= ry;
+
+  //Convert top left y into OpenGL bottom left Y & Flip min/max Y due to y conversion
+  screen.y = rh - screen.y;
+  screen.w = rh - screen.w;
+  float tmp = screen.y;
+  screen.y = screen.w;
+  screen.w = tmp;
+
+  //[0,w] => [-0.5,0.5]
+  screen.x = (screen.x - vx) / (vw / 2.0f) - 1.0f;//l
+  screen.z = (screen.z - vx) / (vw / 2.0f) - 1.0f;//r
+  screen.y = (screen.y - vy) / (vh / 2.0f) - 1.0f;//t
+  screen.w = (screen.w - vy) / (vh / 2.0f) - 1.0f;//b
+
+  return screen;
+}
 vec3 pointOnLine(vec3 p0, vec3 p1, vec3 pt)
 {
   //Returns closest point on this line.

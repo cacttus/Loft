@@ -5,6 +5,8 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Runtime.Serialization;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
 
 namespace Loft
 {
@@ -14,6 +16,13 @@ namespace Loft
     Embedded,
     Web,
     Generated,
+  }
+  public enum PathRoot
+  {
+    Absolute,
+    App, //from exe /bin/debug/ ...
+    Src, //rooted in ./src
+    Project //rooted in the project
   }
   public enum EmbeddedFolder
   {
@@ -60,6 +69,19 @@ namespace Loft
     public FileStorage FileStorage { get; set; } = FileStorage.Disk;
     public string RawPath { get; set; } = "";
     public EmbeddedFolder EmbeddedFolder { get; set; } = EmbeddedFolder.Root;
+    public PathRoot PathRoot { get; set; } = PathRoot.Absolute;
+
+    public void LogNotFound()
+    {
+      string e = $"Could not find:\n" +
+      $"Name:'{this.FileName}'\n" +
+      $"  FileStorage:'{this.FileStorage.ToString()}'\n" +
+      $"  PathRoot:'{this.PathRoot.ToString()}'\n" +
+      $"  EmbeddedFolder:'{this.EmbeddedFolder.ToString()}'\n" +
+      $"QualifiedPath:'{this.QualifiedPath}'\n" +
+      $"WorkspacePath:'{this.WorkspacePath}'";
+      Gu.Log.Error(e);
+    }
 
     public string Extension
     {
@@ -113,7 +135,7 @@ namespace Loft
         }
         else if (FileStorage == FileStorage.Disk)
         {
-          //noop
+          path = Gu.RootPath(path, this.PathRoot);
         }
         else
         {
@@ -169,6 +191,12 @@ namespace Loft
       Gu.Assert(storage != FileStorage.Embedded); // use the folder CTOR for embedded
       RawPath = path;
       FileStorage = storage;
+    }
+    public FileLoc(string path, PathRoot proot)
+    {
+      RawPath = path;
+      PathRoot = proot;
+      FileStorage = FileStorage.Disk;
     }
     public override bool Equals(object? obj)
     {
@@ -550,6 +578,10 @@ namespace Loft
   }
   public class StringUtil
   {
+    public static string Indent(string st, int count)
+    {
+      return string.Concat(Enumerable.Repeat(st, count));
+    }
     public static string CutOut(ref string instr, int id0, int id1)
     {
       Gu.Assert(id0 <= id1);
@@ -850,9 +882,6 @@ namespace Loft
 
       return ret.Trim();
     }
-
-
-
   }
   public interface IMutableState
   {
@@ -989,6 +1018,7 @@ namespace Loft
       Modified = true;
     }
   }
+
   public class BaseTimer
   {
     public long PeriodMS { get { return _periodMS; } private set { _periodMS = value; } }
@@ -1316,9 +1346,17 @@ namespace Loft
     }
     public static bool IsDigit(char c)
     {
+      return IsDigit((int)c);
+    }
+    public static bool IsDigit(int c)
+    {
       return c == '0' || c == '1' || c == '2' || c == '3' || c == '4' || c == '5' || c == '6' || c == '7' || c == '8' || c == '9';
     }
     public static bool IsAlpha(char c)
+    {
+      return IsAlpha((int)c);
+    }
+    public static bool IsAlpha(int c)
     {
       return
       c == 'a' || c == 'b' || c == 'c' || c == 'd' || c == 'e' || c == 'f' || c == 'g' || c == 'h' || c == 'i' || c == 'j' || c == 'k' ||
@@ -1460,6 +1498,7 @@ namespace Loft
     }
     public static bool ParseFunc_NO_ARG_PARENS(string token, out string funcname, out List<string> parms, bool allowDashesInName)
     {
+      //parse "func(x,y,z,...)"
       parms = new List<string>();
       funcname = "";
       token = token.Trim().Trim(';');
@@ -1511,6 +1550,39 @@ namespace Loft
       }
       return true;
     }
+    public static bool TryParseVec4RGBA(string vs, out vec4 v)
+    {
+      //parse "rgba(f,f,f,f)"
+      v = new vec4();
+      string fname = "";
+      List<string> fargs = null;
+      if (ByteParser.ParseFunc_NO_ARG_PARENS(vs, out fname, out fargs, true))
+      {
+        if (StringUtil.Equals(fname, "rgba"))
+        {
+          if (fargs.Count == 4)
+          {
+            if (System.Single.TryParse(fargs[0], out v.x))
+            {
+              if (System.Single.TryParse(fargs[1], out v.y))
+              {
+                if (System.Single.TryParse(fargs[2], out v.z))
+                {
+                  if (System.Single.TryParse(fargs[3], out v.w))
+                  {
+                    return true;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      return false;
+
+
+    }
+
   }
   public abstract class ByteForByteFile
   {
@@ -1788,48 +1860,155 @@ namespace Loft
       Buffer.BlockCopy(buf, 0, newbytes, Bytes.Length, buf.Length);
     }
   }
-  // public class ArrayUtils
-  // {
-  //   //ByteArrayUtils
+  public class StructUtils
+  {
+    //serialize/deserialize structs to/from bytes, offsets, counts, etc
 
-  //   // public static unsafe byte[] Serialize<T>(T[] data) where T : struct
-  //   // {
-  //   //   //we could optimize this with unsafe code
-  //   //   var size = Marshal.SizeOf(data[0]);
-  //   //   var bytes = new byte[size * data.Length];
-  //   //   for (int di = 0; di < data.Length; di++)
-  //   //   {
-  //   //     var ptr = Marshal.AllocHGlobal(size);
-  //   //     Marshal.StructureToPtr(data[di], ptr, true);
-  //   //     Marshal.Copy(ptr, bytes, di * size, size);
-  //   //     Marshal.FreeHGlobal(ptr);
-  //   //   }
+    public class StructFieldInfo
+    {
+      public int OffsetBytes = 0;
+      public int LengthBytes = 0;
+    }
+    public class StructInfo
+    {
+      //These lists should come in order by field
+      public List<string> _fieldNames = new List<string>();
+      public List<StructFieldInfo> _fieldDatas = new List<StructFieldInfo>();
+      public int Offset(string fieldname)
+      {
+        int idx = _fieldNames.IndexOf(fieldname);
+        Gu.Assert(idx >= 0);
+        return _fieldDatas[idx].OffsetBytes;
+      }
+      public int Length(string fieldname)
+      {
+        int idx = _fieldNames.IndexOf(fieldname);
+        Gu.Assert(idx >= 0);
+        return _fieldDatas[idx].LengthBytes;
+      }
+    }
+    public static StructInfo GetStructInfo<T>() where T : struct
+    {
+      //only works with structs , no classes or nested classes.
+      var type = typeof(T);
 
-  //   //   return bytes;
-  //   // }
+      Gu.Assert(type.IsValueType);
+      Gu.Assert((type.Attributes & TypeAttributes.SequentialLayout) == TypeAttributes.SequentialLayout);
 
-  //   // Old copy method - slower by initially about x20 then subsequently by about x3 (11us/200us, then 12us/35us)
-  //   // public static unsafe vec3[] ParseVec3fArray(byte[] Data, int item_count, int byte_offset)
-  //   // {
-  //   //   vec3[] ret = new vec3[item_count];
-  //   //   fixed (byte* raw = Data)
-  //   //   {
-  //   //     int component_byte_size = 4;//sizeof float
-  //   //     int tensor_rank = 3;// 3 scalars
-  //   //     int tensor_byte_size = component_byte_size * tensor_rank;
-  //   //     for (int ioff = 0; ioff < item_count; ioff++)
-  //   //     {
-  //   //       int offset = byte_offset + ioff * tensor_byte_size;
-  //   //       Gu.Assert(offset < Data.Length);
-  //   //       vec3 v = *((vec3*)(raw + offset));
-  //   //       ret[ioff] = v;
-  //   //     }
-  //   //   }
-  //   //   return ret;
-  //   // }
+      int off = 0;
+      var ret = new StructInfo();
+      var fi = type.GetFields();
+      foreach (var f in fi)
+      {
+        var etype = f.FieldType.GetElementType();
+        Gu.Assert(etype.IsValueType);
 
+        var size = Marshal.SizeOf(etype);
+        int len = size;
 
-  // }
+        if (f.FieldType.IsArray)
+        {
+          var arr = f.GetValue(null) as Array;
+          var arrlen = arr.Length;
+          len = size * arrlen;
+        }
+
+        ret._fieldNames.Add(f.Name);
+        ret._fieldDatas.Add(new StructFieldInfo() { OffsetBytes = off, LengthBytes = len });
+
+        off += len;
+      }
+      return ret;
+    }
+    public static unsafe T ByteArrayToStructure<T>(byte[] bytes) where T : struct
+    {
+      fixed (byte* ptr = &bytes[0])
+      {
+        return (T)Marshal.PtrToStructure((IntPtr)ptr, typeof(T));
+      }
+    }
+    public static T[] Deserialize<T>(byte[] data) where T : struct
+    {
+      //Deserialize assuming data equals the size of the element to be deserialized
+      var tsize = Marshal.SizeOf(default(T));
+      Gu.Assert(data.Length % tsize == 0);
+      var count = data.Length / tsize;
+
+      return DeserializeFrom<T>(data, 0, count);
+    }
+    public static T[] DeserializeFrom<T>(byte[] data, int offset_bytes, int count_items) where T : struct
+    {
+      //Parse an array of struct out of a byte[] of raw data, the byte[] does not exactly need to match the struct, but must be > the struct
+      var size = Marshal.SizeOf(default(T));
+      var length = count_items * size;
+      Gu.Assert(offset_bytes + length <= data.Length);
+      var ret = new T[count_items];
+
+      var pinnedHandle = GCHandle.Alloc(ret, GCHandleType.Pinned);
+      Marshal.Copy(data, offset_bytes, pinnedHandle.AddrOfPinnedObject(), length);
+      pinnedHandle.Free();
+
+      return ret;
+    }
+    public static T DeserializeFrom<T>(byte[] data, int offset_bytes) where T : struct
+    {
+      //Parse an array of struct out of a byte[] of raw data
+      var length = Marshal.SizeOf(default(T));
+      Gu.Assert(offset_bytes + length <= data.Length);
+      var ret = new T();
+
+      var pinnedHandle = GCHandle.Alloc(ret, GCHandleType.Pinned);
+      Marshal.Copy(data, offset_bytes, pinnedHandle.AddrOfPinnedObject(), length);
+      pinnedHandle.Free();
+
+      return ret;
+    }
+    public static unsafe byte[] Serialize<T>(T data) where T : struct
+    {
+      //https://www.genericgamedev.com/general/converting-between-structs-and-byte-arrays/
+      var size = Marshal.SizeOf(data);
+      var bytes = new byte[size];
+
+      var ptr = Marshal.AllocHGlobal(size);
+      Marshal.StructureToPtr(data, ptr, true);
+      Marshal.Copy(ptr, bytes, 0 * size, size);
+      Marshal.FreeHGlobal(ptr);
+      return bytes;
+    }
+    public static byte[] Serialize<T>(T[] items) where T : struct
+    {
+      ///** Test this
+      var size = Marshal.SizeOf(default(T));
+      var ret = new byte[items.Length * size];
+
+      var items_h = GCHandle.Alloc(items, GCHandleType.Pinned);
+      Marshal.Copy(items_h.AddrOfPinnedObject(), ret, 0, ret.Length);
+      items_h.Free();
+
+      return ret;
+    }
+
+    // Old copy method - slower by initially about x20 then subsequently by about x3 (11us/200us, then 12us/35us)
+    // public static unsafe vec3[] ParseVec3fArray(byte[] Data, int item_count, int byte_offset)
+    // {
+    //   vec3[] ret = new vec3[item_count];
+    //   fixed (byte* raw = Data)
+    //   {
+    //     int component_byte_size = 4;//sizeof float
+    //     int tensor_rank = 3;// 3 scalars
+    //     int tensor_byte_size = component_byte_size * tensor_rank;
+    //     for (int ioff = 0; ioff < item_count; ioff++)
+    //     {
+    //       int offset = byte_offset + ioff * tensor_byte_size;
+    //       Gu.Assert(offset < Data.Length);
+    //       vec3 v = *((vec3*)(raw + offset));
+    //       ret[ioff] = v;
+    //     }
+    //   }
+    //   return ret;
+    // }
+
+  }
   public class BList<T> : List<T> where T : IComparable
   {
     //Sorted list O(logn)

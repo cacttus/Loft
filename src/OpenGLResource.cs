@@ -98,6 +98,7 @@ namespace Loft
   public abstract class OpenGLContextDataManager<T> : DataBlock where T : class
   {
     protected Dictionary<WindowContext, T> _contextData = new Dictionary<WindowContext, T>();
+    //override to create a new resource for the current context
     protected abstract T CreateNew();
 
     //Textures are sharable - override return True if the GL data is sharable.
@@ -126,7 +127,6 @@ namespace Loft
       T? ret = null;
       if (!_contextData.TryGetValue(ct, out ret))
       {
-
         ret = CreateNew();
         _contextData.Add(ct, ret);
       }

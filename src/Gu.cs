@@ -11,22 +11,38 @@ using OpenTK.Windowing.Common;
 
 namespace Loft
 {
-  public class SystemInfo
+  public class SystemInfo_Fast
   {
-    public static long MemUsedBytes
+    //faster.. This class can call "query" every so many frames as these methods tend to be on the slow side
+    public static long _memUsedBytes = 0;
+    public static long _vmemUsedBytes = 0;
+    public static string _asmVersion = "";
+    public static long _start = 0;
+
+    public static void Query(long millis)
     {
-      get
+      long cms = Gu.Milliseconds();
+      if (cms - _start > millis)
       {
-        return System.Diagnostics.Process.GetCurrentProcess().PrivateMemorySize64;
+        _start = cms;
+
+        _memUsedBytes = System.Diagnostics.Process.GetCurrentProcess().PrivateMemorySize64;
+        _vmemUsedBytes = System.Diagnostics.Process.GetCurrentProcess().VirtualMemorySize64;
+
+        if (string.IsNullOrEmpty(_asmVersion))
+        {
+          //Note: this is kind of slow and takes significant frame slice
+          Assembly assembly = Assembly.GetExecutingAssembly();
+          FileVersionInfo fileVersionInfo = FileVersionInfo.GetVersionInfo(assembly.Location);
+          _asmVersion = fileVersionInfo.ProductVersion;
+        }
       }
     }
-    public static long VMemUsedBytes
-    {
-      get
-      {
-        return System.Diagnostics.Process.GetCurrentProcess().VirtualMemorySize64;
-      }
-    }
+
+    public static string AssemblyVersion { get { return _asmVersion; } }
+    public static long MemUsedBytes { get { return _memUsedBytes; } }
+    public static long VMemUsedBytes { get { return _vmemUsedBytes; } }
+
     public static float BToMB(long b)
     {
       var b_to_mb = 1024 * 1024;
@@ -105,6 +121,19 @@ namespace Loft
         return $"{Gu.EmbeddedDataPathRoot}.{file}";
       }
     }
+    public static string RootPath(string path, PathRoot root)
+    {
+      //root a path
+      string r = path;
+      
+      if (root == PathRoot.Absolute) { }
+      else if (root == PathRoot.App) { r = System.IO.Path.Combine(WorkspacePath, path); }
+      else if (root == PathRoot.Project) { r = System.IO.Path.Combine(ExePath, path); }
+      else if (root == PathRoot.Src) { r = System.IO.Path.Combine(SrcPath, path); }
+      else { Gu.BRThrowNotImplementedException(); }
+
+      return r;
+    }
     public static string GetWorkspacePath(EmbeddedFolder folder, string file)
     {
       return System.IO.Path.Combine(Gu.WorkspaceDataPath, GetEmbeddedFolder(folder), file);
@@ -137,6 +166,7 @@ namespace Loft
     public static string ExePath { get; private set; } = "";
     public static string LocalCachePath { get; private set; } = "";//megatex..
     public static string LocalTmpPath { get; private set; } = "";//logs..debug..shaderdebug..
+    public static string SrcPath { get; private set; } = "";
     public static string WorkspacePath { get; private set; } = "";
     public static string WorkspaceDataPath { get; private set; } = "";// the ./Data directory. This is not present on embedded versions.
     public static string SavePath { get; private set; } = "";
@@ -148,6 +178,7 @@ namespace Loft
     public static Translator Translator { get; private set; }
     public static AppWindowBase? FocusedWindow { get; set; } = null;
     public static FrameStats FrameStats { get; private set; } = new FrameStats();
+    public static Profiler Profiler { get; private set; } = new Profiler();
 
     //Debug
     public static bool BreakRenderState = false;
@@ -167,6 +198,7 @@ namespace Loft
 
     public static void InitGlobals()
     {
+
       //Paths
       var assemblyLoc = System.Reflection.Assembly.GetExecutingAssembly().Location;
       ExePath = System.IO.Path.GetDirectoryName(assemblyLoc);
@@ -176,6 +208,7 @@ namespace Loft
       //This is for debug files and file changes. 
       WorkspacePath = System.IO.Path.Combine(ExePath, "../../../");
       WorkspaceDataPath = System.IO.Path.Combine(WorkspacePath, "./data");//This may change .. uh
+      SrcPath = System.IO.Path.Combine(WorkspacePath, "src");
 
       //Log
       Log = new Log(Gu.LocalTmpPath);
@@ -184,6 +217,9 @@ namespace Loft
 
       //Config
       EngineConfig = EngineConfig.LoadEngineConfig(new FileLoc("config.json", EmbeddedFolder.Root));
+
+      Log.WriteConsole = EngineConfig.Debug_LogToConsole;
+      Log.WriteFile = EngineConfig.Debug_LogToFile;
 
       if (StringUtil.IsNotEmpty(EngineConfig.UserSavePath))
       {
@@ -241,6 +277,10 @@ namespace Loft
       {
         while (true)
         {
+          SystemInfo_Fast.Query(5000);
+
+          Gu.Profiler.Reset();
+
           if (Contexts.Count == 0)
           {
             throw new Exception("No window has been created yet. Create window before calling Run()");
@@ -263,40 +303,49 @@ namespace Loft
             foreach (var win in wins)
             {
               Gu.SetContext(win);
+
               if (!win.IsLoaded)
               {
                 win.Load();
               }
               win.ProcessEvents();
+              Gu.Prof("window");
 
               Gu.Context.Update();
+              Gu.Prof("update");
 
               //TODO: we're going to move this to keymap, but also
               //keymap update should come here (which it isnt)
               if (win.IsVisible && win.WindowState != WindowState.Minimized)
               {
                 win.OnUpdateInput();
+                Gu.Prof("input");
               }
 
               //user mouse moved now pick the back buffer
               Gu.World.Pick();
+              Gu.Prof("pick");
 
               if (Gu.World.UpdateContext == Gu.Context)
               {
                 Gu.World.UpdateWorld(Gu.Context.FrameDelta);
+                Gu.Prof("world");
 
                 Gu.World.UpdateWorldEditor(Gu.Context.FrameDelta);
+                Gu.Prof("edit");
               }
 
               win.CullAllViews();//adds objects for rendering
+              Gu.Prof("cull");
 
               win.UpdateSelectedView();//must come after editor update
-
+              Gu.Prof("view");
               //may end up being a problem.
               if (win.IsVisible && win.WindowState != WindowState.Minimized)
               {
                 //Culling happens here.
                 win.RenderAllViews();
+                Gu.Prof("render");
               }
 
             }
@@ -313,6 +362,9 @@ namespace Loft
             CheckExit();
 
             _customDebugBreak = false;
+
+            Gu.Prof("window update");
+
           }
         }
       }
@@ -320,6 +372,11 @@ namespace Loft
       {
         Gu.Log.Error("Fatal error: ", ex);
       }
+    }
+    public static void Prof(string label = "", [CallerMemberName] string memberName = "")
+    {
+      //, [CallerMemberName]string memberName = ""
+      Gu.Profiler.Section(label, memberName);//3);
     }
     private static void CheckExit()
     {
@@ -565,13 +622,7 @@ namespace Loft
       //return a windows safe filename with datenow
       return DateTime.Now.ToString("yyyy.MM.dd.HH.mm.ss.fff");
     }
-    public static string GetAssemblyVersion()
-    {
-      Assembly assembly = Assembly.GetExecutingAssembly();
-      FileVersionInfo fileVersionInfo = FileVersionInfo.GetVersionInfo(assembly.Location);
-      string version = fileVersionInfo.ProductVersion;
-      return version;
-    }
+
     public static bool WhileTrueGuard(int whileloop_index, int whileloop_maxlen)
     {
       //guard infinite execution
@@ -988,7 +1039,8 @@ namespace Loft
             v.Viewport.Width / 2 - wh.width / 2,
             v.Viewport.Height / 2 - wh.height / 2
             );
-          UiWindow win = new UiWindow(title, pos, wh, msg);
+          UiWindow win = new UiWindow(title, pos, wh);
+          win.Content.Text = msg;
           win.TopMost = true;
           v.Gui.AddChild(win);
         }
@@ -998,9 +1050,9 @@ namespace Loft
     {
       //currnelty we update object components before updating the picked element so use last picked
       var ob = Gu.Context.Renderer.Picker.PickedObjectFrameLast;
-      
+
       bool f = (ob != null) && (ob is UiElement);
-      
+
       return f;
     }
 

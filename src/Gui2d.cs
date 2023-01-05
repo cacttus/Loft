@@ -2,26 +2,48 @@
 using System.Collections;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using OpenTK.Windowing.GraphicsLibraryFramework;
-using System.ComponentModel;
-using System.Runtime.InteropServices;
 using System.Reflection;
-using System.Diagnostics.CodeAnalysis;
 
 namespace Loft
 {
   #region Enums
 
   using UiAction = Action<UiEvent>;
+  using UiBool2 = Loft.UiSize2T<bool>;
+  using UiInt2 = Loft.UiSize2T<int>;
+  using UiSize2 = Loft.UiSize2T<float>;
+  using UiList2 = Loft.UiSize2T<List<UiElement>>;
 
+  public class UiUtils
+  {
+    public const string TextRed = "<rgba(.884,.15,.12,1)>";
+    public const string TextYellow = "<rgba(.884,.899,.12,1)>";
+    public const string TextDarkYellow = "<rgba(.484,.499,.12,1)>";
+    public const string TextReset = "<reset>";
+    public static UiOrientation Perp(UiOrientation ori)
+    {
+      return ori == UiOrientation.Horizontal ? UiOrientation.Vertical : UiOrientation.Horizontal;
+    }
+    public static UiElement LineBreak()
+    {
+      var e = new UiElement();
+      e.Style.FixedWidth = 0;
+      e.Style.FixedHeight = 0;
+      e.Style.DisplayMode = UiDisplayMode.Block;
+      return e;
+    }
+  }
   public class FontFace : FileLoc
   {
     public string Name = "";
     public FontFace() { }
     protected FontFace(string name, string file) : base(file, EmbeddedFolder.Font) { Name = name; }
-    public static FontFace Parisienne = new FontFace("Parisienne", "Parisienne-Regular.ttf");
+
+    public static FontFace Default { get { return FontFace.RobotoMono; } }
+
     public static FontFace RobotoMono = new FontFace("RobotoMono", "RobotoMono-Regular.ttf");
+    public static FontFace Parisienne = new FontFace("Parisienne", "Parisienne-Regular.ttf");
     public static FontFace PressStart2P = new FontFace("PressStart2P", "PressStart2P-Regular.ttf");
     public static FontFace Calibri = new FontFace("Calibri", "calibri.ttf");
     public static FontFace EmilysCandy = new FontFace("EmilysCandy", "EmilysCandy-Regular.ttf");
@@ -36,26 +58,44 @@ namespace Loft
   public enum UiPositionMode
   {
     Static, // flows within page/container -221022 left/top is the offset relative to the computed block position
-    Relative, // left/top is relative to container element 
+    Relative, // left/top is relative to parent margin + parent origin + parent border 
     Absolute, // left/top relative to screen (RenderView)
   }
   public enum UiAlignment
   {
-    Left,  // float left, roman text
-    Center,// center
-    Right, // float right, arabic text
+    //note these now map to a special col ID
+    Left,  // float left, roman text (top in vertiacl layout)
+    Center,// center 
+    Right, // float right, arabic text (bottom in vertical layout)
   }
   public enum UiSizeMode
   {
-    Percent, //Expand to parent%
-    Shrink, //Shrink container. Note: parent=shrink + child=expand -> child width is minimum of all children mininmum widths in parent
-    Fixed // Fixed width/height
+    Fixed, // Fixed width/height
+    Shrink, //Shrink min size of container, or content.
+    Percent, //Expand to parent's maximum inherited width/height% (not MaxWidth, but the maximum clip width)
+    Auto, // Auto 
+          // 1 Fits remaining space based on AutoMode. 
+          // 2 Multiple Autos take up equal space (limited by MaxWH)
+          // 3 Can have zero width
+          // 4 WILL WRAP or PUSH CONTENT if min > 0 or display==block
+          // 6 Respects min/max property
+    AutoContent, //same as Auto but will not shrink below content
+  }
+  /*
+  UiAutoMode Static, Content -- parent attribute, determines the space allowed for autos to expand.
+UiSizeMode Auto, AutoContent -- child attribute
+
+  */
+  public enum UiAutoMode
+  {
+    Line,//Expand autos up to the width of the computed static area
+    Content,//Expand autos up to the parent's content area.
   }
   public enum UiRenderMode
   {
-    None, // not drawn
-    Color, // flat color, => the Tex will be default pixel
-    Textured, // texture => uses Texture
+    None, //Note: DisplayMode = none, CSS.
+    Color, // Flat color (Texture = default pixel)
+    Textured, // Use custom Texture
   }
   public enum UiBuildOrder
   {
@@ -64,8 +104,10 @@ namespace Loft
   }
   public enum UiOverflowMode
   {
-    Show, //show elements outside of clip region (not element region)
-    Hide
+    Show, //default - shows all elements outside of content 
+    Content, //hide everyting within the clip region, including elements overlapping parent padding
+    Border, // allow elements to go over the border if they overflow.
+    Padding // allow elements to go over the padding.
   };
   public enum UiImageTiling
   {
@@ -83,7 +125,7 @@ namespace Loft
   public enum UiFloatMode
   {
     None, // flows within page/container, position is ignored (text)
-    Floating, //element "floats" absolute above parent, does not affect container element region, but affects clip region (context menu)
+    Floating, //Floats above parent. Element does not affect container region, or static elements. BUT affects clip region (for context menu).
   }
   public enum UiOrientation
   {
@@ -96,12 +138,12 @@ namespace Loft
     None,
     Char, //wrap at chars / elements (default)
     Word, //word wrap
-    Line, //only wrap newlines
+    Line, //only wrap newlines (\n)
   }
   public enum UiLayoutDirection
   {
-    LeftToRight, //roman
-    RightToLeft, //arabic
+    LeftToRight, //roman (top to bot in vertical layout)
+    RightToLeft, //arabic (bot to top in vertical layout)
   }
   public enum UiEventId
   {
@@ -176,6 +218,7 @@ namespace Loft
     , FontStyle
     , FontColor
     , LineHeight
+    , Tracking
     , Texture
     , ImageTilingX
     , ImageTilingY
@@ -190,41 +233,141 @@ namespace Loft
     , ZIndex
     , FloatMode
     , RenderMode
-    , TextAlign
-    , Alignment
-    , Opacity //48
+    , ContentAlignX
+    , ContentAlignY
+    , Opacity
     , LayoutOrientation
     , LayoutDirection
     , TextWrap
-
+    , FontWeight
+    , AutoModeWidth
+    , AutoModeHeight
 
     //****
     , MaxUiProps
   }
 
   #endregion
+  #region Base / Helpers
 
-  public class UiRef<T> where T : class
+  public class UiTexture
   {
-    public T Value = null;
-    public UiRef() { }
-    public UiRef(T val) { Value = val; }
+    public UiTexture() { }
+    public UiTexture(FileLoc path) { _path = path; Modified = true; }
+    public MtTex? Image { get { return _texture; } set { _texture = value; } }
+    public FileLoc? Loc { get { return _path; } set { _path = value; Modified = true; } }
+    private FileLoc? _path = null;
+    private MtTex? _texture = null;
+    public bool Modified { get; set; }
   }
-  public class UiDebug
+  public class UiLayoutGlobals
   {
+    public UiLayoutGlobals(Gui2d g, MegaTex mt, UiStyleSheet s, UiGlyphCache cc)
+    {
+      Gui = g;
+      MegaTex = mt;
+      StyleSheet = s;
+      GlyphCache = cc;
+    }
 
+    public SortedList<float, v_v4v4v4v2u2v4v4> Verts { get; set; } = new SortedList<float, v_v4v4v4v2u2v4v4>(new FloatSort());
+    public List<UiElement> Changed = new List<UiElement>();// _elementsWithChangedContent = new List<UiElement>();
+    public vec2 Scale;
+    public int Framestamp;
+    public Gui2d Gui { get; }
+    public MegaTex MegaTex { get; }
+    public MtTex DefaultPixel { get { return MegaTex.DefaultPixel; } }
+    public UiStyleSheet StyleSheet { get; }
+    public UiGlyphCache GlyphCache { get; }
+
+    //debug
+    public bool Force;//force layout
+    public bool ForceText;//force layout
     public bool DisableClip = false;
     public bool ShowDebug = false;
     public bool DisableMargins = false;
     public bool DisablePadding = false;
     public bool DisableBorders = false;
-
-    public int FrameId = 0;
   }
-  [StructLayout(LayoutKind.Sequential)]
-  public struct UiQuad
+  public class UiSize2T<T>
   {
-    public const float c_dbg_maxsize = 99999;
+    public T _width = default(T);
+    public T _height = default(T);
+    public void Zero() { _width = default(T); _height = default(T); }
+    public void Set(T w, T h) { _width = w; _height = h; }
+    //public static UiSizeT<T> Zero { get { return new UiSizeT<T>(default(T), default(T)); } }
+    public UiSize2T() { }
+    public UiSize2T(T dw, T dh) { _width = dw; _height = dh; }
+
+    //L_.. "give me the dimension in this layout direction"
+    public T L_Width(UiOrientation dir)
+    {
+      return (dir == UiOrientation.Horizontal) ? _width : _height;
+    }
+    public void L_Width(UiOrientation dir, T value)
+    {
+      if (dir == UiOrientation.Horizontal) { _width = value; }
+      else if (dir == UiOrientation.Vertical) { _height = value; }
+      else { Gu.BRThrowNotImplementedException(); }
+    }
+    public T L_Height(UiOrientation dir)
+    {
+      return L_Width(UiUtils.Perp(dir));
+    }
+    public void L_Height(UiOrientation dir, T value)
+    {
+      L_Width(UiUtils.Perp(dir), value);
+    }
+    public void L_WidthHeight(UiOrientation dir, T w, T h)
+    {
+      if (dir == UiOrientation.Horizontal) { _width = w; _height = h; }
+      else if (dir == UiOrientation.Vertical) { _width = h; _height = w; }
+      else { Gu.BRThrowNotImplementedException(); }
+    }
+  }
+  public class UiSize4
+  {
+    public float _top = 0, _right = 0, _bot = 0, _left = 0;
+    //public static UiSize4 Zero { get { return new UiSize4(0, 0, 0, 0); } }
+    public void Zero() { _top = 0; _right = 0; _bot = 0; _left = 0; }
+    public UiSize4() { }
+    public UiSize4(float dt, float dr, float db, float dl) { _top = dt; _right = dr; _bot = db; _left = dl; }
+    public UiSize4(vec4 v) { _top = v.x; _right = v.y; _bot = v.z; _left = v.w; }
+    public vec4 ToVec4() { return new vec4(_top, _right, _bot, _left); }
+    public void Set(float t, float r, float b, float l) { _top = t; _right = r; _bot = b; _left = l; }
+    public float L_Left(UiOrientation dir)
+    {
+      return (dir == UiOrientation.Horizontal) ? _left : _top;
+    }
+    public float L_Top(UiOrientation dir)
+    {
+      return L_Left(UiUtils.Perp(dir));
+    }
+    public float L_Right(UiOrientation dir)
+    {
+      return (dir == UiOrientation.Horizontal) ? _right : _bot;
+    }
+    public float L_Bot(UiOrientation dir)
+    {
+      return L_Right(UiUtils.Perp(dir));
+    }
+    public void L_Left(UiOrientation dir, float value)
+    {
+      if (dir == UiOrientation.Horizontal) { _left = value; }
+      else if (dir == UiOrientation.Vertical) { _top = value; }
+      else { Gu.BRThrowNotImplementedException(); }
+    }
+    public void L_Right(UiOrientation dir, float value)
+    {
+      if (dir == UiOrientation.Horizontal) { _right = value; }
+      else if (dir == UiOrientation.Vertical) { _bot = value; }
+      else { Gu.BRThrowNotImplementedException(); }
+    }
+
+  }
+  public class UiQuad
+  {
+    public const float c_dbg_maxsize = 999999;
 
     public float _left = 0;
     public float _top = 0;
@@ -238,10 +381,37 @@ namespace Loft
     public float Right { get { return _left + _width; } }
     public float Bottom { get { return _top + _height; } }
 
+    public void ShrinkBy(UiSize4 border, vec2 scale)
+    {
+      _left += border._left * scale.x;
+      _top += border._top * scale.y;
+      _width -= (border._left * scale.x + border._right * scale.x);
+      _height -= (border._top * scale.y + border._bot * scale.y);
+    }
+
+    public void Zero() { _top = 0; _left = 0; _width = 0; _height = 0; }
+
+    public bool ContainsPointBLI(vec2 v)
+    {
+      return _left <= v.x && (_left + _width) > v.x && _top <= v.y && (_top + _height) > v.y;
+    }
+
+    public void Scale(vec2 scale)
+    {
+      _left *= scale.x;
+      _top *= scale.y;
+      _width *= scale.x;
+      _height *= scale.y;
+    }
     public UiQuad() { }
+    public UiQuad(float l, float t, float w, float h) { _left = l; _top = t; _width = w; _height = h; }
     public bool Equals(UiQuad q)
     {
-      return q.Min == this.Min && q.Max == this.Max;
+      return (q._left == this._left &&
+              q._top == this._top &&
+              q._width == this._width &&
+              q._height == this._height
+              );
     }
     public UiQuad Clone()
     {
@@ -253,10 +423,29 @@ namespace Loft
         _height = this._height
       };
     }
+    public void ClampToZero()
+    {
+      _left = Math.Max(_left, 0);
+      _top = Math.Max(_top, 0);
+      _width = Math.Max(_width, 0);
+      _height = Math.Max(_height, 0);
+    }
+
+    static bool _break_on_equal = false;
     public void ValidateQuad(bool debug_break = true)
     {
-      if (Left > Right && debug_break) { Gu.DebugBreak(); }
-      if (Top > Bottom && debug_break) { Gu.DebugBreak(); }
+      if (_width < 0 && debug_break) { Gu.DebugBreak(); _width = 0; }
+      if (_height < 0 && debug_break) { Gu.DebugBreak(); _height = 0; }
+      if (_left > c_dbg_maxsize && debug_break) { Gu.DebugBreak(); }
+      if (_top > c_dbg_maxsize && debug_break) { Gu.DebugBreak(); }
+      if (_width > c_dbg_maxsize && debug_break) { Gu.DebugBreak(); }
+      if (_height > c_dbg_maxsize && debug_break) { Gu.DebugBreak(); }
+      if (_left < -c_dbg_maxsize && debug_break) { Gu.DebugBreak(); }
+      if (_top < -c_dbg_maxsize && debug_break) { Gu.DebugBreak(); }
+
+      //not an error
+      if (Left == Right && _break_on_equal) { Gu.DebugBreak(); }
+      if (Top == Bottom && _break_on_equal) { Gu.DebugBreak(); }
 
       if (Single.IsNaN(_left) && debug_break) { Gu.DebugBreak(); }
       if (Single.IsNaN(_top) && debug_break) { Gu.DebugBreak(); }
@@ -268,334 +457,120 @@ namespace Loft
       if (Single.IsInfinity(_width) && debug_break) { Gu.DebugBreak(); }
       if (Single.IsInfinity(_height) && debug_break) { Gu.DebugBreak(); }
 
-      if (_left > c_dbg_maxsize && debug_break) { Gu.DebugBreak(); }
-      if (_top > c_dbg_maxsize && debug_break) { Gu.DebugBreak(); }
-      if (_width > c_dbg_maxsize && debug_break) { Gu.DebugBreak(); }
-      if (_height > c_dbg_maxsize && debug_break) { Gu.DebugBreak(); }
+    }
+    public void Expand(vec2 v)
+    {
+      _left = (float)Math.Min(v.x, _left);
+      _top = (float)Math.Min(v.y, _top);
+      _width = (float)Math.Max(v.x - _left, _width);
+      _height = (float)Math.Max(v.y - _top, _height);
+    }
+    public void Intersection(UiQuad b)
+    {
+      float mx = _left + _width;
+      float my = _top + _height;
+      float bmx = b._left + b._width;
+      float bmy = b._top + b._height;
 
-      if (_left < -c_dbg_maxsize && debug_break) { Gu.DebugBreak(); }
-      if (_top < -c_dbg_maxsize && debug_break) { Gu.DebugBreak(); }
-      if (_width < -c_dbg_maxsize && debug_break) { Gu.DebugBreak(); }
-      if (_height < -c_dbg_maxsize && debug_break) { Gu.DebugBreak(); }
+      MathUtils.BoxShrink(
+        ref _left, ref _top, ref mx, ref my,
+        b._left, b._top, bmx, bmy
+        );
 
+      _width = mx - _left;
+      _height = my - _top;
     }
-    public void ExpandByPoint(vec2 v)
+    public float L_Width(UiOrientation dir)
     {
-      var b = ToBox();
-      b.ExpandByPoint(v);
-      FromBox(b);
+      return (dir == UiOrientation.Horizontal) ? _width : _height;
     }
-    public Box2f ToBox()
+    public void L_Width(UiOrientation dir, float value)
     {
-      return new Box2f(_left, _top, _width, _height);
+      if (dir == UiOrientation.Horizontal) { _width = value; }
+      else if (dir == UiOrientation.Vertical) { _height = value; }
+      else { Gu.BRThrowNotImplementedException(); }
     }
-    public void FromBox(Box2f bx)
+    public float L_Height(UiOrientation dir)
     {
-      this._left = bx._min.x;
-      this._top = bx._min.y;
-      this._width = bx.Width;
-      this._height = bx.Height;
+      return L_Width(UiUtils.Perp(dir));
     }
-    public bool ShrinkByBox(UiQuad b)
+    public void L_Height(UiOrientation dir, float value)
     {
-      var bx = this.ToBox();
-      bx.ShrinkByBox(b.ToBox());
-      FromBox(bx);
-      return true;
+      L_Width(UiUtils.Perp(dir), value);
     }
-    public float LSize(UiOrientation dir)
+    public float L_Left(UiOrientation dir)
     {
-      if (dir == UiOrientation.Horizontal)
-      {
-        return _width;
-      }
-      else if (dir == UiOrientation.Vertical)
-      {
-        return _height;
-      }
-      else
-      {
-        Gu.BRThrowNotImplementedException();
-      }
-      return _width;
+      return (dir == UiOrientation.Horizontal) ? _left : _top;
     }
-    public void LSize(UiOrientation dir, float value)
+    public float L_Top(UiOrientation dir)
     {
-      if (dir == UiOrientation.Horizontal)
-      {
-        _width = value;
-      }
-      else if (dir == UiOrientation.Vertical)
-      {
-        _height = value;
-      }
-      else
-      {
-        Gu.BRThrowNotImplementedException();
-      }
+      return L_Left(UiUtils.Perp(dir));
     }
-    public float LMin(UiOrientation dir)
+    public void L_Left(UiOrientation dir, float value)
     {
-      if (dir == UiOrientation.Horizontal)
-      {
-        return _left;
-      }
-      else if (dir == UiOrientation.Vertical)
-      {
-        return _top;
-      }
-      else
-      {
-        Gu.BRThrowNotImplementedException();
-      }
-      return _left;
+      if (dir == UiOrientation.Horizontal) { _left = value; }
+      else if (dir == UiOrientation.Vertical) { _top = value; }
+      else { Gu.BRThrowNotImplementedException(); }
     }
-    public void LMin(UiOrientation dir, float value)
+    public void L_Top(UiOrientation dir, float value)
     {
-      if (dir == UiOrientation.Horizontal)
-      {
-        _left = value;
-      }
-      else if (dir == UiOrientation.Vertical)
-      {
-        _top = value;
-      }
-      else
-      {
-        Gu.BRThrowNotImplementedException();
-      }
+      L_Left(UiUtils.Perp(dir), value);
     }
-    public float LMax(UiOrientation dir)
+    public void L_WidthHeight(UiOrientation dir, float w, float h)
     {
-      if (dir == UiOrientation.Horizontal)
-      {
-        return _left + _width;
-      }
-      else if (dir == UiOrientation.Vertical)
-      {
-        return _top + _height;
-      }
-      else
-      {
-        Gu.BRThrowNotImplementedException();
-      }
-      return _left + _width;
+      if (dir == UiOrientation.Horizontal) { _width = w; _height = h; }
+      else if (dir == UiOrientation.Vertical) { _width = h; _height = w; }
+      else { Gu.BRThrowNotImplementedException(); }
+    }
+    public void L_LeftTop(UiOrientation dir, float x, float y)
+    {
+      if (dir == UiOrientation.Horizontal) { _left = x; _top = y; }
+      else if (dir == UiOrientation.Vertical) { _top = x; _left = y; }
+      else { Gu.BRThrowNotImplementedException(); }
     }
     //cant set
   }
-  public class UiEventState
+  public abstract class UiBlock : InputEventListener
   {
-    //shared UI state for events
-    public Gui2d? Gui { get; private set; } = null;//must be set manuallly
-    public UiElement? Previous { get; private set; } = null;
-    public UiElement? Current { get; private set; } = null;
-    public ButtonState LeftButtonState { get; private set; }
-    public ButtonState RightButtonState { get; private set; }
-    public vec2 MousePosCur { get; private set; }
-    public vec2 MousePosLast { get; private set; }
-    public UiElement? Focused { get; private set; } = null;
-    public vec2 Scroll { get; private set; }
+    //interface between UiGlyph and UiElement
 
-    public bool IsAnyGuiItemPicked()
-    {
-      return Current != null;
-    }
+    private static System.Random r = null;//for debug only
+    public vec4 _debugcolor;
 
-    public UiEventState(Gui2d g, vec2 mpos_cur, vec2 mpos_last, UiElement? prev_pick, UiElement? cur_pick, ButtonState leftState, ButtonState rightState, UiElement? pressFocus, vec2 scroll)
+    public float L_WordWidth(UiOrientation ori) { return ori == UiOrientation.Horizontal ? WordWidth : WordHeight; }
+    public abstract UiDisplayMode DisplayMode { get; }
+    public virtual float WordWidth { get { return 0; } }
+    public virtual float WordHeight { get { return 0; } }
+    public virtual int WordID { get { return -1; } }
+    public virtual int CharID { get { return -1; } }
+    public vec4? GlyphColor { get { return null; } set { } }
+
+    //this should be moved to UiElement, glyph needs very little in this, there are thousadnds of glyphs..
+    public UiBlockInfo _block = new UiBlockInfo();
+    public UiBlock()
     {
-      Gui = g;
-      MousePosCur = mpos_cur;
-      MousePosLast = mpos_last;
-      Previous = prev_pick;
-      Current = cur_pick;
-      LeftButtonState = leftState;
-      RightButtonState = rightState;
-      Focused = pressFocus;
-      Scroll = scroll;
+      if (r == null) r = new System.Random();
+      _debugcolor = new vec4(r.NextSingle(), r.NextSingle(), r.NextSingle(), 0.11f);
     }
+    public abstract float L_Left(UiOrientation o);
+    public abstract float L_Top(UiOrientation o);
+    public abstract float L_Advance();
+    public abstract float L_LineHeight();
   }
-  public class UiEvent
-  {
-    public UiEventId EventId { get; private set; } = UiEventId.Undefined;
-    //public MouseButton? MouseButton { get; private set; } = null;//not null if this is a mouse event
-    // public ButtonState? ButtonState { get; private set; } = null;
-    public UiElement Element { get; private set; } //We could store a weak reference here, assuming at some point the Gui system may add/delete non-glyph elements
 
-    public UiEventState? State { get; set; } = null;
+  #endregion
+  #region Props / Stylesheet
 
-    private UiEventThing _thing;
-
-    public UiEvent(UiEventId id, UiElement ele)
-    {
-      Gu.Assert(ele != null);
-      Element = ele;
-      EventId = id;
-    }
-    public void Fire()
-    {
-      Gu.Assert(Element != null);
-      Element.DoMouseEvents(this, false);
-    }
-  }
-  public class UiEventThing
-  {
-    //captures input from the user while the UI is updating asynchronously.
-    //trying to do this without registering for events from children - "passive" events
-    private int c_iMaxEvents = 500;
-
-    private ButtonState _eLast_Lmb = ButtonState.Up;
-    private ButtonState _eLast_Rmb = ButtonState.Up;
-    private ButtonState _eLast_Mmb = ButtonState.Up;
-    public List<UiEvent> _events = new List<UiEvent>();
-    private UiElement? _pressFocusLast = null;
-    private UiElement? _focused = null;
-    private List<UiEvent> _new_events_frame = new List<UiEvent>();
-
-    public UiEventThing()
-    {
-      c_iMaxEvents = Gu.EngineConfig.MaxUIEvents;
-      c_iMaxEvents = Math.Clamp(c_iMaxEvents, 0, 9999999);
-    }
-    public void PollForEvents(Gui2d g)
-    {
-      //Poll each frame
-      //  sends max 20 or so events to at most 2 objects, last/cur picked
-      Gu.Assert(g != null);
-      if (_events.Count >= c_iMaxEvents)
-      {
-        Gu.Log.Error($"Too many UI events! max={c_iMaxEvents}");
-        Gu.DebugBreak();
-        return;
-      }
-
-      _new_events_frame.Clear();
-
-      var picker = Gu.Context.Renderer.Picker;
-      UiElement? elast = null;
-      UiElement? ecur = null;
-
-      //update picked
-      if (picker.PickedObjectFrameLast is UiElement)
-      {
-        elast = picker.PickedObjectFrameLast as UiElement;
-      }
-      if (picker.PickedObjectFrame is UiElement)
-      {
-        ecur = picker.PickedObjectFrame as UiElement;
-      }
-
-
-      //button events
-      var lb = Gu.Context.PCMouse.State(MouseButton.Left);
-      var rb = Gu.Context.PCMouse.State(MouseButton.Right);
-      var mpos = Gu.Context.PCMouse.Pos;
-      var mlast = Gu.Context.PCMouse.LastPos;
-      var scroll = Gu.Context.PCMouse.ScrollDelta;
-
-      //press focus "Focus" (drag / mouse down)
-      //  the element being dragged/interacted while mouse HELD, 
-      //  mouse need not be hovering over element to have press focus.      
-      if ((Gu.Context.GameWindow.IsFocused == false) || ((lb == ButtonState.Release || lb == ButtonState.Up) && (_focused != null)))
-      {
-        var pold = _focused;
-        _focused = null;
-        if (pold != ecur)
-        {
-          //Force a mouse release in case mouse not over focus
-          SendEvent(UiEventId.LmbRelease, pold);
-        }
-        SendEvent(UiEventId.Lost_Focus, pold);
-      }
-      else if (lb == ButtonState.Press)
-      {
-        var pold = _focused;
-        if (Gu.TryGetSelectedView(out var vv))
-        {
-          _focused = ecur;
-        }
-        SendEvent(UiEventId.Lost_Focus, pold);
-        SendEvent(UiEventId.Got_Focus, _focused);
-      }
-
-      //lmb / rmb
-      if (lb != _eLast_Lmb)
-      {
-        if (ecur != null)
-        {
-          if (lb == ButtonState.Up) { SendEvent(UiEventId.LmbUp, ecur); }
-          if (lb == ButtonState.Press) { SendEvent(UiEventId.LmbPress, ecur); }
-          if (lb == ButtonState.Hold) { SendEvent(UiEventId.LmbHold, ecur); }
-          if (lb == ButtonState.Release) { SendEvent(UiEventId.LmbRelease, ecur); }
-        }
-      }
-      if (rb != _eLast_Rmb)
-      {
-        if (ecur != null)
-        {
-          if (rb == ButtonState.Up) { SendEvent(UiEventId.RmbUp, ecur); }
-          if (rb == ButtonState.Press) { SendEvent(UiEventId.RmbPress, ecur); }
-          if (rb == ButtonState.Hold) { SendEvent(UiEventId.RmbHold, ecur); }
-          if (rb == ButtonState.Release) { SendEvent(UiEventId.RmbRelease, ecur); }
-        }
-      }
-
-      //move events
-      if (elast != null && elast != ecur)
-      {
-        SendEvent(UiEventId.Mouse_Leave, elast);
-      }
-      if (ecur != null && elast != ecur)
-      {
-        SendEvent(UiEventId.Mouse_Enter, ecur);
-      }
-      if (ecur != null && elast == ecur && mpos != mlast)
-      {
-        SendEvent(UiEventId.Mouse_Move, ecur);
-      }
-      if (scroll.x != 0 || scroll.y != 0)
-      {
-        SendEvent(UiEventId.Mouse_Scroll, ecur);
-      }
-
-      //Pressed item 
-      if ((mpos != mlast) && (lb == ButtonState.Hold) && (_eLast_Lmb == ButtonState.Press || _eLast_Lmb == ButtonState.Hold))
-      {
-        SendEvent(UiEventId.LmbDrag, _focused);
-      }
-
-      //Update state after events are sent (we use state in event)
-      _eLast_Lmb = lb;
-      _eLast_Rmb = rb;
-
-      //send
-      if (_new_events_frame.Count > 0)
-      {
-        var state = new UiEventState(g, mpos, mlast, elast, ecur, lb, rb, _focused, scroll);
-        foreach (var ev in _new_events_frame)
-        {
-          ev.State = state;
-        }
-        _events.AddRange(_new_events_frame);
-
-        _new_events_frame.Clear();
-      }
-    }
-    private void SendEvent(UiEventId evid, UiElement? ele)
-    {
-      //make sure ele has registered the event
-      if (ele != null)
-      {
-        if (ele.Events.Keys.Contains(evid))
-        {
-          _new_events_frame.Add(new UiEvent(evid, ele));
-        }
-      }
-    }
-  }
   public class UiProps
   {
-    public UiPositionMode LPositionMode(UiOrientation dir) { return dir == UiOrientation.Horizontal ? PositionModeX : PositionModeY; }
-    public float LMin(UiOrientation dir) { return dir == UiOrientation.Horizontal ? Left : Top; }
+    public UiPositionMode L_PositionMode(UiOrientation dir) { return dir == UiOrientation.Horizontal ? PositionModeX : PositionModeY; }
+    public UiAlignment L_ContentAlign(UiOrientation dir) { return dir == UiOrientation.Horizontal ? ContentAlignX : ContentAlignY; }
+    public UiSizeMode L_SizeMode(UiOrientation dir) { return dir == UiOrientation.Horizontal ? SizeModeWidth : SizeModeHeight; }
+    public UiAutoMode L_AutoMode(UiOrientation dir) { return dir == UiOrientation.Horizontal ? AutoModeWidth : AutoModeHeight; }
+    public float L_PercentWidth(UiOrientation dir) { return dir == UiOrientation.Horizontal ? PercentWidth : PercentHeight; }
+    public float L_FixedWidth(UiOrientation dir) { return dir == UiOrientation.Horizontal ? FixedWidth : FixedHeight; }
+    public float L_LT(UiOrientation dir) { return dir == UiOrientation.Horizontal ? Left : Top; }
+    public float L_MaxWidth(UiOrientation dir) { return dir == UiOrientation.Horizontal ? MaxWidth : MaxHeight; }
 
     //All styled properties of an element. 
     // All elements contain one properties class with all value type properties set to default (besides texture/font face, but they MUST be set).
@@ -636,25 +611,29 @@ namespace Loft
     public float FontSize = 12;
     public UiFontStyle FontStyle = UiFontStyle.Normal;
     public vec4 FontColor = new vec4(0, 0, 0, 1);
+    public float FontWeight = 1;
     public float LineHeight = 1;
-    public MtTex Texture = null;
+    public float Tracking = 1; //letter spacing
+    public UiTexture Texture = null;
     public UiImageTiling ImageTilingX = UiImageTiling.Expand;
     public UiImageTiling ImageTilingY = UiImageTiling.Expand;
     public float ImageScaleX = 1;
     public float ImageScaleY = 1;
-    public UiDisplayMode DisplayMode = UiDisplayMode.Block;
+    public UiDisplayMode DisplayMode = UiDisplayMode.Inline;
     public UiPositionMode PositionModeY = UiPositionMode.Static;
     public UiPositionMode PositionModeX = UiPositionMode.Static;
-    public UiOverflowMode OverflowMode = UiOverflowMode.Hide;
-    public UiSizeMode SizeModeWidth = UiSizeMode.Percent;
-    public UiSizeMode SizeModeHeight = UiSizeMode.Percent;
+    public UiOverflowMode OverflowMode = UiOverflowMode.Content;
+    public UiSizeMode SizeModeWidth = UiSizeMode.Shrink;
+    public UiSizeMode SizeModeHeight = UiSizeMode.Shrink;
+    public UiAutoMode AutoModeWidth = UiAutoMode.Content;
+    public UiAutoMode AutoModeHeight = UiAutoMode.Content;
     public float ZIndex = 0;
     public UiFloatMode FloatMode = UiFloatMode.None;
     public UiRenderMode RenderMode = UiRenderMode.None;
-    public UiAlignment TextAlign = UiAlignment.Left;
+    public UiAlignment ContentAlignX = UiAlignment.Left;
+    public UiAlignment ContentAlignY = UiAlignment.Left;
     public UiWrapMode TextWrap = UiWrapMode.Word;
-    public UiAlignment Alignment = UiAlignment.Left;
-    public double Opacity = 1;
+    public float Opacity = 1;
     public UiOrientation LayoutOrientation = UiOrientation.Horizontal;
     public UiLayoutDirection LayoutDirection = UiLayoutDirection.LeftToRight;
 
@@ -793,7 +772,11 @@ namespace Loft
     }
     private static bool CanInherit(UiPropName p)
     {
+      //i guess, really the only things we inherit are color and font stuff
+
       //https://www.w3.org/TR/CSS/#properties
+      //incorrect for CSS but makes things easier to just inherit *some* non standard properties
+      //it do not yet support an "inherit" property
       if (
         p == UiPropName.Left
         || p == UiPropName.Top
@@ -801,8 +784,10 @@ namespace Loft
         || p == UiPropName.MaxWidth
         || p == UiPropName.MinHeight
         || p == UiPropName.MaxHeight
-        //this is incorrect for CSS but it makes things easier to just inherit these
-        //if you do not inherit them you have to set the class style manually as we do not support an "inherit" property
+        || p == UiPropName.FixedWidth
+        || p == UiPropName.FixedHeight
+        || p == UiPropName.PercentWidth
+        || p == UiPropName.PercentHeight
         || p == UiPropName.MarginTop
         || p == UiPropName.MarginRight
         || p == UiPropName.MarginBot
@@ -819,11 +804,34 @@ namespace Loft
         || p == UiPropName.BorderRight
         || p == UiPropName.BorderBot
         || p == UiPropName.BorderLeft
-        || p == UiPropName.FixedWidth
-        || p == UiPropName.FixedHeight
-        || p == UiPropName.PercentWidth
-        || p == UiPropName.PercentHeight
-      //|| p == UiPropName.RenderMode
+        || p == UiPropName.LayoutOrientation
+        || p == UiPropName.BorderBotLeftRadius
+        || p == UiPropName.BorderBotRightRadius
+        || p == UiPropName.BorderTopLeftRadius
+        || p == UiPropName.BorderTopRightRadius
+
+        //|| p == UiPropName.RenderMode
+        || p == UiPropName.PositionModeX
+        || p == UiPropName.PositionModeY
+        || p == UiPropName.AutoModeWidth
+        || p == UiPropName.AutoModeHeight
+        || p == UiPropName.SizeModeWidth
+        || p == UiPropName.SizeModeHeight
+        || p == UiPropName.FloatMode
+        || p == UiPropName.DisplayMode
+        || p == UiPropName.OverflowMode
+        || p == UiPropName.LayoutDirection
+        || p == UiPropName.LayoutOrientation
+        || p == UiPropName.ImageScaleX
+        || p == UiPropName.ImageScaleY
+        || p == UiPropName.ImageTilingX
+        || p == UiPropName.ImageTilingY
+        || p == UiPropName.ContentAlignX
+        || p == UiPropName.ContentAlignY
+        || p == UiPropName.Texture
+        || p == UiPropName.TextWrap
+        || p == UiPropName.ZIndex
+
 
       )
       {
@@ -894,6 +902,12 @@ namespace Loft
           var b = _endValue as double?;
           newval = (a + (b - a) * x) as T?;
         }
+        else if (typeof(T) == typeof(float))
+        {
+          var a = _startValue as float?;
+          var b = _endValue as float?;
+          newval = (a + (b - a) * (float)x) as T?;
+        }
         else
         {
           Gu.BRThrowNotImplementedException();
@@ -922,6 +936,14 @@ namespace Loft
     public string Name { get; set; } = "";
     public bool Modified { get { return _bMustCompile; } }
     public bool IsInline { get; set; }
+
+    public float MBP
+    {
+      set
+      {
+        Margin = Border = Padding = value;
+      }
+    }
 
     public float? Margin
     {
@@ -964,9 +986,12 @@ namespace Loft
       }
     }
     public UiSizeMode SizeMode { set { SizeModeWidth = value; SizeModeHeight = value; } }
+    public UiAutoMode AutoMode { set { AutoModeWidth = value; AutoModeHeight = value; } }
+    public float SizePercent { set { PercentWidth = value; PercentHeight = value; } }
     public UiPositionMode PositionMode { set { PositionModeX = value; PositionModeY = value; } }
+    public float Min { set { MinWidth = value; MinHeight = value; } }
+    public float Max { set { MaxWidth = value; MaxHeight = value; } }
 
-    //Do not use nullable<> or ? types on class types here. This will return (null) even if the class type is set on the nullable boxed.
     public float? Top { get { return (float?)GetClassProp(UiPropName.Top); } set { SetProp(UiPropName.Top, (float?)value); } }
     public float? Left { get { return (float?)GetClassProp(UiPropName.Left); } set { SetProp(UiPropName.Left, (float?)value); } }
     public float? MinWidth { get { return (float?)GetClassProp(UiPropName.MinWidth); } set { SetProp(UiPropName.MinWidth, (float?)value); } }
@@ -1001,24 +1026,28 @@ namespace Loft
     public float? FontSize { get { return (float?)GetClassProp(UiPropName.FontSize); } set { SetProp(UiPropName.FontSize, (float?)value); } }
     public UiFontStyle? FontStyle { get { return (UiFontStyle?)GetClassProp(UiPropName.FontStyle); } set { SetProp(UiPropName.FontStyle, (UiFontStyle?)value); } }
     public vec4? FontColor { get { return (vec4?)GetClassProp(UiPropName.FontColor); } set { SetProp(UiPropName.FontColor, (vec4?)value); } }
+    public float? FontWeight { get { return (float?)GetClassProp(UiPropName.FontWeight); } set { SetProp(UiPropName.FontWeight, (float?)value); } }
     public float? LineHeight { get { return (float?)GetClassProp(UiPropName.LineHeight); } set { SetProp(UiPropName.LineHeight, (float?)value); } }
+    public float? Tracking { get { return (float?)GetClassProp(UiPropName.Tracking); } set { SetProp(UiPropName.Tracking, (float?)value); } }
     public UiPositionMode? PositionModeX { get { return (UiPositionMode?)GetClassProp(UiPropName.PositionModeX); } set { SetProp(UiPropName.PositionModeX, (UiPositionMode?)value); } }
     public UiPositionMode? PositionModeY { get { return (UiPositionMode?)GetClassProp(UiPropName.PositionModeY); } set { SetProp(UiPropName.PositionModeY, (UiPositionMode?)value); } }
     public UiOverflowMode? OverflowMode { get { return (UiOverflowMode?)GetClassProp(UiPropName.OverflowMode); } set { SetProp(UiPropName.OverflowMode, (UiOverflowMode?)value); } }
     public UiSizeMode? SizeModeWidth { get { return (UiSizeMode?)GetClassProp(UiPropName.SizeModeWidth); } set { SetProp(UiPropName.SizeModeWidth, (UiSizeMode?)value); } }
     public UiSizeMode? SizeModeHeight { get { return (UiSizeMode?)GetClassProp(UiPropName.SizeModeHeight); } set { SetProp(UiPropName.SizeModeHeight, (UiSizeMode?)value); } }
+    public UiAutoMode? AutoModeWidth { get { return (UiAutoMode?)GetClassProp(UiPropName.AutoModeWidth); } set { SetProp(UiPropName.AutoModeWidth, (UiAutoMode?)value); } }
+    public UiAutoMode? AutoModeHeight { get { return (UiAutoMode?)GetClassProp(UiPropName.AutoModeHeight); } set { SetProp(UiPropName.AutoModeHeight, (UiAutoMode?)value); } }
     public UiDisplayMode? DisplayMode { get { return (UiDisplayMode?)GetClassProp(UiPropName.DisplayMode); } set { SetProp(UiPropName.DisplayMode, (UiDisplayMode?)value); } }
     public UiImageTiling? ImageTilingX { get { return (UiImageTiling?)GetClassProp(UiPropName.ImageTilingX); } set { SetProp(UiPropName.ImageTilingX, (UiImageTiling?)value); } }
     public UiImageTiling? ImageTilingY { get { return (UiImageTiling?)GetClassProp(UiPropName.ImageTilingY); } set { SetProp(UiPropName.ImageTilingY, (UiImageTiling?)value); } }
     public float? ImageScaleX { get { return (float?)GetClassProp(UiPropName.ImageScaleX); } set { SetProp(UiPropName.ImageScaleX, (float?)value); } }
     public float? ImageScaleY { get { return (float?)GetClassProp(UiPropName.ImageScaleY); } set { SetProp(UiPropName.ImageScaleY, (float?)value); } }
-    public MtTex Texture { get { return (MtTex)GetClassProp(UiPropName.Texture); } set { SetProp(UiPropName.Texture, (MtTex)value); } }
+    public UiTexture Texture { get { return (UiTexture)GetClassProp(UiPropName.Texture); } set { SetProp(UiPropName.Texture, (UiTexture)value); } }
     public float? ZIndex { get { return (float?)GetClassProp(UiPropName.ZIndex); } set { SetProp(UiPropName.ZIndex, (float?)value); } }
     public UiFloatMode? FloatMode { get { return (UiFloatMode?)GetClassProp(UiPropName.FloatMode); } set { SetProp(UiPropName.FloatMode, (UiFloatMode?)value); } }
     public UiRenderMode? RenderMode { get { return (UiRenderMode?)GetClassProp(UiPropName.RenderMode); } set { SetProp(UiPropName.RenderMode, (UiRenderMode?)value); } }
-    public UiAlignment? TextAlign { get { return (UiAlignment?)GetClassProp(UiPropName.TextAlign); } set { SetProp(UiPropName.TextAlign, (UiAlignment?)value); } }
-    public UiAlignment? Alignment { get { return (UiAlignment?)GetClassProp(UiPropName.Alignment); } set { SetProp(UiPropName.Alignment, (UiAlignment?)value); } }
-    public double? Opacity { get { return (double?)GetClassProp(UiPropName.Opacity); } set { SetProp(UiPropName.Opacity, (double?)value); } }
+    public UiAlignment? ContentAlignX { get { return (UiAlignment?)GetClassProp(UiPropName.ContentAlignX); } set { SetProp(UiPropName.ContentAlignX, (UiAlignment?)value); } }
+    public UiAlignment? ContentAlignY { get { return (UiAlignment?)GetClassProp(UiPropName.ContentAlignY); } set { SetProp(UiPropName.ContentAlignY, (UiAlignment?)value); } }
+    public float? Opacity { get { return (float?)GetClassProp(UiPropName.Opacity); } set { SetProp(UiPropName.Opacity, (float?)value); } }
     public UiOrientation? LayoutOrientation { get { return (UiOrientation?)GetClassProp(UiPropName.LayoutOrientation); } set { SetProp(UiPropName.LayoutOrientation, (UiOrientation?)value); } }
     public UiLayoutDirection? LayoutDirection { get { return (UiLayoutDirection?)GetClassProp(UiPropName.LayoutDirection); } set { SetProp(UiPropName.LayoutDirection, (UiLayoutDirection?)value); } }
     public float? PercentWidth { get { return (float?)GetClassProp(UiPropName.PercentWidth); } set { SetProp(UiPropName.PercentWidth, (float?)value); } }
@@ -1028,15 +1057,16 @@ namespace Loft
     #endregion
     #region Members 
 
-    public UiProps _props = new UiProps();//Gets the compiled / final props
+    public UiProps _props = new UiProps(); //compiled / final props
     public bool IsPropsOnly { get; set; } = false;//For glyph, don't inherit parent or compile, and re-compile the class every time.. we set _props manually
     public WeakReference<UiStyleSheet> StyleSheet { get; private set; } = null;
     public long CompiledFrameId { get; private set; } = 0;
+    public BitArray Changed { get { return _changed; } }
+
     private BitArray _owned = new BitArray((int)UiPropName.MaxUiProps);//This bitset tells us which props were set
     private BitArray _inherited = new BitArray((int)UiPropName.MaxUiProps);
     private BitArray _defaulted = new BitArray((int)UiPropName.MaxUiProps);
     private BitArray _changed = new BitArray((int)UiPropName.MaxUiProps);//props that changed during the last class compile
-    public BitArray Changed { get { return _changed; } }
     private List<UiStyle> _superStyles = null;
     private List<string> _superStylesNames = null;//Translate this with Stylesheet.
     private bool _bMustTranslateInheritedStyles = false;
@@ -1094,9 +1124,49 @@ namespace Loft
       }
       StyleSheet = new WeakReference<UiStyleSheet>(s);
     }
+    private void AutoSetModesForValues(UiPropName p, object? value)
+    {
+      if (p == UiPropName.Color)
+      {
+        if (value != null && this._props.RenderMode != UiRenderMode.Color)
+        {
+          this.RenderMode = UiRenderMode.Color;
+        }
+      }
+      if (p == UiPropName.Texture)
+      {
+        if (value != null && this._props.RenderMode != UiRenderMode.Textured)
+        {
+          this.RenderMode = UiRenderMode.Textured;
+        }
+        else if (value == null && this._props.RenderMode == UiRenderMode.Textured)
+        {
+          this.RenderMode = UiRenderMode.Color;
+        }
+      }
+      if (p == UiPropName.PercentWidth && value != null && this._props.SizeModeWidth != UiSizeMode.Percent)
+      {
+        this.SizeModeWidth = UiSizeMode.Percent;
+      }
+      if (p == UiPropName.PercentHeight && value != null && this._props.SizeModeHeight != UiSizeMode.Percent)
+      {
+        this.SizeModeHeight = UiSizeMode.Percent;
+      }
+      if (p == UiPropName.FixedWidth && value != null && this._props.SizeModeWidth != UiSizeMode.Fixed)
+      {
+        this.SizeModeWidth = UiSizeMode.Fixed;
+      }
+      if (p == UiPropName.FixedHeight && value != null && this._props.SizeModeHeight != UiSizeMode.Fixed)
+      {
+        this.SizeModeHeight = UiSizeMode.Fixed;
+      }
+    }
     public void SetProp(UiPropName p, object? value)
     {
-      ValidateProp(value);
+      ValidateProp(p, value);
+
+      //auto set rendermode 
+      AutoSetModesForValues(p, value);
 
       //set a property 
       // * set value to null to clear/inherit value
@@ -1106,7 +1176,7 @@ namespace Loft
       }
     }
     static bool _debug_break_validate_props = true;
-    private void ValidateProp(object? value)
+    private void ValidateProp(UiPropName p, object? value)
     {
       //debug/testing validation
       if (value != null && _debug_break_validate_props)
@@ -1155,38 +1225,26 @@ namespace Loft
         return GetProp(p);
       }
     }
-    public float? LMin(UiOrientation dir)
+    public float? L_Left(UiOrientation dir)
     {
-      if (dir == UiOrientation.Horizontal)
-      {
-        return Left;
-      }
-      else if (dir == UiOrientation.Vertical)
-      {
-        return Top;
-      }
-      else
-      {
-        Gu.BRThrowNotImplementedException();
-      }
+      if (dir == UiOrientation.Horizontal) { return Left; }
+      else if (dir == UiOrientation.Vertical) { return Top; }
+      else { Gu.BRThrowNotImplementedException(); }
       return Left;
     }
-    public void LMin(UiOrientation dir, float value)
+    public void L_Left(UiOrientation dir, float value)
     {
-      if (dir == UiOrientation.Horizontal)
-      {
-        Left = value;
-      }
-      else if (dir == UiOrientation.Vertical)
-      {
-        Top = value;
-      }
-      else
-      {
-        Gu.BRThrowNotImplementedException();
-      }
+      if (dir == UiOrientation.Horizontal) { Left = value; }
+      else if (dir == UiOrientation.Vertical) { Top = value; }
+      else { Gu.BRThrowNotImplementedException(); }
     }
-    public void CompileStyleTree(UiStyleSheet s, long framestamp, UiStyle style_DOM_parent = null)
+    public void L_FixedWidth(UiOrientation dir, float value)
+    {
+      if (dir == UiOrientation.Horizontal) { FixedWidth = value; }
+      else if (dir == UiOrientation.Vertical) { FixedHeight = value; }
+      else { Gu.BRThrowNotImplementedException(); }
+    }
+    public void CompileStyleTree(UiStyleSheet s, long framestamp, UiStyle? style_DOM_parent, bool force)
     {
       //Compile.. for example: <div top="3"> <div class=" class1 class2 class1 " style="top:3" right="5">  into a single set of properties for each <div>
       // parent style (tag), <style style style> (classes), owned (inline)... <div class/style="parent stuff"> <div class="a b c b a" style="inline stuff.."
@@ -1194,7 +1252,7 @@ namespace Loft
       {
         TranslateStyleNames(s);
 
-        if (_bMustCompile)
+        if (_bMustCompile || force)
         {
 
           //reset all prop bitflags
@@ -1278,7 +1336,7 @@ namespace Loft
           {
             if (!_superStyles[i].IsInline)
             {
-              _superStyles[i].CompileStyleTree(s, framestamp, null);
+              _superStyles[i].CompileStyleTree(s, framestamp, null, false);
               return InheritValue(_superStyles[i], pname, fieldinfo);
             }
             else
@@ -1394,207 +1452,729 @@ namespace Loft
     #endregion
 
   }//cls
-  public class UiQuads
+  public class UiStyleSheet
   {
-    //*render quad is the origin
-    public UiQuad _b2ClipQuad = new UiQuad(); // all floating and contained, elements and min/max w/h. *clip quad may not equal computed quad if there are floating elements
-    public UiQuad _b2LocalQuad = new UiQuad(); // computed width/height of the contained items, parent-relative
-    public UiQuad _b2ContentQuad = new UiQuad();
-    public UiQuad _dbg_b2PaddingQuad = new UiQuad();
-    public UiQuad _b2BorderQuad = new UiQuad(); // Final quad. content area + margin + border area
-    public UiQuad _b2BorderQuad_Last = new UiQuad();
-    public vec2 ContentWH = new vec2(0, 0);
-    public vec2 GlyphWH = new vec2(0, 0);//max width/height of all glyphs
-    public vec2 OuterMaxWH = new vec2(0, 0);//parent wh clamped to this element's min/max 
-    public vec2 InnerMaxWH = new vec2(0, 0);//outermaxwh - border -margin
-  }
-  public abstract class UiBlock //base interface for for glyphs / eles
-  {
-    //for debug only
-    private static System.Random r = null;
-    public vec4 _debugcolor;
+    //stylesheet for css-like styling
+    private Dictionary<string, UiStyle> Styles = new Dictionary<string, UiStyle>();
+    private List<string> _errors = new List<string>();
+    public string Name { get; private set; } = Lib.UnsetName;
 
-    //interface between UiGlyph and UiElement
-    public abstract float Left { get; }
-    public abstract float Top { get; }
-    public abstract UiDisplayMode DisplayMode { get; }
-    public virtual float WordWidth { get { return 0; } }
-    public virtual int WordID { get { return -1; } }
-    public virtual int CharID { get { return -1; } }
-    public virtual float WordHeight { get { return 0; } }
-    public abstract vec4 GetPadding(UiDebug dd);
-    public UiQuads _quads = new UiQuads();
-    public UiBlock()
+    public UiStyleSheet(string name)
     {
-      if (r == null) r = new System.Random();
-      _debugcolor = new vec4(r.NextSingle(), r.NextSingle(), r.NextSingle(), 0.11f);
+      Name = name + "-ss";
+      LoadCSSFile();
+    }
+    public void Update()
+    {
+      if (_errors != null && _errors.Count > 0)
+      {
+        StringBuilder sb = new StringBuilder();
+        sb.AppendLine($"");
+        sb.AppendLine($"StyleSheet '{Name}', Context '{Gu.Context.Name}' has errors: ");
+        foreach (var e in _errors)
+        {
+          sb.AppendLine("-> " + e);
+        }
+        _errors.Clear();
+        Gu.Log.Error(sb.ToString());
+      }
+    }
+    private void LoadCSSFile()
+    {
+      //Compile a CSS file 
+    }
+    public void StyleError(string error)
+    {
+      this._errors.Add(error);
+    }
+    public void AddStyles(List<UiStyle> styles)
+    {
+      foreach (var s in styles)
+      {
+        AddStyle(s);
+      }
+    }
+    public void AddStyle(UiStyle s)
+    {
+      //Styles can
+      s.SetStyleSheet(this);
+      Gu.Assert(s.Name != null);
+      if (Styles.ContainsKey(s.Name))
+      {
+        Gu.Log.Error($"{this.Name} style {s.Name} was already added.");
+        Gu.DebugBreak();
+      }
+      else
+      {
+        Styles.Add(s.Name, s);
+      }
+    }
+    public bool RemoveStyle(UiStyle s)
+    {
+      var b = Styles.Remove(s.Name);
+      return b;
+    }
+    public UiStyle GetStyle(string s)
+    {
+      Styles.TryGetValue(s, out var x);
+      return x;
     }
   }
-  public class UiGlyphChar
-  {
-    public UiQuad _glyphQuad;
-    public vec4 _padding;
-    public float _finalLineHeight;
-    public MtCachedCharData? _cachedGlyph = null;//For glyphs
-    public int _code;
-  }
+
+  #endregion
+  #region Glyph/Text
+
   public class UiGlyph : UiBlock
   {
-    public float _left_off = 0;
-    public float _top_off = 0;
-    public vec4 _padding;
-    public int _char = 0;
-    public UiDisplayMode _displayMode = UiDisplayMode.Inline;//ok
-    public float _wordWidth = 0;
-    public float _wordHeight = 0;
-    public UiGlyphChar? _reference = null;
-    public int _wordID = -1; //all chars in word keep same wordid
-    public int _charID = -1; //all chars in word keep same wordid
-
-    public override float Left { get { return _left_off; } }
-    public override float Top { get { return _top_off; } }
+    public vec4? GlyphColor { get { return _glyphcolor; } set { _glyphcolor = value; } }
     public override float WordWidth { get { return _wordWidth; } }
     public override int WordID { get { return _wordID; } }
     public override int CharID { get { return _charID; } }
     public override float WordHeight { get { return _wordHeight; } }
     public override UiDisplayMode DisplayMode { get { return _displayMode; } }
 
-    public UiGlyph(UiGlyphChar? dref)
+    public UiDisplayMode _displayMode = UiDisplayMode.Inline;//ok
+    public float _wordWidth = 0;
+    public float _wordHeight = 0;
+    // public UiGlyphChar? _reference = null;
+    public int _wordID = -1; //all chars in word keep same wordid
+    public int _charID = -1; //id of character in word
+    public vec4? _glyphcolor = null;
+
+    //moved from glyphchar
+    public float _lineHeight;
+    public MtFontChar? _cachedGlyph = null;
+    public int _code;
+    public float _advance = 0; // advance width
+    public float _top_off = 0; // top (ceneterline for static layint is center of line but origin is top left)
+    public float _left_off = 0; // top (ceneterline for static layint is center of line but origin is top left)
+
+    public UiGlyph()//UiGlyphChar? dref)
     {
-      _reference = dref;
+      //_reference = dref;
     }
-    public override vec4 GetPadding(UiDebug dd)
+    public override float L_Left(UiOrientation o)
     {
-      return _padding;
+      return (o == UiOrientation.Horizontal) ? _left_off : _top_off;
     }
+    public override float L_Top(UiOrientation o)
+    {
+      return L_Left(UiUtils.Perp(o));
+    }
+    public override float L_Advance()
+    {
+      return _advance;
+    }
+    public override float L_LineHeight()
+    {
+      return _lineHeight;
+    }
+  }
+
+  public class UiFontLayoutData
+  {
+    public UiFontLayoutData()
+    {
+
+    }
+    public float _fontHeight = 0;
+    public float _lineHeight;
+    public int _wordID = 1;
+    public int _charID = 1;
+    public UiWrapMode _textWrap = 0;
+    public UiGlyph? _wordstart = null;
+    public int _chlast = 0;
+    public int _ch = 0;
+    public int _chnext = 0;
+    public int _ci = 0;
+    public vec4? _color = null;
+    public string _text;
+    public float _scale = 1;
+    public float _emscale = 1;
+    public float _tracking = 1;
+
+    public float _head = 0;
+    public float _tail = 0;
+    public float _advanceWidth = 0;
+    public float _wordHeight = 0;
+
+    public MtFontPatch? _patch;
+    public MtFontLoader? _loader;
+  }
+  public class UiGlyphCache
+  {
+    //was supposed to be a cache of some kind but there was no reason (right now)
+    public UiGlyphCache() { }
+    public bool _round = true;//round the position of text
+
+    public List<UiGlyph>? CreateGlyphs(MtFontLoader loader, MtFontPatch patch, string textt, FontFace face, float fontHeight, UiWrapMode wrap, float lineheight, float tracking)
+    {
+      //create glyphs
+      //TODO: we were caching GetFont before. See if this slows things down.
+      Gu.Assert(loader != null);
+      Gu.Assert(patch != null);
+
+      UiFontLayoutData dat = new UiFontLayoutData();
+      dat._text = textt;
+      dat._loader = loader;
+      dat._patch = patch;
+      dat._fontHeight = fontHeight;
+      dat._textWrap = wrap;
+      dat._scale = patch.GetScaleForPixelSize(dat._fontHeight);
+      dat._emscale = patch.ScaleForPixelHeight;
+      dat._lineHeight = loader.LineHeight * patch.ScaleForPixelHeight * lineheight;
+      dat._tracking = tracking;
+
+      List<UiGlyph> ret = new List<UiGlyph>();
+
+      for (dat._ci = 0; dat._ci < dat._text.Length; dat._ci++)
+      {
+        dat._chlast = dat._ch;
+        dat._ch = dat._text[dat._ci];
+        dat._chnext = (dat._ci + 1) < dat._text.Length ? dat._text[dat._ci + 1] : 0;
+
+        if (!ProcessFontHTML(dat))
+        {
+          var gc = CreateGlyph(dat);
+          ProcessFontGlyph(dat, gc);
+          ret.Add(gc);
+        }
+      }
+      return ret;
+    }
+    private UiGlyph CreateGlyph(UiFontLayoutData dat)
+    {
+      // scale = fontsize / bakedcharsize (pixels)
+      // font_scale = converts ttf units to pixel units
+      MtFontChar cg = null;
+      if (!dat._patch.GetChar(dat._ch, dat._fontHeight, out cg))
+      {
+        Gu.Log.Debug($"Glpyh char '{(char)dat._ch}' (u={dat._ch}) not found");//Unicode ch not found
+        Gu.DebugBreak();//Unicode ch not found
+        return null;
+      }
+
+      float gadvance = PixAlign(cg.ch_advance * dat._emscale * dat._scale);
+      float gascent = PixAlign(dat._loader.Ascent * dat._emscale * dat._scale); //  cg.font_ascent) 
+      float gkern = PixAlign(dat._loader.GetKerning(dat._patch, dat._ch, dat._chnext) * dat._emscale * dat._scale);
+      float gleft = PixAlign(cg.ch_left * dat._scale);
+      float gtop = PixAlign(cg.ch_top * dat._scale);
+      float gright = PixAlign(cg.ch_right * dat._scale);
+      float gbot = PixAlign(cg.ch_bot * dat._scale);
+      float gwidth = (gright - gleft);
+      float gheight = (gbot - gtop);
+
+      //we need padding due to the width of the glyph being the texture quad, plus, space to the next (which has no texture!)
+      UiGlyph gc = new UiGlyph();
+
+      gc._cachedGlyph = cg;
+      gc._code = dat._ch;
+
+      if (gc._code == 'f')
+      {
+        Gu.Trap();
+      }
+      if (gc._code == 't')
+      {
+        Gu.Trap();
+      }
+
+      gc._glyphcolor = dat._color;
+
+      gc._block._b2LayoutQuad._left = 0;
+      gc._block._b2LayoutQuad._top = 0;
+      gc._block._b2LayoutQuad._width = gwidth;
+      gc._block._b2LayoutQuad._height = gheight;
+      gc._block._b2LayoutQuad.ValidateQuad();
+      gc._lineHeight = PixAlign(dat._lineHeight);
+      //**NOTE: advance is not the same as font advance, It is additional width added, or removed from quad width to get next position
+      gc._advance = PixAlign((gadvance + gkern) * dat._tracking - gwidth - gleft);
+      gc._top_off = gtop + gascent;  //push  glyph to bottom  line
+      gc._left_off = gleft;
+      gc._wordWidth = 0;
+      gc._wordHeight = 0;
+
+      return gc;
+    }
+    private float PixAlign(float value)
+    {
+      //Must be pixel aligned.
+      if (_round)
+      {
+        return (float)Math.Round(value);
+      }
+      return value;
+    }
+    private void ProcessFontGlyph(UiFontLayoutData dat, UiGlyph gc)
+    {
+      bool chws = char.IsWhiteSpace((char)dat._ch);
+      bool lastws = char.IsWhiteSpace((char)dat._chlast);
+
+      if (dat._textWrap == UiWrapMode.None)
+      {
+        gc._displayMode = UiDisplayMode.NoWrap;
+      }
+      else if (dat._textWrap == UiWrapMode.Char)
+      {
+        gc._displayMode = UiDisplayMode.Inline;
+      }
+      else if (dat._textWrap == UiWrapMode.Line)
+      {
+        if (dat._ch == '\n')
+        {
+          gc._displayMode = UiDisplayMode.Block;
+        }
+        else
+        {
+          gc._displayMode = UiDisplayMode.NoWrap;
+        }
+      }
+      else if (dat._textWrap == UiWrapMode.Word)
+      {
+        if (dat._ch == '\n')
+        {
+          //end word
+          gc._displayMode = UiDisplayMode.Block;
+          EndWord(dat);
+        }
+        else if (chws)
+        {
+          //end word
+          //keep ws inline / allow wrap
+          gc._displayMode = UiDisplayMode.Inline;
+          EndWord(dat);
+        }
+        else if (!chws)
+        {
+          if (dat._wordstart == null)
+          {
+            //start word
+            dat._charID = 1;
+            gc._wordID = dat._wordID++;
+            gc._charID = dat._charID++;
+            dat._wordstart = gc;
+            gc._displayMode = UiDisplayMode.Word;
+            dat._tail = dat._head = dat._advanceWidth = dat._wordHeight = 0;
+          }
+          else
+          {
+            //continue word
+            gc._wordID = dat._wordstart.WordID;
+            gc._charID = dat._charID++;
+            gc._displayMode = UiDisplayMode.NoWrap;
+          }
+        }
+      }
+
+      if (dat._wordstart != null)
+      {
+        //word width is a set of advance positions, the beginning and end of the word width would have the first and last character's offsets added
+        dat._advanceWidth += gc._advance;
+        dat._head = Math.Min(gc._left_off + dat._advanceWidth, dat._head);
+        dat._tail = Math.Max((gc._left_off + gc._block._b2LayoutQuad._width) - dat._advanceWidth, dat._tail);
+        dat._wordHeight = Math.Max(dat._wordHeight, gc._block._b2LayoutQuad._height);
+      }
+    }
+    private void EndWord(UiFontLayoutData dat)
+    {
+      if (dat._wordstart != null)
+      {
+        dat._wordstart._wordWidth = dat._advanceWidth + Math.Abs(dat._head) + dat._tail;
+        dat._wordstart._wordHeight = dat._wordHeight;
+        dat._tail = dat._head = dat._advanceWidth = dat._wordHeight = 0;
+        dat._wordstart = null;
+      }
+    }
+    private bool ProcessFontHTML(UiFontLayoutData dat)
+    {
+      if (dat._ch == '<')
+      {
+        var idx = dat._text.IndexOf('>', dat._ci);
+        if (idx >= 0 && (idx - dat._ci) < 30) // prevent long tags that arent supported
+        {
+          string sub = dat._text.Substring(dat._ci + 1, idx - dat._ci - 1);
+          vec4 rgba;
+          if (ByteParser.TryParseVec4RGBA(sub, out rgba))
+          {
+            //**COLOR:
+            //allow <rgba(f,f,f,f)> and <reset> reset will reset the color to the FontColor of the element.
+            //would be more efficient to just process the html text (well, the whole UI) into blocks with tags, this is a huge thing to do ..in the future.
+            dat._color = rgba;
+          }
+          else if (sub.ToLower().Equals("reset"))
+          {
+            dat._color = null;
+          }
+          dat._ci = idx;
+        }
+        return true;
+      }
+      return false;
+    }
+
+  }
+
+  #endregion
+  #region Event
+
+  public class UiEventState
+  {
+    //shared UI state for events
+    public Gui2d? Gui { get; private set; } = null;//must be set manuallly
+    public UiElement? Previous { get; private set; } = null;
+    public UiElement? Current { get; private set; } = null;
+    public ButtonState LeftButtonState { get; private set; }
+    public ButtonState RightButtonState { get; private set; }
+    public vec2 MousePosCur { get; private set; }
+    public vec2 MousePosLast { get; private set; }
+    public vec2? DragDelta { get; private set; } = null; //position of mouse before LMB was down
+    public UiElement? Focused { get; private set; } = null;//click focus
+    public vec2 Scroll { get; private set; }
+
+    public UiEventState(Gui2d g, vec2 mpos_cur, vec2 mpos_last, UiElement? prev_pick, UiElement? cur_pick, ButtonState leftState, ButtonState rightState, UiElement? pressFocus, vec2 scroll, vec2? dragdelta)
+    {
+      Gui = g;
+      MousePosCur = mpos_cur;
+      MousePosLast = mpos_last;
+      Previous = prev_pick;
+      Current = cur_pick;
+      LeftButtonState = leftState;
+      RightButtonState = rightState;
+      Focused = pressFocus;
+      Scroll = scroll;
+      DragDelta = dragdelta;
+    }
+    public bool IsAnyGuiItemPicked()
+    {
+      return Current != null;
+    }
+  }//cls
+  public class UiEvent
+  {
+    //UiEvent is unique to each event. 
+    //UiEventState is shared among events
+    public UiEventId EventId { get; private set; } = UiEventId.Undefined;
+    public UiElement Element { get; private set; } //We could store a weak reference here, assuming at some point the Gui system may add/delete non-glyph elements
+    public UiEventState? State { get; set; } = null;
+    public bool PreventDefault { get; set; } = false;
+
+    private UiEventThing _eventThing;
+
+    public UiEvent(UiEventId id, UiElement ele)
+    {
+      Gu.Assert(ele != null);
+      Element = ele;
+      EventId = id;
+    }
+    public void Fire()
+    {
+      Gu.Assert(Element != null);
+      Element.DoMouseEvents(this, false);
+    }
+
+  }
+  public class UiEventThing
+  {
+    //captures input from the user while the UI is updating asynchronously.
+    //trying to do this without registering for events from children - "passive" events
+    private int c_iMaxEvents = 500;
+
+    private ButtonState _eLast_Lmb = ButtonState.Up;
+    private ButtonState _eLast_Rmb = ButtonState.Up;
+    private ButtonState _eLast_Mmb = ButtonState.Up;
+    public List<UiEvent> _events = new List<UiEvent>();
+    private UiElement? _pressFocusLast = null;
+    private UiElement? _focused = null;
+    private List<UiEvent> _new_events_frame = new List<UiEvent>();
+
+    public UiEventThing()
+    {
+      c_iMaxEvents = Gu.EngineConfig.MaxUIEvents;
+      c_iMaxEvents = Math.Clamp(c_iMaxEvents, 0, 9999999);
+    }
+    public void PollForEvents(Gui2d g)
+    {
+      //Poll each frame
+      //  sends max 20 or so events to at most 2 objects, last/cur picked
+      Gu.Assert(g != null);
+      if (_events.Count >= c_iMaxEvents)
+      {
+        Gu.Log.Error($"Too many UI events! max={c_iMaxEvents}");
+        Gu.DebugBreak();
+        return;
+      }
+
+      _new_events_frame.Clear();
+
+      var picker = Gu.Context.Renderer.Picker;
+      UiElement? elast = null;
+      UiElement? ecur = null;
+
+      //update picked
+      if (picker.PickedObjectFrameLast is UiElement)
+      {
+        elast = picker.PickedObjectFrameLast as UiElement;
+      }
+      if (picker.PickedObjectFrame is UiElement)
+      {
+        ecur = picker.PickedObjectFrame as UiElement;
+      }
+
+      //button events
+      var lb = Gu.Context.PCMouse.State(MouseButton.Left);
+      var rb = Gu.Context.PCMouse.State(MouseButton.Right);
+      var mpos = Gu.Context.PCMouse.Pos;
+      var mlast = Gu.Context.PCMouse.LastPos;
+      var scroll = Gu.Context.PCMouse.ScrollDelta;
+      var focus = _focused;
+
+      //press focus "Focus" (drag / mouse down)
+      //  "the element being dragged/interacted while mouse HELD"
+      //  mouse need not be hovering over element to have press focus.      
+      if ((Gu.Context.GameWindow.IsFocused == false) || ((lb == ButtonState.Release || lb == ButtonState.Up) && (_focused != null)))
+      {
+        var pold = _focused;
+        _focused = null;
+        SendEvent(UiEventId.Lost_Focus, pold);
+      }
+      else if (lb == ButtonState.Press)
+      {
+        var pold = _focused;
+        if (Gu.TryGetSelectedView(out var vv))
+        {
+          _focused = ecur;
+        }
+        SendEvent(UiEventId.Lost_Focus, pold);
+        SendEvent(UiEventId.Got_Focus, _focused);
+      }
+
+
+      //lmb / rmb
+      if (lb != _eLast_Lmb)
+      {
+        if (ecur != null)
+        {
+          if (lb == ButtonState.Up)
+          {
+            SendEvent(UiEventId.LmbUp, ecur);
+          }
+          if (lb == ButtonState.Press)
+          {
+            SendEvent(UiEventId.LmbPress, ecur);
+          }
+          if (lb == ButtonState.Hold)
+          {
+            SendEvent(UiEventId.LmbHold, ecur);
+          }
+          if (lb == ButtonState.Release)
+          {
+            SendEvent(UiEventId.LmbRelease, ecur);
+          }
+        }
+      }
+      if (rb != _eLast_Rmb)
+      {
+        if (ecur != null)
+        {
+          if (rb == ButtonState.Up)
+          {
+            SendEvent(UiEventId.RmbUp, ecur);
+          }
+          if (rb == ButtonState.Press)
+          {
+            SendEvent(UiEventId.RmbPress, ecur);
+          }
+          if (rb == ButtonState.Hold)
+          {
+            SendEvent(UiEventId.RmbHold, ecur);
+          }
+          if (rb == ButtonState.Release)
+          {
+            SendEvent(UiEventId.RmbRelease, ecur);
+          }
+        }
+      }
+
+      //mouse move
+      if (elast != null && elast != ecur)
+      {
+        SendEvent(UiEventId.Mouse_Leave, elast);
+      }
+      if (ecur != null && elast != ecur)
+      {
+        SendEvent(UiEventId.Mouse_Enter, ecur);
+      }
+      if (ecur != null && elast == ecur && mpos != mlast)
+      {
+        SendEvent(UiEventId.Mouse_Move, ecur);
+      }
+
+      //mouse wheel
+      if (scroll.x != 0 || scroll.y != 0)
+      {
+        SendEvent(UiEventId.Mouse_Scroll, ecur);
+      }
+
+      //Pressed item 
+      vec2? dragDelta = null;
+      if ((mpos != mlast) && (lb == ButtonState.Hold) && (_eLast_Lmb == ButtonState.Press || _eLast_Lmb == ButtonState.Hold))
+      {
+        dragDelta = mpos - mlast;
+        SendEvent(UiEventId.LmbDrag, focus);
+      }
+
+      //Update state after events are sent (we use state in event)
+      _eLast_Lmb = lb;
+      _eLast_Rmb = rb;
+
+      //send
+      if (_new_events_frame.Count > 0)
+      {
+        var state = new UiEventState(g, mpos, mlast, elast, ecur, lb, rb, focus, scroll, dragDelta);
+        foreach (var ev in _new_events_frame)
+        {
+          ev.State = state;
+        }
+        _events.AddRange(_new_events_frame);
+
+        _new_events_frame.Clear();
+      }
+    }
+    private void SendEvent(UiEventId evid, UiElement? ele)
+    {
+      if (ele != null && ele.Events != null && ele.Events.Keys.Contains(evid))
+      {
+        _new_events_frame.Add(new UiEvent(evid, ele));
+      }
+    }
+  }
+
+
+
+  #endregion
+  #region UiElement
+
+  public class UiSortKeys
+  {
+    //claculate sub-sort layers for all element quads
+    public float _ekey;
+    public float _dbgkey;
+    public float _bdkey;
+    public float _gkey;
+    public float _gdbkey;
+
+    public UiSortKeys(int sort, int layer)
+    {
+      _ekey = (float)(layer * UiElement.c_iMaxLayers + sort);
+      _gkey = _ekey + 0.3f;
+      _gdbkey = _ekey + 0.4f;
+      _bdkey = _ekey + 0.5f;
+      _dbgkey = _ekey + 0.6f;
+    }
+  }
+  public class UiBlockInfo
+  {
+    //Base Block Information 
+    public UiQuad _b2ContentQuad = new UiQuad(); //final w/h of all contents
+    public UiQuad _b2LayoutQuad = new UiQuad(); // content + (margin + padding + border)
+    public UiQuad _b2ClipQuad = new UiQuad(); // all floating, and contained elements, clamped to min/max w/h. *clip quad may not equal to border quad if there are floating elements
+    public UiQuad _b2MarginQuad = new UiQuad(); // Final quad. MBP+content
+    public UiQuad _b2BorderQuad = new UiQuad(); // Final quad. BP+content
+    public UiQuad _b2BorderQuadLast = new UiQuad();
+    public UiInt2 _index = new UiInt2(); // static index of this element relative to other in-line elements (id, lineid)
+    public UiContainerInfo? _container = null; // if element, not glyph
+    public UiLayoutLine? _line = null; //ref to line if static
+    public UiBlock? _previous = null; //ref to previous if static
+  }
+  public class UiContainerInfo
+  {
+    // For uielements (that have children)
+    //public UiQuad _b2LineQuad = new UiQuad(); // (for clicking text) Final quad that takes up the space of the entire layout line, and entire width to next element, for static dims. Equal to the border quad for non-static dims.
+    public UiSize4 _MBP = new UiSize4();
+    public UiSize2 _minWH = new UiSize2();
+    public UiSize2 _maxWH = new UiSize2();
+    public UiSize4 _margin = new UiSize4();
+    public UiSize4 _padding = new UiSize4();
+    public UiSize4 _border = new UiSize4();
+    public UiSize2 _contentWH = new UiSize2(0, 0);//sized wh of space used by all elements, which can vary and not necessarily be the exact layout
+    public UiSize2 _outerMaxWH = new UiSize2(0, 0);//w/h + Margin + Border + Padding
+    public UiSize2 _contentMaxWH = new UiSize2(0, 0);//w/h - (Margin+Border+Padding)
+    public UiStaticInfo? _static = null; //static layout info, if has statics
+  }
+  public class UiStaticInfo
+  {
+    //if the element has static layout elements
+    public UiLayoutLine? _defaultLine = null;
+    public List<UiLayoutLine>? _lines = null; //rows this element contains
+    public List<UiLayoutLine>? _glyphlines = null; //rows this element contains
+    public List<UiLayoutLine>? _autoLines = null;
+    public bool _hasHAutos = false;
+    public bool _hasVAutos = false;
+    public UiSize2 _staticWH = new UiSize2(); //the region of space taken up by all static lines.
+    public UiBlock? _last = null;
+  }
+  public class UiFontInfo
+  {
+    public string _strText = "";
+    public List<UiGlyph> _glyphs = null;
+    public MtFontLoader? _cachedFont = null;
+    public bool _textChanged = false;
+    public bool _bNeverDoneText = true;
+  }
+  public class UiLayoutLine //uilayoutline , uiline
+  {
+    public const int UnsetLineIndex = -999999;
+    public const int ContainerLineIndex = -1;
+
+    public UiQuad _quad = new UiQuad();
+    public List<UiBlock> _eles = new List<UiBlock>();
+    public UiAutoInfo? _autoInfo = null; //horizontal autos
+    public UiLayoutLine? _previous = null;//previous line
+    public int _index = -1;
+    public UiLayoutLine(int index)
+    {
+      _index = index;
+    }
+  }
+  public class UiAutoInfo
+  {
+    //Auto Info is for a single dimension
+    public List<UiElement> _hautos = new List<UiElement>();
+    public List<UiElement> _vautos = new List<UiElement>();
+    public float _maxh = 0;
   }
   public class UiElement : UiBlock
   {
-    private const int c_iMaxLayers = 1000000;
-    private const int c_iMaxChildren = c_iMaxLayers - 1;
+    public const int c_iMaxLayers = 1000000;
+    public const int c_iMaxChildren = c_iMaxLayers - 1;
 
-    #region Classes 
-    private class SortKeys
-    {
-      //claculate sub-sort layers for all element quads
-      public float _ekey;
-      public float _dbgkey;
-      public float _bdkey;
-      public float _gkey;
-      public float _gdbkey;
-
-      public SortKeys(int sort, int layer)
-      {
-        _ekey = (float)(layer * c_iMaxLayers + sort);
-        _gkey = _ekey + 0.3f;
-        _gdbkey = _ekey + 0.4f;
-        _bdkey = _ekey + 0.5f;
-        _dbgkey = _ekey + 0.6f;
-      }
-    }
-    private class UiAlignCol
-    {
-      public float _height = 0;
-      public float _width = 0;
-      public List<UiBlock> _eles = new List<UiBlock>();
-
-      public float LSize(UiOrientation dir)
-      {
-        if (dir == UiOrientation.Horizontal)
-        {
-          return _width;
-        }
-        else if (dir == UiOrientation.Vertical)
-        {
-          return _height;
-        }
-        else
-        {
-          Gu.BRThrowNotImplementedException();
-        }
-        return _width;
-      }
-      public void LSize(UiOrientation dir, float value)
-      {
-        if (dir == UiOrientation.Horizontal)
-        {
-          _width = value;
-        }
-        else if (dir == UiOrientation.Vertical)
-        {
-          _height = value;
-        }
-        else
-        {
-          Gu.BRThrowNotImplementedException();
-        }
-      }
-    }
-    private class UiLine
-    {
-      public UiAlignCol[] _cols = new UiAlignCol[3] { new UiAlignCol(), new UiAlignCol(), new UiAlignCol() };//left/center/right
-      public float _top = 0;//not null depending on UiBuildOrder
-      public float _left = 0;
-      public float Height(UiOrientation o)
-      {
-        if (o == UiOrientation.Horizontal)
-        {
-          return Math.Max(_cols[0]._height, Math.Max(_cols[1]._height, _cols[2]._height));
-        }
-        else if (o == UiOrientation.Vertical)
-        {
-          return _cols[0]._height + _cols[1]._height + _cols[2]._height;
-        }
-        else
-        {
-          Gu.BRThrowNotImplementedException();
-        }
-        return 0;
-      }
-      public float Width(UiOrientation o)
-      {
-        if (o == UiOrientation.Horizontal)
-        {
-          return _cols[0]._width + _cols[1]._width + _cols[2]._width;
-        }
-        else if (o == UiOrientation.Vertical)
-        {
-          return Math.Max(_cols[0]._width, Math.Max(_cols[1]._width, _cols[2]._width));
-        }
-        else
-        {
-          Gu.BRThrowNotImplementedException();
-        }
-        return 0;
-      }
-
-      public UiLine(float left, float top)
-      {
-        _left = left;
-        _top = top;
-      }
-    }
-
-    #endregion
     #region Public: Members
-
-    public void SetContentChanged() { _contentChanged = true; }
-    public virtual void OnContentChanged() { }//synchronous
-
-    public virtual string NamingPrefix { get { return "ele"; } }
     public string Name { get { return _name; } set { _name = value; } }
     public string Tag { get; set; } = "";
-
     public virtual string Text
     {
-      get { return _strText; }
+      get
+      {
+        if (_font != null)
+        {
+          return _font._strText;
+        }
+        else
+        {
+          return "";
+        }
+      }
       set
       {
-        if (!StringUtil.Equals(_strText, value))
+        if (_font == null && !String.IsNullOrEmpty(value))
         {
-          _strTextLast = _strText;
-          _strText = value;
-          _textChanged = true;
+          _font = new UiFontInfo();
+          _font._strText = value;
+        }
+        else if (_font != null && !StringUtil.Equals(_font._strText, value))
+        {
+          _font._strText = value;
+          _font._textChanged = true;
           _contentChanged = true;
         }
       }
@@ -1607,52 +2187,45 @@ namespace Loft
         {
           _style = new UiStyle("inline");
           _style.IsInline = true;
-          //_style.AddReference(this);
         }
         return _style;
       }
     }
     public bool Visible { get { return _visible; } set { _visible = value; } }// ** May be on style .. 
     public Dictionary<UiEventId, List<UiAction>> Events { get { return _events; } set { _events = value; } }
-    public List<UiElement>? Children { get { return _children; } }
-    public UiQuad LocalQuad { get { return _quads._b2LocalQuad; } }
-    public UiQuad ContentQuad { get { return _quads._b2ContentQuad; } }
-    public UiQuad FinalQuad { get { return _quads._b2BorderQuad; } }
+    public UiQuad ContentQuad { get { return _block._b2ContentQuad; } }
+    public UiQuad BorderQuad { get { return _block._b2BorderQuad; } }
+    public UiQuad MarginQuad { get { return _block._b2MarginQuad; } }
     public UiElement? Parent { get { return _parent; } }
     public bool TopMost { get { return _topMost; } set { _topMost = value; } }
-    public override float Left { get { return Style._props.Left; } }
-    public override float Top { get { return Style._props.Top; } }
     public override UiDisplayMode DisplayMode { get { return Style._props.DisplayMode; } }
     public int Sort { get { return _sort; } set { _sort = value; } }
     public bool PickEnabled { get { return _pickEnabled; } set { _pickEnabled = value; UpdatePickID(); } }
+    public int ChildCount { get { return _children == null ? 0 : _children.Count; } }
 
     #endregion
     #region Private: Members
 
+    protected uint _iPickId = Picker.c_iInvalidPickId;
     protected string _name = "";
     protected UiStyle? _style = null;
     protected List<UiElement>? _children = null;
-    private UiElement? _parent = null;
-    private MtFontLoader? _cachedFont = null;//For labe(ls that contain glyphs
-    private Dictionary<int, UiGlyphChar> _glyphChars = null;
-    private List<UiGlyph> _glyphs = null;
-    public uint _iPickId = Picker.c_iInvalidPickId;
-    protected string _strText = "";
-    private string _strTextLast = "";
-    private Dictionary<UiEventId, List<UiAction>>? _events = null;
     protected int _sort = -1;  //sort order within layer
+    private UiElement? _parent = null;
+    private Dictionary<UiEventId, List<UiAction>>? _events = null;
+    private UiStaticInfo _static { get { return this._block._container._static; } set { this._block._container._static = value; } }
+    private UiContainerInfo _container { get { return this._block._container; } set { this._block._container = value; } }
+    public UiFontInfo? _font = null;
 
     //Flags (TODO: bitset)
     private bool _pickEnabled = false;
     private bool _visible = true;
-    private bool _textChanged = false;
-    private bool _bNeverDoneText = false;
     private bool _dragEnabled = false;
     private bool _contentChanged = true;
     private bool _topMost = false;
 
     #endregion
-    #region Public: Methods
+    #region Methods
 
     public UiElement()
     {
@@ -1661,54 +2234,40 @@ namespace Loft
     {
       Init(new List<UiStyleName>() { }, name);
     }
-    public UiElement(UiStyleName style) : this()
+
+    public override float L_Left(UiOrientation o)
     {
-      Init(new List<UiStyleName>() { style }, null);
+      return (o == UiOrientation.Horizontal) ? Style._props.Left : Style._props.Top;
     }
-    public UiElement(UiStyleName style, string name) : this()
+    public override float L_Top(UiOrientation o)
     {
-      Init(new List<UiStyleName>() { style }, null, name);
+      return L_Left(UiUtils.Perp(o));
     }
-    public UiElement(UiStyleName style, Phrase p) : this()
+    public override float L_Advance()
     {
-      List<UiStyleName> styles = new List<UiStyleName>();
-      if (style != null)
-      {
-        styles.Add(style);
-      }
-      Init(styles, null, Gu.Translator.Translate(p));
+      return 0;//glyphs only
     }
-    public UiElement(List<UiStyleName> styleClasses) : this()
+    public override float L_LineHeight()
     {
-      Init(styleClasses, null);
+      return Style._props.LineHeight;
     }
-    public UiElement(List<UiStyleName> styleClasses, Phrase phrase) : this()
-    {
-      Init(styleClasses, null, Gu.Translator.Translate(phrase));
-    }
-    public UiElement(List<UiStyleName> styleClasses, string text) : this()
-    {
-      Init(styleClasses, null, text);
-    }
-    public UiElement(List<UiStyleName> styleClasses, Phrase phrase, List<UiElement> children) : this()
-    {
-      Init(styleClasses, null, Gu.Translator.Translate(phrase), children);
-    }
-    public UiElement(List<UiStyleName> styleClasses, string text, List<UiElement> children) : this()
-    {
-      Init(styleClasses, null, text, children);
-    }
+
+    public void SetContentChanged() { _contentChanged = true; }
+    public virtual void OnContentChanged() { }//synchronous
+    public virtual void OnGotKeyboardFocus() { }//synchronous
+    public virtual void OnLostKeyboardFocus() { }//synchronous
+    public virtual void OnKeyPress(Keys key) { }//synchronous
     public void ToggleVisible()
     {
-      ShowOrHide(!_visible);
+      ShowOrHide(!_visible, 0);
     }
-    public void Hide()
+    public void Hide(int fadems = 0)
     {
-      ShowOrHide(false);
+      ShowOrHide(false, fadems);
     }
-    public void Show()
+    public void Show(int fadems = 0)
     {
-      ShowOrHide(true);
+      ShowOrHide(true, fadems);
     }
     public void Hide(string name)
     {
@@ -1742,6 +2301,16 @@ namespace Loft
       }
       return false;
     }
+    public bool Animate(UiPropName prop, float value, int durationMS, int repeatCount = 0)
+    {
+      if (TryGetGui2dRoot(out var g))
+      {
+        var pa = new UiPropAnimation<float>(this, prop, value, durationMS, repeatCount);
+        g.AddAnimation(pa);
+        return true;
+      }
+      return false;
+    }
     public bool Animate(UiPropName prop, vec4 value, int durationMS, int repeatCount = 0)
     {
       if (TryGetGui2dRoot(out var g))
@@ -1752,17 +2321,6 @@ namespace Loft
       }
       return false;
     }
-    private string GetDefaultName(string? text)
-    {
-      if (text != null)
-      {
-        return NamingPrefix + text;
-      }
-      else
-      {
-        return NamingPrefix + this.GetType().Name.ToString();
-      }
-    }
     public bool ShowOrHideByName(string name, bool show, bool stop_at_first = false)
     {
       if (_children != null)
@@ -1771,7 +2329,7 @@ namespace Loft
         {
           if (StringUtil.Equals(ele.Name, name))
           {
-            ele.ShowOrHide(show);
+            ele.ShowOrHide(show, 0);
             if (stop_at_first)
             {
               return false;
@@ -1789,70 +2347,118 @@ namespace Loft
       }
       return true;
     }
-    public vec4 GetMarginAndBorder(UiDebug dd)
+    public UiSize4 GetMarginBorderPadding(UiLayoutGlobals dd)
+    {
+      if (dd.DisableMargins && dd.DisableBorders && dd.DisablePadding)
+      {
+        return new UiSize4();
+      }
+      return new UiSize4()
+      {
+        _top = (dd.DisableMargins ? 0 : Style._props.MarginTop) + (dd.DisableBorders ? 0 : Style._props.BorderTop) + (dd.DisablePadding ? 0 : Style._props.PadTop),
+        _right = (dd.DisableMargins ? 0 : Style._props.MarginRight) + (dd.DisableBorders ? 0 : Style._props.BorderRight) + (dd.DisablePadding ? 0 : Style._props.PadRight),
+        _bot = (dd.DisableMargins ? 0 : Style._props.MarginBot) + (dd.DisableBorders ? 0 : Style._props.BorderBot) + (dd.DisablePadding ? 0 : Style._props.PadBot),
+        _left = (dd.DisableMargins ? 0 : Style._props.MarginLeft) + (dd.DisableBorders ? 0 : Style._props.BorderLeft) + (dd.DisablePadding ? 0 : Style._props.PadLeft)
+      };
+    }
+    public UiSize4 GetMarginAndBorder(UiLayoutGlobals dd)
     {
       if (dd.DisableMargins && dd.DisableBorders)
       {
-        return vec4.Zero;
+        return new UiSize4();
       }
-      return new vec4(
+      return new UiSize4(
         (dd.DisableMargins ? 0 : Style._props.MarginTop) + (dd.DisableBorders ? 0 : Style._props.BorderTop),
         (dd.DisableMargins ? 0 : Style._props.MarginRight) + (dd.DisableBorders ? 0 : Style._props.BorderRight),
         (dd.DisableMargins ? 0 : Style._props.MarginBot) + (dd.DisableBorders ? 0 : Style._props.BorderBot),
         (dd.DisableMargins ? 0 : Style._props.MarginLeft) + (dd.DisableBorders ? 0 : Style._props.BorderLeft)
       );
     }
-    public vec4 GetMargin(UiDebug dd)
+    public UiSize4 GetMargin(UiLayoutGlobals dd)
     {
       if (dd.DisableMargins)
       {
-        return vec4.Zero;
+        return new UiSize4();
       }
-      return new vec4(
+      return new UiSize4(
         Style._props.MarginTop,
         Style._props.MarginRight,
         Style._props.MarginBot,
         Style._props.MarginLeft
       );
     }
-    public override vec4 GetPadding(UiDebug dd)
+    public UiSize4 GetPadding(UiLayoutGlobals dd)
     {
       if (dd.DisablePadding)
       {
-        return vec4.Zero;
+        return new UiSize4();
       }
-      return new vec4(
+      return new UiSize4(
         Style._props.PadTop,
         Style._props.PadRight,
         Style._props.PadBot,
         Style._props.PadLeft
       );
     }
-    public vec4 GetBorder(UiDebug? dd)
+    public UiSize4 GetBorder(UiLayoutGlobals? dd)
     {
       if (dd != null && dd.DisableBorders)
       {
-        return vec4.Zero;
+        return new UiSize4();
       }
-      return new vec4(
+      return new UiSize4(
         Style._props.BorderTop,
         Style._props.BorderRight,
         Style._props.BorderBot,
         Style._props.BorderLeft
       );
     }
-    public vec4 GetBorderRadius(UiDebug dd)
+    public UiSize4 GetBorderRadius(UiLayoutGlobals dd)
     {
       if (dd.DisableBorders)
       {
-        return vec4.Zero;
+        return new UiSize4();
       }
-      return new vec4(
+      return new UiSize4(
         Style._props.BorderTopLeftRadius,
         Style._props.BorderTopRightRadius,
         Style._props.BorderBotRightRadius,
         Style._props.BorderBotLeftRadius
       );
+    }
+    public UiElement? LastChild()
+    {
+      if (_children == null || _children.Count == 0)
+      {
+        return null;
+      }
+      return _children[_children.Count - 1];
+    }
+    public UiElement? ChildAt(int index)
+    {
+      return _children[index];
+    }
+    public UiElement? FirstChild(Type t, UiElement? root = null)
+    {
+      //get first child of type t, dept first
+      if (root == null)
+      {
+        root = this;
+      }
+      else if (GetType() == t)
+      {
+        return this;
+      }
+
+      foreach (var ch in _children)
+      {
+        var e = FirstChild(t, ch);
+        if (e != null)
+        {
+          return e;
+        }
+      }
+      return null;
     }
     public UiElement AddChild(UiElement e)
     {
@@ -1867,12 +2473,6 @@ namespace Loft
       _children.Add(e);
 
       e._parent = this;
-      // e._layer = this._layer + 1;
-      // if (e._layer > c_iMaxLayers)
-      // {
-      //   e._layer = c_iMaxLayers;
-      //   Gu.DebugBreak();//this will cause errors due to sort key.
-      // }
       e._sort = this._children.Count + 1; // sort 0 is reserved
       if (e._sort > c_iMaxChildren)
       {
@@ -1906,6 +2506,37 @@ namespace Loft
     {
       _children?.Clear();
     }
+    public void IterateChildren(Func<UiElement, LambdaBool> fn)
+    {
+      if (_children != null)
+      {
+        for (int i = _children.Count - 1; i >= 0; i--)
+        {
+          if (fn(_children[i]) == LambdaBool.Break)
+          {
+            break;
+          }
+        }
+      }
+    }
+    public LambdaBool IterateTree(Func<UiElement, LambdaBool> fn)
+    {
+      if (_children != null)
+      {
+        for (int i = _children.Count - 1; i >= 0; i--)
+        {
+          if (fn(_children[i]) == LambdaBool.Break)
+          {
+            return LambdaBool.Break;
+          }
+          if (_children[i].IterateTree(fn) == LambdaBool.Break)
+          {
+            return LambdaBool.Break;
+          }
+        }
+      }
+      return LambdaBool.Continue;
+    }
     public void DoMouseEvents(UiEvent e, bool iswindow = false)
     {
       if (_events.TryGetValue(e.EventId, out var acts))
@@ -1916,11 +2547,6 @@ namespace Loft
         }
       }
     }
-    public UiElement Click(UiAction f)
-    {
-      AddEvent(UiEventId.LmbRelease, f);
-      return this;
-    }
     public void AddEvent(UiEventId evId, UiAction f)
     {
       //add an additional event
@@ -1930,23 +2556,6 @@ namespace Loft
     {
       //erase all events and set the new one
       SetOrAddEvent(evId, f, true);
-    }
-    private void SetOrAddEvent(UiEventId evId, UiAction f, bool set)
-    {
-      Gu.Assert(f != null);
-      if (set)
-      {
-        _events.Remove(evId);
-      }
-      _events = _events.ConstructIfNeeded();
-      List<UiAction>? acts = null;
-      if (!_events.TryGetValue(evId, out acts))
-      {
-        acts = new List<UiAction>();
-        _events.Add(evId, acts);
-      }
-      acts.Add(f);
-      PickEnabled = true;
     }
     public bool RemoveEvents(UiEventId evId)
     {
@@ -1990,18 +2599,18 @@ namespace Loft
     }
 
     #endregion
-    #region Private/Protected: Methods
+    #region Private Methods
 
-    private void Init(List<UiStyleName> styleClasses, string? name = null, string? phrase = null, List<UiElement> children = null)
+    private void Init(List<UiStyleName> styleClasses, string name = null, string? phrase = null, List<UiElement> children = null)
     {
       this.Style.SetInheritStyles(styleClasses.ConvertAll(x => x.ToString()));
-      if (phrase != null)
+      if (!String.IsNullOrEmpty(phrase))
       {
         Text = phrase;
       }
-      if (name == null)
+      if (String.IsNullOrEmpty(name))
       {
-        _name = GetDefaultName(phrase);
+        _name = this.GetType().Name;
       }
       else
       {
@@ -2029,13 +2638,901 @@ namespace Loft
         _iPickId = Picker.c_iInvalidPickId;
       }
     }
-    private static bool IsFullyClipped(UiQuad quad, UiQuad clip, UiOverflowMode mode, UiDebug dd)
+    private void ShowOrHide(bool show, int fadems)
+    {
+      if (fadems > 0)
+      {
+        //double d = this.Style._props.Opacity;
+        //this.Animate(UiPropName.Opacity, 0, 200).;
+      }
+
+      if (_visible != show)
+      {
+        _visible = show;
+      }
+    }
+    private void SetOrAddEvent(UiEventId evId, UiAction f, bool set)
+    {
+      Gu.Assert(f != null);
+      if (set)
+      {
+        _events.Remove(evId);
+      }
+      _events = _events.ConstructIfNeeded();
+      List<UiAction>? acts = null;
+      if (!_events.TryGetValue(evId, out acts))
+      {
+        acts = new List<UiAction>();
+        _events.Add(evId, acts);
+      }
+      acts.Add(f);
+      PickEnabled = true;
+    }
+
+    #region Layout
+
+    protected virtual void PerformLayout_SizeElements(UiSize2 parentMaxWH, UiStyle? parent, UiLayoutGlobals globals, bool parentstylechanged)
+    {
+      //Layout Quad != render quad. Layout quad includes marign:
+      //  1 compute all quads WITH margin added, M+B+P= content origin
+      //  2 remove margin in LayoutQuad to get final BorderQuad
+      // note: user width = border+padding+content
+      //       layout width = margin + user width
+
+      globals.Gui.NameTrap(this);
+
+      bool styleChanged = Style.Modified || parentstylechanged;//TODO: rework styles to not do this
+
+      Style.CompileStyleTree(globals.StyleSheet, globals.Framestamp, parent, parentstylechanged);
+
+      UpdateGlyphs(globals, styleChanged);
+
+      if (Style._props.RenderMode == UiRenderMode.Textured)
+      {
+        UpdateTexture(globals.MegaTex);
+      }
+
+      ComputeLayoutInfo(parentMaxWH, globals);
+
+      if (_children != null && _children.Count > 0)
+      {
+        int lineidx = 0;
+        foreach (var ele in _children)
+        {
+          if (ele.Visible)
+          {
+            ele.PerformLayout_SizeElements(_block._container._contentMaxWH, this.Style, globals, styleChanged);
+            LayoutElement(ele, lineidx);
+          }
+        }
+      }
+
+      if (_font != null && _font._glyphs != null && _font._glyphs.Count > 0)
+      {
+        foreach (var gc in _font._glyphs)
+        {
+          LayoutBlock(gc, false, true);
+        }
+      }
+
+      FinalizeLayout();
+
+      SizeElement();
+    }
+    protected void PerformLayout_PositionElements(UiLayoutGlobals dd, UiQuad? parentClip, uint rootPickId, ref Dictionary<uint, UiElement>? pickable, int layer)
+    {
+      //Position elements after size and relative position calculated
+      //clip regions must be calculated on the position step
+
+      dd.Gui.NameTrap(this);
+
+      ComputeQuads(this, this._parent, this.Style._props.PositionModeX, this.Style._props.PositionModeY, dd.Scale, Style._props.OverflowMode, dd);
+      if (parentClip == null)
+      {
+        //we are root
+        parentClip = this._block._b2ClipQuad;
+      }
+
+      //Set pick root 
+      uint pickId = rootPickId;
+      if (_pickEnabled)
+      {
+        pickId = _iPickId;
+
+        if (Gu.AssertDebug(pickId != Picker.c_iInvalidPickId))
+        {
+          pickable = pickable.ConstructIfNeeded();
+          pickable.Add(pickId, this);
+        }
+      }
+
+      UiQuad childclip = ShrinkClipRect(parentClip);
+
+      if (_children != null && _children.Count > 0)
+      {
+        foreach (var ele in _children)
+        {
+          if (ele.Visible)
+          {
+            var child_layer = ele._topMost ? 0 : layer + 1;
+
+            ele.PerformLayout_PositionElements(dd, childclip, pickId, ref pickable, child_layer);
+
+            //expand clip if floating
+            if (Style._props.FloatMode == UiFloatMode.Floating)
+            {
+              _block._b2ClipQuad.Expand(ele._block._b2ClipQuad.Min);
+              _block._b2ClipQuad.Expand(ele._block._b2ClipQuad.Max);
+            }
+          }
+        }
+      }
+
+      UiSortKeys keys = new UiSortKeys(_sort, this._topMost ? 0 : layer);
+
+      //no reason to compute glyph positions if the whole thing is not rendered
+      //glyph spans.
+      if (_font != null && _font._glyphs != null && _font._glyphs.Count > 0)
+      {
+        for (int gi = 0; gi < _font._glyphs.Count; ++gi)
+        {
+          var glyph = _font._glyphs[gi];
+          if (glyph != null)
+          {
+            ComputeQuads(glyph, this, UiPositionMode.Static, UiPositionMode.Static, dd.Scale, UiOverflowMode.Show, dd);
+
+            vec4 color = Style._props.FontColor;
+            if (glyph.GlyphColor != null)
+            {
+              color = glyph.GlyphColor.Value;
+            }
+            //note glyph border=clipp
+            if (!IsFullyClipped(glyph._block._b2BorderQuad, childclip, Style._props.OverflowMode, dd))
+            {
+              GetGlyphQuadVerts(glyph, childclip, dd, pickId, keys, color);
+            }
+          }
+        }
+      }
+
+      UiOverflowMode parentOverflowMode = UiOverflowMode.Content;
+      if (this.Parent != null && this.Parent.Style != null)
+      {
+        parentOverflowMode = this.Parent.Style._props.OverflowMode;
+      }
+
+      if (Style._props.FloatMode == UiFloatMode.Floating)
+      {
+        GetElementQuadVerts(_block._b2ClipQuad, pickId, dd, keys);
+      }
+      else if (!IsFullyClipped(this._block._b2BorderQuad, parentClip, parentOverflowMode, dd))
+      {
+        GetElementQuadVerts(parentClip, pickId, dd, keys);
+      }
+
+      //Fire OnContentChanged events (for sliders)
+      if (!this._block._b2BorderQuad.Equals(this._block._b2BorderQuadLast))
+      {
+        dd.Changed.Add(this);
+      }
+
+      _contentChanged = false;
+    }
+    private void ComputeLayoutInfo(UiSize2 parentMaxWH, UiLayoutGlobals dd)
+    {
+      _block._b2ContentQuad.Zero();
+      _block._b2LayoutQuad.Zero();
+      _block._b2ClipQuad.Zero();
+      _block._b2MarginQuad.Zero();
+      _block._b2BorderQuad.Zero();
+      _block._b2BorderQuadLast = _block._b2BorderQuad;
+      _block._index.Zero();
+      _block._line = null;
+      _block._previous = null;
+      _block._container = new UiContainerInfo();
+
+      _container._contentWH.Zero();
+      _container._margin = GetMargin(dd);
+
+      //if relative or absolute ignore  margins
+      if (this.Style._props.PositionModeX != UiPositionMode.Static)
+      {
+        _container._margin._left = _container._margin._right = 0;
+      }
+      if (this.Style._props.PositionModeY != UiPositionMode.Static)
+      {
+        _container._margin._top = _container._margin._bot = 0;
+      }
+
+      _container._border = GetBorder(dd);
+      _container._padding = GetPadding(dd);
+
+      _container._MBP.Set(
+        _container._margin._top + _container._border._top + _container._padding._top,
+        _container._margin._right + _container._border._right + _container._padding._right,
+        _container._margin._bot + _container._border._bot + _container._padding._bot,
+        _container._margin._left + _container._border._left + _container._padding._left
+      );
+
+      if (Style._props.SizeModeWidth == UiSizeMode.Fixed)
+      {
+        _container._minWH._width = Style._props.FixedWidth;
+        _container._maxWH._width = Style._props.FixedWidth;
+      }
+      else
+      {
+        _container._minWH._width = Style._props.MinWidth;
+        _container._maxWH._width = Style._props.MaxWidth;
+      }
+
+      if (Style._props.SizeModeHeight == UiSizeMode.Fixed)
+      {
+        _container._minWH._height = Style._props.FixedHeight;
+        _container._maxWH._height = Style._props.FixedHeight;
+      }
+      else
+      {
+        _container._minWH._height = Style._props.MinHeight;
+        _container._maxWH._height = Style._props.MaxHeight;
+      }
+
+      //shrink max rect by parent 
+      _container._outerMaxWH.Set(
+        Math.Max(Math.Min(parentMaxWH._width, _container._maxWH._width), 0),
+        Math.Max(Math.Min(parentMaxWH._height, _container._maxWH._height), 0)
+      );
+
+      _container._contentMaxWH.Set(
+        Math.Max(_container._outerMaxWH._width - _container._MBP._left - _container._MBP._right, 0),
+        Math.Max(_container._outerMaxWH._height - _container._MBP._top - _container._MBP._bot, 0)
+      );
+
+      _container._contentWH.Zero(); // do not use glyphwh any more, autos must be zero
+    }
+    private void LayoutElement(UiElement ele, int lineidx)
+    {
+      //Compute the size of the element and any relative element/lines.
+      var ori = Style._props.LayoutOrientation;
+      var perp = UiUtils.Perp(Style._props.LayoutOrientation);
+      var ele_hmode = ele.Style._props.L_PositionMode(ori);
+      var ele_vmode = ele.Style._props.L_PositionMode(perp);
+
+      if (ele_hmode == UiPositionMode.Static)
+      {
+        LayoutBlock(ele, false, false);
+        CollectHAuto(ele, ori);
+      }
+      if (ele_vmode == UiPositionMode.Static) // && ele._block._line == null
+      {
+        if (ele._block._line == null)
+        {
+          // Special case "VStat" (layout != static) && (perp(layout) == static)
+          // Element moves freely along the layout direction, but is static along the vertical
+          // Several things we can do: add to first line, but would require new line if none,
+          // add to specific line via an ID parameter
+          //  or just a default line that is the height of the content. * 
+          LayoutBlock(ele, true, false);
+        }
+        CollectVAuto(ele, perp);
+      }
+      if (ele.Style._props.FloatMode != UiFloatMode.Floating)
+      {
+        ExpandContentQuadByChild(ele, UiOrientation.Horizontal);
+        ExpandContentQuadByChild(ele, UiOrientation.Vertical);
+      }
+    }
+    private void CollectHAuto(UiElement ele, UiOrientation ori)
+    {
+      if (IsAuto(ele, ori))
+      {
+        var line = ele._block._line;
+        ele._block._line._autoInfo = line._autoInfo.ConstructIfNeeded();
+        ele._block._line._autoInfo._hautos.Add(ele);
+      }
+    }
+    private void CollectVAuto(UiElement ele, UiOrientation perp)
+    {
+      if (IsAuto(ele, perp))
+      {
+        var line = ele._block._line;
+        ele._block._line._autoInfo = line._autoInfo.ConstructIfNeeded();
+        ele._block._line._autoInfo._vautos.Add(ele);
+        line._autoInfo._maxh = Math.Max(line._autoInfo._maxh, ele._container._maxWH.L_Width(perp));
+      }
+    }
+    private void FinalizeLayout()
+    {
+      //compute static w/h, expand content, compute autos
+      if (_static != null)
+      {
+        //finish final line
+        if (_static._glyphlines != null && _static._glyphlines.Count > 0)
+        {
+          FinishLine(_static._glyphlines[_static._glyphlines.Count - 1]);
+        }
+        if (_static._lines != null && _static._lines.Count > 0)
+        {
+          FinishLine(_static._lines[_static._lines.Count - 1]);
+        }
+        //Default line must come last
+        FinishDefaultLine();
+
+        //compute autos 
+        if (_static._autoLines != null && _static._autoLines.Count > 0)
+        {
+          if (_static._hasHAutos)
+          {
+            foreach (var line in _static._autoLines)
+            {
+              ExpandAutosH(line);
+            }
+          }
+          if (_static._hasVAutos)
+          {
+            ExpandAutosV();
+          }
+        }
+      }
+    }
+    private void SizeElement()
+    {
+      //Compute final Width Height
+      SizeElement(UiOrientation.Horizontal);
+      SizeElement(UiOrientation.Vertical);
+    }
+    private void SizeElement(UiOrientation ori)
+    {
+      //compute minimum width/height of element, using, content + MBP
+      var mode = Style._props.L_SizeMode(ori);
+      var automode = Style._props.L_AutoMode(ori);
+
+      if (mode == UiSizeMode.Percent)
+      {
+        //% of parent content area
+        var w = _parent._container._contentMaxWH.L_Width(ori) * Style._props.L_PercentWidth(ori) * 0.01f;
+        _block._b2LayoutQuad.L_Width(ori, w);
+      }
+      else if (mode == UiSizeMode.Shrink)
+      {
+        //shrink to size of content
+        _block._b2LayoutQuad.L_Width(ori, _container._contentWH.L_Width(ori));
+      }
+      else if (mode == UiSizeMode.Fixed)
+      {
+        _block._b2LayoutQuad.L_Width(ori, Style._props.L_FixedWidth(ori));
+      }
+      else if (mode == UiSizeMode.Auto)
+      {
+        //grow or shrink to fill remaining space
+        _block._b2LayoutQuad.L_Width(ori, 0);
+      }
+      else if (mode == UiSizeMode.AutoContent)
+      {
+        //fill remaining space, but do not shrink below content 
+        _block._b2LayoutQuad.L_Width(ori, _container._contentWH.L_Width(ori));
+      }
+
+      if (mode != UiSizeMode.Fixed && mode != UiSizeMode.Auto && mode != UiSizeMode.Percent)
+      {
+        //Add MBP for the  new layout quads which include marigns, also add for content autos
+        var MBP_LR = _container._MBP.L_Left(ori) + _container._MBP.L_Right(ori);
+        _block._b2LayoutQuad.L_Width(ori, _block._b2LayoutQuad.L_Width(ori) + MBP_LR);
+      }
+
+      if (mode != UiSizeMode.Auto && mode != UiSizeMode.AutoContent)
+      {
+        //clamp to min/max
+        _block._b2LayoutQuad.L_Width(ori, Math.Clamp(_block._b2LayoutQuad.L_Width(ori), _container._minWH.L_Width(ori), _container._maxWH.L_Width(ori)));
+      }
+      else
+      {
+        //clamp auto to min only, max will be computed after layout
+        _block._b2LayoutQuad.L_Width(ori, Math.Max(_block._b2LayoutQuad.L_Width(ori), _container._minWH.L_Width(ori)));
+      }
+
+      _block._b2LayoutQuad.ValidateQuad();
+    }
+    private void LayoutBlock(UiBlock ele, bool defaultline, bool glyphs = false)
+    {
+      //layout elements
+      var ori = Style._props.LayoutOrientation;
+      if (_static == null)
+      {
+        _static = new UiStaticInfo();
+      }
+
+      //note: width for layout includes MBP
+      float e_width = ele._block._b2LayoutQuad.L_Width(ori);
+      float e_height = ele._block._b2LayoutQuad.L_Height(ori);
+      float glyph_advance = ele.L_Advance();
+      float glyph_line_height = ele.L_LineHeight();
+
+      UiLayoutLine line = GetLayoutLine(ori, ele, defaultline, glyphs, e_width, glyph_advance);
+
+      //expand line quad
+      float line_width = Math.Max(line._quad.L_Width(ori) + e_width + glyph_advance + ele.L_Left(ori), 0);
+      float lineh_max = Math.Max(e_height + ele.L_Top(ori), glyph_line_height);
+      float line_height = Math.Max(line._quad.L_Height(ori), lineh_max);
+      line._quad.L_WidthHeight(ori, line_width, line_height);
+      line._quad.ValidateQuad();
+
+      ele._block._index.L_WidthHeight(ori, line._eles.Count, line._index);
+      ele._block._line = line;
+      ele._block._previous = _static._last;
+      _static._last = ele;
+
+      line._eles.Add(ele);
+    }
+    private UiLayoutLine GetLayoutLine(UiOrientation ori, UiBlock ele, bool defaultline, bool glyphs, float e_width, float glyph_advance)
+    {
+      //get the layout line or next line
+      UiLayoutLine line;
+      if (defaultline)
+      {
+        if (_static._defaultLine == null)
+        {
+          _static._defaultLine = new UiLayoutLine(-1);
+        }
+        line = _static._defaultLine;
+      }
+      else
+      {
+        List<UiLayoutLine> lines;
+        if (glyphs)
+        {
+          if (_static._glyphlines == null)
+          {
+            _static._glyphlines = new List<UiLayoutLine>();
+            _static._glyphlines.Add(new UiLayoutLine(_static._glyphlines.Count));
+          }
+          lines = _static._glyphlines;
+        }
+        else
+        {
+          if (_static._lines == null)
+          {
+            _static._lines = new List<UiLayoutLine>();
+            _static._lines.Add(new UiLayoutLine(_static._lines.Count));
+          }
+          lines = _static._lines;
+        }
+
+        line = lines[lines.Count - 1];
+
+        if (!(line._eles.Count == 0))//dont line break on first line
+        {
+          if (CheckLineBreak(ele, ele.L_WordWidth(ori), line._quad.L_Width(ori), _container._contentMaxWH.L_Width(ori), e_width + glyph_advance))
+          {
+            FinishLine(line);
+
+            //next line
+            UiLayoutLine line2;
+            line2 = new UiLayoutLine(lines.Count);
+            line2._previous = line;
+            lines.Add(line2);
+            line = line2;
+            _static._last = null;
+          }
+        }
+      }
+      return line;
+    }
+    private bool CheckLineBreak(UiBlock ele, float word_size, float l_width, float space, float e_size)
+    {
+      bool bLineBreak = false;
+
+      if (ele.DisplayMode == UiDisplayMode.Block)
+      {
+        bLineBreak = true;
+      }
+      else if (ele.DisplayMode == UiDisplayMode.Inline)
+      {
+        bLineBreak = (e_size + l_width > space);
+      }
+      else if (ele.DisplayMode == UiDisplayMode.Word)
+      {
+        bLineBreak = (word_size + l_width > space);
+      }
+      return bLineBreak;
+    }
+    private void ExpandContentQuadByChild(UiElement ele, UiOrientation ori)
+    {
+      //Static elements expand content when laid out
+      var mode = ele.Style._props.L_PositionMode(ori);
+      if (mode == UiPositionMode.Relative || mode == UiPositionMode.Absolute)
+      {
+        _container._contentWH.L_Width(ori,
+          Math.Max(
+            _container._contentWH.L_Width(ori),
+            ele._block._b2LayoutQuad.L_Left(ori) + ele._block._b2LayoutQuad.L_Width(ori)
+          ));
+      }
+    }
+    private static bool IsAuto(UiElement ele, UiOrientation ori)
+    {
+      return ele.Style._props.L_SizeMode(ori) == UiSizeMode.Auto || ele.Style._props.L_SizeMode(ori) == UiSizeMode.AutoContent;
+    }
+    private void FinishLine(UiLayoutLine line)
+    {
+      //Line Done.
+      //Expand w/h of parent container, update autos
+      UpdateAutoLines(line);
+
+      var ori = Style._props.LayoutOrientation;
+      _static._staticWH.L_Width(ori, Math.Max(_static._staticWH.L_Width(ori), line._quad.L_Width(ori)));
+      _static._staticWH.L_Height(ori, _static._staticWH.L_Height(ori) + line._quad.L_Height(ori));
+      _container._contentWH.L_Width(ori, Math.Max(_container._contentWH.L_Width(ori), line._quad.L_Width(ori)));
+      _container._contentWH.L_Height(ori, Math.Max(_container._contentWH.L_Height(ori), _static._staticWH.L_Height(ori)));
+    }
+    private void FinishDefaultLine()
+    {
+      //Configure VStat line.
+      if (_static._defaultLine != null && _static._defaultLine._eles != null && _static._defaultLine._eles.Count > 0)
+      {
+        //set default (vstat) line to static content 
+        var perp = UiUtils.Perp(Style._props.LayoutOrientation);
+        _static._defaultLine._quad.L_Width(perp, _static._staticWH.L_Width(perp));
+        UpdateAutoLines(_static._defaultLine);
+      }
+    }
+    private void UpdateAutoLines(UiLayoutLine line)
+    {
+      //Update the auto information for the container
+      if (line._autoInfo != null)
+      {
+        _static._autoLines = _static._autoLines.ConstructIfNeeded();
+        _static._autoLines.Add(line);
+        if (line._autoInfo._vautos != null && line._autoInfo._vautos.Count > 0)
+        {
+          _static._hasVAutos = true;
+        }
+        if (line._autoInfo._hautos != null && line._autoInfo._hautos.Count > 0)
+        {
+          _static._hasHAutos = true;
+        }
+      }
+    }
+    private void ExpandAutosH(UiLayoutLine line)
+    {
+      var ori = Style._props.LayoutOrientation;
+      var amode = Style._props.L_AutoMode(ori);
+
+      float total_space = 0;
+      if (amode == UiAutoMode.Content)
+      {
+        total_space = Math.Max(_container._contentMaxWH.L_Width(ori) - line._quad.L_Width(ori), 0);
+      }
+      else if (amode == UiAutoMode.Line)
+      {
+        total_space = Math.Max(_container._static._staticWH.L_Width(ori) - line._quad.L_Width(ori), 0);
+      }
+      else
+      {
+        Gu.BRThrowNotImplementedException();
+      }
+
+      /*
+      1 Sort all elements by maxw 
+      2 compute equal_w & total_w
+      3 iterate in order adding back to total_width if max < equal_w
+      */
+      var autocount = (float)line._autoInfo._hautos.Count;
+      if (line._autoInfo._hautos.Count > 1)
+      {
+        line._autoInfo._hautos.Sort((x, y) => x.Style._props.L_MaxWidth(ori) - y.Style._props.L_MaxWidth(ori) > 0 ? 1 : -1);
+      }
+
+      foreach (var auto in line._autoInfo._hautos)
+      {
+        var equal_w = total_space / autocount;
+        var add_w = equal_w;
+        var max_w = auto._container._maxWH.L_Width(ori);
+        var cur_w = auto._block._b2LayoutQuad.L_Width(ori);
+
+        if (cur_w + add_w >= max_w)
+        {
+          //max is less than equal width, clamp to max,  add remainder to auto space
+          add_w = Math.Max(max_w - cur_w, 0);
+          if (add_w > 0)
+          {
+            total_space = Math.Max(total_space - add_w, 0);
+            autocount--;
+          }
+        }
+
+        if (add_w > 0)
+        {
+          auto._block._b2LayoutQuad.L_Width(ori, auto._block._b2LayoutQuad.L_Width(ori) + add_w);
+          auto._block._b2LayoutQuad.ValidateQuad();
+          line._quad.L_Width(ori, line._quad.L_Width(ori) + add_w);
+          line._quad.ValidateQuad();
+        }
+      }
+    }
+    private void ExpandAutosV()
+    {
+      var ori = UiUtils.Perp(Style._props.LayoutOrientation);
+      var amode = Style._props.L_AutoMode(ori);
+      if (amode == UiAutoMode.Line)
+      {
+        foreach (var line in this._static._autoLines)
+        {
+          ExpandAutosV(line, ori);
+        }
+      }
+      else if (amode == UiAutoMode.Content)
+      {
+        // a doozie. Basically we need to do the same thing vertically as we do horizontally, but with lines and not autos.
+        //setting an auto's size in the position step would probably be more efficient than re-looping but for now just do this
+        // also sorting is required for the min/max as we add/remove min max, another efficiency issue that could be ameliorated
+        //with sorted list or some other thing
+        if (_static._autoLines.Count > 1)
+        {
+          _static._autoLines.Sort((x, y) => x._autoInfo._maxh - y._autoInfo._maxh > 0 ? 1 : -1);
+        }
+
+        float total_space = Math.Max(_container._contentMaxWH.L_Width(ori) - _static._staticWH.L_Width(ori), 0);
+        float linecount = (float)this._static._autoLines.Count;
+
+        foreach (var line in this._static._autoLines)
+        {
+          var equal_w = total_space / linecount;
+          var add_w = equal_w;
+          var max_w = line._autoInfo._maxh;
+          var cur_w = line._quad.L_Width(ori);
+
+          if (cur_w + add_w >= max_w)
+          {
+            //max is less than equal width, clamp to max,  add remainder to auto space
+            add_w = Math.Max(max_w - cur_w, 0);
+            if (add_w > 0)
+            {
+              total_space = Math.Max(total_space - add_w, 0);
+              linecount--;
+            }
+          }
+
+          if (add_w > 0)
+          {
+            line._quad.L_Width(ori, line._quad.L_Width(ori) + add_w);
+            line._quad.ValidateQuad();
+            ExpandAutosV(line, ori);
+          }
+        }
+      }
+      else
+      {
+        Gu.BRThrowNotImplementedException();
+      }
+    }
+    private void ExpandAutosV(UiLayoutLine line, UiOrientation ori)
+    {
+      //expand all vertical autos up to the line height, limited by max
+      var lh = line._quad.L_Width(ori);
+      foreach (var auto in line._autoInfo._vautos)
+      {
+        var aw = auto._block._b2LayoutQuad.L_Width(ori);
+        aw = Math.Min(auto._container._maxWH.L_Width(ori), lh);
+        auto._block._b2LayoutQuad.L_Width(ori, aw);
+        auto._block._b2LayoutQuad.ValidateQuad();
+      }
+    }
+    protected static void ComputeQuads(UiBlock block, UiElement parent, UiPositionMode pmodex, UiPositionMode pmodey, vec2 scale, UiOverflowMode overflowMode, UiLayoutGlobals dd)
+    {
+      //Add parent offsets to child quads; make relative offsets absolute.
+      //put layout quad (border+pad + margin) into render quad space.
+
+      SetMarginQuad(block, parent, UiOrientation.Horizontal, pmodex, scale.x);
+      SetMarginQuad(block, parent, UiOrientation.Vertical, pmodey, scale.y);
+
+      block._block._b2MarginQuad.Scale(scale);
+      block._block._b2MarginQuad.ValidateQuad();
+
+      if (block._block._container != null)
+      {
+        //remove margin
+        block._block._b2BorderQuad = block._block._b2MarginQuad.Clone();
+        block._block._b2BorderQuad.ShrinkBy(block._block._container._margin, scale);
+        block._block._b2BorderQuad.ClampToZero();//can go negative since border and padding are part of minsize.
+        block._block._b2BorderQuad.ValidateQuad();
+
+        //content
+        block._block._b2ContentQuad = block._block._b2MarginQuad.Clone();
+        block._block._b2ContentQuad.ShrinkBy(block._block._container._MBP, scale);
+        block._block._b2ContentQuad.ClampToZero();//can go negative since border and padding are part of minsize.
+        block._block._b2ContentQuad.ValidateQuad();
+
+        //initial clip 
+        if (overflowMode == UiOverflowMode.Show)
+        {
+          if (parent != null)//if we are not root
+          {
+            block._block._b2ClipQuad = dd.Gui._block._b2ClipQuad.Clone();
+          }
+        }
+        else if (overflowMode == UiOverflowMode.Border)
+        {
+          block._block._b2ClipQuad = block._block._b2BorderQuad.Clone();
+        }
+        else if (overflowMode == UiOverflowMode.Padding)
+        {
+          block._block._b2ClipQuad = block._block._b2BorderQuad.Clone();
+          block._block._b2ClipQuad.ShrinkBy(block._block._container._padding, scale);
+          block._block._b2ClipQuad.ClampToZero();//can go negative since border and padding are part of minsize.
+        }
+        else if (overflowMode == UiOverflowMode.Content)
+        {
+          block._block._b2ClipQuad.Zero();
+          block._block._b2ClipQuad = block._block._b2ContentQuad.Clone();
+        }
+
+        //line quad
+        //block._block._container._b2LineQuad.Scale(scale);
+      }
+      else
+      {
+        block._block._b2BorderQuad = block._block._b2MarginQuad.Clone();
+        block._block._b2ClipQuad = block._block._b2MarginQuad.Clone();
+        block._block._b2ContentQuad = block._block._b2MarginQuad.Clone();
+      }
+
+    }
+    private static void SetMarginQuad(UiBlock block, UiElement parent, UiOrientation ori, UiPositionMode pmode, float scale)
+    {
+      //Add parent offsets to child quads; make relative offsets absolute.
+      //layout quad is relative ot parent and includes margin+border+padding+content
+
+      //set border quad min/maxem
+      if (pmode == UiPositionMode.Relative)
+      {
+        block._block._b2MarginQuad.L_Left(ori, block.L_Left(ori) + parent._block._b2ContentQuad.L_Left(ori) / scale);
+        block._block._b2MarginQuad.L_Width(ori, block._block._b2LayoutQuad.L_Width(ori));
+      }
+      else if (pmode == UiPositionMode.Absolute)
+      {
+        block._block._b2MarginQuad.L_Left(ori, block.L_Left(ori));
+        block._block._b2MarginQuad.L_Width(ori, block._block._b2LayoutQuad.L_Width(ori));
+      }
+      else if (pmode == UiPositionMode.Static)
+      {
+        Gu.Assert(block._block._line != null); // all blocks must have a line.
+
+        //get origin for block
+        float left = ComputeStaticOrigin(ori, block, parent, scale);
+
+        //add static offset
+        if (parent.Style._props.LayoutDirection == UiLayoutDirection.LeftToRight || parent.Style._props.LayoutOrientation != ori)
+        {
+          left += block.L_Left(ori);
+        }
+        else
+        {
+          left -= block.L_Left(ori);
+        }
+
+        block._block._b2MarginQuad.L_Left(ori, left);
+        block._block._b2MarginQuad.L_Width(ori, block._block._b2LayoutQuad.L_Width(ori));
+      }
+    }
+    private static float ComputeStaticOrigin(UiOrientation ori, UiBlock block, UiElement parent, float scale)
+    {
+      //compute final position of static block
+      float left = 0;
+      var align = parent.Style._props.L_ContentAlign(ori);
+      var layout_dir = parent.Style._props.LayoutDirection;
+      var line = block._block._line;
+      var line_width = line._quad.L_Width(ori);
+      var previous = block._block._previous;
+      var parent_w = parent._block._b2ContentQuad.L_Width(ori) / scale;
+      var parent_x = parent._block._b2ContentQuad.L_Left(ori) / scale;
+
+      //Set line offset
+      float line_left = 0;
+      if (ori != parent.Style._props.LayoutOrientation && line._previous != null)
+      {
+        //set multiple times, but it's not a huge issue.
+        line_left = line._previous._quad.L_Left(ori) + line._previous._quad.L_Width(ori);
+        line._quad.L_Left(ori, line_left);
+      }
+
+      if (ori == parent.Style._props.LayoutOrientation)
+      {
+        //Horizontal
+        if (previous != null)
+        {
+          var prev_x = previous._block._b2MarginQuad.L_Left(ori) / scale;
+          //build from previous element offset, note this requires elements to be processed in order.
+          if (layout_dir == UiLayoutDirection.LeftToRight)
+          {
+            var prev_w = previous._block._b2MarginQuad.L_Width(ori) / scale;
+            var prev_adv = GetAdvanceForDirection(previous, ori == parent.Style._props.LayoutOrientation);
+            left = prev_x + prev_w + prev_adv;//Note: advance is not the same as TTF advance, advance+prev_width = next position
+          }
+          else
+          {
+            var block_w = block._block._b2LayoutQuad.L_Width(ori);
+            var prev_adv = GetAdvanceForDirection(previous, ori == parent.Style._props.LayoutOrientation);
+            //L e f t -> t f e L  := e -> prev = L
+            //this is not exactly correct rigth now but it is not necessary
+            left = prev_x - prev_adv - block_w;
+          }
+        }
+        else
+        {
+          //compute starting position
+          if (layout_dir == UiLayoutDirection.LeftToRight)
+          {
+            if (align == UiAlignment.Left)
+            {
+              left = parent_x;
+            }
+            else if (align == UiAlignment.Center)
+            {
+              left = parent_x + parent_w / 2 - line_width / 2;
+            }
+            else if (align == UiAlignment.Right)
+            {
+              left = parent_x + parent_w - line_width;
+            }
+          }
+          else //righttoleft
+          {
+            float block_adv = GetAdvanceForDirection(block, ori == parent.Style._props.LayoutOrientation);
+            var block_w = block._block._b2LayoutQuad.L_Width(ori);
+            var block_off = block.L_Left(ori);
+            if (align == UiAlignment.Left)
+            {
+              left = parent_x + line_width - block_w - block_off;
+            }
+            else if (align == UiAlignment.Center)
+            {
+              left = parent_x + parent_w / 2 + line_width / 2 - block_w - block_off;
+            }
+            else if (align == UiAlignment.Right)
+            {
+              left = parent_x + parent_w - block_w - block_off;
+            }
+          }
+        }
+
+      }
+      else
+      {
+        //Vertical
+        //Ignoring left-to-right + vertical, it is not necessary
+        var stat_width = parent._container._static._staticWH.L_Width(ori);
+
+        //TODO: line left is going away
+        var line_origin = parent_x + line_left;
+
+        if (align == UiAlignment.Left)
+        {
+          left = line_origin;
+        }
+        else if (align == UiAlignment.Center)
+        {
+          left = parent_x + parent_w / 2 - stat_width / 2 + line_left;
+        }
+        else if (align == UiAlignment.Right)
+        {
+          left = line_origin + parent_w - stat_width;
+        }
+      }
+
+      return left;
+    }
+    private static float GetAdvanceForDirection(UiBlock block, bool islayout)
+    {
+      //returns the advance width for a block in the layout direction. (glyphs have additional advance since they dont have marigns.)
+      return (islayout ? block.L_Advance() : 0);
+    }
+    private static bool IsFullyClipped(UiQuad quad, UiQuad clip, UiOverflowMode mode, UiLayoutGlobals dd)
     {
       if (dd.DisableClip)
       {
         return false;
       }
-      if (mode == UiOverflowMode.Hide)
+      if (mode == UiOverflowMode.Content)
       {
         if (quad.Max.x <= clip.Min.x)
         {
@@ -2056,723 +3553,98 @@ namespace Loft
       }
       return false;
     }
-    private UiQuad ShrinkClipRect(UiQuad parentClip)
+    private UiQuad ShrinkClipRect(UiQuad? parentClip)
     {
       //clip children that go beyond this container.
-      UiQuad ret = parentClip;
+      UiQuad ret = parentClip.Clone();
+
       if (Style._props.FloatMode == UiFloatMode.Floating)
       {
-        //floating elements go beyond parents
-        ret = _quads._b2ClipQuad;
+        //floating elements go beyond parents, return the default clip quad for this element.
+        return _block._b2ClipQuad.Clone();
       }
-      else if (Style._props.OverflowMode == UiOverflowMode.Hide)
-      {
-        ret.ShrinkByBox(_quads._b2ClipQuad);
-        ret.ValidateQuad();
-      }
+
+      // clip quad is based on the overflow mode
+      ret.Intersection(_block._b2ClipQuad);
+      ret.ValidateQuad();
+
       return ret;
     }
-    protected virtual void PerformLayout_SizeElements(MegaTex mt, bool bForce, vec2 parentMaxWH, UiStyle? parent, UiStyleSheet sheet, long framesatmp, UiDebug dd, List<UiElement> parentexpanders)
+    private void UpdateGlyphs(UiLayoutGlobals dd, bool styleChanged)
     {
-      //if (_layoutChanged || bForce)
+      //get glyphs
+      if (_font != null)
       {
-        bool styleChanged = Style.Modified;
-
-        Style.CompileStyleTree(sheet, framesatmp, parent);
-
-        if (((_textChanged || styleChanged) && (framesatmp % 5 == 0 || _bNeverDoneText)))
+        if (((_font._textChanged || styleChanged) && (dd.Framestamp % 5 == 0 || _font._bNeverDoneText)) || dd.ForceText)
         {
-          UpdateGlyphSpans(mt);
-          _textChanged = false;
-          _bNeverDoneText = false;
-        }
+          _font._textChanged = false;
+          _font._bNeverDoneText = false;
 
-        //shrink max rect by parent 
-        //remove margins from maxwh before sending into child, then compute our w/h by removing padding from our parent maxwh
-        _quads.OuterMaxWH = new vec2(
-          Math.Max(Math.Min(parentMaxWH.width, MaxWidthE()), 0),
-          Math.Max(Math.Min(parentMaxWH.height, MaxHeightE()), 0)
-        );
+          Gu.Assert(Style._props.FontFace != null);
 
-        //all elements & ele pads NO PARENT MARGIN OR BORDER
-        _quads.ContentWH = _quads.GlyphWH; //start with max wh of all glyphs
-
-        //remove margins for child
-        var pmarb = this.GetMarginAndBorder(dd);
-        vec4 ppad = this.GetPadding(dd);
-        if (this.Style._props.PositionModeX != UiPositionMode.Static)
-        {
-          ppad.x = ppad.z = 0;
-        }
-        if (this.Style._props.PositionModeY != UiPositionMode.Static)
-        {
-          ppad.y = ppad.w = 0;
-        }
-
-        _quads.InnerMaxWH = new vec2(
-          Math.Max(_quads.OuterMaxWH.width - pmarb.left - pmarb.right - ppad.left - ppad.right, 0),
-          Math.Max(_quads.OuterMaxWH.height - pmarb.top - pmarb.bot - ppad.top - ppad.bot, 0)
-        );
-
-        //size, then layout children
-        var spanLines = new List<UiLine>();
-        var expanders = new List<UiElement>();
-        spanLines.Add(new UiLine(0, 0));
-        int lineidx = 0;
-
-        if (_children != null && _children.Count > 0)
-        {
-          //compute min content WH first
-          foreach (var ele in _children)
+          //TODO: check if we can remove this mutex, and put the text directly the loader data.
+          string copied_text = "";
+          lock (_font._strText)
           {
-            //do not hide opacity=0 elements they still take up block space
-            if (ele.Visible)
-            {
-              ele.PerformLayout_SizeElements(mt, bForce, _quads.InnerMaxWH, this.Style, sheet, framesatmp, dd, expanders);
-
-              if (ele.Style._props.FloatMode != UiFloatMode.Floating)
-              {
-                if (ele.Style._props.PositionModeX == UiPositionMode.Relative)
-                {
-                  //relative elements dont respect margin/padding
-                  _quads.ContentWH.x = Math.Max(_quads.ContentWH.x, ele._quads._b2LocalQuad._left + ele._quads._b2LocalQuad._width);
-                }
-                else if (ele.Style._props.PositionModeX == UiPositionMode.Absolute)
-                {
-                  //not sure.. we are in relative coords right now
-                  _quads.ContentWH.x = Math.Max(_quads.ContentWH.x, ele._quads._b2LocalQuad._width);
-                }
-                else if (ele.Style._props.PositionModeX == UiPositionMode.Static)
-                {
-                  _quads.ContentWH.x = Math.Max(_quads.ContentWH.x, ele._quads._b2LocalQuad._width);
-                }
-
-                if (ele.Style._props.PositionModeY == UiPositionMode.Relative)
-                {
-                  //relative elements dont respect margin/padding
-                  _quads.ContentWH.y = Math.Max(_quads.ContentWH.y, ele._quads._b2LocalQuad._top + ele._quads._b2LocalQuad._height);
-                }
-                else if (ele.Style._props.PositionModeY == UiPositionMode.Absolute)
-                {
-                  //not sure.. we are in relative coords right now
-                  _quads.ContentWH.y = Math.Max(_quads.ContentWH.y, ele._quads._b2LocalQuad._height);
-                }
-                else if (ele.Style._props.PositionModeY == UiPositionMode.Static)
-                {
-                  _quads.ContentWH.y = Math.Max(_quads.ContentWH.y, ele._quads._b2LocalQuad._height);
-                }
-
-              }
-
-            }
+            copied_text = _font._strText;
+          }
+          if (String.IsNullOrEmpty(copied_text))
+          {
+            _font._glyphs = null;
+            return;
           }
 
-          //Layout non-glyphs
-          lineidx = 0;
-          foreach (var ele in _children)
+          var loader = GetFontLoader(dd.MegaTex, Style._props.FontFace);
+          if (loader == null)
           {
-            if (ele.Visible)
-            {
-              if (
-                (Style._props.LayoutOrientation == UiOrientation.Horizontal && ele.Style._props.PositionModeX == UiPositionMode.Static) ||
-                (Style._props.LayoutOrientation == UiOrientation.Vertical && ele.Style._props.PositionModeY == UiPositionMode.Static))
-              {
-                LayoutStaticElement(ele, ele.Style._props.Alignment, spanLines, _quads.InnerMaxWH, _quads.ContentWH, dd, ref lineidx);
-              }
-              else
-              {
-                Gu.Trap();
-              }
-            }
+            Gu.Log.ErrorCycle("Loader, or, Default loader could not be found for " + Style._props.FontFace.QualifiedPath + " font possibly loaded with error.", 120);
+            return;
           }
-        }
-
-        //glyph spans
-        lineidx = 0;
-        if (_glyphs != null && _glyphs.Count > 0)
-        {
-          foreach (var glyp in this._glyphs)
+          var patch = loader.SelectFontPatch(Gu.Translator.LanguageCode, Style._props.FontSize);
+          if (patch == null)
           {
-            LayoutBlock(glyp, Style._props.TextAlign, spanLines, _quads.InnerMaxWH, _quads.ContentWH, dd, ref lineidx);
+            Gu.Log.ErrorCycle("Null font patch.", 120);
+            Gu.DebugBreak();
+            return;
           }
+
+          _font._glyphs = dd.GlyphCache.CreateGlyphs(
+            loader, patch, copied_text,
+            Style._props.FontFace,
+            Style._props.FontSize,
+            Style._props.TextWrap,
+            Style._props.LineHeight,
+            Style._props.Tracking
+          );
+
         }
-
-        ComputeContentWH(pmarb, spanLines, dd);
-        SizeElement(_quads.ContentWH, _quads.InnerMaxWH, dd, parentexpanders);
-        AlignElements(spanLines);
-        FixExpanders(expanders, dd);
-
       }
     }
-    protected void PerformLayout_PositionElements(bool bForce, UiDebug dd, SortedList<float, v_v4v4v4v2u2v4v4> verts, UiQuad parentClip, MtTex defaultPixel,
-      uint rootPickId, ref Dictionary<uint, UiElement>? pickable, int layer, List<UiElement> elementsWithChangedContent)
+    private MtFontLoader? GetFontLoader(MegaTex mt, FontFace face)
     {
-      //Position elements after size and relative position calculated
-      //clip regions must be calculated on the position step
-      //if (_layoutChanged || bForce)
+      MtFontLoader? loader = null;
+      if (_font._cachedFont == null || mt.GetFont(face) != _font._cachedFont)
       {
-
-        ComputeQuads(dd);
-
-        //Set pick root 
-        uint pickId = rootPickId;
-        if (_pickEnabled)
-        {
-          pickId = _iPickId;
-
-          if (Gu.AssertDebug(pickId != Picker.c_iInvalidPickId))
-          {
-            pickable = pickable.ConstructIfNeeded();
-            pickable.Add(pickId, this);
-          }
-        }
-
-        UiQuad clip = ShrinkClipRect(parentClip);
-
-        if (_children != null && _children.Count > 0)
-        {
-          foreach (var ele in _children)
-          {
-            if (ele.Visible)
-            {
-              var child_layer = ele._topMost ? 0 : layer + 1;
-
-              ele.PerformLayout_PositionElements(bForce, dd, verts, clip, defaultPixel, pickId, ref pickable, child_layer, elementsWithChangedContent);
-
-              //expand clip
-              _quads._b2ClipQuad.ExpandByPoint(ele._quads._b2ClipQuad.Min);
-              _quads._b2ClipQuad.ExpandByPoint(ele._quads._b2ClipQuad.Max);
-            }
-          }
-        }
-
-        SortKeys keys = new SortKeys(_sort, this._topMost ? 0 : layer);
-
-        //no reason to compute glyph positions if the whole thing is not rendered
-        //glyph spans.
-        if (_glyphs != null)
-        {
-          for (int gi = 0; gi < _glyphs.Count; ++gi)
-          {
-            var glyph = _glyphs[gi];
-            if (glyph != null)
-            {
-              //apply parent
-              glyph._quads._b2BorderQuad = glyph._quads._b2LocalQuad.Clone();
-              glyph._quads._b2BorderQuad._left += this._quads._b2BorderQuad._left;
-              glyph._quads._b2BorderQuad._top += this._quads._b2BorderQuad._top;
-
-              //note glyph border=clipp
-              if (IsFullyClipped(glyph._quads._b2BorderQuad, parentClip, Style._props.OverflowMode, dd) == false)
-              {
-                GetGlyphQuadVerts(glyph, verts, dd, defaultPixel, pickId, keys);
-              }
-            }
-          }
-        }
-
-        UiOverflowMode parentOverflowMode = UiOverflowMode.Hide;
-        if (this.Parent != null && this.Parent.Style != null)
-        {
-          parentOverflowMode = this.Parent.Style._props.OverflowMode;
-        }
-
-        if (Style._props.FloatMode == UiFloatMode.Floating)
-        {
-          GetElementQuadVerts(verts, _quads._b2ClipQuad, defaultPixel, pickId, dd, keys);
-        }
-        else if (IsFullyClipped(this._quads._b2ClipQuad, parentClip, parentOverflowMode, dd) == false)
-        {
-          GetElementQuadVerts(verts, parentClip, defaultPixel, pickId, dd, keys);
-        }
-
-        if (!this._quads._b2BorderQuad.Equals(this._quads._b2BorderQuad_Last))
-        {
-          elementsWithChangedContent.Add(this);
-        }
-
-        _contentChanged = false;
-      }
-    }
-    private void ComputeContentWH(vec4 pmarb, List<UiLine> spanLines, UiDebug dd)
-    {
-      var ori = Style._props.LayoutOrientation;
-
-      //Calculate content size
-      if (ori == UiOrientation.Horizontal)
-      {
-        float total = pmarb.top + pmarb.bot;
-        foreach (var line in spanLines)
-        {
-          total += line.Height(ori);
-          _quads.ContentWH.x = Math.Max(_quads.ContentWH.x, line.Width(ori) + pmarb.right + pmarb.left);
-        }
-        _quads.ContentWH.y = Math.Max(_quads.ContentWH.y, total);
-      }
-      else if (ori == UiOrientation.Vertical)
-      {
-        float total = pmarb.left + pmarb.right;
-        foreach (var line in spanLines)
-        {
-          total += line.Width(ori);
-          _quads.ContentWH.y = Math.Max(_quads.ContentWH.y, line.Height(ori) + pmarb.left + pmarb.right);
-        }
-        _quads.ContentWH.x = Math.Max(_quads.ContentWH.x, total);
+        loader = mt.GetFont(face);
       }
       else
       {
-        Gu.BRThrowNotImplementedException();
+        loader = _font._cachedFont;
+      }
+      if (loader == null)
+      {
+        Gu.Log.ErrorCycle("Font loader could not be found for " + face.QualifiedPath + " font possibly loaded with error", 120);
+        loader = mt.GetFont(FontFace.Default);
       }
 
+      return loader;
     }
-    private void AlignElements(List<UiLine> spanLines)
-    {
-      //layout is to the left, align left, center, right
-      var ori = this.Style._props.LayoutOrientation;
-
-      if (this.Text == "170.0")
-      {
-        Gu.Trap();
-      }
-
-      foreach (var line in spanLines)
-      {
-        var col_l = line._cols[(int)UiAlignment.Left];
-        var col_c = line._cols[(int)UiAlignment.Center];
-        var col_r = line._cols[(int)UiAlignment.Right];
-
-        foreach (var ele in col_c._eles)
-        {
-          ele._quads._b2LocalQuad.LMin(ori, ele._quads._b2LocalQuad.LMin(ori) + _quads._b2LocalQuad.LSize(ori) / 2 - col_c.LSize(ori) / 2);
-          ele._quads._b2LocalQuad.ValidateQuad();
-        }
-        foreach (var ele in col_r._eles)
-        {
-          if (Style._props.LayoutDirection == UiLayoutDirection.LeftToRight)
-          {
-            //roman
-            ele._quads._b2LocalQuad.LMin(ori, _quads._b2LocalQuad.LSize(ori) - col_r.LSize(ori) + ele._quads._b2LocalQuad.LMin(ori));
-            ele._quads._b2LocalQuad.ValidateQuad();
-          }
-          else if (Style._props.LayoutDirection == UiLayoutDirection.RightToLeft)
-          {
-            //arabic
-            ele._quads._b2LocalQuad.LMin(ori, _quads._b2LocalQuad.LSize(ori) - ele._quads._b2LocalQuad.LMin(ori) - ele._quads._b2LocalQuad.LSize(ori));
-            ele._quads._b2LocalQuad.ValidateQuad();
-          }
-          else
-          {
-            Gu.BRThrowNotImplementedException();
-          }
-        }
-
-      }
-    }
-    private void FixExpanders(List<UiElement> expanders, UiDebug dd)
-    {
-      foreach (var ele in expanders)
-      {
-        //parent=shrink, child=grow (race condition), set child to min content
-        //the cur w/h is the MINIMUM w/h and must be respected.
-        var erw = ele.ExpandRaceW();
-        var erh = ele.ExpandRaceH();
-
-        if (erw || erh)
-        {
-          if (erw)
-          {
-            ele._quads._b2LocalQuad._width = Math.Max(_quads._b2BorderQuad._width - ele._quads._b2LocalQuad._left, ele._quads._b2LocalQuad._width);
-          }
-          if (erh)
-          {
-            ele._quads._b2LocalQuad._height = Math.Max(_quads._b2BorderQuad._height - ele._quads._b2LocalQuad._top, ele._quads._b2LocalQuad._height);
-          }
-          ele._quads._b2LocalQuad.ValidateQuad();
-        }
-
-      }
-    }
-    private void SizeElement(vec2 contentWH, vec2 innerMaxWH, UiDebug dd, List<UiElement> parentexpanders)
-    {
-      //Compute final width/h
-      //Compute content minimum width/height of static element to compute size of parent
-      //Size is preliminary and static elements will be shortened up to their content size if they go outside parent boundary
-      //conttnetwh is min wh 
-      var epad = GetPadding(dd);
-
-      if (ExpandRaceW() || ExpandRaceH())
-      {
-        parentexpanders.Add(this);
-      }
-
-      if (ExpandRaceW())//|| Style._props.SizeModeWidth == UiSizeMode.Average
-      {
-        //set expander race condition to contentwh
-        _quads._b2LocalQuad._width = contentWH.width;
-      }
-      else if (Style._props.SizeModeWidth == UiSizeMode.Percent)
-      {
-        //% of parent w/h
-        _quads._b2LocalQuad._width = Math.Max(innerMaxWH.width * (Style._props.PercentWidth * 0.01f), contentWH.width);
-      }
-      else if (Style._props.SizeModeWidth == UiSizeMode.Shrink)
-      {
-        //shrnk to size of contents (min size), child will be set to min of parent content in the layout
-        _quads._b2LocalQuad._width = contentWH.width;
-      }
-      else if (Style._props.SizeModeWidth == UiSizeMode.Fixed)
-      {
-        _quads._b2LocalQuad._width = Style._props.FixedWidth;
-      }
-
-      if (ExpandRaceH())
-      {
-        _quads._b2LocalQuad._height = contentWH.height;
-      }
-      else if (Style._props.SizeModeHeight == UiSizeMode.Percent)
-      {
-        _quads._b2LocalQuad._height = Math.Max(innerMaxWH.height * (Style._props.PercentHeight * 0.01f), contentWH.height);
-      }
-      else if (Style._props.SizeModeHeight == UiSizeMode.Shrink)
-      {
-        _quads._b2LocalQuad._height = contentWH.height;
-      }
-      else if (Style._props.SizeModeHeight == UiSizeMode.Fixed)
-      {
-        _quads._b2LocalQuad._height = Style._props.FixedHeight;
-      }
-
-      //for static elements maxw/h are the penultimate parameters and you cant go past them even if clipping happens
-      _quads._b2LocalQuad._width = Math.Clamp(_quads._b2LocalQuad._width, MinWidthE(), MaxWidthE());
-      _quads._b2LocalQuad._height = Math.Clamp(_quads._b2LocalQuad._height, MinHeightE(), MaxHeightE());
-
-      _quads._b2LocalQuad.ValidateQuad();
-    }
-    private bool ExpandRaceW()
-    {
-      //race condtion: parent=shrink, child=expand
-      return (Style._props.SizeModeWidth == UiSizeMode.Percent && Parent != null && Parent.Style._props.SizeModeWidth == UiSizeMode.Shrink);
-    }
-    private bool ExpandRaceH()
-    {
-      return (Style._props.SizeModeHeight == UiSizeMode.Percent && Parent != null && Parent.Style._props.SizeModeHeight == UiSizeMode.Shrink);
-    }
-    protected float MinWidthE() { return EffectiveMinMax(Style._props.SizeModeWidth, true, true); }
-    protected float MinHeightE() { return EffectiveMinMax(Style._props.SizeModeHeight, false, true); }
-    protected float MaxWidthE() { return EffectiveMinMax(Style._props.SizeModeWidth, true, false); }
-    protected float MaxHeightE() { return EffectiveMinMax(Style._props.SizeModeHeight, false, false); }
-    private float EffectiveMinMax(UiSizeMode m, bool w, bool i)
-    {
-      //effective min/max based on sizing mode.
-      if (w == true)
-      {
-        if (m == UiSizeMode.Fixed)
-        {
-          return Style._props.FixedWidth;
-        }
-        else if (i)
-        {
-          return Style._props.MinWidth;
-        }
-        else
-        {
-          return Style._props.MaxWidth;
-        }
-      }
-      else
-      {
-        if (m == UiSizeMode.Fixed)
-        {
-          return Style._props.FixedHeight;
-        }
-        else if (i)
-        {
-          return Style._props.MinHeight;
-        }
-        else
-        {
-          return Style._props.MaxHeight;
-        }
-      }
-    }
-    private void LayoutStaticElement(UiElement ele, UiAlignment align, List<UiLine> vecLines, vec2 pmaxInnerWH, vec2 pcontentWH, UiDebug dd, ref int lineidx)
-    {
-      //compute static element left/top
-      if (vecLines.Count == 0)
-      {
-        Gu.BRThrowException("GUI error - tried to run calc algorithm without any UILines created");
-      }
-
-      LayoutBlock(ele, align, vecLines, pmaxInnerWH, pcontentWH, dd, ref lineidx);
-    }
-    private void LayoutBlock(UiBlock ele, UiAlignment align, List<UiLine> vecLines, vec2 pmaxInnerWH, vec2 pcontentWH, UiDebug dd, ref int lineidx)
-    {
-      //TODO: remove dupe code using LMin/LSize
-      if (Style._props.LayoutOrientation == UiOrientation.Horizontal)
-      {
-        LayoutBlockH(ele, align, vecLines, pmaxInnerWH, pcontentWH, dd, ref lineidx);
-      }
-      else if (Style._props.LayoutOrientation == UiOrientation.Vertical)
-      {
-        LayoutBlockV(ele, align, vecLines, pmaxInnerWH, pcontentWH, dd, ref lineidx);
-      }
-      else
-      {
-        Gu.BRThrowNotImplementedException();
-      }
-    }
-    private void LayoutBlockH(UiBlock ele, UiAlignment align, List<UiLine> vecLines, vec2 pmaxInnerWH, vec2 pcontentWH, UiDebug dd, ref int lineidx)
-    {
-      //lay out elements
-      var ori = UiOrientation.Horizontal;
-      UiLine line = vecLines[lineidx];
-      UiAlignCol col = line._cols[(int)align];
-      float e_width = ele._quads._b2LocalQuad._width;
-      float e_height = ele._quads._b2LocalQuad._height;
-      var e_pad = ele.GetPadding(dd);
-
-      if (CheckLineBreak(ele, ele.WordWidth, line.Width(ori), pmaxInnerWH.x, e_width, e_pad.left, e_pad.right))
-      {
-        if (lineidx + 1 >= vecLines.Count)
-        {
-          var line2 = new UiLine(0, line._top + line.Height(ori));
-          vecLines.Add(line2);
-        }
-
-        lineidx++;
-        line = vecLines[lineidx];
-        col = line._cols[(int)align];
-      }
-
-      var pmarb = this.GetMarginAndBorder(dd);
-      float col_adv = 0;
-      if (align == UiAlignment.Left)
-      {
-        col_adv = e_pad.left + pmarb.left;
-      }
-      else if (align == UiAlignment.Right)
-      {
-        col_adv = e_pad.right + pmarb.right;
-      }
-      else if (align == UiAlignment.Center)
-      {
-        col_adv = e_pad.right + e_pad.left;
-      }
-      else { Gu.BRThrowNotImplementedException(); }
-
-      ele._quads._b2LocalQuad._left = line._left + col._width + col_adv + ele.Left;//BR:20221021-left/top are render offsets in Static mode
-      ele._quads._b2LocalQuad._top = line._top + e_pad.top + ele.Top + pmarb.top;
-      col._width += ele.Left + e_width + e_pad.left + e_pad.right;
-      col._height = Math.Max(col._height, ele.Top + e_height + e_pad.top + e_pad.bot);
-      col._eles.Add(ele);
-
-      ele._quads._b2LocalQuad.ValidateQuad();
-    }
-    private void LayoutBlockV(UiBlock ele, UiAlignment align, List<UiLine> vecLines, vec2 pmaxInnerWH, vec2 pcontentWH, UiDebug dd, ref int lineidx)
-    {
-      var ori = UiOrientation.Vertical;
-      UiLine line = vecLines[lineidx];
-      UiAlignCol col = line._cols[(int)align];
-      float e_width = ele._quads._b2LocalQuad._width;
-      float e_height = ele._quads._b2LocalQuad._height;
-      var e_pad = ele.GetPadding(dd);
-
-      if (CheckLineBreak(ele, ele.WordHeight, line.Height(ori), pmaxInnerWH.y, e_height, e_pad.top, e_pad.bot))
-      {
-        if (lineidx + 1 >= vecLines.Count)
-        {
-          var line2 = new UiLine(line._left + line.Width(ori), 0);
-          vecLines.Add(line2);
-        }
-
-        lineidx++;
-        line = vecLines[lineidx];
-        col = line._cols[(int)align];
-      }
-
-      var pmarb = this.GetMarginAndBorder(dd);
-      float col_adv = 0;
-      if (align == UiAlignment.Left) // Top
-      {
-        col_adv = e_pad.top + pmarb.top;
-      }
-      else if (align == UiAlignment.Right) // Bot
-      {
-        col_adv = e_pad.bot + pmarb.bot;
-      }
-      else if (align == UiAlignment.Center)
-      {
-        col_adv = e_pad.top + e_pad.bot;
-      }
-      else { Gu.BRThrowNotImplementedException(); }
-
-      ele._quads._b2LocalQuad._top = line._top + col._height + col_adv + ele.Top;//BR:20221021-left/top are render offsets in Static mode
-      ele._quads._b2LocalQuad._left = line._left + e_pad.left + ele.Left + pmarb.left;
-      col._height += ele.Top + e_height + e_pad.top + e_pad.bot;
-      col._width = Math.Max(col._width, ele.Left + e_width + e_pad.left + e_pad.right);
-      col._eles.Add(ele);
-
-      ele._quads._b2LocalQuad.ValidateQuad();
-    }
-    private bool CheckLineBreak(UiBlock ele, float word_size, float l_width, float space, float e_size, float e_pad_a, float e_pad_b)
-    {
-      bool bLineBreak = false;
-
-      if (ele.DisplayMode == UiDisplayMode.Block)
-      {
-        bLineBreak = true;
-      }
-      else if (ele.DisplayMode == UiDisplayMode.Inline)
-      {
-        bLineBreak = (e_size + e_pad_a + e_pad_b + l_width > space);
-      }
-      else if (ele.DisplayMode == UiDisplayMode.Word)
-      {
-        if (ele.WordWidth > 600)
-        {
-          Gu.Trap();
-        }
-        else if (ele.WordWidth == 0)
-        {
-          Gu.Trap();
-        }
-        bLineBreak = (word_size + l_width > space);
-      }
-      return bLineBreak;
-    }
-    private void ConstrainValue(float min, float max, ref float x, float size)
-    {
-      //@param x = ele position (x,y) size = ele w/h
-      //@param min/max = parent min/max
-      if (min <= max)
-      {
-        max = min;
-        Gu.DebugBreak();//error:max:=min
-      }
-
-      if ((x + size) > (max - min))
-      {
-        x = (max - min) - size;
-      }
-      if (x < min)
-      {
-        x = min;
-      }
-    }
-    protected void AddOffset(UiOrientation dir)
-    {
-      //this._quads._b2BorderQuad.LMax
-      var pmode = this.Style._props.LPositionMode(dir);
-
-      if (pmode == UiPositionMode.Relative || pmode == UiPositionMode.Static)
-      {
-        if (pmode == UiPositionMode.Relative)
-        {
-          this._quads._b2BorderQuad.LMin(dir, this.Style._props.LMin(dir));
-          this._quads._b2LocalQuad.LMin(dir, this.Style._props.LMin(dir));
-        }
-        else if (pmode == UiPositionMode.Static)
-        {
-          this._quads._b2BorderQuad.LMin(dir, this._quads._b2LocalQuad.LMin(dir));
-        }
-
-        if (_parent != null)
-        {
-          this._quads._b2BorderQuad.LMin(dir, this._quads._b2BorderQuad.LMin(dir) + _parent._quads._b2BorderQuad.LMin(dir));
-        }
-      }
-      else if (pmode == UiPositionMode.Absolute)
-      {
-        this._quads._b2BorderQuad.LMin(dir, this.Style._props.LMin(dir));
-        this._quads._b2LocalQuad.LMin(dir, this.Style._props.LMin(dir));
-      }
-
-    }
-    protected void ComputeQuads(UiDebug dd)
-    {
-      //Add parent offsets to child quads; make relative offsets absolute.
-      AddOffset(UiOrientation.Horizontal);
-      AddOffset(UiOrientation.Vertical);
-
-      // if (this.Style._props.PositionModeX == UiPositionMode.Relative || this.Style._props.PositionModeX == UiPositionMode.Static)
-      // {
-      //   if (this.Style._props.PositionModeX == UiPositionMode.Relative)
-      //   {
-      //     this._quads._b2BorderQuad._left = this._quads._b2LocalQuad._left = this.Left;
-      //   }
-      //   else if (this.Style._props.PositionModeX == UiPositionMode.Static)
-      //   {
-      //     this._quads._b2BorderQuad._left = this._quads._b2LocalQuad._left;
-      //   }
-
-      //   if (_parent != null)
-      //   {
-      //     this._quads._b2BorderQuad._left += _parent._quads._b2BorderQuad._left;
-      //   }
-      // }
-      // else if (this.Style._props.PositionModeX == UiPositionMode.Absolute)
-      // {
-      //   this._quads._b2BorderQuad._left = this._quads._b2LocalQuad._left = this.Left;
-      // }
-
-      // if (this.Style._props.PositionModeY == UiPositionMode.Relative || this.Style._props.PositionModeY == UiPositionMode.Static)
-      // {
-      //   if (this.Style._props.PositionModeY == UiPositionMode.Relative)
-      //   {
-      //     this._quads._b2BorderQuad._top = this._quads._b2LocalQuad._top = this.Top;
-      //   }
-      //   else if (this.Style._props.PositionModeY == UiPositionMode.Static)
-      //   {
-      //     this._quads._b2BorderQuad._top = this._quads._b2LocalQuad._top;
-      //   }
-
-      //   if (_parent != null)
-      //   {
-      //     this._quads._b2BorderQuad._top += _parent._quads._b2BorderQuad._top;
-      //   }
-      // }
-      // else if (this.Style._props.PositionModeY == UiPositionMode.Absolute)
-      // {
-      //   this._quads._b2BorderQuad._top = this._quads._b2LocalQuad._top = this.Top;
-      // }
 
 
-      this._quads._b2BorderQuad._width = this._quads._b2LocalQuad._width;
-      this._quads._b2BorderQuad._height = this._quads._b2LocalQuad._height;
+    #endregion
+    #region Render
 
-      // Set to false if we're controllig coordinates of this element (cursor, or window position)
-      float w1 = 1.0f, h1 = 1.0f;
-      w1 = 1;//UiScreen::getDesignMultiplierW();
-      h1 = 1;//UiScreen::getDesignMultiplierH();      
-      this._quads._b2BorderQuad._left *= w1;
-      this._quads._b2BorderQuad._top *= h1;
-      this._quads._b2BorderQuad._width *= w1;
-      this._quads._b2BorderQuad._height *= h1;
-      this._quads._b2BorderQuad.ValidateQuad();
-
-      //initial clip
-      this._quads._b2ClipQuad = this._quads._b2BorderQuad.Clone();
-      this._quads._b2ClipQuad.ValidateQuad();
-
-      //separate the border quad from the content area quad
-      var bd = this.GetBorder(dd);
-      this._quads._b2ContentQuad = this._quads._b2BorderQuad.Clone();
-      this._quads._b2ContentQuad._left += bd.left;
-      this._quads._b2ContentQuad._top += bd.top;
-      this._quads._b2ContentQuad._width -= (bd.left + bd.right);
-      this._quads._b2ContentQuad._height -= (bd.top + bd.bot);
-      this._quads._b2ContentQuad.ValidateQuad();
-
-      var pd = this.GetPadding(dd);
-      this._quads._dbg_b2PaddingQuad = this._quads._b2BorderQuad.Clone();
-      this._quads._dbg_b2PaddingQuad._left -= pd.left;
-      this._quads._dbg_b2PaddingQuad._top -= pd.top;
-      this._quads._dbg_b2PaddingQuad._width += (pd.right + pd.left);
-      this._quads._dbg_b2PaddingQuad._height += (pd.bot + pd.top);
-      this._quads._dbg_b2PaddingQuad.ValidateQuad();
-
-    }
-    private void GetElementQuadVerts(SortedList<float, v_v4v4v4v2u2v4v4> all_verts, UiQuad b2ClipRect, MtTex defaultPixel, uint rootPickId, UiDebug dd, SortKeys keys)
+    private void GetElementQuadVerts(UiQuad b2ClipRect, uint rootPickId, UiLayoutGlobals dd, UiSortKeys keys)
     {
       //**Texture Adjust - modulating repeated textures causes seaming issues, especially with texture filtering
       // adjust the texture coordinates by some pixels to account for that.  0.5f seems to work well.
@@ -2781,146 +3653,92 @@ namespace Loft
       //Debug overlay
       if (dd.ShowDebug)
       {
-        DebugVert(_quads._b2ContentQuad, b2ClipRect, this._debugcolor, all_verts, keys, dd, defaultPixel, rootPickId);
-        DebugVert(_quads._dbg_b2PaddingQuad, b2ClipRect, this._debugcolor + 0.02f, all_verts, keys, dd, defaultPixel, rootPickId);
+        DebugVert(_block._b2BorderQuad, b2ClipRect, this._debugcolor, keys, dd, rootPickId);
       }
       if (Style._props.RenderMode != UiRenderMode.None)
       {
-        var bd = GetBorder(dd);
+        var bd = _container._border;// GetBorder(dd);
         var radius = this.GetBorderRadius(dd);
 
         //Content Quad w/ margins
         v_v4v4v4v2u2v4v4 vc = new v_v4v4v4v2u2v4v4();
-        vc._rtl_rtr = new vec4(radius.top, radius.right);
-        vc._rbr_rbl = new vec4(radius.bot, radius.left);
-        vc._quadrant = new vec3(0, 0, 999);
-        SetVertexRasterArea(ref vc, in _quads._b2ContentQuad, in b2ClipRect, dd);
+        vc._rtl_rtr = new vec4(radius._top, radius._right);
+        vc._rbr_rbl = new vec4(radius._bot, radius._left);
+        vc._border = _container._border.ToVec4();
+        vc._font_weight = new vec4(1, 0, 0, 0);
+        vc._border_color = new uvec4(
+          vec4ToUint(Style._props.BorderColorTop * Style._props.Opacity),
+          vec4ToUint(Style._props.BorderColorRight * Style._props.Opacity),
+          vec4ToUint(Style._props.BorderColorBot * Style._props.Opacity),
+          vec4ToUint(Style._props.BorderColorLeft * Style._props.Opacity)
+        );
+
+        SetVertexRasterArea(ref vc, in _block._b2BorderQuad, in b2ClipRect, dd);
 
         MtTex tex = null;
         if (Style._props.RenderMode == UiRenderMode.Color)
         {
-          tex = defaultPixel;
+          tex = dd.DefaultPixel;
         }
         else if (Style._props.Texture != null)
         {
-          tex = Style._props.Texture;
+          Gu.Assert(Style._props.Texture.Modified == false);
+          tex = Style._props.Texture.Image;
         }
         else
         {
           Gu.Log.Error($"{Name}: UI: Render mode is texture, but texture was not set. Changing to color.");
-          tex = defaultPixel;
+          tex = dd.DefaultPixel;
           Gu.DebugBreak();
         }
 
         ComputeVertexTexcoord(ref vc, tex, Style._props.ImageTilingX, Style._props.ImageTilingY, adjust);
 
         vec4 cmul = Style._props.Color * Style._props.MultiplyColor;
-        SetVertexPickAndColor(ref vc, new vec4(cmul.xyz, cmul.w * (float)Style._props.Opacity).Clamp(0.0f, 1.0f), rootPickId);
-        all_verts.Add(keys._ekey, vc);
+        vec4 color = new vec4(cmul.xyz, cmul.w * Style._props.Opacity).Clamp(0.0f, 1.0f);
+        vc._pick_color = new uvec2(rootPickId, vec4ToUint(color));
+        dd.Verts.Add(keys._ekey, vc);
 
-        //TODO: border radius is still broken 
-        DoBorders(bd, radius, all_verts, b2ClipRect, defaultPixel, rootPickId, dd, false, keys);
       }
     }
-    private void GetGlyphQuadVerts(UiGlyph glyph, SortedList<float, v_v4v4v4v2u2v4v4> verts, UiDebug dd, MtTex defaultPixel, uint pickId, SortKeys keys)
+    private void GetGlyphQuadVerts(UiGlyph glyph, UiQuad clip, UiLayoutGlobals dd, uint pickId, UiSortKeys keys, vec4 color)
     {
       if (dd.ShowDebug)
       {
-        DebugVert(glyph._quads._b2BorderQuad, _quads._b2ClipQuad, glyph._debugcolor, verts, keys, dd, defaultPixel, pickId);
+        DebugVert(glyph._block._b2ContentQuad, clip, glyph._debugcolor, keys, dd, pickId);
       }
 
-      //Make Glyph Vert
       float adjust = 0;
       v_v4v4v4v2u2v4v4 vc = new v_v4v4v4v2u2v4v4();
-      SetVertexRasterArea(ref vc, glyph._quads._b2BorderQuad, _quads._b2ClipQuad, dd);
+      SetVertexRasterArea(ref vc, glyph._block._b2ContentQuad, clip, dd);
       vc._rtl_rtr = new vec4(0, 0, 0, 0);
       vc._rbr_rbl = new vec4(0, 0, 0, 0);
-      vc._quadrant = new vec3(0, 0, 999);
-      ComputeVertexGlyphTCoord(ref vc, glyph._reference._cachedGlyph, adjust);
-      SetVertexPickAndColor(ref vc, new vec4(Style._props.FontColor.xyz, Style._props.FontColor.w * (float)Style._props.Opacity), pickId);
-      verts.Add(keys._gkey, vc);
+      vc._border = new vec4(0, 0, 0, 0);
+      vc._border_color = new uvec4(0, 0, 0, 0);
+      vc._font_weight = new vec4(this.Style._props.FontWeight, 0, 0, 0);
+      ComputeVertexGlyphTCoord(ref vc, glyph._cachedGlyph, adjust);
+      vc._pick_color = new uvec2(pickId, vec4ToUint(color * Style._props.Opacity));
+      dd.Verts.Add(keys._gkey, vc);
     }
-    private void DoBorders(vec4 bd, vec4 radius, SortedList<float, v_v4v4v4v2u2v4v4> all_verts,
-                           UiQuad b2ClipRect, MtTex defaultPixel, uint rootPickId, UiDebug dd, bool usequad, SortKeys keys)
+    private void DebugVert(UiQuad quad, UiQuad clip, vec4 c, UiSortKeys keys, UiLayoutGlobals dd, uint pick)
     {
-      //Quadrant version works with border radius but may not produce correct border
-      //Accurate version make perfect borders without radius.
-      if (!usequad)
-      {
-        radius = new vec4(0, 0, 0, 0);
-      }
-      if (bd.top > 0)
-      {
-        UiQuad bt = _quads._b2BorderQuad.Clone();
-        if (!usequad)
-        {
-          bt._height = _quads._b2ContentQuad._top - _quads._b2BorderQuad._top;
-        }
-        var r2 = usequad ? new vec4(radius.x, radius.y, 0, 0) : radius;
-        BorderVert(bt, Style._props.BorderColorTop, r2, all_verts, b2ClipRect, defaultPixel, rootPickId, dd, new vec3(0, 1, usequad ? 0 : 999), keys);
-      }
-      if (bd.right > 0)
-      {
-        UiQuad bt = _quads._b2BorderQuad.Clone();
-        if (!usequad)
-        {
-          bt._left += _quads._b2ContentQuad._width;
-          bt._width -= _quads._b2ContentQuad._width;
-        }
-        var r2 = usequad ? new vec4(0, radius.y, radius.z, 0) : radius;
-        BorderVert(bt, Style._props.BorderColorRight, r2, all_verts, b2ClipRect, defaultPixel, rootPickId, dd, new vec3(1, 0, usequad ? 0 : 999), keys);
-      }
-      if (bd.bot > 0)
-      {
-        UiQuad bt = _quads._b2BorderQuad.Clone();
-        if (!usequad)
-        {
-          bt._top += _quads._b2ContentQuad._height;
-          bt._height -= _quads._b2ContentQuad._height;
-        }
-        var r2 = usequad ? new vec4(0, 0, radius.z, radius.w) : radius;
-        BorderVert(bt, Style._props.BorderColorBot, r2, all_verts, b2ClipRect, defaultPixel, rootPickId, dd, new vec3(0, -1, usequad ? 0 : 999), keys);
-      }
-      if (bd.left > 0)
-      {
-        UiQuad bt = _quads._b2BorderQuad.Clone();
-        if (!usequad)
-        {
-          bt._width = _quads._b2ContentQuad._left - _quads._b2BorderQuad._left;
-        }
-        var r2 = usequad ? new vec4(radius.x, 0, 0, radius.w) : radius;
-        BorderVert(bt, Style._props.BorderColorLeft, r2, all_verts, b2ClipRect, defaultPixel, rootPickId, dd, new vec3(-1, 0, usequad ? 0 : 999), keys);
-      }
-    }
-    private void BorderVert(UiQuad borderquad, vec4 bodfercolor, vec4 radius, SortedList<float, v_v4v4v4v2u2v4v4> all_verts,
-                          UiQuad b2ClipRect, MtTex defaultPixel, uint rootPickId, UiDebug dd, vec3 quadrant, SortKeys keys)
-    {
-      v_v4v4v4v2u2v4v4 vb = new v_v4v4v4v2u2v4v4();
-      vb._rtl_rtr = new vec4(radius.top, radius.right);
-      vb._rbr_rbl = new vec4(radius.bot, radius.left);
-      vb._quadrant = quadrant;
-      SetVertexRasterArea(ref vb, in borderquad, in b2ClipRect, dd);
-      ComputeVertexTexcoord(ref vb, defaultPixel, UiImageTiling.Expand, UiImageTiling.Expand, 0);
-      SetVertexPickAndColor(ref vb, new vec4(bodfercolor.xyz, bodfercolor.w * (float)Style._props.Opacity), rootPickId);
-      all_verts.Add(keys._bdkey, vb);
-    }
-    private void DebugVert(UiQuad quad, UiQuad clip, vec4 c, SortedList<float, v_v4v4v4v2u2v4v4> all_verts, SortKeys keys, UiDebug dd, MtTex defaultPixel, uint pick)
-    {
-      v_v4v4v4v2u2v4v4 dbgv = new v_v4v4v4v2u2v4v4();
-      SetVertexRasterArea(ref dbgv, in _quads._b2ContentQuad, in clip, dd);
-      dbgv._rtl_rtr = new vec4(0, 0, 0, 0);
-      dbgv._rbr_rbl = new vec4(0, 0, 0, 0);
-      dbgv._quadrant = new vec3(0, 0, 999);
-      ComputeVertexTexcoord(ref dbgv, defaultPixel, UiImageTiling.Expand, UiImageTiling.Expand, 0);
-      SetVertexPickAndColor(ref dbgv, c, pick);
-      all_verts.Add(keys._dbgkey, dbgv);
+      v_v4v4v4v2u2v4v4 vc = new v_v4v4v4v2u2v4v4();
+      SetVertexRasterArea(ref vc, quad, in clip, dd);
+      vc._rtl_rtr = new vec4(0, 0, 0, 0);
+      vc._rbr_rbl = new vec4(0, 0, 0, 0);
+      vc._border = new vec4(0, 0, 0, 0);
+      vc._border_color = new uvec4(0, 0, 0, 0);
+      vc._font_weight = new vec4(1, 0, 0, 0);
+      ComputeVertexTexcoord(ref vc, dd.DefaultPixel, UiImageTiling.Expand, UiImageTiling.Expand, 0);
+      vc._pick_color = new uvec2(pick, vec4ToUint(c));
+      dd.Verts.Add(keys._dbgkey, vc);
     }
     private void ComputeVertexTexcoord(ref v_v4v4v4v2u2v4v4 vc, MtTex pTex, UiImageTiling xtile, UiImageTiling ytile, float adjust)
     {
       Gu.Assert(pTex != null);
       ComputeTCoord(ref vc, pTex.uv0, pTex.uv1, pTex.GetWidth(), pTex.GetHeight(), pTex.GetSizeRatio(), xtile, ytile, Style._props.ImageScaleX, Style._props.ImageScaleY, adjust);
     }
-    private void ComputeVertexGlyphTCoord(ref v_v4v4v4v2u2v4v4 vc, MtCachedCharData? glyph, float adjust)
+    private void ComputeVertexGlyphTCoord(ref v_v4v4v4v2u2v4v4 vc, MtFontChar? glyph, float adjust)
     {
       Gu.Assert(glyph != null);
       ComputeTCoord(ref vc, glyph.uv0, glyph.uv1, glyph.patchTexture_Width, glyph.patchTexture_Height, 1, UiImageTiling.Expand, UiImageTiling.Expand, 1, 1, adjust);
@@ -2998,7 +3816,7 @@ namespace Loft
       vc._tex.z -= w1px;
       vc._tex.w -= h1px;
     }
-    private static void SetVertexRasterArea(ref v_v4v4v4v2u2v4v4 vc, in UiQuad rasterQuad, in UiQuad b2ClipRect, UiDebug dd)
+    private static void SetVertexRasterArea(ref v_v4v4v4v2u2v4v4 vc, in UiQuad rasterQuad, in UiQuad b2ClipRect, UiLayoutGlobals dd)
     {
       //BL = min TR = max
       vc._rect.x = rasterQuad.Min.x;
@@ -3023,288 +3841,65 @@ namespace Loft
         vc._clip.w = b2ClipRect.Max.y;
       }
     }
-    private static void SetVertexPickAndColor(ref v_v4v4v4v2u2v4v4 vc, vec4 color, uint rootPickId)
+
+    private static uint vec4ToUint(vec4 color)
     {
-      vc._pick_color = new uvec2(
-         //Since we can't discard fragments for the pick buffer, assume the pick id of the parent pick root
-         rootPickId,
-          ((uint)(color.x * 255.0f) << 24) |
-          ((uint)(color.y * 255.0f) << 16) |
-          ((uint)(color.z * 255.0f) << 8) |
-          ((uint)(color.w * 255.0f) << 0)
+      uint u = (
+        ((uint)(color.x * 255.0f) << 24) |
+        ((uint)(color.y * 255.0f) << 16) |
+        ((uint)(color.z * 255.0f) << 8) |
+        ((uint)(color.w * 255.0f) << 0)
       );
+      return u;
     }
-    private void UpdateGlyphSpans(MegaTex mt)
+    private void UpdateTexture(MegaTex mt)
     {
-      //create spans for glyph words
-
-      Gu.Assert(Style._props.FontFace != null);
-
-      //reset max glyph size
-      _quads.GlyphWH = new vec2(0, 0);
-
-      if (String.IsNullOrEmpty(_strText))
+      //set the correct MtTex if user changed texture id
+      var utex = Style._props.Texture;
+      if (utex != null && utex.Modified)
       {
-        _glyphChars = null;
-        _glyphs = null;
-        return;
-      }
-
-      //Get the font if it isn't already got.
-      MtFontLoader font = null;
-      if (_cachedFont == null || mt.GetFont(Style._props.FontFace) != _cachedFont)
-      {
-        font = mt.GetFont(Style._props.FontFace);
-      }
-      else
-      {
-        font = _cachedFont;
-      }
-      if (font == null)
-      {
-        Gu.Log.ErrorCycle("Font loader could not be found for " + Style._props.FontFace.QualifiedPath + " font possibly loaded with error", 500);
-        return;
-      }
-
-      float fontHeight = Style._props.FontSize;
-      var patch = font.SelectFontPatchInfo(Gu.Translator.LanguageCode, fontHeight);
-      if (patch == null)
-      {
-        return;
-      }
-
-      int g_wordID = 1;
-      int g_charID = 1;
-
-      var textWrap = Style._props.TextWrap;
-
-      //TODO: optimize, lineheight is literally the onlyt hing prevent this from being cached. doing it every label ..
-      //  var ch = _strText.Distinct().ToList();//this is interesting
-      _glyphs = new List<UiGlyph>();
-      _glyphChars = new Dictionary<int, UiGlyphChar>();
-      UiGlyph? wordstart = null;
-      int chlast = 0;
-      int ch = 0;
-      //redoing this whole boo
-      for (int ci = 0; ci < _strText.Length; ci++)
-      {
-        chlast = ch;
-        ch = _strText[ci];
-
-        UiGlyphChar? gg = null;
-        if (!_glyphChars.TryGetValue(ch, out gg))
+        utex.Modified = false;
+        if (utex.Loc != null)
         {
-          gg = new UiGlyphChar();
-
-          int chnext = (ci + 1) < _strText.Length ? _strText[ci + 1] : 0;
-
-          float sscl = 0;
-          if (!patch.GetChar(ch, fontHeight, out gg._cachedGlyph, out sscl))
+          var texfile = mt.GetResource(utex.Loc);
+          if (texfile != null && texfile.Texs != null)
           {
-            Gu.DebugBreak();//Unicode ch not found
-          }
-          float kern = font.GetKernAdvanceWidth(patch, ch, chnext);
-
-          //DoGlyph
-          //the question is line gap
-          //setting the line gap to be at the bottom does not center text correctly vertically in things like buttons
-          // dividing the line gap works for this
-          float gleft = gg._cachedGlyph.ch_left * sscl;
-          float gtop = gg._cachedGlyph.ch_top * sscl;
-          float gright = gg._cachedGlyph.ch_right * sscl;
-          float gbot = gg._cachedGlyph.ch_bot * sscl;
-          float gwidth = (gright - gleft) + kern;
-          float gheight = (gbot - gtop);
-
-          float lineheight = gg._cachedGlyph.font_lineHeight * gg._cachedGlyph.font_scale * sscl;
-          float gadvance = gg._cachedGlyph.ch_advance * gg._cachedGlyph.font_scale * sscl;
-          float gascent = gg._cachedGlyph.font_ascent * gg._cachedGlyph.font_scale * sscl * Style._props.LineHeight;
-          float gkern = kern * sscl;
-          float linegap = gg._finalLineHeight - gg._glyphQuad._top - gg._glyphQuad._height;
-
-          gg._finalLineHeight = lineheight * Style._props.LineHeight;
-          gg._glyphQuad._left = gleft;
-          gg._glyphQuad._top = gtop + gascent;
-          gg._glyphQuad._width = gwidth;
-          gg._glyphQuad._height = gheight;
-          gg._padding = new vec4( //top, right, bot, left
-            linegap / 2,
-            gadvance - gright,
-            linegap / 2,
-            0
-          );
-          gg._glyphQuad.ValidateQuad();
-
-          _glyphChars.Add(ch, gg);
-
-          ExpandGlyphWH(gg);
-        }
-
-        UiGlyph gc = new UiGlyph(gg);
-        gc._quads._b2LocalQuad = gg._glyphQuad.Clone();
-        gc._left_off = gc._quads._b2LocalQuad._left;
-        gc._top_off = gc._quads._b2LocalQuad._top;
-        gc._padding = gg._padding;
-        gc._char = ch;
-        gc._wordWidth = 0;
-        gc._wordHeight = 0;
-
-        bool chws = char.IsWhiteSpace((char)ch);
-        bool lastws = char.IsWhiteSpace((char)chlast);
-
-        if (textWrap == UiWrapMode.None)
-        {
-          gc._displayMode = UiDisplayMode.NoWrap;
-        }
-        else if (textWrap == UiWrapMode.Char)
-        {
-          gc._displayMode = UiDisplayMode.Inline;
-        }
-        else if (textWrap == UiWrapMode.Line)
-        {
-          if (ch == '\n')
-          {
-            gc._displayMode = UiDisplayMode.Block;
-          }
-          else
-          {
-            gc._displayMode = UiDisplayMode.NoWrap;
-          }
-        }
-        else if (textWrap == UiWrapMode.Word)
-        {
-          if (ch == '\n')
-          {
-            gc._displayMode = UiDisplayMode.Block;
-            wordstart = null;
-          }
-          else if (chws)
-          {
-            //keep ws inline / allow wrap
-            gc._displayMode = UiDisplayMode.Inline;
-            wordstart = null;
-          }
-          else if (!chws)
-          {
-            //continue word
-            if (wordstart == null)
+            if (texfile.Texs.Count > 1)
             {
-              g_charID = 1;
-              gc._wordID = g_wordID++;
-              gc._charID = g_charID++;
-              wordstart = gc;
-              gc._displayMode = UiDisplayMode.Word;
+              Gu.Log.Warn($"More than one texture found in file '{texfile.FileLoc.QualifiedPath}' when setting UiTexture.");
+              Gu.DebugBreak();
             }
-            else
-            {
-              gc._wordID = wordstart.WordID;
-              gc._charID = g_charID++;
-              gc._displayMode = UiDisplayMode.NoWrap;
-            }
+            utex.Image = texfile.Texs[0];
+          }
+          if (utex.Image == null)
+          {
+            //display pink solid
+            utex.Loc.LogNotFound();
+            Style.RenderMode = UiRenderMode.Color;
+            Style.Color = OffColor.Magenta;
+            Gu.DebugBreak();
           }
         }
-
-        if (wordstart != null)
+        else
         {
-          wordstart._wordWidth += gc._left_off + gc._quads._b2LocalQuad._width + gc._padding.left + gc._padding.right;
-          wordstart._wordHeight += gc._top_off + gc._quads._b2LocalQuad._height + gc._padding.top + gc._padding.bot;
+          Style.RenderMode = UiRenderMode.Color;
         }
-
-        _glyphs.Add(gc);
-      }
-
-    }
-    private void ExpandGlyphWH(UiGlyphChar glyph)
-    {
-      _quads.GlyphWH.x = Math.Max(_quads.GlyphWH.x, glyph._glyphQuad._width);
-      _quads.GlyphWH.y = Math.Max(_quads.GlyphWH.y, glyph._glyphQuad._height);
-    }
-    private void ShowOrHide(bool show)
-    {
-      if (_visible != show)
-      {
-        _visible = show;
       }
     }
 
     #endregion
+    #region Glyphs
+
+
+    #endregion
+
+    #endregion
 
   }//UiElement
-  public class UiStyleSheet
-  {
-    //stylesheet for css-like styling
-    private Dictionary<string, UiStyle> Styles = new Dictionary<string, UiStyle>();
-    private List<string> _errors = new List<string>();
-    public string Name { get; private set; } = Lib.UnsetName;
 
-    public UiStyleSheet(string name)
-    {
-      Name = name + "-ss";
-      LoadCSSFile();
-    }
-    public void Update()
-    {
-      if (_errors != null && _errors.Count > 0)
-      {
-        StringBuilder sb = new StringBuilder();
-        sb.AppendLine($"");
-        sb.AppendLine($"StyleSheet '{Name}', Context '{Gu.Context.Name}' has errors: ");
-        foreach (var e in _errors)
-        {
-          sb.AppendLine("-> " + e);
-        }
-        _errors.Clear();
-        Gu.Log.Error(sb.ToString());
-      }
-    }
-    private void LoadCSSFile()
-    {
-      //Compile a CSS file 
-    }
-    public void StyleError(string error)
-    {
-      this._errors.Add(error);
-    }
-    public void AddStyles(List<UiStyle> styles)
-    {
-      foreach (var s in styles)
-      {
-        AddStyle(s);
-      }
-    }
-    public void AddStyle(UiStyle s)
-    {
-      //Styles can
-      s.SetStyleSheet(this);
-      Gu.Assert(s.Name != null);
-      if (Styles.ContainsKey(s.Name))
-      {
-        Gu.Log.Error($"{this.Name} style {s.Name} was already added.");
-        Gu.DebugBreak();
-      }
-      else
-      {
-        Styles.Add(s.Name, s);
-      }
-    }
-    public bool RemoveStyle(UiStyle s)
-    {
-      var b = Styles.Remove(s.Name);
-      return b;
-    }
-    public UiStyle GetStyle(string s)
-    {
-      Styles.TryGetValue(s, out var x);
-      return x;
-    }
-  }
-  // public class GVertMap
-  // {
-  //   //TODO: - expanding buffer so we dont recreate 1000s verts every frame
-  //   public Dictionary<long, v_v4v4v4v2u2v4v4> _gverts = new Dictionary<long, v_v4v4v4v2u2v4v4>();
-  //   MtTex _defaultPixel;
-  //   Box2f _clipRect;
-  // }
+  #endregion
+  #region Gui2D
+
   public class Gui2d : UiElement
   {
     //@class Gui2d
@@ -3322,14 +3917,17 @@ namespace Loft
     public static string Paragraph(string s) { return $"<p>{s}</p>"; }
 
     public RenderView RenderView { get; private set; }
-    public UiDebug DebugDraw { get; set; } = new UiDebug();
+    public UiLayoutGlobals Globals { get; set; }
     public MeshData Mesh { get; set; } = null;
     public MeshView MeshView { get; set; } = null;
     public long _dbg_UpdateMs { get; private set; } = 0;
     public long _dbg_MeshMs { get; private set; } = 0;
     public long _dbg_EventsMs { get; private set; } = 0;
-
     public UiStyleSheet StyleSheet { get; set; } = null;
+    public List<UiWindow> Windows { get { return _windows; } private set { _windows = value; } }
+    public vec2 Scale { get; set; } = new vec2(1, 1);
+    public List<string> NameTraps { get; } = new List<string>();
+    public UiGlyphCache _glyphCache = new UiGlyphCache();
 
     #endregion
     #region Private:Members
@@ -3341,19 +3939,19 @@ namespace Loft
     private Dictionary<uint, UiElement> _pickable = new Dictionary<uint, UiElement>();
     private bool _async = false;
     private Dictionary<UiElement, Dictionary<UiPropName, IUiPropAnimation>>? _animations = null;
-    private int _async_framestamp = 0;
-    private SortedList<float, v_v4v4v4v2u2v4v4> _async_verts = new SortedList<float, v_v4v4v4v2u2v4v4>(new FloatSort());
-    private List<UiElement> _elementsWithChangedContent = new List<UiElement>();
+    private List<UiWindow> _windows = new List<UiWindow>();
+    private WeakReference<UiElement>? _keyboardFocus = null;
 
     #endregion
     #region Public: Methods
 
-    public Gui2d(Gui2dShared shared, RenderView cam)
+    public Gui2d(Gui2dShared shared, RenderView rv)
     {
       StyleSheet = new UiStyleSheet("ui-default");
       _shared = shared;
-      RenderView = cam;
+      RenderView = rv;
       Name = "screen(root)";
+      Globals = new UiLayoutGlobals(this, _shared.MegaTex, StyleSheet, _glyphCache);
 
       //TODO:
       // _propAnimationTimer = new DeltaTimer(c_iPropAnimationTime, true, ActionState.Run, )
@@ -3365,6 +3963,13 @@ namespace Loft
     public void Update(double dt)
     {
       UpdatePropAnimations(dt);
+
+      if (Gu.Context.PCKeyboard.Press(Keys.M))
+      {
+        Globals.GlyphCache._round = !Globals.GlyphCache._round;
+        Gu.Log.Info($"Glyph rond = {Globals.GlyphCache._round}");
+        Globals.ForceText = true;
+      }
 
       //queue update if processed events.
       if (_state == UiAsyncUpdateState.CanUpdate)
@@ -3378,7 +3983,7 @@ namespace Loft
             long a = Gu.Milliseconds();
             StyleSheet?.Update();
             SetExtentsToViewport(RenderView);
-            UpdateLayout_Async(_shared.MegaTex, Gu.Context.PCMouse, RenderView, ref pickable);
+            UpdateLayout_Async(Gu.Context.PCMouse, RenderView, ref pickable);
             this._dbg_UpdateMs = Gu.Milliseconds() - a;
           }
           Gu.Context.Gpu.Post_To_RenderThread(Gu.Context, x =>
@@ -3387,7 +3992,7 @@ namespace Loft
             {
               _pickable = pickable;
             }
-            foreach (var ele in _elementsWithChangedContent)
+            foreach (var ele in Globals.Changed)
             {
               ele.OnContentChanged();
             }
@@ -3471,7 +4076,42 @@ namespace Loft
 
       //overwrite with new, not allowing multiple animations on a prop.
       plist[p.Prop] = p;
-
+    }
+    public void SetKeyboardFocus(UiElement? newfocus)
+    {
+      if (_keyboardFocus != null)
+      {
+        if (_keyboardFocus.TryGetTarget(out var foc))
+        {
+          Gu.Context.PCKeyboard.RemoveListener(foc);
+          foc.OnLostKeyboardFocus();
+        }
+        _keyboardFocus = null;
+      }
+      if (newfocus != null)
+      {
+        Gu.Context.PCKeyboard.AddListener(newfocus);
+        newfocus.OnGotKeyboardFocus();
+        _keyboardFocus = new WeakReference<UiElement>(newfocus);
+      }
+    }
+    public void ResetWindowLayout()
+    {
+      foreach (var w in _windows)
+      {
+        w.SetDefaultPosition();
+      }
+    }
+    public void NameTrap(UiElement e)
+    {
+      //called in scripts to trap an element by name
+      foreach (var name in NameTraps)
+      {
+        if (e.Name.ToLower().Contains(name.ToLower()))
+        {
+          Gu.Trap();
+        }
+      }
     }
 
     #endregion
@@ -3507,25 +4147,27 @@ namespace Loft
         }
       }
     }
-    private void UpdateLayout_Async(MegaTex mt, PCMouse mouse, RenderView rv, ref Dictionary<uint, UiElement>? pickable)
+    private void UpdateLayout_Async(PCMouse mouse, RenderView rv, ref Dictionary<uint, UiElement>? pickable)
     {
       //pass 1 compute minimum sizes for children,  child relative positions, relative clip quads
       //pass 2 compute absolute positions elements, compute absolute quads.
       //for now - the layout changed thing does not work, partially due to async, (but the async is actually faster than that anyway).
 
-      _async_verts.Clear();
-      _elementsWithChangedContent.Clear();
+      Globals.Verts.Clear();
+      Globals.Force = true;
+      Globals.Changed.Clear();
+      Globals.Scale = Scale;
+      Globals.Framestamp++;
 
-      bool force = true;
-      _async_framestamp++;
-      ComputeQuads(DebugDraw);
-      PerformLayout_SizeElements(mt, force, new vec2(MaxWidthE(), MaxHeightE()), null, StyleSheet, _async_framestamp, DebugDraw, new List<UiElement>());
-      PerformLayout_PositionElements(force, DebugDraw, _async_verts, this._quads._b2ClipQuad, mt.DefaultPixel, _iPickId, ref pickable, 1, _elementsWithChangedContent);
+      var rootsiz = new UiSize2(Style._props.FixedWidth, Style._props.FixedHeight);
+      PerformLayout_SizeElements(rootsiz, null, Globals, false);
+      PerformLayout_PositionElements(Globals, null, _iPickId, ref pickable, 1);
+      Globals.ForceText = false;
     }
     private void SendMeshToGpu_Sync(RenderView rv)
     {
       //RegenMesh
-      var vts = _async_verts.Values.ToArray();
+      var vts = Globals.Verts.Values.ToArray();
 
       if (Mesh == null)
       {
@@ -3539,16 +4181,16 @@ namespace Loft
         Gu.Assert(Mesh.VertexBuffers.Count == 1);
 
         var dat = GpuDataPtr.GetGpuDataPtr(vts);
-        Mesh.VertexBuffers[0].ExpandBuffer(_async_verts.Count);
+        Mesh.VertexBuffers[0].ExpandBuffer(Globals.Verts.Count);
         Mesh.VertexBuffers[0].CopyToGPU(dat);
       }
       if (MeshView == null)
       {
-        MeshView = new MeshView(Mesh, 0, _async_verts.Count);
+        MeshView = new MeshView(Mesh, 0, Globals.Verts.Count);
       }
       else
       {
-        MeshView.SetLimits(0, _async_verts.Count);
+        MeshView.SetLimits(0, Globals.Verts.Count);
       }
     }
     int _viewx = 0;
@@ -3557,6 +4199,7 @@ namespace Loft
     int _viewh = 0;
     private void SetExtentsToViewport(RenderView rv)
     {
+      //Set props if we changed, but always set the layout quad
       if (
         rv.Viewport.X != _viewx ||
         rv.Viewport.Y != _viewy ||
@@ -3579,16 +4222,15 @@ namespace Loft
         Style.FixedHeight = rv.Viewport.Height;
         Style.SizeModeWidth = UiSizeMode.Fixed;
         Style.SizeModeHeight = UiSizeMode.Fixed;
-        Style.PositionMode = UiPositionMode.Absolute;
-
-        _quads._b2ContentQuad._left = _quads._b2LocalQuad._left = rv.Viewport.X;
-        _quads._b2ContentQuad._top = _quads._b2LocalQuad._top = rv.Viewport.Y;
-        _quads._b2ContentQuad._width = _quads._b2LocalQuad._width = rv.Viewport.Width;
-        _quads._b2ContentQuad._height = _quads._b2LocalQuad._height = rv.Viewport.Height;
-        _quads._b2ClipQuad = _quads._b2ContentQuad.Clone();
-        _quads._b2LocalQuad = _quads._b2ContentQuad.Clone();
-        _quads._b2BorderQuad = _quads._b2ContentQuad.Clone();
+        Style.PositionModeX = UiPositionMode.Absolute;
+        Style.PositionModeY = UiPositionMode.Absolute;
       }
+
+      //Alwyas set layout quad.
+      _block._b2LayoutQuad._left = rv.Viewport.X;
+      _block._b2LayoutQuad._top = rv.Viewport.Y;
+      _block._b2LayoutQuad._width = rv.Viewport.Width;
+      _block._b2LayoutQuad._height = rv.Viewport.Height;
     }
 
     #endregion
@@ -3606,7 +4248,7 @@ namespace Loft
     {
       Name = name;
       //DO NOT USE MIPMAPS
-      MegaTex = new MegaTex("gui_megatex", true, MegaTex.MtClearColor.DebugRainbow, false, TexFilter.Linear, 0);//nearest
+      MegaTex = new MegaTex("gui_megatex", true, MegaTex.GetSystemDefaultClearColor(), false, TexFilter.Linear, 0);//nearest
       MegaTex.AddResources(resources);
       var tx = MegaTex.Compile();
 
@@ -3641,8 +4283,16 @@ namespace Loft
     {
       return new Dictionary<ulong, Gui2dShared>();
     }
-    public Gui2dShared GetOrCreateGui2d(string name, List<FileLoc> resources)
+    public Gui2dShared GetOrCreateGui2dShared(string name, List<FileLoc> resources)
     {
+      if (!resources.Contains(FontFace.RobotoMono))
+      {
+        //Must add default font or else we can't render glyphs.
+        resources.Add(FontFace.RobotoMono);
+      }
+
+      //if resources change we need a different mega texture so that is why we hash the resources
+
       var qualifiedPaths = resources.ConvertAll((x) => { return x.QualifiedPath; });
       var hash = Hash.HashStringArray(qualifiedPaths);
 
@@ -3657,5 +4307,6 @@ namespace Loft
     }
   }//Gui2dManager
 
+  #endregion
 
 }//Namespace Pri

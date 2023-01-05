@@ -17,8 +17,8 @@ namespace Loft
     public double FrameDelta { get { return ContextFrameTimer.Delta; } }
     public Gpu Gpu { get; private set; } = null;
     public AppWindowBase GameWindow { get; set; } = null;
-    public PCKeyboard PCKeyboard = new PCKeyboard();
-    public PCMouse PCMouse = new PCMouse();
+    public PCKeyboard PCKeyboard { get; private set; }
+    public PCMouse PCMouse { get; private set; }
     public FrameDataTimer ContextFrameTimer = new FrameDataTimer();
     public Renderer Renderer { get; private set; } = null;
     public WindowContext? SharedContext { get; private set; } = null;
@@ -34,6 +34,8 @@ namespace Loft
       Gpu = new Gpu();
       Renderer = new Renderer();
       Renderer.init(GameWindow.Width, GameWindow.Height, null);
+      PCKeyboard = new PCKeyboard();
+      PCMouse = new PCMouse();
     }
     public void Update()
     {

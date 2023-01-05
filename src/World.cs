@@ -1426,15 +1426,21 @@ namespace Loft
       }
 
       _worldScript?.OnUpdate(this, dt);
+      Gu.Prof("script");
 
       Gu.Lib.Update(dt);
+      Gu.Prof("lib");
 
       UpdateRootObjects(dt);
+      Gu.Prof("objs");
       CheckSaveWorld(dt);
+      Gu.Prof("save");
 
       TopologizeGlobs();
+      Gu.Prof("topo");
 
       _worldProps.DayNightCycle.Update(dt);
+      Gu.Prof("dns");
     }
     public void UpdateWorldEditor(double dt)
     {
@@ -1506,19 +1512,26 @@ namespace Loft
         _visibleStuff = _visibleStuff.ConstructIfNeeded();
         _visibleStuff.Clear(rv);
         _worldProps.Reset();
+        Gu.Prof("cullstart");
 
         rv.Camera.SanitizeTransform();
         BuildGrid(rv.Camera.Position_World, Info.GenerateDistance);
+        Gu.Prof("grid");
         CollectVisibleGlobs(rv, rv.Camera);
+        Gu.Prof("globs");
         CollectVisibleObjects(rv, rv.Camera);
+        Gu.Prof("obs");
         Editor.CollectVisibleObjects(rv);
+        Gu.Prof("editor");
 
         //Must come after editor it modifies this
         rv.Overlay.BuildDebugDrawMeshes(_visibleStuff);
+        Gu.Prof("meshes");
       }
       if (rv.ViewMode != RenderViewMode.WorldOnly && rv.Gui != null)
       {
         _visibleStuff.AddObject(rv, rv.Gui.GetDrawable());
+        Gu.Prof("gui");
       }
     }
     private void TopologizeGlobs()
@@ -1944,19 +1957,24 @@ namespace Loft
       Box3f dummy = Box3f.Zero;
       dummy.genResetLimits();
       List<WorldObject> toRemove = new List<WorldObject>();
+            Gu.Prof("stobjs");
+      
       IterateRootObjectsSafe((ob) =>
       {
         if (ob.State != WorldObjectState.Removed)
         {
           if (ob.Visible)
           {
+            Gu.Prof("objst");
             //We could drop physics here if we wanted to
             ob.Update(dt, ref dummy);
+            Gu.Prof($"objupd {ob.Name}");
 
             //This could be a component
             if (ob.HasPhysics)
             {
               UpdateObjectPhysics(ob, (float)dt);
+            Gu.Prof("objphy");
             }
           }
         }
@@ -1971,6 +1989,7 @@ namespace Loft
         RemoveObjectInternal(x);
       }
       toRemove.Clear();
+            Gu.Prof("endojbs");
 
     }
     private void UpdateObjectPhysics(WorldObject ob, float dt)
@@ -2457,7 +2476,7 @@ namespace Loft
       _blockTiles.Add(code, bt);
       return bt;
     }
-    private void CreateMaterials() 
+    private void CreateMaterials()
     {
       var maps = CreateAtlas();
       _worldMaterial_Op = new Material("worldMaterial_Op", maps.Albedo, maps.Normal);
@@ -2492,7 +2511,7 @@ namespace Loft
     {
       //Create the atlas.
       //Must be called after context is set.
-      _worldMegatex = new MegaTex("world-megatex", true, MegaTex.MtClearColor.DebugRainbow, true, TexFilter.Nearest, 0.45f);
+      _worldMegatex = new MegaTex("world-megatex", true, MegaTex.GetSystemDefaultClearColor(), true, TexFilter.Nearest, 0.45f);
 
       foreach (var resource in WorldStaticData.TileImages)
       {

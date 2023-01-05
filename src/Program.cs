@@ -36,6 +36,9 @@ namespace Loft
         }
         System.Environment.Exit(0);
       }
+      finally{
+        Gu.Trap();
+      }
     }
   }
 }

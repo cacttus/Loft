@@ -11,12 +11,12 @@ namespace Loft
     private int _logLine = 0;
     private object _lock = new object();
     private string _fileLoc = "";
-    private const string Red = "\033[1;31m";
-    private const string Green = "\033[1;32m";
-    private const string Yellow = "\033[1;33m";
-    private const string Magenta = "\033[1;35m";
-    private const string Cyan = "\033[1;36m";
-    private const string White = "\033[1;37m";
+    public const string Red = "\033[1;31m";
+    public const string Green = "\033[1;32m";
+    public const string Yellow = "\033[1;33m";
+    public const string Magenta = "\033[1;35m";
+    public const string Cyan = "\033[1;36m";
+    public const string White = "\033[1;37m";
 
     public bool WriteConsole { get; set; } = true;
     public bool WriteFile { get; set; } = true;
@@ -144,18 +144,20 @@ namespace Loft
 
       return stackTrace;
     }
+    private bool CheckCycle(int frames)
+    {
+      return Gu.Context.FrameStamp < 60 || ((int)Gu.Context.FrameStamp % frames) == 0;
+    }
     public void ErrorCycle(string s, int frames = 120)
     {
-      int md = (int)Gu.Context.FrameStamp % frames;
-      if (md == 0)
+      if (CheckCycle(frames))
       {
         Error(s);
       }
     }
     public void WarnCycle(string s, int frames = 60)
     {
-      int md = (int)Gu.Context.FrameStamp % frames;
-      if (Gu.Context.FrameStamp < 10 || md == 0) //<10 lets us see errors in the first 10 frames
+      if (CheckCycle(frames)) //<10 lets us see errors in the first 10 frames
       {
         Warn(s);
       }

@@ -7,15 +7,6 @@ using System.Runtime.Serialization;
 
 namespace Loft
 {
-  [StructLayout(LayoutKind.Sequential)]
-  public struct GpuFaceData
-  {
-    public GpuFaceData() { }
-    public vec3 _normal = vec3.Zero;
-    public uint _index = 0;
-    public vec3 _tangent = vec3.Zero;
-    public float pad1 = 0;
-  }
   public enum DrawOrder
   {
     First = 0,//The dictionary iterates lower to higher.
@@ -421,7 +412,7 @@ namespace Loft
       var vao = new VertexArrayObject(this.Name + "-VAO");
       vao.Bind();
 
-      GPUDataFormat fmtLast = null;
+      GpuDataFormat fmtLast = null;
 
       foreach (var vb in _vertexBuffers)
       {

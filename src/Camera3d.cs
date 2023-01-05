@@ -391,14 +391,16 @@ namespace Loft
     }
     public Viewport Viewport { get { return _viewport; } set { _viewport = value; } }
     public Gui2d? Gui { get { return _gui; } set { _gui = value; } }
-    public UiTextBox? WorldDebugInfo { get { return _worldDebugInfo; } set { _worldDebugInfo = value; } }
-    public UiTextBox? GpuDebugInfo { get { return _gpuDebugInfo; } set { _gpuDebugInfo = value; } }
-    public UiTextBox? ControlsInfo { get { return _controlsInfo; } set { _controlsInfo = value; } }
+    public UiScrollRegion? WorldInfo { get { return _worldDebugInfo; } set { _worldDebugInfo = value; } }
+    public UiScrollRegion? GpuInfo { get { return _gpuDebugInfo; } set { _gpuDebugInfo = value; } }
+    public UiScrollRegion? ControlsInfo { get { return _controlsInfo; } set { _controlsInfo = value; } }
+    public UiWindow? ProfInfo { get { return _profInfo; } set { _profInfo = value; } }
     public ViewportOverlay Overlay { get { return _overlay; } }
     public UiToast? Toast { get { return _toast; } set { _toast = value; } }
     public ViewInputMode ViewInputMode { get { return _viewInputMode; } set { _viewInputMode = value; } }
     public RenderViewMode ViewMode { get { return _viewMode; } }
 
+//Testing this stuff
     private GPUBuffer _camBuf = null;
     public GPUBuffer GpuCamera
     {
@@ -408,7 +410,7 @@ namespace Loft
       }
     }
 
-    [DataMember] public Camera3D _camera;//camera that takes up entire viewport.
+    [DataMember] private Camera3D _camera;//camera that takes up entire viewport.
     [DataMember] private int _id = 0;
     [DataMember] private string _name = "";
     [DataMember] private bool _enabled = true;
@@ -420,9 +422,10 @@ namespace Loft
     [DataMember] private ViewInputMode _viewInputMode = ViewInputMode.Edit;
     [DataMember] private ViewportOverlay _overlay;
     [DataMember] private Gui2d? _gui = null;
-    [DataMember] private UiTextBox? _worldDebugInfo = null;
-    [DataMember] private UiTextBox? _gpuDebugInfo = null;
-    [DataMember] private UiTextBox? _controlsInfo = null;
+    [DataMember] private UiScrollRegion? _worldDebugInfo = null;
+    [DataMember] private UiScrollRegion? _gpuDebugInfo = null;
+    [DataMember] private UiScrollRegion? _controlsInfo = null;
+    [DataMember] private UiWindow? _profInfo = null;
     [DataMember] private UiToast? _toast = null;
     private mat4? _customProj = null;
 

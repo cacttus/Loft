@@ -7,32 +7,30 @@ namespace Loft{
     //
     //                  + Midngiht
 
-    private double DayLengthSeconds = 60;//60;// 60.0f * 5.0f;
-    private double NightLengthSeconds = 60;//60;//60.0f * 5.0f;
-
-    public double StarOrCloud_Blend { get; private set; } = 0; //1 = day,  -1 = night
-
-    public double DayTime_Seconds { get; private set; } = 0;// Time in seconds
-    public double DayLength_Seconds { get { return DayLengthSeconds + NightLengthSeconds; } }
-    public dvec3 MoonDir { get; private set; } = new dvec3(0, 0, 1);//Direction of moon towards earth or inverse of sun
-    public dvec3 ActiveLightDir { get; private set; } = new dvec3(0, 0, 1);//Depending on whether it is night, or not this is the direction of sun / moon towards earth
+    private float DayLengthSeconds = 60;//60;// 60.0f * 5.0f;
+    private float NightLengthSeconds = 60;//60;//60.0f * 5.0f;
+    public float StarOrCloud_Blend { get; private set; } = 0; //1 = day,  -1 = night
+    public float DayTime_Seconds { get; private set; } = 0;// Time in seconds
+    public float DayLength_Seconds { get { return DayLengthSeconds + NightLengthSeconds; } }
+    public vec3 MoonDir { get; private set; } = new vec3(0, 0, 1);//Direction of moon towards earth or inverse of sun
+    public vec3 ActiveLightDir { get; private set; } = new vec3(0, 0, 1);//Depending on whether it is night, or not this is the direction of sun / moon towards earth
     public const float SkyRadius = 400.0f;
 
     public float DayQuad0 { get; private set; } = 0;
     public float DayQuad1 { get; private set; } = 1;
 
-    public dvec3 SkyColor;
-    public dvec3 LightColor;
+    public vec3 SkyColor;
+    public vec3 LightColor;
     //https://yorktown.cbe.wwu.edu/sandvig/shared/NetColors.aspx
-    private dvec3 Sky_NoonColor = new dvec3(vec4.FromHex("#FAFAD200").xyz);//Goldenrod
-    private dvec3 Sky_DuskColor = new dvec3(vec4.FromHex("#FF450000").xyz);//Gold FFD70000
-    private dvec3 Sky_DawnColor = new dvec3(vec4.FromHex("#FF450000").xyz);//Gold
-    private dvec3 Sky_MidnightColor = new dvec3(vec4.FromHex("#16163000").xyz);//Midnightblue
+    private vec3 Sky_NoonColor = OffColor.Goldenrod.xyz;// new vec3(vec4.FromHex("#FAFAD200").xyz);//Goldenrod
+    private vec3 Sky_DuskColor = OffColor.Gold.rgb;// new vec3(vec4.FromHex("#FF450000").xyz);//Gold FFD70000
+    private vec3 Sky_DawnColor = OffColor.Gold.rgb;// new vec3(vec4.FromHex("#FF450000").xyz);//Gold
+    private vec3 Sky_MidnightColor = OffColor.MidnightBlue.rgb;// new vec3(vec4.FromHex("#16163000").xyz);//Midnightblue
 
-    private dvec3 Light_NoonColor = new dvec3(vec4.FromHex("#FAFAD200").xyz);//light goldenrod
-    private dvec3 Light_MidnightColor = new dvec3(vec4.FromHex("#E6E6FA00").xyz); //a very faint lavender blue
-    private dvec3 Light_DuskColor { get { return (Light_NoonColor + Light_MidnightColor) * 0.5; } }//Gold FFD70000
-    private dvec3 Light_DawnColor { get { return Light_DuskColor; } }//orangered
+    private vec3 Light_NoonColor = OffColor.LightGoldenrodYellow.rgb;//light goldenrod
+    private vec3 Light_MidnightColor =  vec4.FromHex("#E6E6FA00").rgb; //a very faint lavender blue
+    private vec3 Light_DuskColor { get { return (Light_NoonColor + Light_MidnightColor) * 0.5f; } }//Gold FFD70000
+    private vec3 Light_DawnColor { get { return Light_DuskColor; } }//orangered
 
     public bool IsDay
     {
@@ -42,29 +40,29 @@ namespace Loft{
       }
     }
 
-    public void Update(double dt)
+    public void Update(double dtt)
     {
+      float dt = (float)dtt;
       DayTime_Seconds = (DayTime_Seconds + dt) % DayLength_Seconds;
 
-      double time01 = DayTime_Seconds / DayLength_Seconds;
-      MoonDir = new dvec3(Math.Cos(time01 * MathUtils.M_2PI), Math.Sin(time01 * MathUtils.M_2PI), 0);
+      float time01 = DayTime_Seconds / DayLength_Seconds;
+      MoonDir = new vec3((float)Math.Cos(time01 * MathUtils.M_2PI), (float)Math.Sin(time01 * MathUtils.M_2PI), 0);
 
       ActiveLightDir = IsDay ? (MoonDir) : MoonDir * -1.0f;
 
-      double d2 = DayLengthSeconds * 0.5;
-      double n2 = NightLengthSeconds * 0.5;
+      float d2 = DayLengthSeconds * 0.5f;
+      float n2 = NightLengthSeconds * 0.5f;
+      float a = 0;
+      float b = d2;
+      float c = d2 + d2;
+      float d = d2 + d2 + n2;
+      float e = d2 + d2 + n2 + n2;
 
-      double a = 0;
-      double b = d2;
-      double c = d2 + d2;
-      double d = d2 + d2 + n2;
-      double e = d2 + d2 + n2 + n2;
+      vec3 c_sky_a = vec3.Zero, c_sky_b = vec3.Zero;
+      vec3 c_light_a = vec3.Zero, c_light_b = vec3.Zero;
+      float t = 0;
 
-      dvec3 c_sky_a = dvec3.Zero, c_sky_b = dvec3.Zero;
-      dvec3 c_light_a = dvec3.Zero, c_light_b = dvec3.Zero;
-      double t = 0;
-
-      double dawndusk_duration_power = 4;
+      float dawndusk_duration_power = 4;
 
       if (DayTime_Seconds >= a && DayTime_Seconds < b)
       {
@@ -73,7 +71,7 @@ namespace Loft{
         c_light_a = Light_DawnColor;
         c_light_b = Light_NoonColor;
         t = (DayTime_Seconds - a) / (b - a);
-        t = 1 - (Math.Pow(1 - t, dawndusk_duration_power));
+        t = 1 - (float)(Math.Pow(1 - t, dawndusk_duration_power));
         DayQuad0 = 0;
         DayQuad1 = 1;
       }
@@ -84,7 +82,7 @@ namespace Loft{
         c_light_a = Light_NoonColor;
         c_light_b = Light_DuskColor;
         t = (DayTime_Seconds - b) / (c - b);
-        t = (Math.Pow(t, dawndusk_duration_power));
+        t = (float)(Math.Pow(t, dawndusk_duration_power));
         DayQuad0 = 1;
         DayQuad1 = 0;
       }
@@ -95,7 +93,7 @@ namespace Loft{
         c_light_a = Light_DuskColor;
         c_light_b = Light_MidnightColor;
         t = (DayTime_Seconds - c) / (d - c);
-        t = 1 - (Math.Pow(1 - t, dawndusk_duration_power));
+        t = 1 - (float)(Math.Pow(1 - t, dawndusk_duration_power));
         DayQuad0 = 0;
         DayQuad1 = 1;
       }
@@ -106,25 +104,25 @@ namespace Loft{
         c_light_a = Light_MidnightColor;
         c_light_b = Light_DawnColor;
         t = (DayTime_Seconds - d) / (e - d);
-        t = (Math.Pow(t, dawndusk_duration_power));
+        t = (float)(Math.Pow(t, dawndusk_duration_power));
         DayQuad0 = 1;
         DayQuad1 = 0;
       }
 
-      SkyColor = dvec3.CosineInterpolate(c_sky_a, c_sky_b, t);
-      LightColor = dvec3.CosineInterpolate(c_light_a, c_light_a, t);
+      SkyColor = vec3.CosineInterpolate(c_sky_a, c_sky_b, t);
+      LightColor = vec3.CosineInterpolate(c_light_a, c_light_a, t);
 
       //0 star 1 cloud
-      double daynight_tex_blendspd = 4;
-      double dot = MoonDir.dot(new dvec3(0, 1, 0));
-      dot = Math.Pow(Math.Abs(dot), daynight_tex_blendspd) * Math.Sign(dot);
+      float daynight_tex_blendspd = 4;
+      float dot = MoonDir.dot(new vec3(0, 1, 0));
+      dot = (float)Math.Pow(Math.Abs(dot), daynight_tex_blendspd) *(float) Math.Sign(dot);
       if (dot < 0)
       {
-        StarOrCloud_Blend = MathUtils.Ease(0, -1, dot) * 0.5 + 0.5;
+        StarOrCloud_Blend = (float)MathUtils.Ease(0, -1, dot) * 0.5f + 0.5f;
       }
       else
       {
-        StarOrCloud_Blend = MathUtils.Ease(0, 1, dot) * 0.5 + 0.5;
+        StarOrCloud_Blend = (float)MathUtils.Ease(0, 1, dot) * 0.5f + 0.5f;
       }
     }
   }

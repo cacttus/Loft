@@ -792,7 +792,7 @@ namespace Loft
       if (_currentClip != null && _currentKeys != null)
       {
         _currentClip.Update(dt, _currentKeys.MaxTime);
-        _local = _local *_currentKeys.Animate(_currentClip.Time) ;
+        _local = _local *_currentKeys.Animate((float)_currentClip.Time) ;
         if (_currentClip.State == ActionState.Stop)
         {
           _currentClip = null;

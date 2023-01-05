@@ -65,7 +65,7 @@ namespace Loft
     [DataMember] public string _name = Lib.UnsetName;
   }
   [DataContract]
-  public class GPUDataFormat : NamedObject
+  public class GpuDataFormat : NamedObject
   {
     //Specifies access information for interleaved data (such as vertexes), and other buffer data for the GPU.
     //@note I figure we should serialize this and count it as scene data considering saved mesh data would require 
@@ -73,7 +73,7 @@ namespace Loft
 
     #region Private: Members
 
-    private static Dictionary<Type, GPUDataFormat> _formats = new Dictionary<Type, GPUDataFormat>();
+    private static Dictionary<Type, GpuDataFormat> _formats = new Dictionary<Type, GpuDataFormat>();
 
     #endregion
     #region Public: Members
@@ -92,16 +92,16 @@ namespace Loft
     #endregion
     #region Public: Static Methods
 
-    public static GPUDataFormat GetDataFormat<T>()
+    public static GpuDataFormat GetDataFormat<T>()
     {
       return GetDataFormat(typeof(T));
     }
-    public static GPUDataFormat GetDataFormat(Type ty)
+    public static GpuDataFormat GetDataFormat(Type ty)
     {
-      GPUDataFormat? ret = null;
+      GpuDataFormat? ret = null;
       if (!_formats.TryGetValue(ty, out ret))
       {
-        ret = new GPUDataFormat(ty);
+        ret = new GpuDataFormat(ty);
         _formats.Add(ty, ret);
       }
       return ret;
@@ -110,7 +110,7 @@ namespace Loft
     #endregion
     #region Public: Methods
 
-    public GPUDataFormat(Type dataType) : base(dataType.Name)
+    public GpuDataFormat(Type dataType) : base(dataType.Name)
     {
       Gu.Assert(dataType.IsValueType);
       Gu.Assert(!dataType.IsGenericType);
@@ -160,7 +160,7 @@ namespace Loft
       }
       return -1;
     }
-    public void BindVertexAttribs(GPUDataFormat previousFormat)
+    public void BindVertexAttribs(GpuDataFormat previousFormat)
     {
       //Previous format is if we are binding multiple vertex buffers to the vao / shader, we use the last location of the attrib from that buffer
       int previousFormatMaxAttribLocation = 0;
@@ -425,7 +425,7 @@ namespace Loft
     #endregion
     #region Public: Members
 
-    public GPUDataFormat Format { get; private set; } = null;
+    public GpuDataFormat Format { get; private set; } = null;
     public object Verts { get; private set; } = null;
     public int Length { get; private set; } = 0;
 
@@ -444,18 +444,18 @@ namespace Loft
         Gu.BRThrowException("Element type of input vertex array was not a struct (value type).");
       }
       Verts = verts;
-      Format = GPUDataFormat.GetDataFormat(t.GetElementType());
+      Format = GpuDataFormat.GetDataFormat(t.GetElementType());
       Length = (verts as Array).Length;
     }
     public VertexPointer(GPUBuffer b) : this(b.CopyFromGPU(), b.Format)
     {
       FromGpuDataPtr(b.CopyFromGPU(), b.Format);
     }
-    public VertexPointer(GpuDataPtr verts, GPUDataFormat format)
+    public VertexPointer(GpuDataPtr verts, GpuDataFormat format)
     {
       FromGpuDataPtr(verts, format);
     }
-    private void FromGpuDataPtr(GpuDataPtr verts, GPUDataFormat format)
+    private void FromGpuDataPtr(GpuDataPtr verts, GpuDataFormat format)
     {
       Gu.Assert(verts != null);
       Gu.Assert(format != null);
@@ -574,53 +574,5 @@ namespace Loft
     #endregion
   }
 
-  #region Vertex Formats
-
-  //note we removed std430 padding .. this is erroneous.. we need to fix it
-  [DataContract]
-  [StructLayout(LayoutKind.Sequential)]
-  public struct v_v3n3x2t3u1
-  {
-    //Default object vertex
-    [DataMember] public vec3 _v;
-    [DataMember] public vec3 _n;
-    [DataMember] public vec2 _x;
-    [DataMember] public vec3 _t;
-    [DataMember] public uint _u;//Face ID, note this is convenient just because we had a pad value.
-  }
-  [DataContract]
-  [StructLayout(LayoutKind.Sequential)]
-  public struct v_debug_draw
-  {
-    //debug vertex
-    [DataMember] public vec3 _v;
-    [DataMember] public vec4 _c;
-    [DataMember] public vec2 _size;
-    [DataMember] public vec3 _outl;//outline color
-  }
-  [StructLayout(LayoutKind.Sequential)]
-  public struct v_v4v4v4v2u2v4v4
-  {
-    //v_GuiVert
-    //26 float = 96B
-    [DataMember] public vec4 _rect;
-    [DataMember] public vec4 _clip;
-    [DataMember] public vec4 _tex;
-    [DataMember] public vec2 _texsiz;
-    [DataMember] public uvec2 _pick_color;
-    [DataMember] public vec4 _rtl_rtr; //css corners = tl, tr, br, bl = xyzw
-    [DataMember] public vec4 _rbr_rbl;
-    [DataMember] public vec3 _quadrant;
-    [DataMember] public float _pad;
-  };
-  [StructLayout(LayoutKind.Sequential)]
-  public struct v_v3x2
-  {
-    //Textured Quad
-    [DataMember] public vec3 _v;
-    [DataMember] public vec2 _x;
-  };
-
-  #endregion
 
 }

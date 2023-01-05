@@ -950,7 +950,10 @@ namespace Loft
     }
     public bool Trigger(PCKeyboard k, PCMouse m)
     {
-      Gu.Assert(Key != null || MouseButton != null, "no key/mouse was specifie.d");
+      if (Gesture == null)
+      {
+        Gu.Assert((Key != null || MouseButton != null), "no key/mouse was specifie.d");
+      }
 
       bool triggered = k.ModIsDown(Mod);
       if (Key != null)
@@ -1080,6 +1083,7 @@ namespace Loft
       };
     }
   }
+
   [DataContract]
   public class KeyCombo
   {
@@ -1211,6 +1215,8 @@ namespace Loft
     Debug_Toggle_RenderMode,
     Debug_UI_Toggle_DisableBorders, Debug_UI_Toggle_DisableMargins, Debug_UI_Toggle_DisablePadding,
 
+    UI_Scale,
+
     Object_Hide_Selected, Object_Unhide_All, Object_Isolate_Selected,
 
     Window_ToggleFullscreen,
@@ -1220,10 +1226,10 @@ namespace Loft
 
     TestScript,
 
-    Ui_MouseLeft, Ui_MouseRight, Ui_MouseMove
+    //Ui_MouseLeft, Ui_MouseRight, Ui_MouseMove
   }
   [DataContract]
-  public class KeyMap
+  public class KeyMap : InputEventListener
   {
     #region Private: Members
 
@@ -1231,18 +1237,18 @@ namespace Loft
     private Dictionary<ActionCondition, Dictionary<KeyStroke, Dictionary<KeyStroke, List<KeyCombo>>>> _dict;
     private List<KeyCombo> _combos;
 
+    private ActionCondition Global = new ActionCondition("Global", (e, o) => (e.Current == null) && true);
+    private ActionCondition IsEditMode = new ActionCondition("IsEditMode", (e, o) => (e.Current == null) && Gu.World.GameMode == GameMode.Edit);
+    private ActionCondition HoverGUI = new ActionCondition("IsGUI", (e, o) => (e.Current == null) && o is UiElement);
+    private ActionCondition HoverWorld = new ActionCondition("IsWorld", (e, o) => (e.Current == null) && !(o is UiElement));
+    private ActionCondition MoveRotScale = new ActionCondition(typeof(MoveRotateScaleAction));
+    private ActionCondition SelectRegion = new ActionCondition(typeof(SelectRegionAction));
+
     #endregion
     #region Public: Methods
 
     public KeyMap()
     {
-      var Global = new ActionCondition("Global", (e, o) => (e.Current == null) && true);
-      var IsEditMode = new ActionCondition("IsEditMode", (e, o) => (e.Current == null) && Gu.World.GameMode == GameMode.Edit);
-      var IsGUI = new ActionCondition("IsGUI", (e, o) => (e.Current == null) && o is UiElement);
-      var IsWorld = new ActionCondition("IsWorld", (e, o) => (e.Current == null) && !(o is UiElement));
-      var MoveRotScale = new ActionCondition(typeof(MoveRotateScaleAction));
-      var SelectRegion = new ActionCondition(typeof(SelectRegionAction));
-
       //TODO: read from file.
       _combos = new List<KeyCombo>(){
 
@@ -1277,30 +1283,31 @@ namespace Loft
         new KeyCombo(IsEditMode, WorldEditEvent.Object_Isolate_Selected, KeyMod.None, Keys.Slash, ButtonState.Press),
         new KeyCombo(IsEditMode, WorldEditEvent.Object_Unhide_All, KeyMod.Alt, Keys.H, ButtonState.Press),
 
+
         //World 
-        new KeyCombo(IsWorld, WorldEditEvent.Quit, KeyMod.Ctrl, Keys.Q),
-        new KeyCombo(IsWorld, WorldEditEvent.Edit_SelectRegion, KeyMod.Any, MouseButton.Left, ButtonState.Press),
+        new KeyCombo(HoverWorld, WorldEditEvent.Quit, KeyMod.Ctrl, Keys.Q),
+        new KeyCombo(HoverWorld, WorldEditEvent.Edit_SelectRegion, KeyMod.Any, MouseButton.Left, ButtonState.Press),
         new KeyCombo(SelectRegion, WorldEditEvent.Edit_SelectRegionEnd, KeyMod.Any, MouseButton.Left, ButtonState.Release),
         new KeyCombo(SelectRegion, WorldEditEvent.Cancel, Keys.Escape),
-        new KeyCombo(IsWorld, WorldEditEvent.Edit_SelectAll, KeyMod.Ctrl, Keys.A),
-        new KeyCombo(IsWorld, WorldEditEvent.Edit_DeselectAll, KeyMod.Alt, Keys.A),
-        new KeyCombo(IsWorld, WorldEditEvent.Edit_MoveObjects, Keys.G),
-        new KeyCombo(IsWorld, WorldEditEvent.Edit_ScaleObjects, Keys.V),//V is scale --WSAD...
-        new KeyCombo(IsWorld, WorldEditEvent.Edit_RotateObjects, Keys.R),
-        new KeyCombo(IsWorld, WorldEditEvent.Edit_Delete, Keys.Delete),
-        new KeyCombo(IsWorld, WorldEditEvent.Edit_Delete, Keys.X),
-        new KeyCombo(IsWorld, WorldEditEvent.Edit_Undo, KeyMod.Ctrl, Keys.Z),
-        new KeyCombo(IsWorld, WorldEditEvent.Edit_Redo, KeyMod.CtrlShift, Keys.Z),
-        new KeyCombo(IsWorld, WorldEditEvent.Edit_Redo, KeyMod.Ctrl, Keys.Y),
-        new KeyCombo(IsWorld, WorldEditEvent.Edit_CloneSelected, KeyMod.Shift, Keys.D),
-        new KeyCombo(IsWorld, WorldEditEvent.Debug_MoveCameraToOrigin, Keys.O),
-        new KeyCombo(IsWorld, WorldEditEvent.TestScript, KeyMod.CtrlShift, Keys.K),
-
+        new KeyCombo(HoverWorld, WorldEditEvent.Edit_SelectAll, KeyMod.Ctrl, Keys.A),
+        new KeyCombo(HoverWorld, WorldEditEvent.Edit_DeselectAll, KeyMod.Alt, Keys.A),
+        new KeyCombo(HoverWorld, WorldEditEvent.Edit_MoveObjects, Keys.G),
+        new KeyCombo(HoverWorld, WorldEditEvent.Edit_ScaleObjects, Keys.V),//V is scale --WSAD...
+        new KeyCombo(HoverWorld, WorldEditEvent.Edit_RotateObjects, Keys.R),
+        new KeyCombo(HoverWorld, WorldEditEvent.Edit_Delete, Keys.Delete),
+        new KeyCombo(HoverWorld, WorldEditEvent.Edit_Delete, Keys.X),
+        new KeyCombo(HoverWorld, WorldEditEvent.Edit_Undo, KeyMod.Ctrl, Keys.Z),
+        new KeyCombo(HoverWorld, WorldEditEvent.Edit_Redo, KeyMod.CtrlShift, Keys.Z),
+        new KeyCombo(HoverWorld, WorldEditEvent.Edit_Redo, KeyMod.Ctrl, Keys.Y),
+        new KeyCombo(HoverWorld, WorldEditEvent.Edit_CloneSelected, KeyMod.Shift, Keys.D),
+        new KeyCombo(HoverWorld, WorldEditEvent.Debug_MoveCameraToOrigin, Keys.O),
+        new KeyCombo(HoverWorld, WorldEditEvent.TestScript, KeyMod.CtrlShift, Keys.K),
 
         //GUI
-        new KeyCombo(IsGUI, WorldEditEvent.Ui_MouseLeft, KeyMod.Any,  MouseButton.Left, ButtonState.Any),
-        new KeyCombo(IsGUI, WorldEditEvent.Ui_MouseRight, KeyMod.Any, MouseButton.Right, ButtonState.Any),
-        new KeyCombo(IsGUI, WorldEditEvent.Ui_MouseMove, KeyMod.Any, UserGesture.MouseMove),
+        //new KeyCombo(IsGUI, WorldEditEvent.Ui_MouseLeft, KeyMod.Any,  MouseButton.Left, ButtonState.Any),
+        //new KeyCombo(IsGUI, WorldEditEvent.Ui_MouseRight, KeyMod.Any, MouseButton.Right, ButtonState.Any),
+        //new KeyCombo(IsGUI, WorldEditEvent.Ui_MouseMove, KeyMod.Any, UserGesture.MouseMove),
+        new KeyCombo(HoverGUI, WorldEditEvent.UI_Scale, KeyMod.Ctrl, UserGesture.MouseWheel),
 
         //MRS
         new KeyCombo(MoveRotScale, WorldEditEvent.MRS_ToggleFreeRotate, Keys.R),
@@ -1321,7 +1328,9 @@ namespace Loft
     }
     public void Update(WorldEditor e, PCKeyboard k, PCMouse m)
     {
-      var picked_ob = Gu.Context.Renderer.Picker.PickedObjectFrame;
+      //this is very inefficient. Really, we should send an event from the PCKeyboard with a pressed key.
+
+      var picked_ob = Gu.Context.Renderer.Picker.PickedObjectFrameLast;
 
       if (_first == null)
       {
@@ -1500,7 +1509,7 @@ namespace Loft
     private InputState _inputState = InputState.SelectObject;
     private vec3? _selectionOrigin = null;
     private WorldAction? _current = null;
-    private KeyMap _keyMap = new KeyMap();
+    private KeyMap _keyMap;
     [DataMember] private int _editView = 1;//how many viewports are showing
     [DataMember] private XFormOrigin _xFormOrigin = XFormOrigin.Average;
 
@@ -1509,6 +1518,8 @@ namespace Loft
 
     public WorldEditor()
     {
+      _keyMap = new KeyMap();
+      Gu.Context.PCKeyboard.AddListener(_keyMap);
     }
     public void Update(RenderView? rv)
     {
@@ -1675,45 +1686,48 @@ namespace Loft
         {
           TestScript();
         }
-        else if (code == WorldEditEvent.Ui_MouseLeft)
-        {
-          // if(Gu.TryGetSelectedViewGui(out var g){
-          //   g.DoMouseEvents();
-          // }
-        }
+
+
         else if (code == WorldEditEvent.Debug_UI_Toggle_ShowOverlay)
         {
           if (Gu.TryGetSelectedViewGui(out var g))
           {
-            g.DebugDraw.ShowDebug = !g.DebugDraw.ShowDebug;
+            g.Globals.ShowDebug = !g.Globals.ShowDebug;
           }
         }
         else if (code == WorldEditEvent.Debug_UI_Toggle_DisableMargins)
         {
           if (Gu.TryGetSelectedViewGui(out var g))
           {
-            g.DebugDraw.DisableMargins = !g.DebugDraw.DisableMargins;
+            g.Globals.DisableMargins = !g.Globals.DisableMargins;
           }
         }
         else if (code == WorldEditEvent.Debug_UI_Toggle_DisablePadding)
         {
           if (Gu.TryGetSelectedViewGui(out var g))
           {
-            g.DebugDraw.DisablePadding = !g.DebugDraw.DisablePadding;
+            g.Globals.DisablePadding = !g.Globals.DisablePadding;
           }
         }
         else if (code == WorldEditEvent.Debug_UI_Toggle_DisableBorders)
         {
           if (Gu.TryGetSelectedViewGui(out var g))
           {
-            g.DebugDraw.DisableBorders = !g.DebugDraw.DisableBorders;
+            g.Globals.DisableBorders = !g.Globals.DisableBorders;
           }
         }
         else if (code == WorldEditEvent.Debug_UI_Toggle_DisableClip)
         {
           if (Gu.TryGetSelectedViewGui(out var g))
           {
-            g.DebugDraw.DisableClip = !g.DebugDraw.DisableClip;
+            g.Globals.DisableClip = !g.Globals.DisableClip;
+          }
+        }
+        else if (code == WorldEditEvent.UI_Scale)
+        {
+          if (Gu.TryGetSelectedViewGui(out var g))
+          {
+            g.Scale = g.Scale + m.ScrollDelta.y * 0.01f;
           }
         }
 
@@ -1740,7 +1754,7 @@ namespace Loft
           {
             if (rv.Gui != null)
             {
-              List<UiElement> views = new List<UiElement>() { rv.ControlsInfo, rv.WorldDebugInfo, rv.GpuDebugInfo };
+              List<UiElement> views = new List<UiElement>() { rv.ControlsInfo, rv.WorldInfo, rv.GpuInfo, rv.ProfInfo };
               for (int i = 0; i < views.Count; ++i)
               {
                 if (views[i].Visible)

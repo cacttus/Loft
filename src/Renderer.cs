@@ -742,6 +742,8 @@ namespace Loft
       {
         foreach (PipelineStage ps in _pipelineStages)
         {
+          Gu.Prof($"Begin {ps.PipelineStageEnum.ToString()}");
+
           if (!IsActiveStage(rv, ps))
           {
             continue;
@@ -779,6 +781,8 @@ namespace Loft
               CurrentStage = null;
             }
           }
+          Gu.Prof($"End {ps.PipelineStageEnum.ToString()}");
+
         }
       }
       EndRenderToView(rv);

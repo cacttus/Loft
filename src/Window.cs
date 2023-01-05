@@ -27,22 +27,10 @@ namespace Loft
     #endregion
     #region Private:Members
 
-    private bool _isMain = false;
-    private string _name = Lib.UnsetName;//NOT EQUAL TO TITLE
-    private List<RenderView> _renderViews = new List<RenderView>();
-    private bool _isLoaded = false;
-    private int _width = 1;//Do not use Size.X, Y There is currently an OpenTK bug where it does not update on Resize
-    private int _height = 1;
-    private RenderView? _selectedView = null;//the render view where mouse is pointing
-
-    #endregion
-    #region Public:Methods
-
-    public AppWindowBase(string name, string title, bool isMain,
-                        ivec2 pos, ivec2 size, vec2? scale = null,
-                        WindowBorder border = WindowBorder.Resizable,
-                        bool visible = true, IGLFWGraphicsContext sharedCtx = null)
-      : base(new NativeWindowSettings()
+    private static NativeWindowSettings GetNativeWindowSettings(string title, bool visible, WindowBorder border, ivec2 pos, ivec2 size, vec2? scale, IGLFWGraphicsContext sharedCtx)
+    {
+      //return OpenTK.Windowing.Desktop.NativeWindowSettings.Default;
+      var set = new NativeWindowSettings()
       {
         Profile = Gu.EngineConfig.Debug_EnableCompatibilityProfile ? ContextProfile.Compatability : ContextProfile.Core,
         Flags = ContextFlags.Debug,
@@ -63,7 +51,27 @@ namespace Loft
         BlueBits = 8,
         AlphaBits = 8,
         SharedContext = sharedCtx
-      })
+      };
+      return set;
+    }
+
+    private bool _isMain = false;
+    private string _name = Lib.UnsetName;//NOT EQUAL TO TITLE
+    private List<RenderView> _renderViews = new List<RenderView>();
+    private bool _isLoaded = false;
+    private int _width = 1;//Do not use Size.X, Y There is currently an OpenTK bug where it does not update on Resize
+    private int _height = 1;
+    private RenderView? _selectedView = null;//the render view where mouse is pointing
+    private UIScript? _uiScript = null;
+
+    #endregion
+    #region Public:Methods
+
+    public AppWindowBase(string name, string title, bool isMain,
+                        ivec2 pos, ivec2 size, vec2? scale = null,
+                        WindowBorder border = WindowBorder.Resizable,
+                        bool visible = true, IGLFWGraphicsContext sharedCtx = null)
+      : base(AppWindowBase.GetNativeWindowSettings(title, visible, border, pos, size, scale, sharedCtx))
     {
       Gu.Log.Info($"Creating window name={Name},title={title}");
       Name = name;
@@ -75,20 +83,32 @@ namespace Loft
 
       Gu.CreateContext($"{Name}-ctx-{Gu.Contexts.Count}", this, sharedCtx);
     }
-    protected RenderView CreateRenderView(RenderViewMode mode, vec2 xy_pct, vec2 wh_pct)
+    protected RenderView CreateRenderView(RenderViewMode mode, vec2 xy_pct, vec2 wh_pct, FileLoc? script=null)
     {
       string viewname = $"{Name}-rv-{RenderViews.Count}";
       var v = new RenderView(viewname, mode, xy_pct, wh_pct, this.Width, this.Height);
       RenderViews.Add(v);
 
-      if (mode == RenderViewMode.UIOnly || mode == RenderViewMode.UIAndWorld)
-      {
-        OnCreateGUI(v);
-      }
-
       if (mode == RenderViewMode.WorldOnly || mode == RenderViewMode.UIAndWorld)
       {
         v.CreateDefaultCamera();
+      }
+
+      if (mode == RenderViewMode.UIOnly || mode == RenderViewMode.UIAndWorld)
+      {
+        Gu.Assert(script != null);
+        if (_uiScript == null)
+        {
+          _uiScript = new UIScript(
+            new List<FileLoc>(){
+            Gu.EngineConfig.BaseGuiScript,
+            Gu.EngineConfig.TestGuiScript,
+            Gu.EngineConfig.EditGuiScript,
+            //Gu.EngineConfig.SRC_UIControls,
+            }
+            );
+        }
+        _uiScript.LinkView(v);
       }
 
       return v;
@@ -112,10 +132,13 @@ namespace Loft
         if (rv.Enabled)
         {
           rv.Gui?.Update(Gu.Context.FrameDelta);
+          Gu.Prof("gui");
 
           Gu.World.BuildAndCull(rv);//Pick
+          Gu.Prof("cull");
 
-          OnUpateGUI(rv);
+          _uiScript?.UpdateForView(rv);
+          Gu.Prof("gui");
         }
       }
     }
@@ -141,10 +164,6 @@ namespace Loft
     protected void ForceResize()
     {
       OnResize(new ResizeEventArgs(new OpenTK.Mathematics.Vector2i(this.Width, this.Height)));
-    }
-    protected virtual void OnUpateGUI(RenderView rv)
-    {
-      //makes changes to GUI before we perform layout
     }
     protected override void OnClosing(CancelEventArgs e)
     {
@@ -226,10 +245,7 @@ namespace Loft
         }
       }
     }
-    protected virtual void OnCreateGUI(RenderView rv)
-    {
-      //Called when a new render view is created, so you can set the Gui
-    }
+
     protected virtual void CreateGUI2DEBUG(RenderView rv)
     {
     }
@@ -263,27 +279,32 @@ namespace Loft
       base(name, title, false, pos, size, null, WindowBorder.Resizable, true, Gu.Context.GameWindow.Context)
     {
       //CreateCameraView(new vec2(0, 0), new vec2(1, 1));
-      CreateRenderView(RenderViewMode.UIOnly, new vec2(0, 0), new vec2(1, 1));
+      CreateRenderView(RenderViewMode.UIOnly, new vec2(0, 0), new vec2(1, 1), Gu.EngineConfig.InfoGuiScript);
     }
-    protected override void OnUpateGUI(RenderView rv)
-    {
-      UpdateInfo();
-    }
-    protected override void OnCreateGUI(RenderView rv)
-    {
-      var gui = UiBuilder.GetOrCreateSharedGuiForView("info-win", rv);
-      rv.Gui = gui;
+    // protected override void OnUpateGUI(RenderView rv)
+    // {
+    //   UpdateInfo();
+    // }
+    //TODO: fix info window (probably not needed anyway)
+    //TODO: test changes to infow indow
+    //TODO: also ** move this to a script
+    // protected override void OnCreateRenderViewGUI(RenderView rv)
+    // {
+    //   
+    //   
+    //   // var gui = UiBuilder.GetOrCreateSharedGuiForView("info-win", rv);
+    //   // rv.Gui = gui;
 
-      var styles = UiBuilder.GetGlobalStyles(gui);
-      styles.AddRange(new List<UiStyle>() { });
-      gui.StyleSheet.AddStyles(styles);
+    //   // var styles = UiBuilder.GetGlobalStyles(gui);
+    //   // styles.AddRange(new List<UiStyle>() { });
+    //   // gui.StyleSheet.AddStyles(styles);
 
-      var background = new UiPanel();
-      gui.AddChild(background);
+    //   // var background = new UiPanel();
+    //   // gui.AddChild(background);
 
-      _info = new UiLabel(Phrase.DebugInfoHeader);//UiElement(UiStyleName.Label, Phrase.DebugInfoHeader);
-      background.AddChild(_info);
-    }
+    //   // _info = new UiText("debug");
+    //   // background.AddChild(_info);
+    // }
     private void UpdateInfo()
     {
       Gu.Assert(Gu.World != null);
@@ -343,6 +364,7 @@ namespace Loft
     private WorldObject left_hand = null;
     private WorldObject right_hand = null;
     private vec3 second_y_glob = new vec3(2.5f, 2.0f, 2.5f);
+    private UIScript? _uiScript = null;
 
     #endregion
     #region Public: Methods
@@ -359,73 +381,6 @@ namespace Loft
     }
 
     #endregion
-    #region Protected:Methods
-
-    protected override void OnUpateGUI(RenderView rv)
-    {
-      string build = "-r";
-#if DEBUG
-      build = "-d";
-#endif
-      string appname = "Slaver" + build;
-      vec3 cpos = rv.Camera.Position_World;
-
-      //UI Test
-      if (rv.WorldDebugInfo != null && rv.WorldDebugInfo.Visible)
-      {
-        var info = new System.Text.StringBuilder();
-        info.AppendLine($"{appname} v{Gu.GetAssemblyVersion()} (Hide=F7)");
-        info.AppendLine($"Window:");
-        info.AppendLine($" FPS:{StringUtil.FormatPrec(Gu.Context.FpsAvg, 1)} (vsync:{(VSync.ToString())})");
-        info.AppendLine($" Uptime:{StringUtil.Seconds_ToString_HMSU(Gu.Context.UpTime)}");
-        info.AppendLine($" Mem:{StringUtil.FormatPrec(SystemInfo.BToMB(SystemInfo.MemUsedBytes), 2)}MB");
-        info.AppendLine($" VMem:{StringUtil.FormatPrec(SystemInfo.BToMB(SystemInfo.VMemUsedBytes), 2)}MB");
-        info.AppendLine($" View:{rv.Name}");
-        info.AppendLine($" Mouse:{Gu.Context.PCMouse.Pos.ToString()}");
-        info.AppendLine($" Profile:{Profile.ToString()}");
-        info.AppendLine($" Camera:{cpos.ToString(2)} ");
-        info.AppendLine($" FOV:{StringUtil.FormatPrec(MathUtils.ToDegrees(rv.Camera.FOV), 0)}°,{StringUtil.FormatPrec(rv.Camera.Near, 1)},{StringUtil.FormatPrec(rv.Camera.Far, 1)},{rv.Camera.ProjectionMode.ToString()} ");
-        info.AppendLine($"Stats:");
-        info.AppendLine($"{Gu.FrameStats.ToString()}");
-        info.AppendLine($"UI:");
-        info.AppendLine($" update={rv.Gui?._dbg_UpdateMs}ms mesh={rv.Gui?._dbg_MeshMs}ms event={rv.Gui?._dbg_EventsMs}ms");
-        info.AppendLine($"Scripts:");
-        info.AppendLine($" {StringUtil.FormatPrec((float)CSharpScript.TotalLoadedScriptAssemblyBytes / (float)(1024 * 1024), 1)}MB");
-        info.AppendLine($"World:");
-        info.AppendLine($" globs: count={Gu.World.NumGlobs} visible={Gu.World.NumVisibleRenderGlobs}");
-        info.AppendLine($" objs: visible={Gu.World.NumVisibleObjects} culled={Gu.World.NumCulledObjects}");
-        info.AppendLine($" picked={Gu.Context.Renderer.Picker.PickedObjectName}");
-        info.AppendLine($" selected={String.Join(",", Gu.World.Editor.SelectedObjects.Select((i) => i.Name)).ToString()}");
-        info.AppendLine($"Gpu:");
-        info.AppendLine($"{Gu.Context.Gpu.GetMemoryInfo().ToString()}");
-        info.AppendLine($"ThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapT hisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrapThisIsLongTextNoWrap");
-
-        rv.WorldDebugInfo.Text = info.ToString();
-      }
-      if (rv.GpuDebugInfo != null && rv.GpuDebugInfo.Visible)
-      {
-        System.Text.StringBuilder sb = new System.Text.StringBuilder();
-        GpuDebugInfo.DebugPrintShaderLimitsAndState(sb, "  ");
-        sb.AppendLine($"---------------- GL Allocations ----------------");
-        sb.Append(GT.ToString());
-        sb.AppendLine($"---------------- GPU Memory ----------------");
-        Gu.Context.Gpu.GetMemoryInfo().ToString(sb, "  ");
-        rv.GpuDebugInfo.Text = sb.ToString();
-      }
-      if (rv.ControlsInfo != null && rv.ControlsInfo.Visible)
-      {
-        System.Text.StringBuilder sb = new System.Text.StringBuilder();
-        sb.AppendLine($"Controls:");
-        Gu.World.Editor.KeyMap.ToString(sb, "  ");
-        rv.ControlsInfo.Text = sb.ToString();
-      }
-    }
-    protected override void OnCreateGUI(RenderView rv)
-    {
-      UiBuilder.MakeGui(rv);
-    }
-
-    #endregion
     #region Private:Methods
 
     private void InitMainWindow()
@@ -436,7 +391,7 @@ namespace Loft
 #else
         OperatingSystem.HideConsole();
 #endif
-      Title = "Slaver " + VersionId.ToString();
+      Title = "Loft " + VersionId.ToString();
       Gu.WorldLoader = new WorldLoader(Gu.GetContextForWindow(this));
 
       //uh.
@@ -467,7 +422,7 @@ namespace Loft
       {
         if (RenderViews.Count == i)
         {
-          var v = CreateRenderView(RenderViewMode.UIAndWorld, new vec2(0, 0), new vec2(1, 1));
+          var v = CreateRenderView(RenderViewMode.UIAndWorld, new vec2(0, 0), new vec2(1, 1), Gu.EngineConfig.BaseGuiScript);
         }
       }
     }
@@ -527,14 +482,14 @@ namespace Loft
       {
         if (g == GameMode.Play)
         {
-          rv.Gui.Hide(RenderView.c_EditGUI_Root);//TODO: show / hide debug 
+          rv.Gui?.Hide(RenderView.c_EditGUI_Root);//TODO: show / hide debug 
           rv.ViewInputMode = ViewInputMode.Play;
           Gu.EngineConfig.Renderer_UseAlias = true;
           ForceResize();
         }
         else if (g == GameMode.Edit)
         {
-          rv.Gui.Show(RenderView.c_EditGUI_Root);//TODO: show / hide debug 
+          rv.Gui?.Show(RenderView.c_EditGUI_Root);//TODO: show / hide debug 
           rv.ViewInputMode = ViewInputMode.Edit;
           Gu.EngineConfig.Renderer_UseAlias = false;
           ForceResize();

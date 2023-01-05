@@ -2,7 +2,9 @@ using System.Diagnostics;
 using System.Text;
 namespace Loft
 {
-  //Script interfaces to implement in the .cs script file
+  #region Script Interfaces
+
+  //Script-side interfaces to implement in the .cs script file
   public interface IFunctionScript
   {
     public object? DoThing(object? param);
@@ -13,59 +15,114 @@ namespace Loft
     public void OnUpdate(double delta, WorldObject? ob);
     public void OnDestroy();
   }
+  public interface IUIScript
+  {
+    public string GetName();
+    public List<FileLoc> GetResources();
+
+    public void OnCreate(Gui2d g);
+    public void OnUpdate(RenderView rv);
+  }
   public interface IWorldScript
   {
     public void OnLoad(World w);
     public void OnUpdate(World w, double delta);
     public void OnExit(World w);
   }
+
+  #endregion
+  #region Engine Interfaces
+
+  public class UIScript : CSharpScript
+  {
+    private List<RenderView> _views = new List<RenderView>();
+    private IUIScript Script { get { return (_scriptObject as IUIScript); } }
+
+    public UIScript(List<FileLoc> loc) : base(loc, typeof(IUIScript))
+    {
+    }
+    public void LinkView(RenderView rv)
+    {
+      _views.Add(rv);
+      LoadForView(rv);
+    }
+    protected override void ScriptChanged()
+    {
+      foreach (var rv in _views)
+      {
+        LoadForView(rv);
+      }
+    }
+    public void UpdateForView(RenderView rv)
+    {
+      if (Script != null)
+      {
+        Script.OnUpdate(rv);
+      }
+    }
+    private void LoadForView(RenderView rv)
+    {
+      //TODO: we need to update this again when failed compile actually succeeds
+
+      if (rv.Gui != null)
+      {
+        rv.Gui = null;
+        //*** Possibly needed here. 
+        GC.Collect();
+        //***
+      }
+
+      if (Script == null)
+      {
+        Compile();
+      }
+
+      if (Script != null)
+      {
+        var rsc = Script.GetResources();
+
+        //TODO: remove the Gui2dShared if the resources changed. 
+
+        var gdat = Gu.Gui2dManager.GetOrCreateGui2dShared(Script.GetName(), rsc);
+        rv.Gui = new Gui2d(gdat, rv);
+        Script.OnCreate(rv.Gui);
+      }
+    }
+
+  }
   public class WorldScript : CSharpScript, IWorldScript
   {
     //Thunk class for runtime interface
 
-    private IWorldScript? _script = null;
-
-    public WorldScript(FileLoc loc) : base(loc, typeof(IWorldScript))
+    public WorldScript(FileLoc loc) : base(new List<FileLoc>(){loc}, typeof(IWorldScript))
     {
     }
+    protected override void ScriptChanged() { }
     public void OnLoad(World w)
     {
-      CheckUpdate();
-      if (_script != null)
+      if (_scriptObject != null)
       {
-        _script.OnLoad(w);
+        (_scriptObject as IWorldScript).OnLoad(w);
       }
     }
     public void OnUpdate(World w, double delta)
     {
-      CheckUpdate();
-      if (_script != null)
+      if (_scriptObject != null)
       {
-        _script.OnUpdate(w, delta);
+        (_scriptObject as IWorldScript).OnUpdate(w, delta);
       }
     }
     public void OnExit(World w)
     {
-      CheckUpdate();
-      if (_script != null)
+      if (_scriptObject != null)
       {
-        _script.OnExit(w);
-      }
-    }
-
-    private void CheckUpdate()
-    {
-      if (_scriptObject != null && _script != _scriptObject)
-      {
-        Gu.Assert(_scriptObject is IWorldScript, $"Loaded script '{_scriptObject.GetType().ToString()}' is not a '{typeof(IWorldScript).ToString()}'!");
-        _script = _scriptObject as IWorldScript; //script changed
+        (_scriptObject as IWorldScript).OnExit(w);
       }
     }
   }
-  // public class ObjectScript : CSharpScript , IObjectScript
-  // {
 
-  // }
+  #endregion
+
   public enum ScriptStatus
   {
     None,
@@ -91,8 +148,9 @@ namespace Loft
     #region Private/Protected Members
 
     public ScriptStatus ScriptStatus { get { return _scriptStatus; } protected set { _scriptStatus = value; } }
-    private ScriptStatus _scriptStatus = ScriptStatus.None;
+    //public FileLoc File { get { return _files[0]; } }
 
+    private ScriptStatus _scriptStatus = ScriptStatus.None;
     private string _outputPath = "";
     protected Type? _scriptObjectType = null;
     protected object? _scriptObject = null;
@@ -101,12 +159,14 @@ namespace Loft
     private List<FileLoc> _files;
     private List<string> _scriptMessages = new List<string>();
     private int _compileCount = 0;
-    private DynamicFileLoader? _loader = null;
+    private FileWatcher? _watcher = null;
     protected Type? _scriptObjectInterfaceType = null;
     private bool _initialized = false;
 
     #endregion
     #region Public:Methods
+
+    protected virtual void ScriptChanged() { }
 
     public static object? Call(string scriptname, object? param)
     {
@@ -117,25 +177,43 @@ namespace Loft
     {
       if (!_loadedScripts.TryGetValue(scriptname, out var ss))
       {
-        ss = new CSharpScript(scriptname, typeof(IFunctionScript));
+        ss = new CSharpScript(new List<FileLoc>() { scriptname }, typeof(IFunctionScript));
         _loadedScripts.Add(scriptname, ss);
       }
       return ss.Call(null);
     }
 
-    public CSharpScript(FileLoc loc, Type interface_type)
+    public CSharpScript(List<FileLoc> locs, Type interface_type)
     {
-      _files = _files.ConstructIfNeeded();
       _scriptObjectInterfaceType = interface_type;
-      _files.Add(loc);
-      _loader = new DynamicFileLoader(_files, (f) =>
+
+      _files = _files.ConstructIfNeeded();
+      _files.AddRange(locs);
+
+      _watcher = new FileWatcher(_files, (f) =>
       {
         Compile();
         return this._scriptStatus == ScriptStatus.CompileSuccess;
       });
     }
+    private string GetScriptPath(FileLoc f)
+    {
+      string fn = "";
+      if (f.FileStorage == FileStorage.Disk)
+      {
+        fn = f.QualifiedPath;
+      }
+      else if (f.FileStorage == FileStorage.Embedded)
+      {
+        fn = f.WorkspacePath;
+        ScriptWarn($"Embedded scripts can't be sent to the compiler (for now), using workspace path ({f.WorkspacePath})");
+      }
+      return fn;
+    }
     public bool Compile()
     {
+      //Root compile method, reset everything and try compiling.
+      _scriptStatus = ScriptStatus.None;
       _outputPath = System.IO.Path.Combine(Gu.ExePath, Gu.EngineConfig.ScriptDLLName);
 
       ScriptInfo($"Loading..");
@@ -145,16 +223,17 @@ namespace Loft
         string files = "";
         foreach (var f in _files)
         {
-          if (f.FileStorage == FileStorage.Embedded)
+          var fn = GetScriptPath(f);
+
+          if (!System.IO.File.Exists(fn))
           {
-            ScriptWarn($"Embedded scripts can't be sent to the compiler (for now), using workspace path ({f.WorkspacePath})");
-            //Gu.DebugBreak();
-          }
-          files += $" {f.WorkspacePath}";
-          if (!f.ExistsOnDisk())
-          {
-            ScriptError($"File {f.WorkspacePath} does not exist.");
+            ScriptError($"File {fn} does not exist.");
+            Gu.DebugBreak();
             _scriptStatus = ScriptStatus.Error;
+          }
+          else
+          {
+            files += $" {fn}";
           }
         }
 
@@ -205,6 +284,8 @@ namespace Loft
 
       //-debug:{full|pdbonly|portable|embedded}
       //-pdb:<file>   
+      //-parallel[+|-]                Concurrent build.
+      //-optimize[+|-]                Enable optimizations (Short form: -o)
 
       //csc worked. mcs did not work.. idk why
       var compiler = "csc";
@@ -263,6 +344,7 @@ namespace Loft
           if (LoadTypeAndCreateInstance(asm))
           {
             ScriptInfo($"Assembly Loaded, (Total LSR={TotalLoadedScriptAssemblyBytes}).");
+            ScriptChanged();
             _scriptStatus = ScriptStatus.CompileSuccess;
           }
           else
@@ -280,53 +362,9 @@ namespace Loft
     }
     private bool LoadTypeAndCreateInstance(System.Reflection.Assembly? newAsm)
     {
-      var res = false;
-      Type? newObjType = null;
-      if (newAsm == null)
-      {
-        return false;
-      }
-      try
-      {
-        Gu.Assert(newAsm != null);
-
-        Type? needType = _scriptObjectInterfaceType;
-
-        if (needType == null)
-        {
-          Gu.BRThrowNotImplementedException();
-        }
-
-        var tpes = newAsm.GetTypes();
-        foreach (var tt in tpes)
-        {
-          foreach (var xy in tt.GetInterfaces())
-          {
-            if (xy == needType)
-            {
-              //Don't set _scriptObject and _asembly until everyth
-              newObjType = tt;
-              res = true;
-              break;
-            }
-          }
-          if (newObjType != null)
-          {
-            break;
-          }
-        }
-
-        if (newObjType == null)
-        {
-          ScriptError($"Could not find type implementing '{needType.ToString()}' interface. Script class must implement '{needType.ToString()}'.");
-          res = false;
-        }
-      }
-      catch (Exception ex)
-      {
-        ScriptError(Gu.GetAllException(ex));
-        res = false;
-      }
+      Gu.Assert(newAsm != null);
+      Gu.Assert(_scriptObjectInterfaceType != null);
+      var newObjType = GetInterfaceTypeFromAssembly(newAsm, _scriptObjectInterfaceType);
 
       //Only set data if the entire thing succeeds.
       if (newAsm != null && newObjType != null)
@@ -334,17 +372,50 @@ namespace Loft
         _loadedAssembly = newAsm;
         _scriptObjectType = newObjType;
         _scriptObject = Activator.CreateInstance(_scriptObjectType);
+        return true;
+      }
+      return false;
+    }
+    private Type? GetInterfaceTypeFromAssembly(System.Reflection.Assembly? newAsm, Type? ifaceType)
+    {
+      Gu.Assert(newAsm != null);
+      Gu.Assert(ifaceType != null);
+
+      Type? ret = null;
+      var types = newAsm.GetTypes();
+      foreach (var tt in types)
+      {
+        foreach (var iface in tt.GetInterfaces())
+        {
+          if (iface == ifaceType)
+          {
+            ret = tt;
+            break;
+          }
+        }
+        if (ret != null)
+        {
+          break;
+        }
       }
 
-      return res;
+      if (ret == null)
+      {
+        ScriptError($"Could not find type implementing '{ifaceType.ToString()}' interface. Script class must implement '{ifaceType.ToString()}'.");
+      }
+
+      return ret;
     }
     private string GetFilename()
     {
-      if (_files != null && _files.Count > 0)
+      string fn = "";
+      string app = "";
+      foreach (var f in _files)
       {
-        return _files[0].FileName;
+        fn += app + f.FileName;
+        app = ",";
       }
-      return "ERROR!!! - file was not set.";
+      return fn;
     }
     private void ScriptWarn(string msg)
     {

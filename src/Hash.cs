@@ -11,6 +11,44 @@ namespace Loft
     private const UInt64 c_stringHashStart = 2166136261;
 
 
+
+    private static uint[] Fnv_Basis_32 = new uint[] {
+     2166136261
+   , 50331653
+   , 3331805713
+   , 2324833853
+    };
+    private static uint[] Fnv_Prime_32 = new uint[] {
+     16777619
+   , 805306457
+   , 124675729
+   , 417013901
+      };
+    private static ulong[] Fnv_Basis_64 = new ulong[]  {
+      16540412399126526479U
+    , 1604091723691372229
+    , 1729532795367666019
+    , 15711276102652330523U
+    };
+    private static ulong[] Fnv_Prime_64 = new ulong[] {
+      17577211953059058149U
+    , 4401858765275463419
+    , 8868681736133192851
+    , 6500018318822434283
+    };
+    public static ulong FNV64(List<int> ints, int index)
+    {
+      //AssertOrThrow2(iAlgorithmIndex < FNV_MAX_ALGORITHMS_64);
+      var n = Fnv_Basis_64[index]; ;
+      for (int i = 0; i < ints.Count(); i++)
+      {
+        n *= Fnv_Prime_64[index];
+        n ^= (ulong)ints[i];
+      }
+      return n;
+    }
+
+
     public static ulong HashStringArray(List<string> strrings)
     {
       unchecked

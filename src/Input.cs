@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Runtime.InteropServices;
-using OpenTK.Windowing.GraphicsLibraryFramework;
+﻿using OpenTK.Windowing.GraphicsLibraryFramework;
 
 namespace Loft
 {
@@ -9,16 +6,24 @@ namespace Loft
   {
     Up, Press, Hold, Release, Any
   }
+  public enum KeyMod
+  {
+    None, Any, Shift, Ctrl, Alt, CtrlShift, CtrlAlt, AltShift, CtrlAltShift,
+  }
+
   public class PCButton
   {
-    public ButtonState State = ButtonState.Up;
-    //int _lastUpdateFrame = 0;
+    public ButtonState State { get; private set; } = ButtonState.Up;
+    public ButtonState LastState { get; private set; } = ButtonState.Up;
+
     public PCButton(bool state)
     {
       UpdateState(state);
     }
-    public void UpdateState(bool down)
+    public bool UpdateState(bool down)
     {
+      //return true if the state has changed
+      LastState = State;
       if (down)
       {
         if (State == ButtonState.Up)
@@ -55,26 +60,117 @@ namespace Loft
           State = ButtonState.Up;
         }
       }
+      return LastState != State;
+    }
+  }
+  public class InputEventListener
+  {
+    public virtual void OnKey(KeyboardKeyEvent key) { }
+    public virtual void OnMouseButton(MouseButton button) { }
+  }
+  public class KeyboardKeyEvent
+  {
+    public bool Ctrl;
+    public bool Alt;
+    public bool Shift;
+    public ButtonState State;
+    public Keys Key;
+    public Char Char;
+    public KeyboardKeyEvent(bool ctrl, bool alt, bool shift, Keys key, ButtonState state)
+    {
+      ctrl = Ctrl;
+      Alt = alt;
+      Shift = shift;
+      Key = key;
+      State = state;
     }
   }
   public abstract class ButtonInputDevice<TStateClass, TButtonClass> where TStateClass : class
   {
-    public Dictionary<TButtonClass, PCButton> _keys = new Dictionary<TButtonClass, PCButton>();
-    public TStateClass? _deviceState = null;
-
-    protected abstract TStateClass GetDeviceState();
-    protected abstract bool GetDeviceButtonDown(TButtonClass button);
+    #region Members
 
     public bool IsInitialized { get { return _deviceState != null; } }
 
+    protected Dictionary<TButtonClass, PCButton> _keys = new Dictionary<TButtonClass, PCButton>();
+    protected TStateClass? _deviceState = null;
+    protected abstract TStateClass GetDeviceState();
+    protected abstract bool GetDeviceButtonDown(TButtonClass button);
+    protected abstract void UpdateInternalStateAfterPoll();
+    protected abstract void SendButtonEvent(KeyValuePair<TButtonClass, PCButton> button, InputEventListener lis);
+
+    private List<WeakReference<InputEventListener>> _listeners = null;
+    private List<KeyValuePair<TButtonClass, PCButton>> _changed = new List<KeyValuePair<TButtonClass, PCButton>>();
+
+    #endregion
+    #region Public Methods
+    public ButtonInputDevice()
+    {
+      _deviceState = GetDeviceState();
+    }
+    public void AddListener(InputEventListener listener)
+    {
+      _listeners = _listeners.ConstructIfNeeded();
+      _listeners.Add(new WeakReference<InputEventListener>(listener));
+    }
+    public void RemoveListener(InputEventListener listener)
+    {
+      if (_listeners != null)
+      {
+        for (var i = _listeners.Count - 1; i >= 0; i--)
+        {
+          if (_listeners[i].TryGetTarget(out var lis))
+          {
+            if (lis == listener)
+            {
+              _listeners.RemoveAt(i);
+            }
+          }
+          else
+          {
+            _listeners.RemoveAt(i);
+          }
+        }
+      }
+    }
     public virtual void Update()
     {
       _deviceState = GetDeviceState();
+      _changed.Clear();
+
+      //poll
       foreach (var pair in _keys)
       {
-        pair.Value.UpdateState(GetButtonDownWindowFocus(pair.Key));
+        if (pair.Value.UpdateState(GetButtonDownWindowFocus(pair.Key)))
+        {
+          _changed.Add(pair);
+        }
+      }
+
+      UpdateInternalStateAfterPoll();
+
+      //update listeners
+      if (_listeners != null)
+      {
+        foreach (var c in _changed)
+        {
+          for (int i = _listeners.Count - 1; i >= 0; i--)
+          {
+            if (_listeners[i].TryGetTarget(out var lis))
+            {
+              SendButtonEvent(c, lis);
+            }
+            else
+            {
+              _listeners.RemoveAt(i);
+            }
+          }
+        }
       }
     }
+
+    #endregion
+    #region Private Methhods
+
     private bool GetButtonDownWindowFocus(TButtonClass key)
     {
       Gu.Assert(IsInitialized);
@@ -119,6 +215,7 @@ namespace Loft
     }
     public ButtonState State(TButtonClass key)
     {
+      //Register the key and/or return its value
       ButtonState ret = ButtonState.Up;
       PCButton but = null;
       if (_keys.TryGetValue(key, out but))
@@ -141,11 +238,45 @@ namespace Loft
       }
       return ret;
     }
-  }
-  public enum KeyMod { None, Any, Shift, Ctrl, Alt, CtrlShift, CtrlAlt, AltShift, CtrlAltShift, }
 
+    #endregion
+
+  }//cls
   public class PCKeyboard : ButtonInputDevice<KeyboardState, Keys>
   {
+    private bool _ctrlDown = false; //current state of ctrl/alt/shift
+    private bool _shiftDown = false;
+    private bool _altDown = false;
+
+    public PCKeyboard() : base()
+    {
+      //regsiter all keys 
+      foreach (var k in Enum.GetValues(typeof(Keys)))
+      {
+        if ((Keys)k != Keys.Unknown)
+        {
+          State((Keys)k);
+        }
+      }
+    }
+
+    public static bool IsPrintableChar(Keys k)
+    {
+      //TODO: language...
+      if (k == Keys.Space || k == Keys.Apostrophe || k == Keys.Comma || k == Keys.Minus || k == Keys.Period || k == Keys.Slash
+      || k == Keys.D0 || k == Keys.D1 || k == Keys.D2 || k == Keys.D3 || k == Keys.D4 || k == Keys.D5 || k == Keys.D6 || k == Keys.D7 || k == Keys.D8 || k == Keys.D9
+      || k == Keys.Semicolon || k == Keys.Equal
+      || k == Keys.A || k == Keys.B || k == Keys.C || k == Keys.D || k == Keys.E || k == Keys.F || k == Keys.G || k == Keys.H || k == Keys.I || k == Keys.J || k == Keys.K
+      || k == Keys.L || k == Keys.M || k == Keys.N || k == Keys.O || k == Keys.P || k == Keys.Q || k == Keys.R || k == Keys.S || k == Keys.T || k == Keys.U || k == Keys.V || k == Keys.W
+      || k == Keys.X || k == Keys.Y || k == Keys.Z
+      || k == Keys.LeftBracket || k == Keys.Backslash || k == Keys.RightBracket || k == Keys.GraveAccent
+      )
+      {
+        return true;
+      }
+      return false;
+    }
+
     public static Keys IntToDigitKey(int n)
     {
       if (n < 0 || n > 9)
@@ -154,6 +285,17 @@ namespace Loft
         Gu.DebugBreak();//Error
       }
       return (Keys)((int)Keys.D0 + n);
+    }
+
+    protected override void UpdateInternalStateAfterPoll()
+    {
+      _ctrlDown = (PressOrDown(Keys.LeftControl) || PressOrDown(Keys.RightControl));
+      _shiftDown = (PressOrDown(Keys.LeftShift) || PressOrDown(Keys.RightShift));
+      _altDown = (PressOrDown(Keys.LeftAlt) || PressOrDown(Keys.RightAlt));
+    }
+    protected override void SendButtonEvent(KeyValuePair<Keys, PCButton> button, InputEventListener lis)
+    {
+      lis.OnKey(new KeyboardKeyEvent(_ctrlDown, _altDown, _shiftDown, button.Key, button.Value.State));
     }
     public bool ModIsDown(KeyMod Mod)
     {
@@ -200,7 +342,6 @@ namespace Loft
               if (keysOut != null)
               {
                 keysOut.Add(key);
-
               }
               else
               {
@@ -213,6 +354,7 @@ namespace Loft
       return keysOut.Count > 0;
     }
 
+
   }
 
   public class PCMouse : ButtonInputDevice<MouseState, MouseButton>
@@ -223,6 +365,8 @@ namespace Loft
       Wrap,
       Clamp
     }
+    protected override void UpdateInternalStateAfterPoll() { }
+    protected override void SendButtonEvent(KeyValuePair<MouseButton, PCButton> button, InputEventListener lis) { }
 
     private long _warp_frame_stamp = 0;
     private vec2 _last = new vec2(0, 0);

@@ -22,7 +22,7 @@ namespace Loft
     #region Public: Members
 
     public int BufferSizeBytes { get { return _itemCount * _format.SizeBytes; } }
-    public GPUDataFormat? Format { get { return _format; } private set { _format = value; } }
+    public GpuDataFormat? Format { get { return _format; } private set { _format = value; } }
     public DrawElementsType DrawElementsType { get { return _drawElementsType; } private set { _drawElementsType = value; } }
     public BufferTarget BufferTarget { get { return _bufferTarget; } private set { _bufferTarget = value; } }
     public BufferRangeTarget? RangeTarget { get { return _rangeTarget; } private set { _rangeTarget = value; } }
@@ -37,7 +37,7 @@ namespace Loft
     private BufferUsageHint? _usageHint = null;//Whether these flags are set defines whether this is an immutable buffer.
     private BufferStorageFlags? _storageFlags = null;
     private int _itemCount = 0;
-    private GPUDataFormat _format;
+    private GpuDataFormat _format;
     private DrawElementsType _drawElementsType = DrawElementsType.UnsignedInt;//only valid for buffertarget=elementarraybuffer
     private BufferTarget _bufferTarget = BufferTarget.ArrayBuffer;
     private BufferRangeTarget? _rangeTarget = null;//For buffer block objects 
@@ -59,7 +59,7 @@ namespace Loft
     // {
     //   _storageFlags = flags;
     // }
-    public GPUBuffer(string name, GPUDataFormat fmt, int itemCount, BufferTarget t, BufferUsageHint hint) : base(name)
+    public GPUBuffer(string name, GpuDataFormat fmt, int itemCount, BufferTarget t, BufferUsageHint hint) : base(name)
     {
       //, int item_size_bytes, int itemCount, 
       Init(fmt, itemCount, t, hint);
@@ -67,7 +67,7 @@ namespace Loft
 
     protected override string DataPathName() { return "-buf" + base.DataPathName(); }
 
-    private void Init(GPUDataFormat fmt, int count, BufferTarget t, BufferUsageHint hint)
+    private void Init(GpuDataFormat fmt, int count, BufferTarget t, BufferUsageHint hint)
     {
       //Gu.Assert(itemCount > 0, $"{Name}: Count was zero.");
       Gu.Assert(fmt != null);

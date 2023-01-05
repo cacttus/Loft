@@ -146,12 +146,7 @@ namespace Loft
       };
       sun_moon_empty.Persistence = DataPersistence.Temporary;
       Gu.World.AddObject(sun_moon_empty);
-      /*
-      view update action
-      for all ob
-      ob.OnUpdateForView(rv)
-      ob.OnBeforeRender()
-      */
+  
       Material sun_moon_mat = new Material("sunmoon", new Shader("Shader_SunMoonShader", "v_sun_moon"));
       sun_moon_mat.GpuRenderState.DepthTest = false;//Disable depth test.
       sun_moon_mat.GpuRenderState.CullFace = false;//Disable depth test.
@@ -186,7 +181,7 @@ namespace Loft
       {
         if (Gu.TryGetSelectedViewCamera(out var cm))
         {
-          vec3 dir = Gu.World.WorldProps.DayNightCycle.MoonDir.ToVec3();
+          vec3 dir = Gu.World.WorldProps.DayNightCycle.MoonDir;
           //ease multiplier so that the glare does not show on the horizon.
           float horizon_mul = (float)MathUtils.Ease(0, 1, (double)dir.dot(new vec3(0, 1, 0)));
           float bloom_dp = dir.dot(cm.BasisZ_World);
@@ -217,7 +212,7 @@ namespace Loft
         //All this stuff can be script.
         if (Gu.TryGetSelectedViewCamera(out var cm))
         {
-          vec3 dir = Gu.World.WorldProps.DayNightCycle.MoonDir.ToVec3() * -1.0f;
+          vec3 dir = Gu.World.WorldProps.DayNightCycle.MoonDir* -1.0f;
           //ease multiplier so that the glare does not show on the horizon.
           float horizon_mul = (float)MathUtils.Ease(0, 1, (double)dir.dot(new vec3(0, 1, 0)));
           float bloom_dp = dir.dot(cm.BasisZ_World);

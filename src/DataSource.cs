@@ -327,7 +327,7 @@ namespace Loft
     //temps
     private bool _initialized = false;
     private ModelLoadState _loadState = ModelLoadState.None;
-    private DynamicFileLoader _loader;
+    private FileWatcher _loader;
     private class ObjTemp
     {
       public ImportInfo _info;
@@ -378,7 +378,7 @@ namespace Loft
 
         ReloadEverything();
 
-        _loader = new DynamicFileLoader(new List<FileLoc>() { _file }, (files) =>
+        _loader = new FileWatcher(new List<FileLoc>() { _file }, (files) =>
         {
           ReloadEverything();
           return this._loadState == ModelLoadState.Success;
@@ -1763,8 +1763,8 @@ namespace Loft
   public abstract class MeshGenParams
   {
     //Default model format.
-    [DataMember] private GPUDataFormat _vertexFormat = GPUDataFormat.GetDataFormat<v_v3n3x2t3u1>();
-    public GPUDataFormat VertexFormat { get { return _vertexFormat; } }
+    [DataMember] private GpuDataFormat _vertexFormat = GpuDataFormat.GetDataFormat<v_v3n3x2t3u1>();
+    public GpuDataFormat VertexFormat { get { return _vertexFormat; } }
     public abstract MeshData Generate(string name);
     public MeshGenParams()
     {

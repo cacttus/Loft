@@ -6,27 +6,9 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL4;
-//Chinese Test
-//if (getName().QualifiedPath.Contains("simhei"))
-//{
-//  //https://stackoverflow.com/questions/1366068/whats-the-complete-range-for-chinese-characters-in-unicode
-//  //Han Ideographs: 4E00 - 9FFF   Common
-//  _firstChar = 0x4E00;
-//  _charCount = 0x62FF - 0x4E00;  //0x9FFF is the whole range, that's a lot
-//                                 //Compute size for a 20x20 pixel han character
-//  _iBakedCharSizePixels = 20;
-//  float ch_w = ceilf(sqrtf((float)_charCount));
-//  _atlasWidth = _atlasHeight = (uint)((ch_w) * (_iBakedCharSizePixels + _oversampleX));
-
-//  //Test "huan"
-//  //_firstChar = 0x6B61;// 喜..喜欢 0x559C, 0x6B61.. correct.. seems to work..Note: 欢 prints, 歡.. the traditioanl character
-//  //_charCount = 1;
-//  Gu.DebugBreak();
-//}
 
 namespace Loft
 {
-
   public class MtNode
   {
     //BSP tree node
@@ -107,18 +89,17 @@ namespace Loft
       }
     }
   };
-
   public class MtTex
   {
-    //Note: this class is serialized make sure to serialize all data.
+    //A sub-region of a texture atlas
     public string Name { get; private set; } = Lib.UnsetName;
-    public WeakReference<MtNode> Node { get; set; } = null;  //mega texture node
+    public MtNode? Node { get; set; } = null;  //mega texture node
     public int ShrinkPixels { get; private set; } = 0;
     public vec2 uv0 { get; set; } = vec2.Zero;
     public vec2 uv1 { get; set; } = vec2.Zero;
     public UInt64 ImageHash { get; private set; } = 0;
 
-    private Image _pImg = null;
+    private Image? _pImg = null;
     private int _iWidth = 0;
     private int _iHeight = 0;
     private float _fSizeRatio = 0;
@@ -134,7 +115,7 @@ namespace Loft
     public int GetWidth() { return _iWidth; }
     public int GetHeight() { return _iHeight; }
     public float GetSizeRatio() { return _fSizeRatio; }
-    public Image Img() { return _pImg; }
+    public Image? Img() { return _pImg; }
     public void SetImg(Image img)
     {
       Gu.Assert(img != null);
@@ -202,7 +183,7 @@ namespace Loft
     {
       MtTex ret = new MtTex();
       ret.Name = this.Name;
-      ret.Node = null; // **uh... this no be set
+      ret.Node = null;
       ret.ShrinkPixels = this.ShrinkPixels;
       ret.uv0 = this.uv0;
       ret.uv1 = this.uv1;
@@ -213,12 +194,11 @@ namespace Loft
       ret._iPatchImg = this._iPatchImg;
       return ret;
     }
-
-  }//MtTex
-
+  }//cls
   public class MtFile
   {
-    //The list of MtTex is the final output textures. 
+    //file that will be packed into texture, 
+    //some files (such as fonts) can generate multiple textures
     public List<MtTex> Texs { get; private set; } = new List<MtTex>();
     public FileLoc FileLoc { get; private set; } = null;
     public DateTime LastWriteTime { get; protected set; } = DateTime.MinValue;
@@ -404,29 +384,16 @@ namespace Loft
       }
     }
 
-  }//Mtfile
-
+  }//cls
   public abstract class MtLoader
   {
     //Loader class
-    public MtFile MtFile
-    {
-      get
-      {
-        if (_mtFile.TryGetTarget(out var mf))
-        {
-          return mf;
-        }
-        return null;
-      }
-    }
-    protected WeakReference<MtFile> _mtFile = null;
-
+    public MtFile MtFile { get { return _mtFile; } }
+    protected MtFile _mtFile;
     public MtLoader(MtFile f)
     {
-      _mtFile = new WeakReference<MtFile>(f);
+      _mtFile = f;
     }
-
     public abstract void LoadData();
     public abstract void AfterCompile();
     public virtual void Serialize(BinaryWriter bw)
@@ -436,7 +403,6 @@ namespace Loft
     {
     }
   }//MtLoader
-
   public class MtImageLoader : MtLoader
   {
     //Load image files.
@@ -458,55 +424,11 @@ namespace Loft
         MtFile.Texs.Add(tx);
         tx.SetImg(img);
       }
-
-      //We can save the image patch stuff for later.
-      // List<Img32> imgs = ParseImagePatch(FileLoc);
-      // if (imgs.Count != Texs.Count)
-      // {
-      //   Gu.Log.Error("Tex Count Mismatch, or texture not found for '" + FileLoc + "'.");
-      //   Gu.DebugBreak();
-      // }
-      // else
-      // {
-      //   for (int i = 0; i < imgs.Count; ++i)
-      //   {
-      //     Texs[i].SetImg(imgs[i]);
-      //   }
-      // }
-
     }
     public override void AfterCompile()
     {
       //nop
     }
-    // private List<Img32> ParseImagePatch(FileLoc file)
-    // {
-    //   List<Img32> ret = new List<Img32>();
-
-    //   if (!file.Exists)
-    //   {
-    //     Gu.Log.Error("Failed to load, image file '" + file + "' didn't exist");
-    //     return ret;
-    //   }
-
-    //   Img32 master = ResourceManager.LoadImage(file);// Gu::loadImage(file);
-
-    //   //So we have to flip it because we load it into OpenGL space but we're in screen space.
-    //   if (master == null)
-    //   {
-    //     Gu.Log.Error("Error parsing 9-tile. Invalid or missing master image file '" + file + "'");
-    //     return ret;
-    //   }
-
-    //   //Not sure what "ijmage patch is"
-    //   Gu.DebugBreak();
-    //   //  if (Img32::parseImagePatch(master, ret) == false)
-    //   {
-    //     Gu.Log.Error("Error parsing image patch for file " + file);
-    //   }
-
-    //   return ret;
-    // }
     public override void Serialize(BinaryWriter bw)
     {
       base.Serialize(bw);
@@ -515,8 +437,7 @@ namespace Loft
     {
       base.Deserialize(br, version);
     }
-  }//MtImageLoader
-
+  }//cls
   public class MtGenLoader : MtLoader
   {
     //Pre-gen images.. or we could generate the image here.
@@ -550,9 +471,8 @@ namespace Loft
     {
       base.Deserialize(br, version);
     }
-  }//MtImageLoader
-
-  public class MtCachedCharData
+  }//cls
+  public class MtFontChar
   {
     //caches the result of stbtt_GetPackedChar
     //This is a cached char that has all its information pre-computed from stb
@@ -567,10 +487,6 @@ namespace Loft
     public float ch_bot;
     public float ch_left;
     public float ch_right;
-    public float font_lineHeight;//copies of the font data
-    public float font_scale;
-    public float font_ascent;
-    public float font_descent;
 
     public void Serialize(BinaryWriter bw)
     {
@@ -584,11 +500,6 @@ namespace Loft
       bw.Write((Single)ch_bot);
       bw.Write((Single)ch_left);
       bw.Write((Single)ch_right);
-      bw.Write((Single)font_lineHeight);
-      bw.Write((Single)font_scale);
-      bw.Write((Single)font_ascent);
-      bw.Write((Single)font_descent);
-
     }
     public void Deserialize(BinaryReader br, SerializedFileVersion version)
     {
@@ -602,18 +513,13 @@ namespace Loft
       ch_bot = br.ReadSingle();
       ch_left = br.ReadSingle();
       ch_right = br.ReadSingle();
-      font_lineHeight = br.ReadSingle();
-      font_scale = br.ReadSingle();
-      font_ascent = br.ReadSingle();
-      font_descent = br.ReadSingle();
     }
   }//MtCachedCharData
-
-  public class MtFontPatchInfo
+  public class MtFontPatch
   {
     //A font patch is a mipmap of a given font (maximum BakedCharSize)
     //This is needed because automatic mipmapping does not work correctly for the UI. (scaling a single MaxBakedChar also causes artifacts)
-    public int BakedCharSize { get; set; } = 0; //Pixel height of the characters
+    public float BakedCharSize { get; set; } = 0; //Pixel height of the characters
     public int TextureWidth { get; set; } = 0;
     public int TextureHeight { get; set; } = 0;
     public int TextureIndex { get; set; } = 0; //The patch index in the MtTexPatch
@@ -621,9 +527,9 @@ namespace Loft
     public int CharCount { get; set; } = 0;
     public float ScaleForPixelHeight { get; set; } = 0;               //return value of stbtt_ScaleForPixelHeight
     public StbTrueTypeSharp.StbTrueType.stbtt_packedchar[] CharInfo = null;
-    public Dictionary<int, MtCachedCharData> CachedChars = new Dictionary<int, MtCachedCharData>();
+    public Dictionary<int, MtFontChar> CachedChars = new Dictionary<int, MtFontChar>();
 
-    public bool GetChar(int unicode_point, float fontSize, out MtCachedCharData ccd, out float scale)
+    public bool GetChar(int unicode_point, float fontSize, out MtFontChar ccd)
     {
       //Transform quad by STB scale.
       //The STB quad is in STB scaled units to the given BakedChar size, i.e. it is not in "raw" units
@@ -636,7 +542,6 @@ namespace Loft
         unicode_point = ' ';
       }
 
-      scale = GetScaleForPixelSize(fontSize);
       if (CachedChars.TryGetValue(unicode_point, out ccd))
       {
         return true;
@@ -648,13 +553,12 @@ namespace Loft
     }
     public float GetScaleForPixelSize(float ps)
     {
-      //float f = StbTrueTypeSharp.StbTrueType.stbtt_ScaleForMappingEmToPixels(_fontInfo, .5f);
       float t = ps / (float)BakedCharSize;
       return t;
     }
     public void Serialize(BinaryWriter bw)
     {
-      bw.Write((Int32)BakedCharSize);
+      bw.Write((Single)BakedCharSize);
       bw.Write((Int32)TextureWidth);
       bw.Write((Int32)TextureHeight);
       bw.Write((Int32)TextureIndex);
@@ -665,10 +569,6 @@ namespace Loft
 
       bw.Write<StbTrueTypeSharp.StbTrueType.stbtt_packedchar>(CharInfo);
 
-      //SINCE WE STRUCT'D THIS  we could easily just write as byte buffer.
-      //tbh..fast enough .. later
-      //bw.Write<MtCachedCharData>(CharInfo);
-
       bw.Write((Int32)CachedChars.Count);
       foreach (var kvp in this.CachedChars)
       {
@@ -678,7 +578,7 @@ namespace Loft
     }
     public void Deserialize(BinaryReader br, SerializedFileVersion version)
     {
-      BakedCharSize = br.ReadInt32();
+      BakedCharSize = br.ReadSingle();
       TextureWidth = br.ReadInt32();
       TextureHeight = br.ReadInt32();
       TextureIndex = br.ReadInt32();
@@ -692,13 +592,12 @@ namespace Loft
       for (int ci = 0; ci < cc; ++ci)
       {
         Int32 k = br.ReadInt32();
-        MtCachedCharData c = new MtCachedCharData();
+        MtFontChar c = new MtFontChar();
         c.Deserialize(br, version);
         CachedChars.Add(k, c);
       }
     }
-  }//MtFontPatchInfo
-
+  }//MtFontPatch
   public class CharacterRangeUTF8
   {
     //Character ranges correspond to the chars we 'try' to fit on a single texture.
@@ -707,7 +606,7 @@ namespace Loft
     public int FirstChar { get; private set; } = ' ';//en_US
     public int CharCount { get; private set; } = 512;//en_US
 
-    public List<MtFontPatchInfo> FontPatchInfos = new List<MtFontPatchInfo>();
+    public List<MtFontPatch> FontPatches = new List<MtFontPatch>();
 
     public CharacterRangeUTF8(int first, int count)
     {
@@ -716,22 +615,6 @@ namespace Loft
     }
 
   }
-  //So we need to compile multiple or single char ranges into single char codes, and we have a "max count" of 
-  //packed characters that we'll allow, or, a MaxFontBitmapSize width. EngineConfig.MaxCharactersPerBitmap .. But we may not need this if MaxFontBitmapSize works well.
-  //check that stb_packeChar can separate pack ranges.
-  //
-  // Font -> Languages -> Ranges  .. Then we may need to have multiple images in the MegaTexture, and swap it if needed..
-  //
-  // Compiling ..
-  //
-  //  EN + ES - Same font range ..
-  //  RU - different font range.
-  //
-  // AND
-  //
-  //  Check that the font supports the language code (range).
-  //  This may in fact be why Entypo doesn't work with the way I've configured STB
-  //
   public class LanguagePackUTF8
   {
     //по-ру́сски ISO 15924 https://www.compart.com/en/unicode/scripts/Cyrl 
@@ -760,10 +643,11 @@ namespace Loft
     private int _lineGap = 0;
     private int _padding = 1; //STB - "normally you want 1 for bilinear filtering"
 
+    public float LineHeight { get { return ((float)_ascent - (float)_descent + (float)_lineGap); } }
     public float Ascent { get { return (float)_ascent; } }
     public float Descent { get { return (float)_descent; } }
 
-    private List<MtFontPatchInfo> _fontPatchInfos = new List<MtFontPatchInfo>();
+    private List<MtFontPatch> _fontPatches = new List<MtFontPatch>();
 
     //TODO:
     //TODO:
@@ -807,7 +691,7 @@ namespace Loft
         Gu.Log.Error("Error loading font " + this.MtFile.FileLoc, ex);
       }
     }
-    public float GetKernAdvanceWidth(MtFontPatchInfo patchInfo, int cCode, int cCodeNext)
+    public float GetKerning(MtFontPatch patchInfo, int cCode, int cCodeNext)
     {
       //Get an additional width to add or subtract for kerning.
       float fKern = 0.0f;
@@ -815,44 +699,49 @@ namespace Loft
       {
         //issue with audio somewhere
         int kern = StbTrueTypeSharp.StbTrueType.stbtt_GetCodepointKernAdvance(_fontInfo, cCode, cCodeNext);
-        fKern = (float)kern * patchInfo.ScaleForPixelHeight;
+      }
+      if (fKern > 0)
+      {
+        Gu.Trap();
       }
       return fKern;
     }
-    public MtFontPatchInfo SelectFontPatchInfo(LanguageCode lc, float fontSize)
+    public MtFontPatch SelectFontPatch(LanguageCode lc, float fontSize)
     {
       //Gets the closest font patch given the input size.
       //This is similar to mipmapping, but it works in case we can't filter the texture.
-      Gu.Assert(_fontPatchInfos != null);
+      Gu.Assert(_fontPatches != null);
       if (_bInitialized == false)
       {
         Gu.Log.Error("Font was not initialized.");
         Gu.DebugBreak();
         return null;
       }
-      //Given the pixel
-      if (_fontPatchInfos.Count == 0)
+      if (_fontPatches.Count == 0)
       {
+        Gu.Log.Error("No patch infos.");
+        Gu.DebugBreak();
         return null;
       }
       //Find the font patch info (MipMap)that is closest to the requested Font Size
-      MtFontPatchInfo last = _fontPatchInfos[0];
+      MtFontPatch last = _fontPatches[0];
       if (fontSize >= last.BakedCharSize)
       {
         return last;
       }
-      foreach (var inf in _fontPatchInfos)
+      //**TODO: Optimize (there is a binary search or something in animation data)
+      foreach (var inf in _fontPatches)
       {
         if (fontSize <= last.BakedCharSize && fontSize >= inf.BakedCharSize)
         {
           return inf;
         }
       }
-      return _fontPatchInfos[_fontPatchInfos.Count - 1];
+      return _fontPatches[_fontPatches.Count - 1];
     }
     public override void AfterCompile()
     {
-      foreach (var fontpatch in _fontPatchInfos)
+      foreach (var fontpatch in _fontPatches)
       {
         CachePatchChars(fontpatch);
       }
@@ -869,10 +758,10 @@ namespace Loft
       bw.Write((Int32)_lineGap);
       bw.Write((Int32)_padding);
 
-      bw.Write((Int32)_fontPatchInfos.Count);
-      for (int pi = 0; pi < _fontPatchInfos.Count; pi++)
+      bw.Write((Int32)_fontPatches.Count);
+      for (int pi = 0; pi < _fontPatches.Count; pi++)
       {
-        _fontPatchInfos[pi].Serialize(bw);
+        _fontPatches[pi].Serialize(bw);
       }
     }
     public override void Deserialize(BinaryReader br, SerializedFileVersion version)
@@ -888,12 +777,12 @@ namespace Loft
       _padding = br.ReadInt32();
 
       Int32 infCount = br.ReadInt32();
-      _fontPatchInfos = new List<MtFontPatchInfo>();
+      _fontPatches = new List<MtFontPatch>();
       for (int pi = 0; pi < infCount; pi++)
       {
-        var inf = new MtFontPatchInfo();
+        var inf = new MtFontPatch();
         inf.Deserialize(br, version);
-        _fontPatchInfos.Add(inf);
+        _fontPatches.Add(inf);
       }
 
       //*The STB font must be loaded in 
@@ -961,11 +850,11 @@ namespace Loft
       addPack(LanguageCode.en, new List<CharacterRangeUTF8>() { new CharacterRangeUTF8(' ', 512) });
       addPack(LanguageCode.es, new List<CharacterRangeUTF8>() { new CharacterRangeUTF8(' ', 512) });//Same as EN
 
-      if (Gu.EngineConfig.UseLang_RU)
+      if (Gu.EngineConfig.Font_Lang_RU)
       {
         addPack(LanguageCode.ru, new List<CharacterRangeUTF8>() { new CharacterRangeUTF8(0x400, 0xFE2F - 0x400) });
       }
-      if (Gu.EngineConfig.UseLang_ZH)
+      if (Gu.EngineConfig.Font_Lang_ZH)
       {
         addPack(LanguageCode.zh, new List<CharacterRangeUTF8>() { new CharacterRangeUTF8(0x4E00, 0x62FF - 0x4E00) });//0x9FFF is the whole range, that's a lot
       }
@@ -975,23 +864,32 @@ namespace Loft
       //BakedChar is the MAXIMUM size of a glyph.
       //Image Width/Height maximum is computed automatically, however
       //it is almost ALWAYS too much space. So we must trim the image.
-      int xchar = (int)Math.Ceiling(Math.Sqrt(_charCount));
-      int charHeight = Gu.EngineConfig.MaxBakedCharSize;
-      int charPadding = _padding;
 
-      for (int iTex = 0; iTex < Gu.c_intMaxWhileTrueLoopSmall; iTex++)
+      Gu.Assert(Gu.EngineConfig.Font_MaxBakedCharSize >= Gu.EngineConfig.Font_MinBakedCharSize);
+      Gu.Assert(Gu.EngineConfig.Font_MaxBitmapSize >= Gu.EngineConfig.Font_MinBitmapSize);
+      Gu.Assert(Gu.EngineConfig.Font_MinBitmapSize > 0);
+      Gu.Assert(Gu.EngineConfig.Font_MinBakedCharSize > 0);
+
+      //TODO: more optimal square image size = use widths of characters (BitmapUsedHeight)
+      int xchar = (int)Math.Ceiling(Math.Sqrt(_charCount));
+      int charPadding = _padding;
+      int levels = Gu.EngineConfig.Font_Mipmaps;
+      float charHeight = (float)Gu.EngineConfig.Font_MaxBakedCharSize;
+
+      for (int iTex = levels; iTex > 0; iTex--)// iTex  < Gu.c_intMaxWhileTrueLoopSmall; iTex++)
       {
-        int imageWidth = xchar * (charHeight + charPadding * 2);
-        int imageHeight = xchar * (charHeight + charPadding * 2);
-        Gu.Assert(imageWidth < Gu.EngineConfig.MaxFontBitmapSize);
-        Gu.Assert(imageHeight < Gu.EngineConfig.MaxFontBitmapSize);
+        int charheight_i = (int)Math.Ceiling(charHeight);
+
+        int imageWidth = xchar * (charheight_i + charPadding * 2);
+        int imageHeight = xchar * (charheight_i + charPadding * 2);
+        Gu.Assert(imageWidth < Gu.EngineConfig.Font_MaxBitmapSize);
+        Gu.Assert(imageHeight < Gu.EngineConfig.Font_MaxBitmapSize);
 
         var charInfo = new StbTrueTypeSharp.StbTrueType.stbtt_packedchar[_charCount];
-        byte[] atlasData = ConstructBitmapForSize(imageWidth, imageHeight, charPadding, (float)charHeight, charInfo);
+        byte[] atlasData = ConstructBitmapForSize(imageWidth, imageHeight, charPadding, charHeight, charInfo);
 
         //Trim the font atlas, because it's friggin huge
         //TODO: Given the BitmapUsedHeight routine, we COULD pre-compute the OPTIMAL SQUARE texture size if we wanted to
-        // But that's unnecessary right now. 1500x1500 texture is reasonable for now.
         int usedHeight = GetBitmapUsedHeight(charInfo, imageWidth, imageHeight);
         atlasData = TrimAtlasBitmapToUsedHeight(imageWidth, usedHeight, atlasData);
 
@@ -999,9 +897,9 @@ namespace Loft
         {
           //Set the megatex image.
           Image img = CreateFontImage(atlasData, imageWidth, usedHeight, charInfo);
-          if (Gu.EngineConfig.SaveSTBFontImage)
+          if (Gu.EngineConfig.Debug_Font_SaveImage)
           {
-            Gu.Log.Debug("Saving font...");
+            Gu.Log.Debug("Saving font image...");
             string nmapname_dbg = System.IO.Path.Combine(Gu.LocalTmpPath, Gu.Context.Name + " mt_" + MtFile.FileLoc.FileName + "_font_" + iTex + ".png");
             Lib.SaveImage(nmapname_dbg, img, false);
           }
@@ -1009,29 +907,33 @@ namespace Loft
           mt.SetImg(img);
           MtFile.Texs.Add(mt);
 
-          MtFontPatchInfo f = new MtFontPatchInfo();
-          f.ScaleForPixelHeight = StbTrueTypeSharp.StbTrueType.stbtt_ScaleForPixelHeight(_fontInfo, (float)charHeight);
+          MtFontPatch f = new MtFontPatch();
+          f.ScaleForPixelHeight = StbTrueTypeSharp.StbTrueType.stbtt_ScaleForPixelHeight(_fontInfo, charHeight);
           if (f.ScaleForPixelHeight == 0)
           {
+            Gu.Log.Error("font scale was zero");
             Gu.DebugBreak();
           }
           f.BakedCharSize = charHeight;
           f.TextureWidth = imageWidth;
           f.TextureHeight = usedHeight;
           f.CharInfo = charInfo;
-          f.TextureIndex = iTex;
+          f.TextureIndex = levels - iTex;
           f.FirstChar = _firstChar;
           f.CharCount = _charCount;
-          _fontPatchInfos.Add(f);
+          _fontPatches.Add(f);
         }
         else
         {
           Gu.Log.Error("Failed to create font " + MtFile.FileLoc);
           break;
         }
-        charHeight /= 2;
+        //charHeight /= 2;
+        charHeight -= (float)Gu.EngineConfig.Font_MaxBakedCharSize / (float)levels;
 
-        if (imageWidth < 64 || imageHeight < 64 || charHeight < 8)
+        if (imageWidth < Gu.EngineConfig.Font_MinBitmapSize ||
+            imageHeight < Gu.EngineConfig.Font_MinBitmapSize ||
+            charHeight < Gu.EngineConfig.Font_MinBakedCharSize)
         {
           break;
         }
@@ -1089,7 +991,7 @@ namespace Loft
       return img;
     }
 
-    private void CachePatchChars(MtFontPatchInfo patchInfo)
+    private void CachePatchChars(MtFontPatch patchInfo)
     {
       //This routine caches this, basically avoiding unsafe{} calls to STB functions.
       //The speedup is: TODO: post FPS gains
@@ -1144,7 +1046,7 @@ namespace Loft
         float tw = imagePatch.uv1.x - imagePatch.uv0.x;  //top left, origin
         float th = imagePatch.uv1.y - imagePatch.uv0.y;  //This is flipped; We are in OpenGL tcoords, however our origin is at the top left
 
-        MtCachedCharData ccd = new MtCachedCharData();
+        MtFontChar ccd = new MtFontChar();
 
         ccd.code = cCode;
 
@@ -1173,12 +1075,6 @@ namespace Loft
         // so you should advance the vertical position by "*ascent - *descent + *lineGap"
         //   these are expressed in unscaled coordinates, so you must multiply by
         //   the scale factor for a given size
-
-        //copy the scaled font info
-        ccd.font_scale = patchInfo.ScaleForPixelHeight;
-        ccd.font_ascent = (float)_ascent;
-        ccd.font_descent = (float)_descent;
-        ccd.font_lineHeight = ((float)_ascent - (float)_descent + (float)_lineGap);
 
         ccd.ch_leftbearing = (float)leftbearing;
         ccd.ch_advance = (float)advWidth;
@@ -1235,9 +1131,12 @@ namespace Loft
     #endregion
 
   }//MtFontLoader
-
   public class MegaTex
   {
+    //MegaTex
+    //how it works: supply list of files (MtFile)
+    // a file generates 1+ images (MtTex) and packs into this MegaTex
+    // this handles images (MtImageLoader), fonts (MtFontLoader) and generated textures (MtGenLoader)
     #region Enums
 
     public enum MegaTexCompileState
@@ -1266,8 +1165,8 @@ namespace Loft
     #region Private Members
 
     private SerializedFileVersion Version = new SerializedFileVersion(100000);
-
     private const string c_strDefaultPixelName = "MegaTexDefaultPixel";
+
     private int _iStartWH = 256;//Image start size (minimum size) pixels
     private int _iGrowWH = 128;//Amount to grow the image as we keep plopping (pixels)
     private MtNode _pRoot = null;
@@ -1275,14 +1174,19 @@ namespace Loft
     private UInt64 _genId = 0;
     private string _albedoLocStr = "";
     private string _normLocStr = "";
-    private Dictionary<FileLoc, MtFile> _locToFileCache = new Dictionary<FileLoc, MtFile>(new FileLoc.EqualityComparer());//Faster LUT than Files<>, however we need Files<> for maintaining sequence.
-
+    private Dictionary<string, MtFile> _locToFileCache = new Dictionary<string, MtFile>();//Faster LUT than Files<>, however we need Files<> for maintaining sequence.
     private MtClearColor _clearColor = MtClearColor.BlackNoAlpha;
     private bool _generateMipmaps = false;
     private TexFilter _texFilter = TexFilter.Nearest;
     private bool _hasNormalMap = false;
     private float _normalMapStrength = 0.0f;
     private int _defaultPixelSize = 0;
+
+    public static MtClearColor GetSystemDefaultClearColor()
+    {
+      if (Gu.EngineConfig.Debug_RainbowMegatexture) { return MtClearColor.DebugRainbow; }
+      else { return MtClearColor.BlackNoAlpha; }
+    }
 
     #endregion
     #region Public: Methods
@@ -1298,16 +1202,23 @@ namespace Loft
       this._albedoLocStr = MakeSaveTextureName(Gu.LocalCachePath, "albedo");
       this._normLocStr = MakeSaveTextureName(Gu.LocalCachePath, "normal");
 
-      //@param defaultPixelSize - Add a default white region for rendering solid colors. 0=disable.
+      //@param defaultPixelSize - Add a default white for rendering solid colors. 0=disable.
       // _bCache = bCache;
       _defaultPixelSize = defaultPixelSize;
       if (defaultPixelSize > 0)
       {
-        //Note: Default region will get skewed if texture filtering is enabled.
+        //Note: Default  will get skewed if texture filtering is enabled.
         var pixelBytes = Enumerable.Repeat((byte)255, defaultPixelSize * defaultPixelSize * 4).ToArray();
         var dpImage = new Image(Gu.Lib.GetUniqueName(ResourceType.Image, c_strDefaultPixelName), defaultPixelSize, defaultPixelSize, pixelBytes, Image.ImagePixelFormat.RGBA32ub);
         var tp = AddResource(dpImage, 1);
       }
+    }
+    public MtFile? GetResource(FileLoc path)
+    {
+      Gu.Assert(_locToFileCache != null);
+
+      _locToFileCache.TryGetValue(path.QualifiedPath, out var file);
+      return file;
     }
     public MtFile AddResource(Image tx, int shrinkPixelBorder = 0)
     {
@@ -1329,12 +1240,12 @@ namespace Loft
       Gu.Assert(loc != null);
 
       MtFile? ret = null;
-      _locToFileCache.TryGetValue(loc, out ret);
+      _locToFileCache.TryGetValue(loc.QualifiedPath, out ret);
       if (ret == null)
       {
         ret = new MtFile(loc, nPatches, shrinkPixelBorder);
         Files.Add(ret);
-        _locToFileCache.Add(ret.FileLoc, ret);
+        _locToFileCache.Add(ret.FileLoc.QualifiedPath, ret);
       }
       return ret;
     }
@@ -1350,7 +1261,7 @@ namespace Loft
     public MtFontLoader GetFont(FontFace fontLoc)
     {
       Gu.Assert(fontLoc != null);
-      if (_locToFileCache.TryGetValue(fontLoc, out var ret))
+      if (_locToFileCache.TryGetValue(fontLoc.QualifiedPath, out var ret))
       {
         if (ret.Loader is MtFontLoader)
         {
@@ -1448,7 +1359,7 @@ namespace Loft
       {
         float f1 = a.GetWidth() * a.GetHeight();
         float f2 = b.GetWidth() * b.GetHeight();
-        return f1.CompareTo(f2);
+        return f2.CompareTo(f1);
       });
 
       return vecTexs;
@@ -1497,7 +1408,7 @@ namespace Loft
             MtNode found = _pRoot.plop(texx);
             if (found != null)
             {
-              texx.Node = new WeakReference<MtNode>(found);
+              texx.Node = found;
             }
             else
             {
@@ -1582,22 +1493,22 @@ namespace Loft
         Gu.Log.Debug("..Copying Sub-Images..and calculating tex coords");
         foreach (MtTex texx in vecTexs)
         {
-          if (texx.Node.TryGetTarget(out var t_node))
+          if (texx.Node != null)
           {
-            master_albedo.copySubImageFrom(t_node._b2Rect._min, new ivec2(0, 0), new ivec2(texx.GetWidth(), texx.GetHeight()), texx.Img());
+            master_albedo.copySubImageFrom(texx.Node._b2Rect._min, new ivec2(0, 0), new ivec2(texx.GetWidth(), texx.GetHeight()), texx.Img());
             Gpu.CheckGpuErrorsDbg();
 
             //Tex coords
-            float minx = (float)t_node._b2Rect._min.x + texx.ShrinkPixels;
-            float miny = (float)t_node._b2Rect._min.y + texx.ShrinkPixels;
-            float maxx = (float)t_node._b2Rect._max.x - texx.ShrinkPixels;
-            float maxy = (float)t_node._b2Rect._max.y - texx.ShrinkPixels;
+            float minx = (float)texx.Node._b2Rect._min.x + texx.ShrinkPixels;
+            float miny = (float)texx.Node._b2Rect._min.y + texx.ShrinkPixels;
+            float maxx = (float)texx.Node._b2Rect._max.x - texx.ShrinkPixels;
+            float maxy = (float)texx.Node._b2Rect._max.y - texx.ShrinkPixels;
             texx.uv0 = new vec2(minx / imgW, miny / imgH);
             texx.uv1 = new vec2(maxx / imgW, maxy / imgH);
           }
           else
           {
-            Gu.BRThrowException("Failed to get MTNode for texture. Weak reference must have gone away..?");
+            Gu.BRThrowException("Failed to get MTNode for texture.");
           }
 
 
@@ -1761,7 +1672,7 @@ namespace Loft
       _locToFileCache.Clear();
       foreach (var f in Files)
       {
-        _locToFileCache.Add(f.FileLoc, f);
+        _locToFileCache.Add(f.FileLoc.QualifiedPath, f);
       }
     }
     private string MakeSaveTextureName(string path, string texture_name)
@@ -1790,9 +1701,9 @@ namespace Loft
       }
 
     }
+    #endregion
 
-  }//MegaTex
+  }//cls
 
-  #endregion
 
-}
+}//ns

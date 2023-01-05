@@ -341,7 +341,7 @@ namespace Loft
     public int FirstChar { get; private set; } = UnicodeRanges.BasicLatin.FirstCodePoint;
     public int CharCount { get; private set; } = UnicodeRanges.BasicLatin.Length;
 
-    public List<MtFontPatchInfo> FontPatchInfos = new List<MtFontPatchInfo>();//Mipmaps
+    public List<MtFontPatch> FontPatchInfos = new List<MtFontPatch>();//Mipmaps
 
     public FontRangeUTF8(UnicodeRange r, LanguageCode c)
     {

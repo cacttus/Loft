@@ -8,27 +8,7 @@ out vec2 _blendOriginGS;
 out float _blendSizeGS;
 out vec3 _outlGS;
 
-vec4 clip_to_screen(vec4 p) {
-  //to screen space, p has been multiplied by MVP matrix
-  vec2 rwh = vec2(_ufGpuCamera._vWindowViewport.z, 
-                  _ufGpuCamera._vWindowViewport.w);
 
-  //**NOTE: this does not put the screen origin in top 
-  // 1 - p.y for top origin
-  p.xyz /= p.w;
-  p.xy = (p.xy + 1.0) * rwh * 0.5;
-
-  return p;
-}
-vec4 screen_to_clip(vec4 p) {
-  //back to clip
-  vec2 rwh = vec2(_ufGpuCamera._vWindowViewport.z, 
-                  _ufGpuCamera._vWindowViewport.w);
-
-  p.xy = p.xy / rwh * 2.0 - 1.0;
-  p.xyz *= p.w;
-  return p;
-}
 void emitPixelLine(vec3 p0, vec3 p1, vec4 c0, vec4 c1, float leftsize, float rightsize, mat4 mvp) 
 {
   //Draw line with blend

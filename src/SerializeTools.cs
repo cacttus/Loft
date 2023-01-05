@@ -151,63 +151,23 @@ namespace Loft
     }
     public static T[] Deserialize<T>(byte[] data) where T : struct
     {
-      //Deserialize assuming data equals the size of the element to be deserialized
-      var tsize = Marshal.SizeOf(default(T));
-      Gu.Assert(data.Length % tsize == 0);
-      var count = data.Length / tsize;
-
-      return DeserializeFrom<T>(data, 0, count);
+      return StructUtils.Deserialize<T>(data);
     }
     public static T[] DeserializeFrom<T>(byte[] data, int offset_bytes, int count_items) where T : struct
     {
-      //Parse an array of struct out of a byte[] of raw data, the byte[] does not exactly need to match the struct, but must be > the struct
-      var size = Marshal.SizeOf(default(T));
-      var length = count_items * size;
-      Gu.Assert(offset_bytes + length <= data.Length);
-      var ret = new T[count_items];
-
-      var pinnedHandle = GCHandle.Alloc(ret, GCHandleType.Pinned);
-      Marshal.Copy(data, offset_bytes, pinnedHandle.AddrOfPinnedObject(), length);
-      pinnedHandle.Free();
-
-      return ret;
+      return StructUtils.DeserializeFrom<T>(data, offset_bytes, count_items);
     }
     public static T DeserializeFrom<T>(byte[] data, int offset_bytes) where T : struct
     {
-      //Parse an array of struct out of a byte[] of raw data
-      var length = Marshal.SizeOf(default(T));
-      Gu.Assert(offset_bytes + length <= data.Length);
-      var ret = new T();
-
-      var pinnedHandle = GCHandle.Alloc(ret, GCHandleType.Pinned);
-      Marshal.Copy(data, offset_bytes, pinnedHandle.AddrOfPinnedObject(), length);
-      pinnedHandle.Free();
-
-      return ret;
+      return StructUtils.DeserializeFrom<T>(data, offset_bytes);
     }
     public static unsafe byte[] Serialize<T>(T data) where T : struct
     {
-      //https://www.genericgamedev.com/general/converting-between-structs-and-byte-arrays/
-      var size = Marshal.SizeOf(data);
-      var bytes = new byte[size];
-
-      var ptr = Marshal.AllocHGlobal(size);
-      Marshal.StructureToPtr(data, ptr, true);
-      Marshal.Copy(ptr, bytes, 0 * size, size);
-      Marshal.FreeHGlobal(ptr);
-      return bytes;
+      return StructUtils.Serialize<T>(data);
     }
     public static byte[] Serialize<T>(T[] items) where T : struct
     {
-      ///** Test this
-      var size = Marshal.SizeOf(default(T));
-      var ret = new byte[items.Length * size];
-
-      var items_h = GCHandle.Alloc(items, GCHandleType.Pinned);
-      Marshal.Copy(items_h.AddrOfPinnedObject(), ret, 0, ret.Length);
-      items_h.Free();
-
-      return ret;
+      return StructUtils.Serialize<T>(items);
     }
     public static string SerializeJSON(object? obj, bool indented = true)
     {

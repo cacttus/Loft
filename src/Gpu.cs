@@ -489,19 +489,19 @@ namespace Loft
     }
     public static GPUBuffer CreateUniformBuffer<T>(string name, T item) where T : struct
     {
-      var b = new GPUBuffer(name + "-ubo", GPUDataFormat.GetDataFormat<T>(), 1, BufferTarget.UniformBuffer, BufferUsageHint.StreamDraw);
+      var b = new GPUBuffer(name + "-ubo", GpuDataFormat.GetDataFormat<T>(), 1, BufferTarget.UniformBuffer, BufferUsageHint.StreamDraw);
       b.CopyToGPU(item);
       return b;
     }
     public static GPUBuffer CreateUniformBuffer<T>(string name, T[] items) where T : struct
     {
-      var b = new GPUBuffer(name + "-ubo", GPUDataFormat.GetDataFormat<T>(), items.Length, BufferTarget.UniformBuffer, BufferUsageHint.StreamDraw);
+      var b = new GPUBuffer(name + "-ubo", GpuDataFormat.GetDataFormat<T>(), items.Length, BufferTarget.UniformBuffer, BufferUsageHint.StreamDraw);
       b.CopyToGPU(items);
       return b;
     }
     public static GPUBuffer CreateShaderStorageBuffer<T>(string name, T[] items) where T : struct
     {
-      var b = new GPUBuffer(name + "-ssbo", GPUDataFormat.GetDataFormat<T>(), items.Length, BufferTarget.ShaderStorageBuffer, BufferUsageHint.StreamDraw);
+      var b = new GPUBuffer(name + "-ssbo", GpuDataFormat.GetDataFormat<T>(), items.Length, BufferTarget.ShaderStorageBuffer, BufferUsageHint.StreamDraw);
       b.CopyToGPU(items);
       return b;
     }
@@ -512,14 +512,14 @@ namespace Loft
     public static GPUBuffer CreateVertexBuffer<T>(string name, T[] verts) where T : struct
     {
       Gu.Assert(verts != null);
-      var b = new GPUBuffer(name + "-vbo", GPUDataFormat.GetDataFormat<T>(), verts.Length, BufferTarget.ArrayBuffer, BufferUsageHint.StreamDraw);
+      var b = new GPUBuffer(name + "-vbo", GpuDataFormat.GetDataFormat<T>(), verts.Length, BufferTarget.ArrayBuffer, BufferUsageHint.StreamDraw);
       b.CopyToGPU(verts);
       return b;
     }
     public static GPUBuffer CreateIndexBuffer<T>(string name, T[] inds) where T : struct
     {
       Gu.Assert(inds != null);
-      var b = new GPUBuffer(name + "-ibo", GPUDataFormat.GetDataFormat<T>(), inds.Length, BufferTarget.ElementArrayBuffer, BufferUsageHint.StreamDraw);
+      var b = new GPUBuffer(name + "-ibo", GpuDataFormat.GetDataFormat<T>(), inds.Length, BufferTarget.ElementArrayBuffer, BufferUsageHint.StreamDraw);
       b.CopyToGPU(inds);
       return b;
     }
@@ -1485,7 +1485,7 @@ namespace Loft
         (GetPName)GLenum.GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS,
         (GetPName)GLenum.GL_MAX_ARRAY_TEXTURE_LAYERS,
           (GetPName)0,
-        
+
         (GetPName)GLenum.GL_MAX_UNIFORM_LOCATIONS,
         (GetPName)GLenum.GL_MAX_UNIFORM_BLOCK_SIZE,
         (GetPName)GLenum.GL_MAX_UNIFORM_BUFFER_BINDINGS,
@@ -1529,7 +1529,7 @@ namespace Loft
         (GetPName)GLenum.GL_MAX_COMPUTE_UNIFORM_BLOCKS,
         (GetPName)GLenum.GL_MAX_COMBINED_COMPUTE_UNIFORM_COMPONENTS,
           (GetPName)0,
-        
+
       };
       foreach (var get in geti32)
       {
@@ -2079,6 +2079,490 @@ namespace Loft
     #endregion
   }
 
+  public class BufferView
+  {
+    //view of mapped buffer memory
+    public GpuDataFormat Format { get { return _region.Format; } }
+    public int ItemCount { get { return _count_items; } }
+    public int ItemOffset { get { return _offset_items; } }
+    public int ArrayIndex { get { return _arrayIndex; } }
+    public GpuMemoryBuffer Buffer { get { return _region.Buffer; } }
+
+    private GpuMemoryBlock _region;
+    private int _count_bytes = -1;
+    private int _offset_bytes = -1;
+    private int _count_items = -1;
+    private int _offset_items = -1;
+    private int _arrayIndex = -1; // index into region array
+
+    public BufferView() { }
+    public BufferView(GpuMemoryBlock region, int arrayIndex, int offset_bytes, int count_bytes)
+    {
+      Gu.Assert(region != null);
+      _region = region;
+      _arrayIndex = arrayIndex;
+      _count_bytes = count_bytes;
+      _offset_bytes = offset_bytes;
+      _count_items = _count_bytes / region.Format.SizeBytes;
+      _offset_items = _offset_bytes / region.Format.SizeBytes;
+    }
+    public GpuDataPtr CopyFromGPU(int itemOffset = 0, int itemCount = -1)
+    {
+      int byte_off = _offset_bytes + itemOffset * Format.SizeBytes;
+      int byte_count = (itemCount < 0 ? _count_bytes : itemCount);
+
+      Gu.Assert(Buffer != null);
+      Gu.Assert(itemCount <= _count_bytes);
+      Gu.Assert(_offset_bytes >= 0);
+
+      byte[] managedArray = Buffer.CopyFromGPU(byte_off, byte_count);
+      return new GpuDataPtr(Format.SizeBytes, byte_count / Format.SizeBytes, managedArray);
+    }
+    public void CopyToGPU<T>(T[] items, int srcItemOffset = 0, int dstItemOffset = 0, int itemCount = -1) where T : struct
+    {
+      int byte_off_src = _offset_bytes + srcItemOffset * Format.SizeBytes;
+      int byte_count = (itemCount < 0 ? items.Length : itemCount);
+      int byte_off_dst = _offset_bytes + dstItemOffset * Format.SizeBytes;
+
+      Gu.Assert(byte_off_src >= 0);
+      Gu.Assert((byte_count - byte_off_src) < _count_bytes);
+
+      var handle = GCHandle.Alloc(items, GCHandleType.Pinned);
+      Buffer.CopyToGPU(handle.AddrOfPinnedObject(), byte_off_src, byte_off_dst, byte_count);
+      handle.Free();
+    }
+    public void Release()
+    {
+      //release this view - free memery
+      _region.Release(this);
+    }
+  }//cls
+  
+  public class GpuByteBuffer : OpenGLResource
+  {
+    //Allows for any kind of data - not just "items"
+    //GpuByteBuffer, GpuRawBuffer
+    
+    public BufferTarget BufferTarget { get { return _bufferTarget; } private set { _bufferTarget = value; } }
+    private BufferTarget _bufferTarget = BufferTarget.ShaderStorageBuffer;
+    private BufferRangeTarget? _rangeTarget = null;//For buffer block objects 
+    protected bool _allocated = false;
+    private int _sizeBytes = 0;
+    private BufferUsageHint _hint;
+
+    private List<BufferView> _views = new List<BufferView>();
+
+    public GpuByteBuffer(string name, int size_bytes, BufferTarget target, BufferUsageHint hint) : base(name)
+    {
+      _sizeBytes = size_bytes;
+      _hint = hint;
+      _bufferTarget = target;
+
+      _glId = GT.GenBuffer();
+      Gpu.CheckGpuErrorsDbg();
+      SetObjectLabel();
+      if (size_bytes > 0)
+      {
+        Allocate(size_bytes);
+      }
+    }
+    protected void Allocate(int size_bytes)
+    {
+      byte[] arr = new byte[size_bytes];
+      Array.Clear(arr);
+
+      var handle = GCHandle.Alloc(arr, GCHandleType.Pinned);
+      GL.BufferData(_bufferTarget, (int)size_bytes, handle.AddrOfPinnedObject(), _hint);
+      handle.Free();
+
+      GL.BindBuffer(_bufferTarget, 0);
+      _allocated = true;
+    }
+    public override void Dispose_OpenGL_RenderThread()
+    {
+      if (GL.IsBuffer(_glId))
+      {
+        GT.DeleteBuffer(_glId);
+      }
+    }
+    public bool Bind()
+    {
+      // if (!GL.IsBuffer(_glId))
+      // {
+      //   Gu.DebugBreak();
+      //   return false;
+      // }
+      GL.BindBuffer(BufferTarget, _glId);
+      Gpu.CheckGpuErrorsDbg();
+      return true;
+    }
+    public void Unbind()
+    {
+      GL.BindBuffer(BufferTarget, 0);
+      Gpu.CheckGpuErrorsDbg();
+    }
+    public byte[] CopyFromGPU(int offset_bytes, int length_bytes)
+    {
+      Gu.Assert(this._allocated);
+      //Copies GPU data into a temporary byte array.
+
+      if (BufferTarget == BufferTarget.ShaderStorageBuffer)//SSBOs reads and writes use incoherent memory accesses, so they need the appropriate barriers
+      {
+        MemoryBarrier();
+      }
+
+      Bind();
+      IntPtr pt = GL.MapBufferRange(BufferTarget, (IntPtr)offset_bytes, (IntPtr)length_bytes, BufferAccessMask.MapReadBit);
+      Gpu.CheckGpuErrorsDbg();
+      if (pt == IntPtr.Zero)
+      {
+        Gu.BRThrowException("Failed to map OpenGL Buffer.");
+      }
+      byte[] managedArray = new byte[length_bytes];
+      Marshal.Copy(pt, managedArray, 0, (int)length_bytes);
+      GL.UnmapBuffer(BufferTarget);
+
+      Unbind();
+
+      return managedArray;
+    }
+    public bool CopyToGPU(IntPtr psrc, int srcOff_bytes, int dstOff_bytes, int count_bytes)
+    {
+      Gu.Assert(_allocated);
+
+      //Return true if the copy operation took place.
+      bool ret = true;
+      Gu.Assert(psrc != null, $"{Name}, Null source.");
+
+      if (count_bytes == 0)
+      {
+        return false;
+      }
+      Gu.Assert(count_bytes > 0, $"{Name}, Invalid Count.");
+
+      if (_bufferTarget == BufferTarget.ShaderStorageBuffer)//SSBOs reads and writes use incoherent memory accesses, so they need the appropriate barriers
+      {
+        MemoryBarrier();
+      }
+      Gu.Assert(dstOff_bytes + count_bytes <= _sizeBytes, $"{Name} - Buffer overflow.");
+
+      Bind();
+      {
+        IntPtr pdst = GL.MapBufferRange(_bufferTarget, (IntPtr)dstOff_bytes, (IntPtr)count_bytes, BufferAccessMask.MapWriteBit);
+        Gpu.CheckGpuErrorsDbg();
+        {
+          if (pdst == IntPtr.Zero)
+          {
+            Gu.Log.Error("Failed to map OpenGL Buffer.");
+            Gu.DebugBreak();
+            ret = false;
+          }
+          else
+          {
+            unsafe
+            {
+              System.Buffer.MemoryCopy((void*)psrc, (void*)pdst, _sizeBytes, count_bytes);
+              ret = true;
+            }
+          }
+        }
+        GL.UnmapBuffer(_bufferTarget);
+        Gpu.CheckGpuErrorsDbg();
+      }
+      Unbind();
+
+      return ret;
+    }
+    protected void MemoryBarrier()
+    {
+      MemoryBarrierFlags f = MemoryBarrierFlags.UniformBarrierBit;
+
+      if (_bufferTarget == BufferTarget.UniformBuffer)
+      {
+        f = MemoryBarrierFlags.UniformBarrierBit;
+      }
+      else if (_bufferTarget == BufferTarget.ShaderStorageBuffer)
+      {
+        f = MemoryBarrierFlags.ShaderStorageBarrierBit;
+      }
+      else
+      {
+        Gu.BRThrowNotImplementedException();
+      }
+
+      GL.MemoryBarrier(f);
+    }
+  }
+  public class GpuMemoryBuffer : GpuByteBuffer
+  {
+    //Partitioned buffer - maps data items into arrays, and maps them to objs.
+    // Purpose: lets us put all the verts into a single buffer and map them back to meshes.
+    //type() -> fixed array size, <bufferView <-> object>
+
+    private int _maxSizeBytes = 0;
+    private List<GpuMemoryBlock> _regions = new List<GpuMemoryBlock>();
+
+    public GpuMemoryBuffer(string name, BufferTarget target, BufferUsageHint hint, int maxSizeBytes = 0) : base(name, 0, target, hint)
+    {
+      //set sizebytes to 0 to not allocate
+      _maxSizeBytes = maxSizeBytes;
+      if (_maxSizeBytes == 0)
+      {
+        _maxSizeBytes = 2000000000;
+      }
+
+      _regions = new List<GpuMemoryBlock>();
+      _regions.Add(new GpuMemoryBlock(0, _maxSizeBytes));
+
+      if (maxSizeBytes > 0)
+      {
+        Allocate(maxSizeBytes);
+      }
+    }
+    public BufferView? AllocateSingleItem<T>(T[] items, object? obj = null) where T : struct
+    {
+      BufferView? bv = null;
+      if (TryAllocateRegion<T>(out var region, 1, 1))
+      {
+        region.TryGetView<T>(obj, out bv);
+      }
+      Gu.Assert(bv != null);
+
+      bv.CopyToGPU(items);
+
+      return bv;
+    }
+    public bool TryAllocateRegion<T>(out GpuMemoryBlock? region, int array_length = 1, int block_size = 1)
+    {
+      var fmt = GpuDataFormat.GetDataFormat<T>();
+      return TryAllocateRegion(fmt, out region, array_length, block_size);
+    }
+    private bool TryAllocateRegion(GpuDataFormat fmt, out GpuMemoryBlock? region, int array_length = 1, int block_size = 1)
+    {
+      Gu.Assert(array_length > 0);
+      Gu.Assert(block_size > 0);
+
+      //find region if one exists
+      region = AllocateRegion(fmt, array_length, block_size);
+
+      if (region == null)
+      {
+        //todo; combine neighbor empty blocks, (move data as last resort)
+        Gu.Trap();//TEST**
+        Consolidate();
+        region = AllocateRegion(fmt, array_length, block_size);
+      }
+
+      return region != null;
+    }
+    private GpuMemoryBlock? AllocateRegion(GpuDataFormat fmt, int array_length, int block_size)
+    {
+      GpuMemoryBlock? region = null;
+      int item_size = fmt.SizeBytes;
+      int region_size = array_length * block_size * item_size;
+      for (int ri = _regions.Count - 1; ri >= 0; ri--)
+      {
+        var er = _regions[ri];
+        if (er.IsEmpty && er.ByteSize >= region_size)
+        {
+          var sliced = new GpuMemoryBlock(er.ByteOffset + region_size, er.ByteSize - region_size);
+          region = new GpuMemoryBlock(this, fmt, er.ByteOffset, region_size, block_size, array_length);
+          //TODO: test that insert works here
+          _regions.Insert(ri, region);
+          _regions.Insert(ri + 1, sliced);
+          break;
+        }
+      }
+      return region;
+    }
+    private void Consolidate()
+    {
+      //TODO: rellocate the buffer and all the sub-data (last resort)
+      for (int ri = _regions.Count - 1; ri >= 0; ri--)
+      {
+        _regions[ri].Consolidate();
+        if (ri + 1 < _regions.Count && _regions[ri].IsEmpty && _regions[ri + 1].IsEmpty)
+        {
+          var a = _regions[ri + 1];
+          var b = _regions[ri];
+
+          _regions.RemoveAt(ri + 1);
+          _regions[ri] = new GpuMemoryBlock(b.ByteOffset, a.ByteSize + b.ByteSize);
+        }
+      }
+    }
+
+  }//cls
+
+  public class GpuMemoryBlock
+  {
+    //Memory Region in block - with array size. 
+    //    blocksize = 3, arraysize = 2 -> { [v_v3x2,v_v3x2,v_v3x2], [v_v3x2,v_v3x2,v_v3x2] }
+    //                                              ^ index 0                 ^ index 1    
+    public class ArrayObject
+    {
+      public BufferView? View;
+      public WeakReference<object> Object;
+    }
+    public GpuMemoryBuffer Buffer { get { return _buffer; } }
+    public GpuDataFormat Format { get { return _format; } }
+    public int ByteSize { get { return _byte_size; } }
+    public int ByteOffset { get { return _byte_offset; } }
+    public bool IsEmpty { get { return _arrayObjects == null; } }
+
+    private Dictionary<BufferView, int>? _view_to_arrayindex = null;//cache - speed
+    private List<ArrayObject?>? _arrayObjects = null;
+    private GpuMemoryBuffer _buffer;
+    private GpuDataFormat _format;
+    private int _byte_offset = 0; // start of region
+    private int _array_size = 0;//array size of 1 = no array.
+    private int _block_size = 0; // number of sub-items in one array "block"
+    private int _byte_size = 0; // number of sub-items in one array "block"
+
+    public GpuMemoryBlock(int byte_offset, int byte_size)
+    {
+      //Empty ctor
+      _byte_offset = byte_offset;
+      _byte_size = byte_size;
+    }
+    public GpuMemoryBlock(GpuMemoryBuffer buffer, GpuDataFormat fmt, int byte_offset, int byte_size, int block_size, int array_size) : this(byte_size, byte_offset)
+    {
+      _buffer = buffer;
+      _format = fmt;
+      _array_size = array_size;
+      _block_size = block_size;
+    }
+    public bool TryGetView<T>(object? obj, out BufferView? bv)
+    {
+      //get a new view for array index , or return a view if this is not arrayed
+      Gu.Assert(obj != null);
+
+      bv = null;
+      int slot = FindEmptyArraySlot(obj);
+
+      if (slot == -1 && _arrayObjects.Count < _array_size)
+      {
+        slot = AddArraySlot();
+      }
+
+      if (slot != -1)
+      {
+        bv = CreateView(slot);
+        _arrayObjects[slot] = new ArrayObject() { Object = obj == null ? null : new WeakReference<object>(obj), View = bv };
+
+        // if (obj is DataBlock)
+        // {
+        //   var db = obj as DataBlock;
+        //   db.BufferViews = db.BufferViews.ConstructIfNeeded();
+        //   db.BufferViews.Add(typeof(T), bv);
+        // }
+      }
+      else
+      {
+        Gu.Log.Error($"Too many array instances / views. limit={_array_size} this objtype={obj.GetType().Name}'");
+        Gu.DebugBreak();
+      }
+
+      return bv != null;
+    }
+    public void Release(BufferView bv)
+    {
+      if (_view_to_arrayindex.TryGetValue(bv, out int idx))
+      {
+        _view_to_arrayindex.Remove(bv);
+        //must maintain array integrtity
+        _arrayObjects[idx] = null;
+      }
+      else
+      {
+        //error - ould not find
+        Gu.DebugBreak();
+      }
+    }
+    private bool CanClearView(int ikey)
+    {
+      bool ret = (_arrayObjects[ikey] == null) || (_arrayObjects[ikey] != null && !_arrayObjects[ikey].Object.TryGetTarget(out var xt));
+      return ret;
+    }
+    public void Consolidate()
+    {
+      if (IsEmpty)
+      {
+        return;
+      }
+      bool inside = false;
+      for (int ikey = _arrayObjects.Count - 1; ikey >= 0; ikey--)
+      {
+        var val = _arrayObjects[ikey];
+        //note objects can be null
+        //array view was Released() or the using object was GC'd
+        if (CanClearView(ikey))
+        {
+          //free dangling ref
+          if (inside)
+          {
+            _arrayObjects[ikey] = null;
+          }
+          else
+          {
+            _arrayObjects.RemoveAt(ikey);
+          }
+        }
+        else
+        {
+          inside = true;
+        }
+
+      }
+
+      if (_arrayObjects.Count == 0)
+      {
+        //Mark empty
+        _arrayObjects = null;
+        _view_to_arrayindex = null;
+      }
+    }
+
+    private int FindEmptyArraySlot(object? obj)
+    {
+      int slot = -1;
+
+      if (_arrayObjects != null)
+      {
+        //find free slot if object went away or is null
+        for (int ikey = 0; ikey < _arrayObjects.Count; ikey++)
+        {
+          if (CanClearView(ikey))//object values can be null in which case we don't have a mpaping, something just owns it.
+          {
+            //allowing for null object identifiers and requesting to release buffers with Release()
+            slot = ikey;
+            break;
+          }
+        }
+      }
+      return slot;
+    }
+    private int AddArraySlot()
+    {
+      _arrayObjects = _arrayObjects.ConstructIfNeeded();
+      _view_to_arrayindex = _view_to_arrayindex.ConstructIfNeeded();
+
+      Gu.Assert(_arrayObjects.Count + 1 <= _array_size);
+
+      _arrayObjects.Add(null);
+
+      return _arrayObjects.Count - 1;
+    }
+    private BufferView CreateView(int array_index)
+    {
+      int view_offset_bytes = _byte_offset + array_index * _format.SizeBytes;
+      var bv = new BufferView(this, array_index, view_offset_bytes, _format.SizeBytes);
+      _view_to_arrayindex.Add(bv, array_index);
+      return bv;
+    }
+
+
+  }//cls
 
 
 }//ns 

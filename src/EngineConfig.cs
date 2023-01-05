@@ -24,18 +24,24 @@ namespace Loft
     [DataMember(IsRequired = true)] public bool GraphicsErrorLogging_Medium = true;
     [DataMember(IsRequired = true)] public bool GraphicsErrorLogging_Low = true;
     [DataMember(IsRequired = true)] public bool GraphicsErrorLogging_Info = true;
-    [DataMember(IsRequired = true)] public bool Debug_Print_Shader_Uniform_Details_Verbose_NotFound = false;  
+    [DataMember(IsRequired = true)] public bool Debug_Print_Shader_Uniform_Details_Verbose_NotFound = false;
     [DataMember(IsRequired = true)] public bool Debug_Print_Shader_Uniform_Details_Verbose_AlreadySet = false;
-    [DataMember(IsRequired = true)] public bool Debug_PrintTranslationTable = false; 
-    [DataMember(IsRequired = true)] public bool Debug_LogSerializationDetails = true;
+    [DataMember(IsRequired = true)] public bool Debug_PrintTranslationTable = false;
+    [DataMember(IsRequired = true)] public bool Debug_LogSerializationDetails = false;
     [DataMember(IsRequired = true)] public bool Debug_Log_GLTF_Details = true;
+    [DataMember(IsRequired = true)] public bool Debug_LogToFile = true;
+    [DataMember(IsRequired = true)] public bool Debug_LogToConsole = true;
+
 
     //font
-    [DataMember(IsRequired = true)] public int MaxBakedCharSize = 64;
-    [DataMember(IsRequired = true)] public int MaxFontBitmapSize = 4096;
-    [DataMember(IsRequired = true)] public bool UseLang_RU = true;
-    [DataMember(IsRequired = true)] public bool UseLang_ZH = true;
-    [DataMember(IsRequired = true)] public bool SaveSTBFontImage = true; //saves raw generated font images
+    [DataMember(IsRequired = true)] public int Font_MaxBakedCharSize = 92;
+    [DataMember(IsRequired = true)] public int Font_MinBakedCharSize = 2;
+    [DataMember(IsRequired = true)] public int Font_Mipmaps = 10;
+    [DataMember(IsRequired = true)] public int Font_MaxBitmapSize = 4096;
+    [DataMember(IsRequired = true)] public int Font_MinBitmapSize = 64;
+    [DataMember(IsRequired = true)] public bool Font_Lang_RU = true;
+    [DataMember(IsRequired = true)] public bool Font_Lang_ZH = true;
+    [DataMember(IsRequired = true)] public bool Debug_Font_SaveImage = true; //saves raw generated font images
 
     //render    
     [DataMember(IsRequired = true)] public bool Debug_EnableCompatibilityProfile = false;
@@ -52,9 +58,9 @@ namespace Loft
     [DataMember(IsRequired = true)] public int WindowInitW = 1920;
     [DataMember(IsRequired = true)] public int WindowInitH = 1080;
     [DataMember(IsRequired = true)] public float WindowInitScaleW = 0.75f;
-    [DataMember(IsRequired = true)] public float WindowInitScaleH = 0.75f;
+    [DataMember(IsRequired = true)] public float WindowInitScaleH = 1;//0.75f;
     [DataMember(IsRequired = true)] public ColorBitDepth ColorBitDepth = ColorBitDepth.FB_16_BIT;//16 or 32
-    
+
     //system
     [DataMember(IsRequired = true)] public bool Debug_SaveDebuggShaderSource = true;
     [DataMember(IsRequired = true)] public bool BreakOnOpenGLError = true;
@@ -68,7 +74,39 @@ namespace Loft
     [DataMember(IsRequired = true)] public string ScriptDLLName = "Scripts.dll";
     [DataMember(IsRequired = true)] public bool Debug_ShowFailedShaderSourceInVSCOode = true;
 
+    //UI
+    [DataMember(IsRequired = true)] public FileLoc BaseGuiScript = new FileLoc("BaseGuiScript.cs", PathRoot.Src);
+    [DataMember(IsRequired = true)] public FileLoc EditGuiScript = new FileLoc("EditGuiScript.cs", PathRoot.Src);
+    [DataMember(IsRequired = true)] public FileLoc TestGuiScript = new FileLoc("TestGuiScript.cs", PathRoot.Src);
+    //[DataMember(IsRequired = true)] public FileLoc SRC_UIControls = new FileLoc("UiControls.cs", PathRoot.Src);
+    [DataMember(IsRequired = true)] public FileLoc InfoGuiScript = new FileLoc("TODO.cs", PathRoot.Src);
+    [DataMember(IsRequired = true)] public bool Debug_RainbowMegatexture = true;
+
+    //Shader
+    [DataMember(IsRequired = true)] public int ShaderCV_MaxLights = 32;
+    [DataMember(IsRequired = true)] public int ShaderCV_MaxMaterials = 256;
+    [DataMember(IsRequired = true)] public int ShaderCV_MaxObjects = 1024;
+    [DataMember(IsRequired = true)] public int ShaderCV_MaxInstances = 32;
+    [DataMember(IsRequired = true)] public int ShaderCV_MaxSampler2Ds = 64;
+    [DataMember(IsRequired = true)] public int ShaderCV_MaxCameras = 32;
+    [DataMember(IsRequired = true)] public int ShaderCV_MaxArmatures = 128;
+    [DataMember(IsRequired = true)] public int ShaderCV_MaxMeshes = 256;
+    [DataMember(IsRequired = true)] public int ShaderCV_MaxCubeShadowSamples = 4;
+    [DataMember(IsRequired = true)] public int ShaderCV_MaxFrusShadowSamples = 4;
+    [DataMember(IsRequired = true)] public int ShaderCV_GpuDataSizeMB = 16;
+
+
     public static EngineConfig LoadEngineConfig(FileLoc loc)
+    {
+      //Dont load just return this one for debugging purposes
+
+      Gu.Log.Warn("Disabled saveing/loading engine config for deubggign");
+
+      return new EngineConfig();
+
+      return Load(loc);
+    }
+    private static EngineConfig Load(FileLoc loc)
     {
       EngineConfig ret = null;
       bool missing = false;
@@ -90,7 +128,16 @@ namespace Loft
             MissingMemberHandling = MissingMemberHandling.Error,
             Error = (s, e) =>
             {
-              Gu.Log.Error($"config JSON Member '{e.ErrorContext.Member.ToString()}' was not found. Setting to default.");
+              string member = "";
+              if (e != null && e.ErrorContext != null && e.ErrorContext.Member != null)
+              {
+                member = e.ErrorContext.Member.ToString();
+              }
+              else
+              {
+                member = "member was not set (Newtonsoft .json)";
+              }
+              Gu.Log.Error($"config JSON Member '{member}' was not found. Setting to default.");
               missing = true;
               e.ErrorContext.Handled = true;
             }
@@ -112,8 +159,7 @@ namespace Loft
           //missing stuff - save
           Save(ret, new FileLoc(Gu.WorkspaceDataPath, loc.FileName, FileStorage.Disk));
         }
-      }      
-
+      }
       return ret;
     }
     private static void Save(EngineConfig c, FileLoc fl)
@@ -149,59 +195,6 @@ namespace Loft
 
       return valuesChanged;
     }
-    /*
-      "fonts" : [
-        {
-          "name": "NotoSerif",
-          "langs": {
-              "all": {
-                "regular" : { "file" : "NotoSerifSC-Regular.ttf", "storage" : "embedded" },
-                "bold" : { "file" : "NotoSerifSC-Bold.ttf", "storage" : "embedded" }
-              },
-              "zh": {
-                "regular" : { "file" : "NotoSerifSC-Regular.ttf", "storage" : "embedded" },
-                "bold" : { "file" : "NotoSerifSC-Bold.ttf", "storage" : "embedded" }
-              }
-            }
-        },
-        {
-          "name": "Parisienne",
-          "en": {
-            "regular" : { "file" : "Parisienne-Regular.ttf", "storage" : "embedded"}
-          }
-        },
-        {
-          "name": "RobotoMono",
-          "en": {
-            "regular" : { "file" : "RobotoMono-Regular.ttf", "storage" : "embedded" }
-          }
-        },
-        {
-          "name": "PressStart2P",
-          "en": {
-            "regular" : { "file" : "PressStart2P-Regular.ttf", "storage" : "embedded" }
-          }
-        },
-        {
-          "name": "Entypo",
-          "en": {
-            "regular" : { "file" : "Entypo.ttf", "storage" : "embedded" }
-          }
-        },
-        {
-          "name": "Calibri",
-          "en": {
-            "regular" : { "file" : "calibri.ttf", "storage" : "embedded" }
-          }
-        },
-        {
-          "name": "EmilysCandy",
-          "en": {
-            "regular" : { "file" : "EmilysCandy-Regular.ttf", "storage" : "embedded" }
-          }
-        }
-      ]
 
-    */
   }
 }

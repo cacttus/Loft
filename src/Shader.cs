@@ -7,8 +7,6 @@ using System.Reflection;
 
 namespace Loft
 {
-  #region Enums
-
   public enum ShaderLoadState
   {
     None,
@@ -25,10 +23,6 @@ namespace Loft
     Failed,
     MaxShaderLoadStates,
   }
-
-  #endregion
-
-  #region GPU Structs
   public enum ShaderUniformName
   {
     [Description("_ufGpuMaterial_Block")] _ufGpuMaterial_Block,
@@ -53,131 +47,6 @@ namespace Loft
     Mat3,
     Mat4,
   }
-  [StructLayout(LayoutKind.Sequential)]
-  public struct GpuInstanceData
-  {
-    public GpuInstanceData() { }
-    public mat4 _model = mat4.Identity;
-    public mat4 _model_inverse = mat4.Identity;
-    public uvec2 _pickId = new uvec2(0,0);
-    public float _pad0 = 0.0f;
-    public float _pad1 = 0.0f;
-  }
-  [StructLayout(LayoutKind.Sequential)]
-  public struct GpuLight
-  {
-    public GpuLight() { }
-    public vec3 _pos = new vec3(0, 0, 0);
-    public float _radius = 1000; // Radius=maxdist radius = 0 = directional
-    //
-    public vec3 _color = new vec3(1, 1, 1);
-    public float _power = 10;
-    //
-    public vec3 _dir = new vec3(0, -1, 0);
-    public int _enabled = 0;
-    //
-    public int _atten = 1; //0 = disable attenuation
-    public int _isDir = 0;
-    public float _pad1 = 0;
-    public float _pad2 = 0;
-  }
-  [StructLayout(LayoutKind.Sequential)]
-  public struct GpuWorld
-  {
-    public GpuWorld() { }
-    //
-    public float _fFogDamp = 2.8f;
-    public float _fFogBlend = 0.56361f;
-    public float _fFogDivisor = 1200.0f; //Begin of fog distance
-    public float _fFocalDepth = 0.0f;
-    //
-    public vec3 _vFogColor = new vec3(0.8407f, 0.89349f, 0.981054f);
-    public float _fFocalRange = 25.0f;
-    //
-    public float _fTimeSeconds = 0;
-    public int _pad00 = 0;
-    public int _pad001 = 0;
-    public int _pad = 0;
-    //
-    public int _iShadowBoxCount = 0;
-    public float _fHdrSampleExp = 1.1f;
-    public float _fHdrGamma = 1.0f;
-    public float _fHdrExposure = 0.75f;
-    //
-    public vec3 _vAmbientColor = new vec3(1, 1, 1);
-    public float _fAmbientIntensity = 0.01f;
-  }
-  [StructLayout(LayoutKind.Sequential)]
-  public struct GpuCamera
-  {
-    public GpuCamera() { }
-    //
-    public mat4 _m4View = mat4.Identity;
-    public mat4 _m4Projection = mat4.Identity;
-    //
-    public vec3 _vViewPos = vec3.Zero;
-    public float _fWindowWidth = 0;//Dont use - use RenderWidth
-    //
-    public vec3 _vViewDir = vec3.Zero;
-    public float _fWindowHeight = 0;
-    //
-    public vec4 _vWindowViewport = vec4.Zero;
-    //
-    public float _fRenderWidth = 0;
-    public float _fRenderHeight = 0;
-    public float _fZNear = 0;
-    public float _fZFar = 0;
-    //
-    public float _widthNear = 0;
-    public float _heightNear = 0;
-    public float _widthFar = 0;
-    public float _heightFar = 0;
-  }
-  [StructLayout(LayoutKind.Sequential)]
-  public struct GpuMaterial
-  {
-    public GpuMaterial() { }
-    //
-    public vec4 _vPBR_baseColor = new vec4(1, 1, 1, 1);
-    //
-    public float _fPBR_roughness = 0.01f;
-    public float _fPBR_metallic = 0.0f;
-    public float _fPBR_indexOfRefraction = 1.45f;
-    public float _fPBR_specular = 0.5f;
-    //
-    public float _flat = 0;
-    public float _pad1 = 0;
-    public float _pad2 = 0;
-    public float _pad3 = 0;
-    //
-    public vec4 _vBlinnPhong_Spec = new vec4(.9f, .9f, .9f, 1300);
-  }
-  [StructLayout(LayoutKind.Sequential)]
-  public struct GpuDebug
-  {
-    const float cb = 0;//0.3725f;
-    const float nb = 1;//0.895f;
-
-    public GpuDebug() { }
-    //
-    public vec4 _faceTangentColor = new vec4(nb, cb, cb, 1);//kinda make it differntt
-    public vec4 _faceNormalColor = new vec4(cb, nb, cb, 1);
-    public vec4 _faceBinormalColor = new vec4(cb, cb, nb, 1);
-    public vec4 _vertexTangentColor = new vec4(1, 0, 1, 1);
-    public vec4 _vertexNormalColor = new vec4(0, 1, 1, 1);
-    public vec4 _vertexBinormalColor = new vec4(1, 1, 0, 1);
-    //
-    public float _normalLength = 0.3f;//for normals/tangents
-    public float _fWireframeCageDist = 0.002f; // extrusion of wireframe, % of 1 unit
-    public float pad1 = 0;
-    public float pad2 = 0;
-    //
-    public vec4 _wireframeColor = new vec4(.793f, .779f, .783f, 1);
-    //
-    public vec4 _color = new vec4(.894f, .894f, .890f, 0.759f);
-  }
-
-  #endregion
 
   public class ShaderControlVars
   {
@@ -260,7 +129,6 @@ namespace Loft
       }
       else { Gu.BRThrowNotImplementedException(); }
 
-      //Ooh.thanks Description[]
       AddDef(sb, PipelineStageEnum.Description());
 
       return sb.ToString();
@@ -641,6 +509,7 @@ namespace Loft
     }
     private void DrawForMaterial(WorldProps wp, RenderView rv, Material mat, Dictionary<MeshView, VisibleObjectInstances> mesh_instances)
     {
+
       mat.GpuRenderState.SetState();
       var cs = mat.Shader.GetShaderForCurrentContext();
       cs.BeginRender(wp, rv, mat);
@@ -648,6 +517,9 @@ namespace Loft
       foreach (var ob_set in mesh_instances)
       {
         var mesh_view = ob_set.Key;
+        
+        Gu.Prof($"Draw {mat.Name},{mesh_view.Name}");
+        
         ob_set.Value.CompileGpuData();
         mesh_view.MeshData.UpdateInstanceData(ob_set.Value.GpuInstanceData);
         cs.BindInstanceUniforms(mesh_view.MeshData);
@@ -2311,7 +2183,7 @@ namespace Loft
 
     public const int c_iNormalizedFileCount = 3; // Number of ALL shader files if we used all pipeline stages ex. v,g,f=3.
     public OpenTK.Graphics.OpenGL4.PrimitiveType? GSPrimType { get { return _gsPrimType; } private set { _gsPrimType = value; } }
-    private DynamicFileLoader? _loader = null;
+    private FileWatcher? _loader = null;
 
     #endregion
     #region Private: Members
@@ -2443,7 +2315,7 @@ namespace Loft
       var flist = _all_unique_files.Keys.ToList();
       if (_loader == null)
       {
-        _loader = new DynamicFileLoader(flist, OnFilesChanged);
+        _loader = new FileWatcher(flist, OnFilesChanged);
       }
       else
       {

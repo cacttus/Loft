@@ -345,7 +345,7 @@ namespace Loft
             else if (ptype == typeof(vec4?))
             {
               vec4 res = new vec4();
-              if (TryParseVec4RGBA(pval, out res))
+              if (ByteParser.TryParseVec4RGBA(pval, out res))
               {
                 value = res;
               }
@@ -402,37 +402,7 @@ namespace Loft
       }
     }
 
-    private bool TryParseVec4RGBA(string vs, out vec4 v)
-    {
-      v = new vec4();
-      string fname = "";
-      List<string> fargs = null;
-      if (ByteParser.ParseFunc_NO_ARG_PARENS(vs, out fname, out fargs, true))
-      {
-        if (StringUtil.Equals(fname, "rgba"))
-        {
-          if (fargs.Count == 4)
-          {
-            if (System.Single.TryParse(fargs[0], out v.x))
-            {
-              if (System.Single.TryParse(fargs[1], out v.y))
-              {
-                if (System.Single.TryParse(fargs[2], out v.z))
-                {
-                  if (System.Single.TryParse(fargs[3], out v.w))
-                  {
-                    return true;
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-      return false;
 
-
-    }
 
 
   }
