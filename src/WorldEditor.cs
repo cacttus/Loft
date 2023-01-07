@@ -1239,8 +1239,8 @@ namespace Loft
 
     private ActionCondition Global = new ActionCondition("Global", (e, o) => (e.Current == null) && true);
     private ActionCondition IsEditMode = new ActionCondition("IsEditMode", (e, o) => (e.Current == null) && Gu.World.GameMode == GameMode.Edit);
-    private ActionCondition HoverGUI = new ActionCondition("IsGUI", (e, o) => (e.Current == null) && o is UiElement);
-    private ActionCondition HoverWorld = new ActionCondition("IsWorld", (e, o) => (e.Current == null) && !(o is UiElement));
+    private ActionCondition HoverGUI = new ActionCondition("IsGUI", (e, o) => (e.Current == null) && o is IUiElement);
+    private ActionCondition HoverWorld = new ActionCondition("IsWorld", (e, o) => (e.Current == null) && !(o is IUiElement));
     private ActionCondition MoveRotScale = new ActionCondition(typeof(MoveRotateScaleAction));
     private ActionCondition SelectRegion = new ActionCondition(typeof(SelectRegionAction));
 
@@ -1730,7 +1730,6 @@ namespace Loft
             g.Scale = g.Scale + m.ScrollDelta.y * 0.01f;
           }
         }
-
         else if (code == WorldEditEvent.Debug_ShowInfoWindow)
         {
           string c_infoWindowName = "ObjectInfo";
@@ -1746,7 +1745,7 @@ namespace Loft
         }
         else if (code == WorldEditEvent.Debug_ToggleShowConsole)
         {
-          OperatingSystem.ToggleShowConsole();
+          OperatingSystem.ShowConsole(!OperatingSystem.ConsoleVisible);
         }
         else if (code == WorldEditEvent.Debug_ToggleDebugInfo)
         {
@@ -1754,7 +1753,7 @@ namespace Loft
           {
             if (rv.Gui != null)
             {
-              List<UiElement> views = new List<UiElement>() { rv.ControlsInfo, rv.WorldInfo, rv.GpuInfo, rv.ProfInfo };
+              List<IUiWindow> views = new List<IUiWindow>() { rv.ControlsInfo, rv.WorldInfo, rv.GpuInfo, rv.ProfInfo };
               for (int i = 0; i < views.Count; ++i)
               {
                 if (views[i].Visible)

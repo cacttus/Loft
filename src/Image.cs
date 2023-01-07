@@ -297,7 +297,7 @@ namespace Loft
       {
         for (int i = 0; i < rando.Width; ++i)
         {
-          rando.SetPixel_R32f(i, j, Random.Next(height));
+          rando.SetPixel_R32f(i, j, Rand.NextFloat(height));
         }
       }
       return rando;

@@ -91,11 +91,11 @@ namespace Loft
         var spct = StringUtil.FormatPrec(pct, 1);
         if (pct >= 10)
         {
-          sb.AppendLine($"{indt}{UiUtils.TextRed}[{label}]:{dms}ms ({spct}%){UiUtils.TextReset}");
+          sb.AppendLine($"{indt}{UiTextColor.TextRed}[{label}]:{dms}ms ({spct}%){UiTextColor.TextReset}");
         }
          else       if (pct >= 5)
         {
-          sb.AppendLine($"{indt}{UiUtils.TextDarkYellow}[{label}]:{dms}ms ({spct}%){UiUtils.TextReset}");
+          sb.AppendLine($"{indt}{UiTextColor.TextDarkYellow}[{label}]:{dms}ms ({spct}%){UiTextColor.TextReset}");
         }
         else
         {

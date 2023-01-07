@@ -84,9 +84,9 @@ namespace Loft
         }
         else
         {
-          if (PickedObjectFrame is UiElement)
+          if (PickedObjectFrame is IUiElement)
           {
-            ret = (PickedObjectFrame as UiElement).Name;
+            ret = (PickedObjectFrame as IUiElement).Name;
           }
           else if (PickedObjectFrame is WorldObject)
           {

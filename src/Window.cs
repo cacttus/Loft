@@ -62,7 +62,6 @@ namespace Loft
     private int _width = 1;//Do not use Size.X, Y There is currently an OpenTK bug where it does not update on Resize
     private int _height = 1;
     private RenderView? _selectedView = null;//the render view where mouse is pointing
-    private UIScript? _uiScript = null;
 
     #endregion
     #region Public:Methods
@@ -83,7 +82,7 @@ namespace Loft
 
       Gu.CreateContext($"{Name}-ctx-{Gu.Contexts.Count}", this, sharedCtx);
     }
-    protected RenderView CreateRenderView(RenderViewMode mode, vec2 xy_pct, vec2 wh_pct, FileLoc? script=null)
+    protected RenderView CreateRenderView(RenderViewMode mode, vec2 xy_pct, vec2 wh_pct)
     {
       string viewname = $"{Name}-rv-{RenderViews.Count}";
       var v = new RenderView(viewname, mode, xy_pct, wh_pct, this.Width, this.Height);
@@ -96,19 +95,7 @@ namespace Loft
 
       if (mode == RenderViewMode.UIOnly || mode == RenderViewMode.UIAndWorld)
       {
-        Gu.Assert(script != null);
-        if (_uiScript == null)
-        {
-          _uiScript = new UIScript(
-            new List<FileLoc>(){
-            Gu.EngineConfig.BaseGuiScript,
-            Gu.EngineConfig.TestGuiScript,
-            Gu.EngineConfig.EditGuiScript,
-            //Gu.EngineConfig.SRC_UIControls,
-            }
-            );
-        }
-        _uiScript.LinkView(v);
+          Gu.CreateUIForView(v);
       }
 
       return v;
@@ -137,7 +124,7 @@ namespace Loft
           Gu.World.BuildAndCull(rv);//Pick
           Gu.Prof("cull");
 
-          _uiScript?.UpdateForView(rv);
+          Gu.Controls.UpdateForView(rv);
           Gu.Prof("gui");
         }
       }
@@ -273,13 +260,13 @@ namespace Loft
   }
   public class InfoWindow : AppWindowBase
   {
-    private UiElement? _info = null;
+    //private UiElement? _info = null;
 
     public InfoWindow(string name, string title, ivec2 pos, ivec2 size) :
       base(name, title, false, pos, size, null, WindowBorder.Resizable, true, Gu.Context.GameWindow.Context)
     {
       //CreateCameraView(new vec2(0, 0), new vec2(1, 1));
-      CreateRenderView(RenderViewMode.UIOnly, new vec2(0, 0), new vec2(1, 1), Gu.EngineConfig.InfoGuiScript);
+      //CreateRenderView(RenderViewMode.UIOnly, new vec2(0, 0), new vec2(1, 1), Gu.EngineConfig.InfoGuiScript);
     }
     // protected override void OnUpateGUI(RenderView rv)
     // {
@@ -330,12 +317,12 @@ namespace Loft
           sb.AppendLine($"Name: {wo.Name}");
           sb.AppendLine($"Pos: {wo.Position_World}");
         }
-        else if (ob is UiElement)
+        else if (ob is IUiElement)
         {
-          var e = ob as UiElement;
-          sb.AppendLine($"{e.GetType().ToString()}");
-          sb.AppendLine($"Style:");
-          sb.AppendLine($"{e.Style.ToString()}");
+          //var e = ob as IUiElement;
+          //sb.AppendLine($"{e.GetType().ToString()}");
+          //sb.AppendLine($"Style:");
+          //sb.AppendLine($"{e.Style.ToString()}");
         }
         else
         {
@@ -346,7 +333,7 @@ namespace Loft
       {
         sb.Append(Gu.Translator.Translate(Phrase.DebugInfoMustSelect));
       }
-      _info.Text = sb.ToString();
+      //_info.Text = sb.ToString();
     }
   }
   public class MainWindow : AppWindowBase
@@ -364,7 +351,6 @@ namespace Loft
     private WorldObject left_hand = null;
     private WorldObject right_hand = null;
     private vec3 second_y_glob = new vec3(2.5f, 2.0f, 2.5f);
-    private UIScript? _uiScript = null;
 
     #endregion
     #region Public: Methods
@@ -386,16 +372,12 @@ namespace Loft
     private void InitMainWindow()
     {
       //This all must come in a script or something
-#if DEBUG
-      OperatingSystem.ShowConsole();
-#else
-        OperatingSystem.HideConsole();
-#endif
+      OperatingSystem.ShowConsole(Gu.EngineConfig.ShowConsoleWindow);
       Title = "Loft " + VersionId.ToString();
       Gu.WorldLoader = new WorldLoader(Gu.GetContextForWindow(this));
 
-      //uh.
-      var w = Gu.WorldLoader.GoToWorld(new WorldInfo("MyWorld", new FileLoc("MyWorldScript.cs", EmbeddedFolder.Script), DELETE_WORLD_START_FRESH, 2));
+      //There will be several of these eventually
+      var w = Gu.WorldLoader.GoToWorld(new WorldInfo("MyWorld", Gu.EngineConfig.TestWorldScript, DELETE_WORLD_START_FRESH, 2));
 
       SetGameMode(Gu.World.GameMode);
 
@@ -422,7 +404,7 @@ namespace Loft
       {
         if (RenderViews.Count == i)
         {
-          var v = CreateRenderView(RenderViewMode.UIAndWorld, new vec2(0, 0), new vec2(1, 1), Gu.EngineConfig.BaseGuiScript);
+          var v = CreateRenderView(RenderViewMode.UIAndWorld, new vec2(0, 0), new vec2(1, 1));
         }
       }
     }

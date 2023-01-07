@@ -1,132 +1,132 @@
 ﻿
 namespace Loft
 {
-  public class Random
+
+  //.NET random - conflict - renamed to rand
+  public class Rand
   {
     //TODO: this is not thread safe .move to context
     //private static System.Random r = new System.Random(845934029);
-    private static long _last = 845934029;
-    private static long mint(long seed, long off = 0x9d2c5680)
+    private static uint _last = 845934029;
+    private static ulong _lastUL = 845934029;
+    //.NET random is not thread safe but is much better distributed. Noise random is thread safe.
+
+    public static uint NextUInt()
     {
-      long x;
-      x = (0x6c078965 * (seed ^ (seed >> 30)) + (off)) & 0xffffffff;
-      x = x ^ (x >> 11);
-      x = x ^ ((x << 7) & 0x9d2c5680);
-      x = x ^ ((x << 15) & 0xefc60000);
-      x = x ^ (x >> 18);
-      return x;
-    }
-    static float flotc01(int ix)
-    {
-      //0x007fffff is the fractional portion of a floating point.
-      float x;
-      unsafe
-      {
-        int a = (ix & 0x007fffff) | 0x3f800000;
-        x = (*((float*)&a) - 1.0f);
-      }
-      return x;
-    }
-    private static long NextIntTtt()
-    {
-      _last = mint(_last);
+      //Inclusive
+      _last = Noise.Get32(_last);
       return _last;
     }
-    public static vec3 Normal()
+    public static ulong NextULong()
     {
-      //returns a random normal H^2 > theta=[0,2pi], phi=[-pi/2 pi/2]
-      vec3 v = new vec3(Next11(), Next11(), Next11());
-      v.normalize();
-      return v;
+      _lastUL = Noise.Get64(_lastUL);
+      return _lastUL;
     }
-    //Inclusive [min,max]
+    public static int NextInt()
+    {
+      //Inclusive
+      return (int)NextUInt();
+    }
     public static int NextInt(int min, int max)
     {
       //Inclusive
-      int ret = (int)Math.Round((float)min + ((float)max - (float)min) * NextF());
+      int ret = min + (max - min) * NextInt();
       return ret;
     }
-    public static int Next(Minimax<int> ia)
+    public static int NextInt(Minimax<int> ia)
     {
       //Inclusive
       return NextInt(ia.Min, ia.Max);
     }
-    public static float Next(Minimax<float> ia)
+    public static float NextFloat()
+    {
+      return Noise.NoiseToFloat(NextUInt());
+    }
+    public static float NextFloat(float min, float max)
+    {
+      //Inclusive
+      float ret = (float)min + (max - min) * NextFloat();
+      return ret;
+    }
+    public static float NextFloat(Minimax<float> ia)
     {
       //Exclusive
-      return Next(ia.Min, ia.Max);
+      return NextFloat(ia.Min, ia.Max);
     }
-    public static float Next(float min, float max)
+    public static double NextDouble()
     {
       //Inclusive
-      float ret = (float)min + (max - min) * NextF();
+      double ret = Noise.NoiseToDouble(NextULong());
       return ret;
     }
-    public static double NextD(double min, double max)
+    public static double NextDouble(double min, double max)
     {
       //Inclusive
-      double ret = min + (max - min) * NextF();
+      double ret = min + (max - min) * NextDouble();
       return ret;
-    }
-    public static vec3 Next(Minimax<vec3> v)
-    {
-      return new vec3(
-        (Random.Next(v.Min.x, v.Max.x)),
-        (Random.Next(v.Min.y, v.Max.y)),
-        (Random.Next(v.Min.z, v.Max.z))
-        );
-    }
-    public static float Next11()
-    {
-      float ret;
-      ret = Next(-1, 1);
-      return ret;
-    }
-    public static float NextF()
-    {
-      return flotc01((int)NextIntTtt());
-      //float ret;
-      //ret = (float)r.NextDouble();
-      //return ret;
     }
     public static vec2 NextVec2()
     {
       vec2 ret;
-      ret.x = (float)NextF();
-      ret.y = (float)NextF();
+      ret.x = (float)NextFloat();
+      ret.y = (float)NextFloat();
       return ret;
+    }
+    public static vec3 NextVec3(Minimax<vec3> v)
+    {
+      return new vec3(
+        (Rand.NextFloat(v.Min.x, v.Max.x)),
+        (Rand.NextFloat(v.Min.y, v.Max.y)),
+        (Rand.NextFloat(v.Min.z, v.Max.z))
+        );
     }
     public static vec3 NextVec3()
     {
       //returns a vec3 within [0,1)
       vec3 ret;
-      ret.x = (float)NextF();
-      ret.y = (float)NextF();
-      ret.z = (float)NextF();
+      ret.x = (float)NextFloat();
+      ret.y = (float)NextFloat();
+      ret.z = (float)NextFloat();
       return ret;
     }
     public static vec3 NextVec3(vec3 min, vec3 max)
     {
       vec3 ret;
-      ret.x = min.x + (max.x - min.x) * (float)NextF();
-      ret.y = min.y + (max.y - min.y) * (float)NextF();
-      ret.z = min.z + (max.z - min.z) * (float)NextF();
+      ret.x = min.x + (max.x - min.x) * (float)NextFloat();
+      ret.y = min.y + (max.y - min.y) * (float)NextFloat();
+      ret.z = min.z + (max.z - min.z) * (float)NextFloat();
       return ret;
     }
-    public static vec3 RandomVelocity(vec3 min, vec3 max, float speed_meters_per_second)
+    public static vec4 NextVec4(vec4 min, vec4 max)
     {
-      var v = Random.NextVec3(min, max);
+      vec4 ret;
+      ret.x = min.x + (float)NextFloat() * (max.x - min.x);
+      ret.y = min.y + (float)NextFloat() * (max.y - min.y);
+      ret.z = min.z + (float)NextFloat() * (max.z - min.z);
+      ret.w = min.w + (float)NextFloat() * (max.w - min.w);
+      return ret;
+    }
+    public static vec3 NextVelocity(vec3 min, vec3 max, float speed_meters_per_second)
+    {
+      var v = Rand.NextVec3(min, max);
       v = v.normalize() * speed_meters_per_second;
       return v;
     }
-    public static vec4 NextVec4(vec4 a, vec4 b)
+    public static vec3 NextNormal()
     {
-      vec4 ret;
-      ret.x = a.x + (float)NextF() * (b.x - a.x);
-      ret.y = a.y + (float)NextF() * (b.y - a.y);
-      ret.z = a.z + (float)NextF() * (b.z - a.z);
-      ret.w = a.w + (float)NextF() * (b.w - a.w);
-      return ret;
+      //returns random normal 
+      vec3 v = new vec3(NextFloat(-1, 1), NextFloat(-1, 1), NextFloat(-1, 1));
+      v.normalize();
+      return v;
+    }
+    public static vec4 NextRGB(float min, float max, float alpha)
+    {
+      return new vec4(
+        NextFloat(min, max),
+        NextFloat(min, max),
+        NextFloat(min, max),
+        alpha
+      );
     }
   }
 }

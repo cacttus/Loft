@@ -389,14 +389,16 @@ namespace Loft
         SyncCamera();
       }
     }
+
+
     public Viewport Viewport { get { return _viewport; } set { _viewport = value; } }
-    public Gui2d? Gui { get { return _gui; } set { _gui = value; } }
-    public UiScrollRegion? WorldInfo { get { return _worldDebugInfo; } set { _worldDebugInfo = value; } }
-    public UiScrollRegion? GpuInfo { get { return _gpuDebugInfo; } set { _gpuDebugInfo = value; } }
-    public UiScrollRegion? ControlsInfo { get { return _controlsInfo; } set { _controlsInfo = value; } }
-    public UiWindow? ProfInfo { get { return _profInfo; } set { _profInfo = value; } }
+    public IGui2d? Gui { get { return _gui; } set { _gui = value; } }
+    public IUiWindow? WorldInfo { get { return _worldDebugInfo; } set { _worldDebugInfo = value; } }
+    public IUiWindow? GpuInfo { get { return _gpuDebugInfo; } set { _gpuDebugInfo = value; } }
+    public IUiWindow? ControlsInfo { get { return _controlsInfo; } set { _controlsInfo = value; } }
+    public IUiWindow? ProfInfo { get { return _profInfo; } set { _profInfo = value; } }
     public ViewportOverlay Overlay { get { return _overlay; } }
-    public UiToast? Toast { get { return _toast; } set { _toast = value; } }
+    public IUiToast? Toast { get { return _toast; } set { _toast = value; } }
     public ViewInputMode ViewInputMode { get { return _viewInputMode; } set { _viewInputMode = value; } }
     public RenderViewMode ViewMode { get { return _viewMode; } }
 
@@ -421,12 +423,12 @@ namespace Loft
     [DataMember] private RenderViewMode _viewMode = RenderViewMode.UIAndWorld;
     [DataMember] private ViewInputMode _viewInputMode = ViewInputMode.Edit;
     [DataMember] private ViewportOverlay _overlay;
-    [DataMember] private Gui2d? _gui = null;
-    [DataMember] private UiScrollRegion? _worldDebugInfo = null;
-    [DataMember] private UiScrollRegion? _gpuDebugInfo = null;
-    [DataMember] private UiScrollRegion? _controlsInfo = null;
-    [DataMember] private UiWindow? _profInfo = null;
-    [DataMember] private UiToast? _toast = null;
+    [DataMember] private IGui2d? _gui = null;
+    [DataMember] private IUiWindow? _worldDebugInfo = null;
+    [DataMember] private IUiWindow? _gpuDebugInfo = null;
+    [DataMember] private IUiWindow? _controlsInfo = null;
+    [DataMember] private IUiWindow? _profInfo = null;
+    [DataMember] private IUiToast? _toast = null;
     private mat4? _customProj = null;
 
     public RenderView(string name, RenderViewMode mode, vec2 uv0, vec2 uv1, int sw, int sh)

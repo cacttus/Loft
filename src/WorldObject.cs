@@ -317,7 +317,7 @@ namespace Loft
     {
       //by default all world objects persist if attached to the scene, this makes all their data references persist as well
       //For optimization, nothing shoudl be here. WorldObject is new'd a lot each frame      
-      _color = Random.NextVec4(new vec4(0.2f, 0.2f, 0.2f, 1), new vec4(1, 1, 1, 1));
+      _color = Rand.NextVec4(new vec4(0.2f, 0.2f, 0.2f, 1), new vec4(1, 1, 1, 1));
     }
     public virtual void Update(double dt, ref Box3f parentBoundBox)
     {

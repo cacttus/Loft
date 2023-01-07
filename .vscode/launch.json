@@ -10,9 +10,9 @@
       "program": "${workspaceFolder}/bin/Debug/net6.0/Loft.dll",
       "args": [],
       "cwd": "${workspaceFolder}",
-      "console": "internalConsole",
+      "console": "internalConsole", //internalConsole, externalTerminal
       "enableStepFiltering": false,
-      "stopAtEntry": false
+      "stopAtEntry": false,
     },
     {
       "name": ".NET Core Launch (console) Release",
@@ -22,9 +22,9 @@
       "program": "${workspaceFolder}/bin/Release/net6.0/Loft.dll",
       "args": [],
       "cwd": "${workspaceFolder}",
-      "console": "internalConsole",
+      "console": "internalConsole", //internalConsole, externalTerminal
       "enableStepFiltering": false,
-      "stopAtEntry": false
+      "stopAtEntry": false,
     },
     {
       "name": ".NET Core Attach",

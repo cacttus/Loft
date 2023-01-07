@@ -506,6 +506,8 @@ namespace Loft
 
         ClearData();
 
+        _loadState = ModelLoadState.Loading;
+
         if (LoadGLTFIntoMemory(_file))
         {
           BuildSceneHierarchy();
@@ -817,6 +819,9 @@ namespace Loft
           string n = anim.Name;
           if (anim != null && anim.Channels != null && anim.Channels.Length > 0)
           {
+            int pkey_count = 0;
+            int rkey_count = 0;
+            int skey_count = 0;
             foreach (var channel in anim.Channels)
             {
               int nodeid = channel.Target.Node.Value;
@@ -835,8 +840,12 @@ namespace Loft
                 adat.Animations.Add(anim.Name, kdat);
               }
 
-              ParseKeyFrames(anim.Name, channel, anim.Samplers[channel.Sampler], ref kdat);
+              ParseKeyFrames(channel, anim.Samplers[channel.Sampler], ref kdat, ref pkey_count, ref rkey_count, ref skey_count);
             }
+
+            _log.Debug($"{anim.Name}, loaded {pkey_count} pos, {rkey_count} rot, {skey_count} scale keys.");
+
+            //, 
           }
           else
           {
@@ -865,11 +874,9 @@ namespace Loft
 
       }
 
-
-
-
     }
-    private void ParseKeyFrames(string name, glTFLoader.Schema.AnimationChannel? channel, glTFLoader.Schema.AnimationSampler? sampler, ref KeyframeData adat)
+    private void ParseKeyFrames(glTFLoader.Schema.AnimationChannel? channel, glTFLoader.Schema.AnimationSampler? sampler,
+        ref KeyframeData adat, ref int pkey_count, ref int rkey_count, ref int skey_count)
     {
       if (!_log.Assert(adat != null))
       {
@@ -942,7 +949,9 @@ namespace Loft
         {
           return;
         }
-        _log.Debug($"Loading {samp_acc.Count} rotation keys.");
+
+        rkey_count += samp_acc.Count;
+
         quat[] vals = SerializeTools.DeserializeFrom<quat>(_gltf_data, off, samp_acc.Count);
 
         adat.FillRot(times, vals, interp, false, false);
@@ -959,7 +968,7 @@ namespace Loft
           return;
         }
 
-        _log.Debug($"Loading {samp_acc.Count} position keys.");
+        pkey_count += samp_acc.Count;
 
         vec3[] vals = SerializeTools.DeserializeFrom<vec3>(_gltf_data, off, samp_acc.Count).ToArray();
 
@@ -976,7 +985,7 @@ namespace Loft
         {
           return;
         }
-        _log.Debug($"Loading {samp_acc.Count} scale keys.");
+        skey_count += samp_acc.Count;
         vec3[] vals = SerializeTools.DeserializeFrom<vec3>(_gltf_data, off, samp_acc.Count);
 
         adat.FillScale(times, vals, interp);
@@ -992,6 +1001,8 @@ namespace Loft
       }
 
       adat.SortAndCalculate();
+
+
 
     }
     private class MeshTemp

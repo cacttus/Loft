@@ -19,8 +19,8 @@ namespace Loft
   }
   public enum PathRoot
   {
-    Absolute,
-    App, //from exe /bin/debug/ ...
+    None,
+    Exe, //from exe /bin/debug/ ...
     Src, //rooted in ./src
     Project //rooted in the project
   }
@@ -66,10 +66,12 @@ namespace Loft
     #region Public: Members
 
     public static FileLoc Generated = new FileLoc("<generated>", FileStorage.Generated);
+    
     public FileStorage FileStorage { get; set; } = FileStorage.Disk;
     public string RawPath { get; set; } = "";
     public EmbeddedFolder EmbeddedFolder { get; set; } = EmbeddedFolder.Root;
-    public PathRoot PathRoot { get; set; } = PathRoot.Absolute;
+    public PathRoot PathRoot { get; set; } = PathRoot.None;
+    public string Tag { get; set; } = "";
 
     public void LogNotFound()
     {
@@ -180,11 +182,12 @@ namespace Loft
       RawPath = System.IO.Path.Combine(directory, filename);
       FileStorage = storage;
     }
-    public FileLoc(string path, EmbeddedFolder folder)
+    public FileLoc(string path, EmbeddedFolder folder, string tag = "")
     {
       RawPath = path;
       EmbeddedFolder = folder;
       FileStorage = FileStorage.Embedded;
+      Tag = tag;
     }
     public FileLoc(string path, FileStorage storage)
     {
@@ -238,10 +241,7 @@ namespace Loft
     }
     public FileLoc Clone()
     {
-      FileLoc ret = new FileLoc();
-      ret.RawPath = this.RawPath;
-      ret.FileStorage = this.FileStorage;
-      return ret;
+      return (FileLoc)this.MemberwiseClone();
     }
     public byte[] GetBytes()
     {
@@ -519,6 +519,10 @@ namespace Loft
           {
             wt = System.IO.File.GetLastWriteTime(WorkspacePath);
           }
+          else
+          {
+            Gu.BRThrowException($"File does not exist {WorkspacePath}");
+          }
         }
       }
       else if (FileStorage == FileStorage.Disk)
@@ -533,19 +537,22 @@ namespace Loft
     {
       bw.Write((Int32)FileStorage);
       bw.Write((Int32)EmbeddedFolder);
+      bw.Write((Int32)PathRoot);
       bw.Write((string)RawPath);
+      bw.Write((string)Tag);
     }
     public void Deserialize(BinaryReader br, SerializedFileVersion version)
     {
       FileStorage = (FileStorage)br.ReadInt32();
       EmbeddedFolder = (EmbeddedFolder)br.ReadInt32();
+      PathRoot = (PathRoot)br.ReadInt32();
       RawPath = br.ReadString();
+      Tag = br.ReadString();
     }
 
-    public new string ToString()
+    public override string ToString()
     {
-      Gu.MustTest();
-      string s = "{" + $"path:\"{RawPath}\", storage:{FileStorage.ToString()}" + "}";
+      string s = $"rawpath:'{RawPath}', storage:'{FileStorage.ToString()}', root:'{PathRoot.ToString()}', embeddedfolder:'{EmbeddedFolder.ToString()}' tag:'{Tag}'";
       return s;
     }
     public static FileLoc Parse(string loc)

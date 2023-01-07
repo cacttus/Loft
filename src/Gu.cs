@@ -76,7 +76,6 @@ namespace Loft
       NumElements_Frame = 0;
       NumArrayElements_Frame = 0;
       NumTriangles_Frame = 0;
-
     }
     public string ToString()
     {
@@ -109,26 +108,15 @@ namespace Loft
     private const string EmbeddedFolder_Script = "script";
     private const string EmbeddedFolder_Sfx = "sfx";
     private const string EmbeddedFolder_Shader = "shader";
-    public static string GetEmbeddedPath(EmbeddedFolder folder, string file)
-    {
-      string stfolder = GetEmbeddedFolder(folder);
-      if (!string.IsNullOrEmpty(stfolder))
-      {
-        return $"{Gu.EmbeddedDataPathRoot}.{stfolder}.{file}";
-      }
-      else
-      {
-        return $"{Gu.EmbeddedDataPathRoot}.{file}";
-      }
-    }
+
     public static string RootPath(string path, PathRoot root)
     {
-      //root a path
+      //root a path relative to the project
       string r = path;
-      
-      if (root == PathRoot.Absolute) { }
-      else if (root == PathRoot.App) { r = System.IO.Path.Combine(WorkspacePath, path); }
-      else if (root == PathRoot.Project) { r = System.IO.Path.Combine(ExePath, path); }
+
+      if (root == PathRoot.None) { }
+      else if (root == PathRoot.Exe) { r = System.IO.Path.Combine(ExePath, path); }
+      else if (root == PathRoot.Project) { r = System.IO.Path.Combine(WorkspacePath, path); }
       else if (root == PathRoot.Src) { r = System.IO.Path.Combine(SrcPath, path); }
       else { Gu.BRThrowNotImplementedException(); }
 
@@ -137,6 +125,22 @@ namespace Loft
     public static string GetWorkspacePath(EmbeddedFolder folder, string file)
     {
       return System.IO.Path.Combine(Gu.WorkspaceDataPath, GetEmbeddedFolder(folder), file);
+    }
+    public static string GetEmbeddedPath(EmbeddedFolder folder, string file)
+    {
+      string stfolder = GetEmbeddedFolder(folder);
+      
+      file = file.Replace("\\", ".");
+      file = file.Replace("/", ".");
+      
+      if (!string.IsNullOrEmpty(stfolder))
+      {
+        return $"{Gu.EmbeddedDataPathRoot}.{stfolder}.{file}";
+      }
+      else
+      {
+        return $"{Gu.EmbeddedDataPathRoot}.{file}";
+      }
     }
     public static string GetEmbeddedFolder(EmbeddedFolder folder)
     {
@@ -173,12 +177,13 @@ namespace Loft
     public static string BackupPath { get; private set; } = "";
     public static Lib Lib { get; private set; }
     public static AudioManager Audio { get; private set; }
-    public static Gui2dManager Gui2dManager { get; private set; }
     public static FrameDataTimer GlobalTimer { get; private set; }//Global frame timer, for all windows;
     public static Translator Translator { get; private set; }
     public static AppWindowBase? FocusedWindow { get; set; } = null;
     public static FrameStats FrameStats { get; private set; } = new FrameStats();
     public static Profiler Profiler { get; private set; } = new Profiler();
+    public static IUiControls Controls { get; private set; }
+    private static UIScript? _uiScript = null;
 
     //Debug
     public static bool BreakRenderState = false;
@@ -198,7 +203,6 @@ namespace Loft
 
     public static void InitGlobals()
     {
-
       //Paths
       var assemblyLoc = System.Reflection.Assembly.GetExecutingAssembly().Location;
       ExePath = System.IO.Path.GetDirectoryName(assemblyLoc);
@@ -263,13 +267,28 @@ namespace Loft
         Gu.DebugBreak();
       }
 
-
       //Manager
       Translator = new Translator();
       Lib = new Lib();
       GlobalTimer = new FrameDataTimer();
       Audio = new AudioManager();
-      Gui2dManager = new Gui2dManager();
+
+      //gui come last
+      _uiScript = new UIScript(
+        new List<FileLoc>(){
+          Gu.EngineConfig.BaseGuiScript,
+          Gu.EngineConfig.TestGuiScript,
+          Gu.EngineConfig.EditGuiScript,
+          Gu.EngineConfig.UIControls_Script,
+          Gu.EngineConfig.Gui2d_Script,
+        }
+      );
+      _uiScript.Compile();
+      Controls = _uiScript.Script;
+    }
+    public static void CreateUIForView(RenderView rv)
+    {
+      _uiScript.LinkView(rv);
     }
     public static void Run()
     {
@@ -846,7 +865,7 @@ namespace Loft
       }
       return cam != null;
     }
-    public static bool TryGetSelectedViewGui(out Gui2d? g2)
+    public static bool TryGetSelectedViewGui(out IGui2d? g2)
     {
       g2 = null;
       if (TryGetSelectedView(out var vv))
@@ -908,8 +927,6 @@ namespace Loft
       }
       return win != null;
     }
-
-
     public static bool SaneFloat(float f)
     {
       bool a = Single.IsInfinity(f);
@@ -934,7 +951,17 @@ namespace Loft
       string fn_args = $"filename='{filename}',args='{args}'";
       output = null;
       bool success = false;
-
+      //ThreadPool.QueueUserWorkItem(delegate {
+      //  Process process = Process.Start(startInfo);
+      //  if (process.WaitForExit(timeout))
+      //  {
+      //    // user exited
+      //  }
+      //  else
+      //  {
+      //    // timeout
+      //  }
+      //});
       try
       {
         Process proc = new Process
@@ -945,10 +972,26 @@ namespace Loft
             Arguments = args,
             UseShellExecute = use_shellexec,
             RedirectStandardOutput = redirect_output,
-            CreateNoWindow = create_no_window
+            CreateNoWindow = create_no_window,
           }
         };
         success = proc.Start();
+        proc.PriorityBoostEnabled = true;
+        proc.EnableRaisingEvents = true;
+
+        int timeout = 5 * 1000;
+
+        var start = Gu.Milliseconds();
+        if (proc.WaitForExit(timeout))
+        {
+        }
+        else
+        {
+          //timeout/killed
+          Gu.Log.Error($"Process '{filename}' did not exit after {timeout}ms. Killing.");
+        }
+
+        Log.Debug($"Process took {Gu.Milliseconds() - start}ms");
 
         output = new List<string>();
         if (redirect_output)
@@ -964,12 +1007,14 @@ namespace Loft
           else
           {
             Gu.Log.Error($"Process.Start failed: {fn_args}:");
+            Gu.DebugBreak();
           }
         }
       }
       catch (Exception ex)
       {
         Gu.Log.Error($"Exception: {fn_args}:", ex);
+        Gu.DebugBreak();
       }
 
       return success;
@@ -1039,7 +1084,7 @@ namespace Loft
             v.Viewport.Width / 2 - wh.width / 2,
             v.Viewport.Height / 2 - wh.height / 2
             );
-          UiWindow win = new UiWindow(title, pos, wh);
+          IUiWindow win = Gu.Controls.CreateWindow(title, pos, wh);
           win.Content.Text = msg;
           win.TopMost = true;
           v.Gui.AddChild(win);
@@ -1051,7 +1096,7 @@ namespace Loft
       //currnelty we update object components before updating the picked element so use last picked
       var ob = Gu.Context.Renderer.Picker.PickedObjectFrameLast;
 
-      bool f = (ob != null) && (ob is UiElement);
+      bool f = (ob != null) && (ob is IUiElement);
 
       return f;
     }

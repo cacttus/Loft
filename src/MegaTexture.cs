@@ -413,7 +413,7 @@ namespace Loft
     {
       if (!MtFile.FileLoc.Exists)
       {
-        Gu.Log.Error("Failed to load, image file '" + MtFile.FileLoc + "' didn't exist");
+        Gu.Log.Error($"MTex: File '{MtFile.FileLoc.ToString()}' not found.");
         Gu.DebugBreak();
       }
       else
@@ -1258,7 +1258,7 @@ namespace Loft
       }
       _eState = MegaTexCompileState.Dirty;
     }
-    public MtFontLoader GetFont(FontFace fontLoc)
+    public MtFontLoader GetFont(FileLoc fontLoc)
     {
       Gu.Assert(fontLoc != null);
       if (_locToFileCache.TryGetValue(fontLoc.QualifiedPath, out var ret))
@@ -1636,8 +1636,6 @@ namespace Loft
       _iStartWH = br.ReadInt32();
       _iGrowWH = br.ReadInt32();
       _genId = br.ReadUInt64();
-
-
 
       int count = br.ReadInt32();
       if (Files.Count != count)

@@ -21,55 +21,70 @@ namespace Loft
     public bool WriteConsole { get; set; } = true;
     public bool WriteFile { get; set; } = true;
 
-    private string Newline = "\n";
-
     //Loc is the path to the logs, not the logs.
     public Log(string loc)
     {
       _fileLoc = System.IO.Path.Combine(loc, "Log" + LogFileNameStr() + ".log");
       //Console.BackgroundColor = ConsoleColor.Black;
     }
-    public void Debug(string s)
+    private string GetHeader(string iwd, bool dont)
     {
-      LogString("[" + LogLineStr() + "][" + TimeStr() + "][D]: " + s + Newline, ConsoleColor.Cyan);
+      if (dont == false)
+      {
+        return $"[{LogLineStr()}][{TimeStr()}][{iwd}]:";
+      }
+      return "";
     }
-    public void Info(string s)
+    public void Debug(string s, bool headless = false)
     {
-      LogString("[" + LogLineStr() + "][" + TimeStr() + "][I]: " + s + Newline, ConsoleColor.White);
+      //headless = omit header information 
+      LogString($"{GetHeader("D", headless)}{s}{Environment.NewLine}", ConsoleColor.Cyan);
     }
-    public void Warn(string s)
+    public void Info(string s, bool headless = false, ConsoleColor? color = null)
     {
-      LogString("[" + LogLineStr() + "][" + TimeStr() + "][W]: " + s + Newline, ConsoleColor.Yellow);
+      LogString($"{GetHeader("I", headless)}{s}{Environment.NewLine}", color == null ? ConsoleColor.White : color.Value);
     }
-    public void Warn(string s, Exception ex)
+    public void Warn(string s, bool headless = false)
+    {
+      LogString($"{GetHeader("W", headless)}{s}{Environment.NewLine}", ConsoleColor.Yellow);
+    }
+    public void Warn(string s, Exception ex, bool headless = false)
+    {
+      var msg = s + " " + Gu.GetAllException(ex);
+      Warn(msg, headless);
+    }
+    public void Error(string msg, string ex, string afterStackTrace = "", bool headless = false)
+    {
+      //headless = print just colored message without stack trace or info
+      var except = "";
+      if (!headless)
+      {
+        except += Environment.NewLine + GetBeautifulStackTrace(true, true, true);
+      }
+      if (StringUtil.IsNotEmpty(ex))
+      {
+        except += Environment.NewLine + ex;
+      }
+
+      var s = $"{msg}{except}{afterStackTrace}";
+
+      LogString($"{GetHeader("E", headless)}{s}{Environment.NewLine}", ConsoleColor.Red);
+    }
+    public void Error(string msg, bool headless = false)
+    {
+      Error(msg, "", "", headless);
+    }
+    public void Error(Exception ex, bool headless = false)
     {
       string e_all = Gu.GetAllException(ex);
-      LogString("[" + LogLineStr() + "][" + TimeStr() + "][W]: " + s + " " + e_all + Newline, ConsoleColor.Yellow);
+      Error("", e_all, "", headless);
     }
-    public void Error(string msg)
-    {
-      Error(msg, "", "");
-    }
-    public void Error(Exception ex)
+    public void Error(string pred, Exception ex, bool headless = false)
     {
       string e_all = Gu.GetAllException(ex);
-      Error("", e_all, "");
+      Error(pred, e_all, "", headless);
     }
-    public void Error(string pred, Exception ex)
-    {
-      string e_all = Gu.GetAllException(ex);
-      Error(pred, e_all, "");
-    }
-    public void Error(string msg, string ex, string afterStackTrace = "")
-    {
-      string stackTrace = GetBeautifulStackTrace(true, true, true);
-      LogString("[" + LogLineStr() + "][" + TimeStr() + "][E]: " +
-      msg + Newline +
-      stackTrace + Newline +
-      (StringUtil.IsNotEmpty(ex) ? (ex + Newline) : "") +
-      afterStackTrace + Newline,
-      ConsoleColor.Red);
-    }
+
     private string GetBeautifulStackTrace(bool removeParams, bool removeLineText, bool gridify)
     {
       var stackTrace = Environment.StackTrace;
@@ -196,9 +211,7 @@ namespace Loft
             {
               var dir = System.IO.Path.GetDirectoryName(_fileLoc);
               System.IO.Directory.CreateDirectory(dir);
-              using (var fs = System.IO.File.Create(_fileLoc))
-              {
-              }
+              using (var fs = System.IO.File.Create(_fileLoc)) ;
             }
             using (FileStream file = new FileStream(_fileLoc, System.IO.FileMode.Append, FileAccess.Write, FileShare.ReadWrite))
             using (StreamWriter writer = new StreamWriter(file, Encoding.ASCII))

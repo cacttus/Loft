@@ -18,7 +18,8 @@ namespace Loft
     [DataMember(IsRequired = true)] public bool EnableDebugErrorChecks = true;
     [DataMember(IsRequired = true)] public bool EnableRuntimeErrorChecks = true;
 
-    //Log
+    //Logging
+    [DataMember(IsRequired = true)] public bool ShowConsoleWindow = true;
     [DataMember(IsRequired = true)] public bool LogErrors = true;
     [DataMember(IsRequired = true)] public bool GraphicsErrorLogging_High = true;
     [DataMember(IsRequired = true)] public bool GraphicsErrorLogging_Medium = true;
@@ -31,7 +32,6 @@ namespace Loft
     [DataMember(IsRequired = true)] public bool Debug_Log_GLTF_Details = true;
     [DataMember(IsRequired = true)] public bool Debug_LogToFile = true;
     [DataMember(IsRequired = true)] public bool Debug_LogToConsole = true;
-
 
     //font
     [DataMember(IsRequired = true)] public int Font_MaxBakedCharSize = 92;
@@ -61,7 +61,7 @@ namespace Loft
     [DataMember(IsRequired = true)] public float WindowInitScaleH = 1;//0.75f;
     [DataMember(IsRequired = true)] public ColorBitDepth ColorBitDepth = ColorBitDepth.FB_16_BIT;//16 or 32
 
-    //system
+    //game system
     [DataMember(IsRequired = true)] public bool Debug_SaveDebuggShaderSource = true;
     [DataMember(IsRequired = true)] public bool BreakOnOpenGLError = true;
     [DataMember(IsRequired = true)] public bool ClearTmpOnStart = true;
@@ -71,15 +71,20 @@ namespace Loft
     [DataMember(IsRequired = true)] public int MaxUndoHistoryItems = 256;
     [DataMember(IsRequired = true)] public bool ReleaseAllButtonsWhenWindowLosesFocus = true;
     [DataMember(IsRequired = true)] public int MaxUIEvents = 500;
-    [DataMember(IsRequired = true)] public string ScriptDLLName = "Scripts.dll";
+    [DataMember(IsRequired = true)] public string ScriptDLLBaseName = "Scripts";
     [DataMember(IsRequired = true)] public bool Debug_ShowFailedShaderSourceInVSCOode = true;
 
-    //UI
-    [DataMember(IsRequired = true)] public FileLoc BaseGuiScript = new FileLoc("BaseGuiScript.cs", PathRoot.Src);
-    [DataMember(IsRequired = true)] public FileLoc EditGuiScript = new FileLoc("EditGuiScript.cs", PathRoot.Src);
-    [DataMember(IsRequired = true)] public FileLoc TestGuiScript = new FileLoc("TestGuiScript.cs", PathRoot.Src);
-    //[DataMember(IsRequired = true)] public FileLoc SRC_UIControls = new FileLoc("UiControls.cs", PathRoot.Src);
-    [DataMember(IsRequired = true)] public FileLoc InfoGuiScript = new FileLoc("TODO.cs", PathRoot.Src);
+    //Scripts
+    [DataMember(IsRequired = true)] public string CSCPath = "";//leave blank for default
+    [DataMember(IsRequired = true)] public bool Script_Optimize = false;//may cause slow compile
+    [DataMember(IsRequired = true)] public bool Script_Debug = true;//Generate PDB 
+    [DataMember(IsRequired = true)] public bool Script_ParallelBuild = true;
+    [DataMember(IsRequired = true)] public FileLoc BaseGuiScript = new FileLoc("BaseGuiScript.cs", EmbeddedFolder.Script); //= new FileLoc("BaseGuiScript.cs", PathRoot.Src);
+    [DataMember(IsRequired = true)] public FileLoc EditGuiScript = new FileLoc("EditGuiScript.cs", EmbeddedFolder.Script); //= new FileLoc("EditGuiScript.cs", PathRoot.Src);
+    [DataMember(IsRequired = true)] public FileLoc TestGuiScript = new FileLoc("TestGuiScript.cs", EmbeddedFolder.Script); //= new FileLoc("TestGuiScript.cs", PathRoot.Src);
+    [DataMember(IsRequired = true)] public FileLoc UIControls_Script = new FileLoc("UiControls.cs", EmbeddedFolder.Script); //= new FileLoc("UiControls.cs"   , PathRoot.Src);
+    [DataMember(IsRequired = true)] public FileLoc Gui2d_Script = new FileLoc("Gui2d.cs", EmbeddedFolder.Script); //= new FileLoc("Gui2d.cs"        , PathRoot.Src);
+    [DataMember(IsRequired = true)] public FileLoc TestWorldScript = new FileLoc("MyWorldScript.cs", EmbeddedFolder.Script); //= new FileLoc("MyWorldScript.cs", PathRoot.Src);
     [DataMember(IsRequired = true)] public bool Debug_RainbowMegatexture = true;
 
     //Shader

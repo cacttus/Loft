@@ -4,24 +4,72 @@ using System.Collections.Generic;
 
 namespace Loft
 {
+  public static class Noise
+  {
+    public static uint Get32(uint seed, uint off = 1812433253)
+    {
+      //I believe this is the  mersenne twister
+      uint x;
+      unchecked
+      {
+        x = (0x9908b0df * (seed ^ (seed >> 30)) + (off)) & 0xffffffff;
+        x = x ^ (x >> 11);
+        x = x ^ ((x << 7) & 0x9d2c5680);
+        x = x ^ ((x << 15) & 0xefc60000);
+        x = x ^ (x >> 18);
+      }
+      return x;
+    }
+    public static ulong Get64(ulong seed, ulong off = 6364136223846793005)
+    {
+      ulong x;
+      unchecked
+      {
+        x = (0xb5026f5aa96619e9 * (seed ^ (seed >> 30)) + (off)) & 0x5555555555555555;
+        x = x ^ (x >> 29);
+        x = x ^ ((x << 17) & 0x71d67fffeda60000);
+        x = x ^ ((x << 37) & 0xfff7eee000000000);
+        x = x ^ (x >> 43);
+      }
+      return x;
+    }
+    public static float NoiseToFloat(uint ix)
+    {
+      //0x007fffff is the fractional portion of a floating point.
+      float x;
+      unchecked
+      {
+        unsafe
+        {
+          uint a = (ix & 0x007fffff) | 0x3f800000;
+          x = (*((float*)&a) - 1.0f);
+        }
+      }
+      return x;
+    }
+    public static double NoiseToDouble(ulong ix)
+    {
+      //Probably the same .. https://learn.microsoft.com/en-us/dotnet/api/system.bitconverter.int64bitstodouble?view=net-7.0
+      //52 bit frac 11bit exp 1 bit sign
+      double x;
+      unchecked
+      {
+        unsafe
+        {
+          ulong a = (ix & 0x007fffffffffffff) | 0x3ff0000000000000;
+          x = (*((double*)&a) - 1.0f);
+        }
+      }
+      return x;
+    }
+  }
+
   public class Noise3D
   {
-    static int[] primes = new int[]
-    {10000019
-        ,10000079
-        ,10000103
-        ,10000121
-        ,10000139
-        ,10000141
-        ,10000169
-        ,10000189
-        ,10000223
-        ,10000229
-        ,10000247
-        ,10000253
-        ,10000261
-        ,10000271
-        ,10000303 };
+    static int[] primes = new int[]{
+      10000019,10000079,10000103,10000121,10000139,10000141,10000169,10000189,
+      10000223,10000229,10000247,10000253,10000261,10000271,10000303 };
+
     public static int Rot(int a, int n)
     {
       return (((a) << (n)) | (((a)) >> (32 - (n))));
@@ -52,15 +100,6 @@ namespace Loft
       rnd ^= rnd >> (int)16;
 
       return rnd;
-    }
-    //This is unfortunate. BitConverter is very slow though ( i think). Testing is needed.
-    unsafe static float to_float(uint x)
-    {
-      //Grab the mantissa of a float
-      uint a = (x & 0x007fffff) | 0x40000000;
-      return (*((float*)&a) - 3.0f);
-      //            float f = BitConverter.ToSingle(BitConverter.GetBytes(x), 0);
-      //          return f;
     }
     public static Int32 xxHash4D(int seed, ivec4 p)
     {
@@ -288,8 +327,5 @@ namespace Loft
 
 
   }
-  public class CloudThing
-  {
 
-  }
 }

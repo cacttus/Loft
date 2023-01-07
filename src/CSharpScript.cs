@@ -1,66 +1,32 @@
 using System.Diagnostics;
 using System.Text;
+using System.Runtime.InteropServices;
+
 namespace Loft
 {
-  #region Script Interfaces
-
-  //Script-side interfaces to implement in the .cs script file
-  public interface IFunctionScript
-  {
-    public object? DoThing(object? param);
-  }
-  public interface IObjectScript
-  {
-    public void OnCreate();
-    public void OnUpdate(double delta, WorldObject? ob);
-    public void OnDestroy();
-  }
-  public interface IUIScript
-  {
-    public string GetName();
-    public List<FileLoc> GetResources();
-
-    public void OnCreate(Gui2d g);
-    public void OnUpdate(RenderView rv);
-  }
-  public interface IWorldScript
-  {
-    public void OnLoad(World w);
-    public void OnUpdate(World w, double delta);
-    public void OnExit(World w);
-  }
-
-  #endregion
   #region Engine Interfaces
 
   public class UIScript : CSharpScript
   {
     private List<RenderView> _views = new List<RenderView>();
-    private IUIScript Script { get { return (_scriptObject as IUIScript); } }
+    public IUiControls Script { get { return (_scriptObject as IUiControls); } }
 
-    public UIScript(List<FileLoc> loc) : base(loc, typeof(IUIScript))
+    public UIScript(List<FileLoc> loc) : base(loc, typeof(IUiControls))
     {
     }
     public void LinkView(RenderView rv)
     {
       _views.Add(rv);
-      LoadForView(rv);
+      UpdateUIForView(rv);
     }
     protected override void ScriptChanged()
     {
       foreach (var rv in _views)
       {
-        LoadForView(rv);
+        UpdateUIForView(rv);
       }
     }
-    public void UpdateForView(RenderView rv)
-    {
-      if (Script != null)
-      {
-        Script.OnUpdate(rv);
-      }
-    }
-    private void LoadForView(RenderView rv)
+    private void UpdateUIForView(RenderView rv)
     {
       //TODO: we need to update this again when failed compile actually succeeds
 
@@ -72,20 +38,9 @@ namespace Loft
         //***
       }
 
-      if (Script == null)
-      {
-        Compile();
-      }
-
       if (Script != null)
       {
-        var rsc = Script.GetResources();
-
-        //TODO: remove the Gui2dShared if the resources changed. 
-
-        var gdat = Gu.Gui2dManager.GetOrCreateGui2dShared(Script.GetName(), rsc);
-        rv.Gui = new Gui2d(gdat, rv);
-        Script.OnCreate(rv.Gui);
+        rv.Gui = Script.CreateForView(rv);
       }
     }
 
@@ -94,7 +49,7 @@ namespace Loft
   {
     //Thunk class for runtime interface
 
-    public WorldScript(FileLoc loc) : base(new List<FileLoc>(){loc}, typeof(IWorldScript))
+    public WorldScript(FileLoc loc) : base(new List<FileLoc>() { loc }, typeof(IWorldScript))
     {
     }
     protected override void ScriptChanged() { }
@@ -143,22 +98,20 @@ namespace Loft
     #region Public:Members
 
     public static int TotalLoadedScriptAssemblyBytes { get; private set; } = 0;
+    public ScriptStatus ScriptStatus { get { return _scriptStatus; } protected set { _scriptStatus = value; } }
 
     #endregion
-    #region Private/Protected Members
-
-    public ScriptStatus ScriptStatus { get { return _scriptStatus; } protected set { _scriptStatus = value; } }
-    //public FileLoc File { get { return _files[0]; } }
+    #region Members
+    
+    private static int _compileCount = 0;
+    private static Dictionary<FileLoc, CSharpScript> _loadedScripts = new Dictionary<FileLoc, CSharpScript>(new FileLoc.EqualityComparer());
 
     private ScriptStatus _scriptStatus = ScriptStatus.None;
     private string _outputPath = "";
     protected Type? _scriptObjectType = null;
     protected object? _scriptObject = null;
     private System.Reflection.Assembly? _loadedAssembly = null;
-    private static Dictionary<FileLoc, CSharpScript> _loadedScripts = new Dictionary<FileLoc, CSharpScript>(new FileLoc.EqualityComparer());
     private List<FileLoc> _files;
-    private List<string> _scriptMessages = new List<string>();
-    private int _compileCount = 0;
     private FileWatcher? _watcher = null;
     protected Type? _scriptObjectInterfaceType = null;
     private bool _initialized = false;
@@ -210,17 +163,35 @@ namespace Loft
       }
       return fn;
     }
+    public string ScriptDLLName
+    {
+      get
+      {
+        //In Mono we can just write to the PDB for some reason, but in MS .NET this is impossible as the PDB gets locked
+        //https://stackoverflow.com/questions/26651293/runtime-code-compilation-gives-error-process-cannot-access-the-file/26699609#26699609
+        string dl = $"{Gu.EngineConfig.ScriptDLLBaseName}{_compileCount}.dll";
+        return dl;
+      }
+    }
     public bool Compile()
     {
       //Root compile method, reset everything and try compiling.
       _scriptStatus = ScriptStatus.None;
-      _outputPath = System.IO.Path.Combine(Gu.ExePath, Gu.EngineConfig.ScriptDLLName);
+
+      _outputPath = System.IO.Path.Combine(Gu.ExePath, ScriptDLLName);
+
+      _compileCount++;
+
+      Gu.Log.Info(
+        $"Loft Script Compiler" + ", " +
+        $".NET Version: {Environment.Version}"
+      );
 
       ScriptInfo($"Loading..");
 
       try
       {
-        string files = "";
+        List<string> files = new List<string>();
         foreach (var f in _files)
         {
           var fn = GetScriptPath(f);
@@ -233,7 +204,7 @@ namespace Loft
           }
           else
           {
-            files += $" {fn}";
+            files.Add(fn);
           }
         }
 
@@ -254,48 +225,24 @@ namespace Loft
 
       return _scriptStatus == ScriptStatus.CompileSuccess;
     }
-    private void DoCompile(string files)
+    private void DoCompile(List<string> files)
     {
-      _compileCount++;
-      ScriptInfo($"Compiling. (compiles={_compileCount})");
-
-      //TODO: figure out how to do this dynamically
-      List<String> refs = new List<string>(){
-          "System.dll",
-          "System.Runtime.dll",
-          "System.Collections.dll",
-          "System.Linq.dll",//IEnumerable.ToArray
-          System.IO.Path.Combine(Gu.ExePath, "Loft.dll"),
-          System.IO.Path.Combine(Gu.ExePath, "OpenTK.Core.dll"),
-          System.IO.Path.Combine(Gu.ExePath, "OpenTK.Graphics.dll"),
-          System.IO.Path.Combine(Gu.ExePath, "OpenTK.Windowing.Common.dll"),
-          System.IO.Path.Combine(Gu.ExePath, "OpenTK.Windowing.Desktop.dll"),
-          System.IO.Path.Combine(Gu.ExePath, "OpenTK.Windowing.GraphicsLibraryFramework.dll"),
-        };
-      //TODO: rel paths / PATH .. 
-      List<String> libs = new List<string>(){
-        "/usr/lib/mono/4.8-api/Facades/",//Mono facade
-         "/usr/lib/mono/4.8-api/",//Mono facade
-        // "/usr/share/dotnet/shared/Microsoft.NETCore.App/6.0.9/",//MS .NET
-        };
-
-      //if(_scriptStatus != ScriptStatus.Error){
       _scriptStatus = ScriptStatus.Compiling;
+      ScriptInfo(
+        $"Compiling {this.GetFilename()}" + ", " +
+        $"Compile Count: {_compileCount}"
+      );
 
-      //-debug:{full|pdbonly|portable|embedded}
-      //-pdb:<file>   
-      //-parallel[+|-]                Concurrent build.
-      //-optimize[+|-]                Enable optimizations (Short form: -o)
+      var compiler = FindCSC();
+      var quot = "\"";
+      string cmdstr = $"{quot}{compiler}{quot} {String.Join(" ", GetArgs(files, quot))}";
 
-      //csc worked. mcs did not work.. idk why
-      var compiler = "csc";
-      var debug = "-debug:full";
-      var args = $"-out:{_outputPath} -t:library -r:{String.Join(" -r:", refs.ToArray())} -lib:{String.Join(" -lib:", libs.ToArray())} {files} {debug}";
-      ScriptInfo($"Executing:{compiler} {args}");
+      ScriptDebug($"Executing: {cmdstr}");
+      ScriptInfo(String.Join($"{Environment.NewLine}", GetArgs(files, quot)), true, ConsoleColor.Green);
 
-      if (Gu.LaunchProgram(compiler, args, out var output))
+      if (Gu.LaunchProgram(compiler, String.Join(" ", GetArgs(files, "")), out var output))
       {
-        PrintOutput(output);
+        PrintCompilerOutput(output);
         LoadAssembly();
       }
       else
@@ -327,6 +274,169 @@ namespace Loft
     #endregion
     #region Private/Protected: Methods
 
+    private string FindCSC()
+    {
+      string compiler = "";
+      //"C:/Program Files/Mono/Lib/Mono4.5/csc.exe";
+      //var ver = System.Runtime.InteropServices.RuntimeEnvironment.GetSystemVersion();
+
+      if (StringUtil.IsNotEmpty(Gu.EngineConfig.CSCPath))
+      {
+        compiler = Gu.EngineConfig.CSCPath;
+      }
+      else if (OperatingSystem.Platform == Platform.Windows)
+      {
+        //Windows: dir /s %WINDIR%\CSC.EXE
+        //var frameworkPath = RuntimeEnvironment.GetRuntimeDirectory();//this path didn't contain csc.
+        //compiler = Path.Combine(frameworkPath, "csc.exe");
+        //compiler = "C:\\Program Files\\Mono\\bin\\csc.bat"; //wrong version
+        //compiler = "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe";\ //wrong version. We must use the same version we compile the app with.
+
+        //Visual Studio
+        //compiler = @"C:\Program Files\Microsoft Visual Studio\2022\Community\Msbuild\Current\Bin\Roslyn\csc.exe";
+
+        //This is the omnisharp VSCode compielr
+        compiler = @"c:\Users\scriplez\.vscode\extensions\ms-dotnettools.csharp-1.24.1\.omnisharp\1.38.1\.msbuild\Current\Bin\Roslyn\csc.exe";
+
+        if (!System.IO.File.Exists(compiler))
+        {
+          Gu.Log.Error($"Compiler path '{compiler}' was not found.");
+          Gu.DebugBreak();
+        }
+
+
+      }
+      else if (OperatingSystem.Platform == Platform.Linux)
+      {
+        compiler = "csc";
+      }
+
+      if (StringUtil.IsEmpty(compiler))
+      {
+        Gu.BRThrowException($"Could not get csc compiler (version={OperatingSystem.VersionString}) for scripts.\n Mono may not be installed.\n Set manually in config: MANUAL_CSC_PATH");
+      }
+
+      return compiler;
+    }
+    private List<string> GetLibPaths()
+    {
+      List<String> libs = null;
+      if (OperatingSystem.Platform == Platform.Windows)
+      {
+        libs = new List<string>()
+        {
+          //if compiling with roslyn
+          //@"C:\Windows\Assembly\",
+          // "\"C:/Program Files/dotnet/packs/Microsoft.NETCore.App.Ref/6.0.2/ref/net6.0/\"",
+          //"C:/Program Files/Mono/lib/mono/4.8-api/"
+        };
+      }
+      else if (OperatingSystem.Platform == Platform.Linux)
+      {
+        //Mono facades
+        libs = new List<string>()
+        {
+          @"/usr/lib/mono/4.8-api/Facades/",
+          @"/usr/lib/mono/4.8-api/",
+        };
+      }
+      return libs;
+    }
+    private List<string> GetRefs()
+    {
+      //TODO: figure out how to do this dynamically
+      var refs = new List<string>(){
+          "System.dll",
+          "System.Runtime.dll",
+          "System.Collections.dll",
+          "System.Linq.dll",
+          "System.Console.dll",
+          "System.Threading.dll",
+          "System.Threading.ThreadPool.dll",
+          "System.Runtime.InteropServices.dll",
+          Path.Combine(Gu.ExePath, "Loft.dll"),
+          Path.Combine(Gu.ExePath, "OpenTK.Core.dll"),
+          Path.Combine(Gu.ExePath, "OpenTK.Graphics.dll"),
+          Path.Combine(Gu.ExePath, "OpenTK.Windowing.Common.dll"),
+          Path.Combine(Gu.ExePath, "OpenTK.Windowing.Desktop.dll"),
+          Path.Combine(Gu.ExePath, "OpenTK.Windowing.GraphicsLibraryFramework.dll"),
+        };
+      return refs;
+    }
+    private List<string> GetArgs(List<string> files, string quot)
+    {
+      //If quot is specified This returns the command prompt string not Process.Start string
+
+      var libpaths = GetLibPaths();
+      var refs = GetRefs();
+
+      Gu.Assert(files != null && files.Count > 0);
+
+      var csw = "";
+      if (OperatingSystem.Platform == Platform.Windows) { csw = "/"; }
+      else { csw = "-"; }
+
+      //-debug:{full|pdbonly|portable|embedded}
+      //-pdb:<file>   
+      //-parallel[+|-]                
+      var debugEnabled = Gu.EngineConfig.Script_Debug ? "+" : "-";
+      var debugInfo = "full";
+      var optimize = Gu.EngineConfig.Script_Optimize ? "+" : "-";
+      var nullable = "+";
+      var @unsafe = "+";
+      var parallel = Gu.EngineConfig.Script_ParallelBuild ? "+" : "-"; //Concurrent build.
+
+      var scriptTemp = Gu.RootPath("tmp/script" + (Gu.EngineConfig.Script_Debug ? "/debug" : "/release"), PathRoot.Exe);
+      if (!System.IO.Directory.Exists(scriptTemp))
+      {
+        System.IO.Directory.CreateDirectory(scriptTemp);
+      }
+      //Others
+      //-recurse:<wildcard>
+      //-moduleassemblyname:<string>  Name of the assembly which this module will be      a part of
+      //- modulename:< string > Specify the name of the source module
+
+      var args = new List<string>() {
+        $"{csw}nologo",
+        //$"{csw}nostdlib-", 
+        //$"{csw}nosdkpath", // disable default sdk search
+        //$"{csw}platform:x64",
+        $"{csw}debug{debugEnabled}",
+        $"{csw}debug:{debugInfo}",
+        $"{csw}nullable{nullable}",
+        $"{csw}unsafe{@unsafe}",
+        $"{csw}parallel{parallel}",
+        $"{csw}optimize{optimize}",
+
+        $"{csw}out:{quot}{_outputPath}{quot}",
+        $"{csw}generatedfilesout:{quot}{scriptTemp}{quot}",
+        $"{csw}t:library",
+        };
+      if (refs != null && refs.Count > 0)
+      {
+        foreach (var rr in refs)
+        {
+          args.Add($"{csw}r:{rr}");
+        }
+      }
+      if (libpaths != null && libpaths.Count > 0)
+      {
+        foreach (var rr in libpaths)
+        {
+          args.Add($"{csw}lib:{rr}");
+        }
+      }
+      if (files != null && files.Count > 0)
+      {
+        foreach (var rr in files)
+        {
+          args.Add($"{quot}{rr}{quot}");
+        }
+      }
+
+      return args;
+
+    }
     private void LoadAssembly()
     {
       //load interface,  create instance
@@ -343,19 +453,19 @@ namespace Loft
           var asm = System.Reflection.Assembly.Load(asmbytes);
           if (LoadTypeAndCreateInstance(asm))
           {
-            ScriptInfo($"Assembly Loaded, (Total LSR={TotalLoadedScriptAssemblyBytes}).");
+            ScriptInfo($"{ScriptDLLName}: Assembly Loaded, (Total LSR={TotalLoadedScriptAssemblyBytes}).");
             ScriptChanged();
             _scriptStatus = ScriptStatus.CompileSuccess;
           }
           else
           {
-            ScriptError($"Interface load failed ");
+            ScriptError($"{ScriptDLLName}: Interface load failed ");
             _scriptStatus = ScriptStatus.Error;
           }
         }
         else
         {
-          ScriptError($"Compiled file did not exist.");
+          ScriptError($"Could not load assembly, '{_outputPath}' did not exist.");
           _scriptStatus = ScriptStatus.Error;
         }
       }
@@ -417,41 +527,43 @@ namespace Loft
       }
       return fn;
     }
-    private void ScriptWarn(string msg)
+
+    private string GlobalTab = "  ";//tab all script message 
+    private string GetLogStr(string ewi, string msg, bool headless = false)
     {
-      _scriptMessages.Add($"  [{GetFilename()}][W]: {msg}");
+      var header = headless ? "" : $"{GlobalTab}[{GetFilename()}][{ewi}]: ";
+      return $"{header}{msg}".Replace(Environment.NewLine, $"{Environment.NewLine}{GlobalTab}");
     }
-    private void ScriptError(string msg)
+    private void ScriptError(string msg, bool headless = false)
     {
-      _scriptMessages.Add($"  [{GetFilename()}][E]: {msg}");
+      //print a local script info without extra header stuff
+      Gu.Log.Error(GetLogStr("E", msg, headless), true);
     }
-    private void ScriptInfo(string msg)
+    private void ScriptWarn(string msg, bool headless = false)
     {
-      _scriptMessages.Add($"  [{GetFilename()}][I]: {msg}");
+      Gu.Log.Warn(GetLogStr("W", msg, headless), true);
+    }
+    private void ScriptDebug(string msg, bool headless = false)
+    {
+      Gu.Log.Debug(GetLogStr("D", msg, headless), true);
+    }
+    private void ScriptInfo(string msg, bool headless = false, ConsoleColor? color = null)
+    {
+      Gu.Log.Info(GetLogStr("I", msg, headless), true, color);
     }
     private void PrintErrors()
     {
-      if (_scriptMessages.Count > 0)
+      if (_scriptStatus == ScriptStatus.Error)
       {
-        StringBuilder sb = new StringBuilder();
-        sb.AppendLine("");
-        foreach (var m in _scriptMessages)
-        {
-          sb.AppendLine(m);
-        }
-        if (_scriptStatus == ScriptStatus.Error)
-        {
-          Gu.Log.Error(sb.ToString());
-        }
-        else if (_scriptStatus == ScriptStatus.CompileSuccess)
-        {
-          Gu.Log.Info(sb.ToString());
-        }
-        else
-        {
-          Gu.BRThrowNotImplementedException();
-        }
-        _scriptMessages.Clear();
+        ScriptError("One or more compiles failed");
+      }
+      else if (_scriptStatus == ScriptStatus.CompileSuccess)
+      {
+        ScriptInfo("All compiles succeeded");
+      }
+      else
+      {
+        Gu.BRThrowNotImplementedException();//invalid enum
       }
 
       if (_scriptStatus != ScriptStatus.CompileSuccess)
@@ -463,45 +575,72 @@ namespace Loft
       }
 
     }
-    private void PrintOutput(List<string>? output)
+    private void PrintCompilerOutput(List<string>? output)
     {
+      //make the output readable
       Gu.Assert(output != null);
-      StringBuilder sb = new StringBuilder();
-      bool warnings = false;
-      sb.AppendLine("-------------------------------------------------------------------------------");
-      sb.AppendLine("");
-      sb.AppendLine("Output:");
+      ScriptInfo("-------------------------------------------------------------------------------");
+      ScriptInfo("");
+      ScriptInfo("Output:");
+
+      //skip warnings
+      bool logwarn = true;
+      bool hide_8601 = true; // Possible null reference assignment.
+      bool hide_8602 = true; // Dereference of a possibly null reference.
+      bool hide_8603 = true; // Possible null reference return.
+      bool hide_8604 = true; // Possible null reference argument for parameter
+      bool hide_8625 = false; // Cannot convert null literal to non-nullable reference type.
+      bool hide_8629 = true; // Nullable value type may be null.
+      bool hide_0414 = true; // The field '' is assigned but its value is never used
+
       string tabbing = "     ";
+
+      bool warnings = false;
+
       foreach (var line in output)
       {
-        if (line.Contains("warn"))
+        var str = $"{tabbing}{line}";
+
+        if (logwarn && line.Contains("warn"))
         {
-          warnings = true;
+          if (
+            (hide_8601 && line.Contains("CS8601:")) ||
+            (hide_8602 && line.Contains("CS8602:")) ||
+            (hide_8603 && line.Contains("CS8603:")) ||
+            (hide_8604 && line.Contains("CS8604:")) ||
+            (hide_8625 && line.Contains("CS8625:")) ||
+            (hide_8629 && line.Contains("CS8629:")) ||
+            (hide_0414 && line.Contains("CS0414:"))
+          )
+          {
+          }
+          else
+          {
+            warnings = true;
+            ScriptWarn(str, true);
+          }
         }
         if (line.Contains("error"))
         {
           _scriptStatus = ScriptStatus.Error;
+          ScriptError(str, true);
         }
-        sb.AppendLine($"{tabbing}{line}");
       }
-      sb.AppendLine("");
-      sb.AppendLine("-------------------------------------------------------------------------------");
-      if (sb.Length > 0)
-      {
-        _scriptMessages.Add(sb.ToString());
-      }
+
+      ScriptInfo("");
+      ScriptInfo("-------------------------------------------------------------------------------");
 
       if (_scriptStatus == ScriptStatus.Error)
       {
-        ScriptError("Compiled with errors.");
+        ScriptError("Compiled with errors.", true);
       }
       else if (warnings)
       {
-        ScriptWarn("Compiled with warnings.");
+        ScriptWarn("Compiled with warnings.", true);
       }
       else
       {
-        ScriptInfo("Compile success.");
+        ScriptInfo("Compile success.", true);
       }
 
 
