@@ -402,7 +402,7 @@ namespace Loft
     public ViewInputMode ViewInputMode { get { return _viewInputMode; } set { _viewInputMode = value; } }
     public RenderViewMode ViewMode { get { return _viewMode; } }
 
-//Testing this stuff
+    //Testing this stuff
     private GPUBuffer _camBuf = null;
     public GPUBuffer GpuCamera
     {

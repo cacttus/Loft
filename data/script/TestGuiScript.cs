@@ -6,37 +6,78 @@ namespace Loft
 {
   public class TestGuiScript : IUIScript
   {
-    public string GetName() { return GetType().Name; }
- 
     public TestGuiScript() { }
-     
-    public List<FileLoc> GetResources()
-    {   
-      return new List<FileLoc>(){
-        FontFace.Parisienne
-        //,FontFace.PressStart2P
-        //,FontFace.EmilysCandy
-        //,FontFace.Entypo
-        ,FontFace.Calibri  
-        ,FontFace.RobotoMono 
-      }; 
-    } 
-    public void OnUpdate(RenderView rv) { } 
+    public string GetName() { return GetType().Name; }
+
+    public UiElement _hoverinfo = null;
+
+    public void OnUpdate(RenderView rv)
+    {
+      //called after cull + after pick
+      if (_hoverinfo != null)
+      {
+        if (Gu.Context.Picker.PickedUiElement != null)
+        {
+          _hoverinfo.Text = Gu.Context.Picker.PickedUiElement.Name;
+        }
+        else
+        {
+          _hoverinfo.Text = "<none>";
+        }
+        _hoverinfo.Text += Gu.Context.Picker.SelectedPixelIdLast;
+      }
+    }
     public void OnCreate(IGui2d gg)
     {
+      //****************************************
       var g = gg as Gui2d;
+      //****************************************
 
-      FPSLabel(g);
-      TEST_MENU_ITEM(g);
-      TEST_TOOLBAR_BUTTON(g);
+      // FPS_LABEL(g);  
+       HOVER_INFO(g);
+
+      //****************************************
+
+      // var e = new UiElement();
+      // e.Text = "Hi";
+      // e.Style.FontSize = 30;
+      // e.Style.Color = OffColor.Gray;
+      // g.AddChild(e);
+
+      TEST_WINDOW(g);
+
+       TEST_AUTOS_H(g);
+      TEST_AUTOS_V(g);
+      TEST_AUTO_SIB(g);
+         TEST_AUTO_NEST(g);
+
+      //TEST_MENU_ITEM(g);
+      //TEST_TOOLBAR_BUTTON(g);
       //  TEST_SLIDER(g);
       //TEST_ALIGNMENT(g, UiLayoutDirection.LeftToRight);
       //TEST_ALIGNMENT(g, UiLayoutDirection.RightToLeft);
       //TEST_TEXT(g);
-      //TEST_AUTOS_H(g);
-      //TEST_AUTOS_V(g);
-      //TEST_AUTOS_3(g);
+
       //TEST_NESTED_BORDERS(g);
+
+      //****************************************
+    }
+    private static void TEST_WINDOW(Gui2d g)
+    {
+      var w = new UiWindow("THIS IS A WINDOW", new vec2(50, 50), new vec2(100, 100), UiWindow.UiWindowStyle.Sizable);
+
+      var e = new UiElement("TestGreenBox");
+      e.Style.FixedHeight = e.Style.FixedWidth = 100;
+      e.Style.Color = OffColor.LawnGreen;
+      w.Content.AddChild(e);
+      var e2 = new UiElement("TestRedBox");
+      e2.Style.FixedHeight = e2.Style.FixedWidth = 100;
+      e2.Style.Color = OffColor.MediumVioletRed;
+      w.Content.AddChild(e2);
+
+      //new UiText(Ipsum.GetIpsum(2))
+
+      g.AddChild(w);
     }
     public static void TEST_MENU_ITEM(Gui2d g)
     {
@@ -47,7 +88,7 @@ namespace Loft
       mi.Style.MaxWidth = 300;
       mi.CreateShortcut("Ctrl+F");
       mi.AddSubMenu("SubMenu").AddItem("Hi");
-      tb.AddChild(mi); 
+      tb.AddChild(mi);
       g.AddChild(tb);
     }
     public static void TEST_TOOLBAR_BUTTON(Gui2d g)
@@ -73,7 +114,7 @@ namespace Loft
       , "testslider"));
 
       g.LastChild().Style.FixedHeight = 100;
-      g.LastChild().Style.PositionMode = UiPositionMode.Relative;
+      g.LastChild().Style.PositionMode = UiPositionMode.Fixed;
       g.LastChild().Style.Top = 200;
       g.LastChild().Style.Left = 200;
 
@@ -113,7 +154,7 @@ namespace Loft
       g.AddChild(par);
 
     }
-    public static void FPSLabel(Gui2d g)
+    public static void FPS_LABEL(Gui2d g)
     {
       //toolbar
       //var tt = new UiToolbar();
@@ -126,15 +167,32 @@ namespace Loft
       e.AddChild(new FPSLabel());
 
       e.Style.PercentWidth = 100;
-      e.Style.SizeModeHeight = UiSizeMode.Shrink;
+      e.Style.SizeModeHeight = UiSizeMode.Content;
       e.Style.ContentAlignX = UiAlignment.Right;
 
       e.LastChild().Style.FixedWidth = 80;
       e.LastChild().Style.MinHeight = 5;
-      e.LastChild().Style.SizeModeWidth = UiSizeMode.Shrink;
-      e.LastChild().Style.SizeModeHeight = UiSizeMode.Shrink;
+      e.LastChild().Style.SizeModeWidth = UiSizeMode.Content;
+      e.LastChild().Style.SizeModeHeight = UiSizeMode.Content;
 
       g.AddChild(e);
+    }
+    public void HOVER_INFO(Gui2d g)
+    {
+      var e = new UiElement();
+      _hoverinfo = new UiText("<none>", "hover_info");
+      e.AddChild(_hoverinfo);
+      e.Style.Color = OffColor.Beige;
+      e.Style.DisplayMode = UiDisplayMode.Block;
+      e.Style.MinWidth = 100;
+      e.Style.MinHeight = 20;
+      e.Style.FontSize = 30;
+      e.Style.SizeModeWidth = UiSizeMode.Content;
+      e.Style.SizeModeHeight = UiSizeMode.Content;
+      e.Style.ContentAlignX = UiAlignment.Left;
+
+      g.AddChild(e);
+      g.AddChild(UiUtils.LineBreak());
     }
     public static void TEST_TEXT(Gui2d g)
     {
@@ -159,13 +217,13 @@ namespace Loft
       lab.Style.ContentAlignY = UiAlignment.Left;
       lab.Style.LayoutDirection = UiLayoutDirection.LeftToRight;
 
-      lab.Style.SizeMode = UiSizeMode.Shrink;
+      lab.Style.SizeMode = UiSizeMode.Content;
       //      lab.Style.FixedHeight = 600;
       //lab.Style.ContentAlignY = UiAlignment.Center;
 
       g.AddChild(lab);
     }
-    public static void TEST_AUTOS_3(Gui2d g)
+    public static void TEST_AUTO_SIB(Gui2d g)
     {
       //[Label][auto][Label]
       //should not wrap
@@ -182,9 +240,78 @@ namespace Loft
       par.LastChild().Style.SizeModeHeight = UiSizeMode.Auto;
       //par.LastChild().Style.FixedHeight = 30;
       //par.LastChild().Style.MinWidth = 20;
-
-
       par.AddChild(TLab("World"));
+
+      g.AddChild(par);
+    }
+    public static void TEST_AUTO_NEST(Gui2d g)
+    {
+      //should not wrap
+      var par = ParentBox();
+      par.Style.FixedWidth = 600;
+      par.Style.FixedHeight = 400;
+      //    par.Style.SizeMode = UiSizeMode.Shrink;
+      par.Style.AutoModeWidth = UiAutoMode.Content;
+      par.Style.AutoModeHeight = UiAutoMode.Content;
+
+      var c1 = ChildBox();
+      par.AddChild(c1);
+      par.LastChild().Text = "AUTO 1";
+      par.LastChild().Style.SizeModeWidth = UiSizeMode.Auto;
+      par.LastChild().Style.SizeModeHeight = UiSizeMode.Auto;
+
+      var c2 = ChildBox();
+      par.AddChild(c2);
+      par.LastChild().Text = "AUTO 2";
+      par.LastChild().Style.SizeModeWidth = UiSizeMode.Auto;
+      par.LastChild().Style.SizeModeHeight = UiSizeMode.Auto;
+      par.LastChild().Style.Color = OffColor.Plum;
+
+      c1.AddChild(ChildBox("INNER 1", "inner_auto", new vec4(0.5, 0.5, 0.8, 1)));
+      c1.LastChild().Style.SizeModeWidth = UiSizeMode.Auto;
+      c1.LastChild().Style.SizeModeHeight = UiSizeMode.Auto;
+      c1.LastChild().Style.Color = OffColor.Turquoise;
+
+      c1.LastChild().AddChild(ChildBox("SUB 1", "inner_auto", new vec4(0.95, 0.5, 0.8, 1)));
+      c1.LastChild().LastChild().Style.SizeModeWidth = UiSizeMode.Auto;
+      c1.LastChild().LastChild().Style.SizeModeHeight = UiSizeMode.Auto;
+      c1.LastChild().LastChild().Style.Color = OffColor.SpringGreen;
+
+      c1.LastChild().AddChild(ChildBox("SUB 2", "inner_auto", new vec4(0.95, 0.5, 0.8, 1)));
+      c1.LastChild().LastChild().Style.SizeModeWidth = UiSizeMode.Auto;
+      c1.LastChild().LastChild().Style.SizeModeHeight = UiSizeMode.Auto;
+      c1.LastChild().LastChild().Style.Color = OffColor.Brown;
+
+      c1.LastChild().AddChild(ChildBox("PCTLINE 1", "inner_auto", new vec4(0.95, 0.5, 0.8, 1)));
+      c1.LastChild().LastChild().Style.PercentWidth = 100;
+      c1.LastChild().LastChild().Style.SizeModeHeight = UiSizeMode.Auto;
+      c1.LastChild().LastChild().Style.DisplayMode = UiDisplayMode.Block;
+      c1.LastChild().LastChild().Style.Color = OffColor.AliceBlue;
+
+      c1.LastChild().AddChild(ChildBox("PCTLINE 2", "inner_auto", new vec4(0.95, 0.5, 0.8, 1)));
+      c1.LastChild().LastChild().Style.PercentWidth = 100;
+      c1.LastChild().LastChild().Style.SizeModeHeight = UiSizeMode.Auto;
+      c1.LastChild().LastChild().Style.DisplayMode = UiDisplayMode.Block;
+      c1.LastChild().LastChild().Style.Color = OffColor.Firebrick;
+
+
+      c1.LastChild().AddChild(ChildBox("SUB 1", "inner_auto", new vec4(0.95, 0.5, 0.8, 1)));
+      c1.LastChild().LastChild().Style.SizeModeWidth = UiSizeMode.Auto;
+      c1.LastChild().LastChild().Style.DisplayMode = UiDisplayMode.Block;
+      c1.LastChild().LastChild().Style.SizeModeHeight = UiSizeMode.Auto;
+      c1.LastChild().LastChild().Style.Color = OffColor.DarkCyan;
+
+      c1.LastChild().AddChild(ChildBox("SUB 2", "inner_auto", new vec4(0.95, 0.5, 0.8, 1)));
+      c1.LastChild().LastChild().Style.SizeModeWidth = UiSizeMode.Auto;
+      c1.LastChild().LastChild().Style.SizeModeHeight = UiSizeMode.Auto;
+      c1.LastChild().LastChild().Style.Color = OffColor.MediumSeaGreen;
+
+      c1.AddChild(ChildBox("INNER 2", "inner_auto", new vec4(0.5, 0.5, 0.8, 1)));
+      c1.LastChild().Style.SizeModeWidth = UiSizeMode.Auto;
+      c1.LastChild().Style.SizeModeHeight = UiSizeMode.Auto;
+
+      //par.LastChild().Style.FixedHeight = 30;
+      //par.LastChild().Style.MinWidth = 20;
 
       g.AddChild(par);
     }
@@ -265,11 +392,11 @@ namespace Loft
       par.Style.Left = 0;
       par.Style.Top = 0;
 
-      par.AddChild(ChildBox("Almost_Full_Line", "", OffColor.Red));
+      par.AddChild(ChildBox("Almost_Full_Line1", "", OffColor.Red));
       par.LastChild().Style.PercentWidth = 100;
       par.LastChild().Style.FixedHeight = 50;
 
-      par.AddChild(ChildBox("Almost_Full_Line", "", OffColor.Red));
+      par.AddChild(ChildBox("Almost_Full_Line2", "", OffColor.Red));
       par.LastChild().Style.PercentWidth = 80;
       par.LastChild().Style.FixedHeight = 50;
 
@@ -393,7 +520,6 @@ namespace Loft
 
       g.AddChild(par);
     }
-
     public static void TEST_AUTOS_1(Gui2d g)
     {
       var par = ParentBox();
@@ -412,13 +538,12 @@ namespace Loft
 
       g.AddChild(par);
     }
-
     public static UiElement ParentBox()
     {
       //MBP left = 15, right = 15
       //MBP Left + Right = 30
       var par = new UiElement("parent_box");
-      par.Style.SizeMode = UiSizeMode.Shrink;
+      par.Style.SizeMode = UiSizeMode.Content;
       par.Style.Color = OffColor.PowderBlue;
       par.Style.BorderColor = OffColor.SteelBlue;
       par.Style.Border = 5;
@@ -432,7 +557,7 @@ namespace Loft
       c.Style.DisplayMode = UiDisplayMode.Inline;
       c.Text = text;
       c.Style.FontSize = 20;
-      c.Style.SizeMode = UiSizeMode.Shrink;
+      c.Style.SizeMode = UiSizeMode.Content;
       c.Style.Color = color == null ? OffColor.WhiteSmoke : color.Value;
       c.Style.BorderColor = OffColor.DarkGray;
       c.Style.Border = 5;
@@ -465,7 +590,6 @@ namespace Loft
 
       g.AddChild(par);
     }
-
     public static UiElement TestBorderLabel()
     {
       var lab = new UiText("", "TESTLABEL");
@@ -501,7 +625,7 @@ namespace Loft
       e2.Style.Margin = 5;
       e2.Style.Padding = 5;
       e2.Style.Border = 5;
-      e2.Style.SizeMode = UiSizeMode.Shrink;
+      e2.Style.SizeMode = UiSizeMode.Content;
       return e2;
     }
     public static UiElement TP1()
@@ -516,7 +640,7 @@ namespace Loft
       e3.Style.Padding = 5;
       e3.Style.Border = 5;
       e3.Style.BorderRadius = 4;
-      e3.Style.SizeMode = UiSizeMode.Shrink;
+      e3.Style.SizeMode = UiSizeMode.Content;
       return e3;
     }
     public static void TEST_NESTED_BORDERS(Gui2d g)
@@ -544,7 +668,7 @@ namespace Loft
     {
       var par = ParentBox();// new UiElement("parent_shrink");
       par.Style.PercentWidth = 70;
-      par.Style.SizeModeHeight = UiSizeMode.Shrink;
+      par.Style.SizeModeHeight = UiSizeMode.Content;
 
       var ch = ChildBox();
       ch.Style.PercentWidth = 100;
@@ -556,8 +680,6 @@ namespace Loft
       par.AddChild(ch);
       g.AddChild(par);
     }
-
-
     public static UiElement FixedBox(int w, int h, string name)
     {
       var c = new UiElement("Fixedbox-" + name);
@@ -570,7 +692,6 @@ namespace Loft
       c.Style.Margin = 5;
       return c;
     }
-
     public static UiElement PctTable(int rows, int cols)
     {
       //talbe using percent size mode
@@ -591,13 +712,12 @@ namespace Loft
       }
       return par;
     }
-
     public static void Layout1(Gui2d g, UiOrientation dir)
     {
       var par = ParentBox();
       par.Style.DisplayMode = UiDisplayMode.Inline;
       par.Style.LayoutOrientation = dir;
-      par.Style.SizeMode = UiSizeMode.Shrink;
+      par.Style.SizeMode = UiSizeMode.Content;
       if (dir == UiOrientation.Horizontal)
       {
         par.Style.MaxWidth = 140;
@@ -625,7 +745,7 @@ namespace Loft
       par.Style.DisplayMode = UiDisplayMode.Inline;
       par.Style.LayoutOrientation = ori;
       par.Style.LayoutDirection = dir;
-      par.Style.SizeMode = UiSizeMode.Shrink;
+      par.Style.SizeMode = UiSizeMode.Content;
       if (ori == UiOrientation.Horizontal)
       {
         par.Style.MaxWidth = max;
@@ -677,8 +797,6 @@ namespace Loft
       Layout2(g, UiOrientation.Horizontal, UiLayoutDirection.RightToLeft);
       Layout2(g, UiOrientation.Vertical, UiLayoutDirection.RightToLeft);
     }
-
-
 
   }//cls
 

@@ -21,6 +21,7 @@ namespace Loft
     public PCMouse PCMouse { get; private set; }
     public FrameDataTimer ContextFrameTimer = new FrameDataTimer();
     public Renderer Renderer { get; private set; } = null;
+    public Picker Picker { get; private set; } = null;
     public WindowContext? SharedContext { get; private set; } = null;
 
     public WindowContext(string name, AppWindowBase g, WindowContext? shared = null)
@@ -32,6 +33,7 @@ namespace Loft
     public void Init()
     {
       Gpu = new Gpu();
+      Picker = new Picker();
       Renderer = new Renderer();
       Renderer.init(GameWindow.Width, GameWindow.Height, null);
       PCKeyboard = new PCKeyboard();

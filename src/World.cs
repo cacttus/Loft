@@ -1326,7 +1326,7 @@ namespace Loft
     private Dictionary<ivec3, Glob> _visibleRenderGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //globs that must be drawn this frame
     private Dictionary<ivec3, Glob> _globs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //All globs, which may be null if the glob region has been visible, but does not exist
     private Dictionary<ivec3, Glob> _existingGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //globs that are loaded, and exist
-    private SortedList<float, GlobArray> _queuedGlobs = new SortedList<float, GlobArray>(new FloatSort());// queued for topology
+    private SortedList<float, GlobArray> _queuedGlobs = new SortedList<float, GlobArray>(new SortDescAllowDupes_Float());// queued for topology
     private Dictionary<ivec3, Glob> _renderGlobs = new Dictionary<ivec3, Glob>(new ivec3.ivec3EqualityComparer()); //globs that can be drawn this frame. 
     private Dictionary<ushort, WorldTile>? _blockTiles = null;
     private WorldProps? _worldProps = null; //Environment props.
@@ -1470,28 +1470,28 @@ namespace Loft
       //Pick objects at start of frame, *relying on the previous culled collection 
       if (Gu.TryGetSelectedView(out var rv))
       {
-        if (Gu.Context.Renderer.Picker.PickedObjectFrame == null)
+        if (Gu.Context.Picker.PickedObjectFrame == null)
         {
           if (_visibleStuff.VisibleGlobs.TryGetValue(rv, out var gs))
           {
             foreach (var g in gs)
             {
               PickVisibleGlob(g);
-              if (Gu.Context.Renderer.Picker.PickedObjectFrame != null)
+              if (Gu.Context.Picker.PickedObjectFrame != null)
               {
                 break;
               }
             }
           }
         }
-        if (Gu.Context.Renderer.Picker.PickedObjectFrame == null)
+        if (Gu.Context.Picker.PickedObjectFrame == null)
         {
           if (_visibleStuff.VisibleObjects.TryGetValue(rv, out var obs))
           {
             foreach (var ob in obs)
             {
               PickVisibleObject(ob);
-              if (Gu.Context.Renderer.Picker.PickedObjectFrame != null)
+              if (Gu.Context.Picker.PickedObjectFrame != null)
               {
                 break;
               }
@@ -2387,7 +2387,7 @@ namespace Loft
     }
     private void PickVisibleObject(WorldObject ob)
     {
-      if (Gu.Context.Renderer.Picker.PickedObjectFrame == null)
+      if (Gu.Context.Picker.PickedObjectFrame == null)
       {
         ob.Pick();
       }
@@ -2396,7 +2396,7 @@ namespace Loft
     {
       //TODO: picking code is copied from worldobject  we can share this..sloppy fn
 
-      if (Gu.Context.Renderer.Picker.PickedObjectFrame != null)
+      if (Gu.Context.Picker.PickedObjectFrame != null)
       {
         //Picking is pixel perfect, so the first picked object is the exact object.
         //However objects may have children, and components which can also be picked, and may not be in the global list.
@@ -2407,12 +2407,12 @@ namespace Loft
       {
         if (g.Opaque.PickId != Picker.c_iInvalidPickId)
         {
-          var pixid = Gu.Context.Renderer.Picker.SelectedPixelId;
+          var pixid = Gu.Context.Picker.SelectedPixelId;
           if (pixid != 0)
           {
             if (pixid == g.Opaque.PickId)
             {
-              Gu.Context.Renderer.Picker.PickedObjectFrame = g.Opaque;
+              Gu.Context.Picker.PickedObjectFrame = g.Opaque;
             }
           }
         }
@@ -2421,12 +2421,12 @@ namespace Loft
       {
         if (g.Transparent.PickId != Picker.c_iInvalidPickId)
         {
-          var pixid = Gu.Context.Renderer.Picker.SelectedPixelId;
+          var pixid = Gu.Context.Picker.SelectedPixelId;
           if (pixid != 0)
           {
             if (pixid == g.Transparent.PickId)
             {
-              Gu.Context.Renderer.Picker.PickedObjectFrame = g.Transparent;
+              Gu.Context.Picker.PickedObjectFrame = g.Transparent;
             }
           }
         }

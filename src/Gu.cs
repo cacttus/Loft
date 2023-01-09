@@ -129,10 +129,10 @@ namespace Loft
     public static string GetEmbeddedPath(EmbeddedFolder folder, string file)
     {
       string stfolder = GetEmbeddedFolder(folder);
-      
+
       file = file.Replace("\\", ".");
       file = file.Replace("/", ".");
-      
+
       if (!string.IsNullOrEmpty(stfolder))
       {
         return $"{Gu.EmbeddedDataPathRoot}.{stfolder}.{file}";
@@ -276,12 +276,12 @@ namespace Loft
       //gui come last
       _uiScript = new UIScript(
         new List<FileLoc>(){
-          Gu.EngineConfig.BaseGuiScript,
           Gu.EngineConfig.TestGuiScript,
           Gu.EngineConfig.EditGuiScript,
           Gu.EngineConfig.UIControls_Script,
           Gu.EngineConfig.Gui2d_Script,
         }
+        , (sc) => { Controls = sc; }
       );
       _uiScript.Compile();
       Controls = _uiScript.Script;
@@ -375,7 +375,7 @@ namespace Loft
             //Update the picked object after all windows have used it.
             foreach (var ct in Contexts)
             {
-              ct.Value?.Renderer?.Picker?.ResetPickedObject();
+              ct.Value?.Picker?.ResetPickedObject();
             }
 
             CheckExit();
@@ -1094,7 +1094,7 @@ namespace Loft
     public static bool IsGuiFocused()
     {
       //currnelty we update object components before updating the picked element so use last picked
-      var ob = Gu.Context.Renderer.Picker.PickedObjectFrameLast;
+      var ob = Gu.Context.Picker.PickedObjectFrameLast;
 
       bool f = (ob != null) && (ob is IUiElement);
 

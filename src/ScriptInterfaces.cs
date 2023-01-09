@@ -20,14 +20,6 @@ namespace Loft
     public void OnUpdate(double delta, WorldObject? ob);
     public void OnDestroy();
   }
-  public interface IUIScript
-  {
-    public string GetName();
-    public List<FileLoc> GetResources();
-
-    public void OnCreate(IGui2d g);
-    public void OnUpdate(RenderView rv);
-  }
   public interface IWorldScript
   {
     public void OnLoad(World w);
@@ -87,6 +79,7 @@ namespace Loft
     public bool DisableMargins { get; set; } 
     public bool DisablePadding { get; set; } 
     public bool DisableBorders { get; set; } 
+    public bool DisableAutos { get; set; } 
   }
 
 

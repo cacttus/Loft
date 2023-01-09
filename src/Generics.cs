@@ -2328,14 +2328,21 @@ namespace Loft
       }
     }
   }
-  public class FloatSort : IComparer<float>
+  public class SortDescAllowDupes_UInt: IComparer<uint>
+  {
+    public int Compare(uint a, uint b)
+    {
+      return a < b ? -1 : 1;
+    }
+  }  
+  public class SortDescAllowDupes_Float : IComparer<float>
   {
     public int Compare(float a, float b)
     {
       return a < b ? -1 : 1;
     }
   }
-  public class DoubleSort : IComparer<double>
+  public class SortDescAllowDupes_Double : IComparer<double>
   {
     public int Compare(double a, double b)
     {

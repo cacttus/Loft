@@ -118,10 +118,10 @@ namespace Loft
 
         if (rv.Enabled)
         {
-          rv.Gui?.Update(Gu.Context.FrameDelta);
+          rv.Gui?.Update(Gu.Context.FrameDelta);//Pick UI first
           Gu.Prof("gui");
 
-          Gu.World.BuildAndCull(rv);//Pick
+          Gu.World.BuildAndCull(rv);//Pick Object
           Gu.Prof("cull");
 
           Gu.Controls.UpdateForView(rv);
@@ -141,6 +141,7 @@ namespace Loft
         }
       }
       Gu.Context.Renderer.EndRenderToWindow();
+      Gu.Context.Picker.UpdatePickedPixel();
       Gu.Context.GameWindow.Context.SwapBuffers();
       Gu.Context.Gpu.ExecuteCallbacks_RenderThread(Gu.Context);
     }
@@ -247,13 +248,6 @@ namespace Loft
     }
     protected virtual void DebugKeyboard()
     {
-      //TODO: move all this junk to the Keymap
-
-      if (Gu.Context.PCKeyboard.Press(Keys.F12))
-      {
-        Gu.BreakRenderState = true;
-        // Gu.PostCustomDebugBreak();
-      }
     }
 
     #endregion
@@ -294,45 +288,45 @@ namespace Loft
     // }
     private void UpdateInfo()
     {
-      Gu.Assert(Gu.World != null);
-      Gu.Assert(Gu.World.UpdateContext != null);
-      Gu.Assert(Gu.World.UpdateContext.Renderer != null);
-      Gu.Assert(Gu.World.UpdateContext.Renderer.Picker != null);
+      // Gu.Assert(Gu.World != null);
+      // Gu.Assert(Gu.World.UpdateContext != null);
+      // Gu.Assert(Gu.World.UpdateContext.Renderer != null);
+      // Gu.Assert(Gu.World.UpdateContext.Renderer.Picker != null);
 
-      var picker = Gu.World.UpdateContext.Renderer.Picker;
+      // var picker = Gu.World.UpdateContext.Renderer.Picker;
 
-      if (picker.PickedObjectFrame == picker.PickedObjectFrameLast)
-      {
-        return;
-      }
+      // if (picker.PickedObjectFrame == picker.PickedObjectFrameLast)
+      // {
+      //   return;
+      // }
 
-      var sb = new System.Text.StringBuilder();
-      var ob = picker.PickedObjectFrame;
-      if (ob != null)
-      {
-        if (ob is WorldObject)
-        {
-          var wo = ob as WorldObject;
-          sb.AppendLine($"{wo.GetType().ToString()}");
-          sb.AppendLine($"Name: {wo.Name}");
-          sb.AppendLine($"Pos: {wo.Position_World}");
-        }
-        else if (ob is IUiElement)
-        {
-          //var e = ob as IUiElement;
-          //sb.AppendLine($"{e.GetType().ToString()}");
-          //sb.AppendLine($"Style:");
-          //sb.AppendLine($"{e.Style.ToString()}");
-        }
-        else
-        {
-          Gu.BRThrowNotImplementedException();
-        }
-      }
-      else
-      {
-        sb.Append(Gu.Translator.Translate(Phrase.DebugInfoMustSelect));
-      }
+      // var sb = new System.Text.StringBuilder();
+      // var ob = picker.PickedObjectFrame;
+      // if (ob != null)
+      // {
+      //   if (ob is WorldObject)
+      //   {
+      //     var wo = ob as WorldObject;
+      //     sb.AppendLine($"{wo.GetType().ToString()}");
+      //     sb.AppendLine($"Name: {wo.Name}");
+      //     sb.AppendLine($"Pos: {wo.Position_World}");
+      //   }
+      //   else if (ob is IUiElement)
+      //   {
+      //     //var e = ob as IUiElement;
+      //     //sb.AppendLine($"{e.GetType().ToString()}");
+      //     //sb.AppendLine($"Style:");
+      //     //sb.AppendLine($"{e.Style.ToString()}");
+      //   }
+      //   else
+      //   {
+      //     Gu.BRThrowNotImplementedException();
+      //   }
+      // }
+      // else
+      // {
+      //   sb.Append(Gu.Translator.Translate(Phrase.DebugInfoMustSelect));
+      // }
       //_info.Text = sb.ToString();
     }
   }

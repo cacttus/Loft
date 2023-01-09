@@ -3484,3 +3484,76 @@ if model name exists
               line2 = new UiLayoutLine(line._quad._left + line._quad.L_Width(UiOrientation.Horizontal), 0, _static._lines.Count);
             }
             
+
+            
+        //impossible to know auto w/h unless parent is computed. All we can do is increase the content wh by the auto max
+        //we dont know the exact size of any auto here, but we do know the maximum size of our content,
+        //which is either limited by auto min/max, or, 100% of parent if one or more autos have no max
+        //so we ned to expand content+static by automaxwh in size step, this way we will have correct content size.
+        //staticwh, contentwh and linewh will all be resized here to acount for autos, **limited by contentmax
+        //store the auto space wh when doing this & use auto space in the pos step as we can no longer compute it
+
+        //when there is an auto within an auto the total space is unknown until the parent auto is computed.
+        //all we know is the 
+        // content max of the parent 
+        // and the current static wh without autos 
+        // and the auto max
+        // we still dont have content wh because contentwh depends on autos, shrink (content) depends on content wh
+        // so lets not account autos in shrink, if shrink is specified it is content, without autos.
+
+        // var ori = Style._props.LayoutOrientation;
+        // if (_static._autoLinesH.HasElements())
+        // {
+        //   foreach (var line in this._static._autoLinesH)
+        //   {
+        //     var amode = Style._props.L_AutoMode(ori);
+        //     float total_space = 0;
+        //     if (amode == UiAutoMode.Content)
+        //     {
+        //       total_space = Math.Max(_container._contentMaxWH.L_Width(ori) - line._quad.L_Width(ori), 0);
+        //     }
+        //     else if (amode == UiAutoMode.Line)
+        //     {
+        //       total_space = Math.Max(_container._static._staticWH.L_Width(ori) - line._quad.L_Width(ori), 0);
+        //     }
+        //     //compute total space
+        //     //expand contentwh, staticwh linewh
+        //     line._autoInfo._auto_space_h = total_space;
+        //     line._quad.L_Width(ori, line._quad.L_Width(ori) + total_space);
+        //     line._quad.ValidateQuad();
+        //     _static._staticWH.L_Width(ori, Math.Max(_static._staticWH.L_Width(ori), line._quad.L_Width(ori)));
+        //     _container._contentWH.L_Width(ori, Math.Max(_container._contentWH.L_Width(ori), line._quad.L_Width(ori)));
+        //   }
+        // }
+        // if (_static._autoLinesV.HasElements())
+        // {
+        //   _static._auto_space_v = Math.Max(_container._contentMaxWH.L_Width(ori) - _static._staticWH.L_Width(ori), 0);
+        //   foreach (var line in this._static._autoLinesV)
+        //   {
+
+        //   }
+        // }
+
+        // // line._quad.L_Width(ori,
+        // //   Math.Min(_container._contentMaxWH.L_Width(ori),
+        // //     line._quad.L_Width(ori) + line._autoInfo._auto_maxw)
+        // // );
+
+
+
+      //Compute %expanders here due to parent space not bien gcomputed
+      //This may be an error.. seems to mess stuff up more.
+      // if (_parent != null)
+      // {
+      //   if (Style._props.SizeModeWidth == UiSizeMode.Percent)
+      //   {
+      //     //var w = _parent._container._contentMaxWH.L_Width(UiOrientation.Horizontal) * Style._props.L_PercentWidth(UiOrientation.Horizontal) * 0.01f;
+      //     var w = _parent._block._b2LayoutQuad.L_Width(UiOrientation.Horizontal) * Style._props.L_PercentWidth(UiOrientation.Horizontal) * 0.01f;
+      //     this._block._b2LayoutQuad.L_Width(UiOrientation.Horizontal, w);
+      //   }
+      //   if (Style._props.SizeModeHeight == UiSizeMode.Percent)
+      //   {
+      //     var w = _parent._block._b2LayoutQuad.L_Width(UiOrientation.Vertical) * Style._props.L_PercentWidth(UiOrientation.Vertical) * 0.01f;
+      //     this._block._b2LayoutQuad.L_Width(UiOrientation.Vertical, w);
+      //   }
+      // }

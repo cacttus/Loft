@@ -7,30 +7,7 @@ namespace Loft
   public class EditGuiScript : IUIScript
   {
     public EditGuiScript() { }
-
     public string GetName() { return GetType().Name; }
-
-    //******************************************************************************************
-    public static FileLoc Icon_Light_AppbarClose = new FileLoc("light/appbar.close.png", EmbeddedFolder.Icon);
-    public static FileLoc Icon_Dark_AppbarClose = new FileLoc("dark/appbar.close.png", EmbeddedFolder.Icon);
-    public static FileLoc Icon_Dark_AppbarCrop = new FileLoc("dark/appbar.crop.png", EmbeddedFolder.Icon);
-    public List<FileLoc> GetResources()
-    {
-      return new List<FileLoc>()
-      {
-        FontFace.Parisienne
-        //,FontFace.PressStart2P
-        //,FontFace.EmilysCandy
-        //,FontFace.Entypo
-        , FontFace.Calibri
-        , Icon_Light_AppbarClose
-        , Icon_Dark_AppbarClose
-        , Icon_Dark_AppbarCrop
-      };
-    }
-    //******************************************************************************************
-
-
     public void OnCreate(IGui2d gggg)
     {
       var g = gggg as Gui2d;
@@ -48,7 +25,7 @@ namespace Loft
       editgui_root.Style.MaxWidth = Gui2d.MaxSize;
       editgui_root.Style.MaxHeight = Gui2d.MaxSize;
       editgui_root.Style.DisplayMode = UiDisplayMode.Inline;
-      editgui_root.Style.PositionMode = UiPositionMode.Relative;
+      editgui_root.Style.PositionMode = UiPositionMode.Fixed;
       editgui_root.Style.Top = 0;
       editgui_root.Style.Left = 0;
       g.AddChild(editgui_root);
@@ -265,7 +242,7 @@ namespace Loft
         info.AppendLine($"World:");
         info.AppendLine($" globs: count={Gu.World.NumGlobs} visible={Gu.World.NumVisibleRenderGlobs}");
         info.AppendLine($" objs: visible={Gu.World.NumVisibleObjects} culled={Gu.World.NumCulledObjects}");
-        info.AppendLine($" picked={Gu.Context.Renderer.Picker.PickedObjectName}");
+        info.AppendLine($" picked={Gu.Context.Picker.PickedObjectName}");
         info.AppendLine($" selected={String.Join(",", Gu.World.Editor.SelectedObjects.Select((i) => i.Name)).ToString()}");
         info.AppendLine($"Gpu:");
         info.AppendLine($"{Gu.Context.Gpu.GetMemoryInfo().ToString()}");
@@ -291,7 +268,6 @@ namespace Loft
         rv.ControlsInfo.Text = sb.ToString();
       }
     }
-
     public void ToggleInfo(bool world, bool gpu, bool controls, bool prof, RenderView? rv = null)
     {
       if (rv == null)
@@ -310,8 +286,6 @@ namespace Loft
         if (prof) { (rv.ProfInfo as UiWindow).Style.Opacity = 1; }
       }
     }
-
-
   }//cls
 
 

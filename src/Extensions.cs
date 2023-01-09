@@ -204,6 +204,10 @@ namespace Loft
     {
       return type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Dictionary<,>);
     }
+    public static bool HasElements<T>(this List<T> list)
+    {
+      return list != null && list.Count > 0;
+    }
 
   }//cls
 

@@ -39,12 +39,14 @@ namespace Loft
     public const uint c_iActiveFlag = (1 << 28);//object is picked
 
     private uint _iid = 1;
-    private WeakReference<Renderer> _pRenderer;
-    private uint _uiLastSelectedPixelId = c_iInvalidPickId;//Note: This is relative to the last UserSelectionSet - the Id here is not fixed.
+    private ulong _dbg_idgen_count = 0;
+    private uint _uiSelectedPixelIdLast = c_iInvalidPickId;//Note: This is relative to the last UserSelectionSet - the Id here is not fixed.
+    private uint _uiSelectedPixelId = c_iInvalidPickId;//Note: This is relative to the last UserSelectionSet - the Id here is not fixed.
     private object _pickedObjectFrame = null;
     private object _pickedObjectFrameLast = null;
 
-    public uint SelectedPixelId { get { return _uiLastSelectedPixelId; } }
+    public uint SelectedPixelIdLast { get { return _uiSelectedPixelIdLast; } }
+    public uint SelectedPixelId { get { return _uiSelectedPixelId; } }
     public object PickedObjectFrameLast
     {
       get
@@ -54,6 +56,13 @@ namespace Loft
       set
       {
         _pickedObjectFrameLast = value;
+      }
+    }
+    public IUiElement PickedUiElement
+    {
+      get
+      {
+        return _pickedObjectFrame as IUiElement;
       }
     }
     public object PickedObjectFrame
@@ -68,6 +77,14 @@ namespace Loft
         {
           //this should not happen
           Gu.DebugBreak();
+        }
+        if (_pickedObjectFrame != _pickedObjectFrameLast)
+        {
+          Gu.Trap();
+        }
+        else
+        {
+          Gu.Trap();
         }
 
         _pickedObjectFrame = value;
@@ -161,9 +178,8 @@ namespace Loft
     #endregion
     #region Public:Methods
 
-    public Picker(Renderer rp)
+    public Picker()
     {
-      _pRenderer = new WeakReference<Renderer>(rp);
     }
     public void ResetPickedObject()
     {
@@ -192,33 +208,32 @@ namespace Loft
       }
       else
       {
-        _uiLastSelectedPixelId = c_iInvalidPickId;
+        _uiSelectedPixelIdLast = _uiSelectedPixelId;
+        _uiSelectedPixelId = c_iInvalidPickId;
       }
     }
     public uint GenPickId()
     {
-      if(Gu.EngineConfig.Debug_PickIDs){
-      _iid = _iid + 100;
-      }
-      else
-      {
-        _iid++;
-      }
       //Creates a pick ID, note that this ID is colored so we can see it (alpha off)
-
-
-      if (_iid > 0xFFFFFF)
+      unchecked
       {
-        //50 = 335544 possible Id's, 10=1677721.5 id's still possible to wrap
-        Gu.Log.Error("Pick Id Generator just wrapped, check if debug mode" );
-        Gu.DebugBreak();
-        _iid %= 0xFFFFFF;
+        if (Gu.EngineConfig.Debug_PickIDIncrement < 1) { Gu.EngineConfig.Debug_PickIDIncrement = 1; Gu.Log.Warn("Pick ID Increment out of bounds"); }
+        else if (Gu.EngineConfig.Debug_PickIDIncrement > 255) { Gu.EngineConfig.Debug_PickIDIncrement = 255; Gu.Log.Warn("Pick ID Increment out of bounds"); }
+
+        _dbg_idgen_count++;
+
+        _iid += Gu.EngineConfig.Debug_PickIDIncrement;
+
+        if (_iid > 0xFFFFFF)
+        {
+          Gu.Log.Error("Pick Id Generator just wrapped, check if debug mode");
+          Gu.DebugBreak();
+          _iid %= 0xFFFFFF;
+        }
+
+        uint pickColorId = ((_iid << 8) | 0x000000FF) & 0xFFFFFFFF;
+        return pickColorId;
       }
-
-      //Return an actual color so we can see it. Also, always set full alpha in case blending is enabled by accident.
-      uint pickColorId = ((_iid << 8) | 0x000000FF) & 0xFFFFFFFF;
-
-      return pickColorId;
     }
 
     #endregion
@@ -226,8 +241,10 @@ namespace Loft
 
     private void UpdatePickedPixel(int window_x, int window_y)
     {
-      if (_pRenderer != null && _pRenderer.TryGetTarget(out var renderer))
+      if (Gu.Context.Renderer != null)
       {
+        var renderer = Gu.Context.Renderer;
+
         Gu.Assert(renderer.PickStage != null);
 
         float xRatio = (float)renderer.PickStage.Size.x / (float)renderer.DefaultFBOSize.x;
@@ -239,14 +256,16 @@ namespace Loft
         if (dx < 0 || dx >= renderer.PickStage.Size.width || dy < 0 || dy >= renderer.PickStage.Size.height)
         {
           //Mouse is outside window.
-          _uiLastSelectedPixelId = c_iInvalidPickId;
+          _uiSelectedPixelIdLast = _uiSelectedPixelId;
+          _uiSelectedPixelId = c_iInvalidPickId;
         }
         else
         {
           renderer.PickStage.Bind(FramebufferTarget.ReadFramebuffer);
           renderer.PickStage.BindReadBuffer(RenderTargetType.Pick);
-          _uiLastSelectedPixelId = SamplePixelId(dx, dy, renderer.PickStage.Size.height);
-          _uiLastSelectedPixelId = RemoveFlagsFromPickID(_uiLastSelectedPixelId);
+          _uiSelectedPixelIdLast = _uiSelectedPixelId;
+          _uiSelectedPixelId = SamplePixelId(dx, dy, renderer.PickStage.Size.height);
+          _uiSelectedPixelId = RemoveFlagsFromPickID(_uiSelectedPixelId);
           renderer.PickStage.UnbindReadBuffer();
           renderer.PickStage.Unbind(FramebufferTarget.ReadFramebuffer);
         }
@@ -482,7 +501,6 @@ namespace Loft
 
     public ShaderControlVars DefaultControlVars = new ShaderControlVars();
     public RendererState RenderState { get; private set; } = RendererState.None;
-    public Picker Picker { get; private set; } = null;
     public PipelineStage CurrentStage { get; private set; } = null;
     private RenderView CurrentView = null;
     public FramebufferGeneric PickStage { get; private set; } = null;
@@ -592,8 +610,6 @@ namespace Loft
       Gpu.CheckGpuErrorsDbg();
 
       Gu.Assert(samples == 0);//TODO: we need to duplicate the targets for MSAA, but we probably won't use MSAA for this game.
-
-      Picker = new Picker(this);
 
       //possibly makes sense to make there be 3 fbo sizes, since the menus being the exact screen resolution look kind of ugly, maybe a little less than the actual world.
 
@@ -717,7 +733,6 @@ namespace Loft
     }
     public void EndRenderToWindow()
     {
-      Picker.UpdatePickedPixel();
       if (_requestSaveFBOs == true)
       {
         _requestSaveFBOs = false;

@@ -128,7 +128,7 @@ namespace Loft
       {
         return;
       }
-      if (Gu.Context.Renderer.Picker.PickedObjectFrame != null)
+      if (Gu.Context.Picker.PickedObjectFrame != null)
       {
         //Picking is pixel perfect, so the first picked object is the exact object.
         //However objects may have children, and components which can also be picked, and may not be in the global list.
@@ -137,12 +137,12 @@ namespace Loft
       }
       if (_pickId != Picker.c_iInvalidPickId)
       {
-        var pixid = Gu.Context.Renderer.Picker.SelectedPixelId;
+        var pixid = Gu.Context.Picker.SelectedPixelId;
         if (pixid != 0)
         {
           if (pixid == this._pickId)
           {
-            Gu.Context.Renderer.Picker.PickedObjectFrame = this;
+            Gu.Context.Picker.PickedObjectFrame = this;
           }
         }
       }
@@ -168,11 +168,11 @@ namespace Loft
     }
     private void GenPickID()
     {
-      if (_pickable && Gu.Context != null && Gu.Context.Renderer != null && Gu.Context.Renderer.Picker != null)
+      if (_pickable && Gu.Context != null && Gu.Context.Renderer != null && Gu.Context.Picker != null)
       {
         //NOTE: the pick IDs are from the context.. and they should be basd on eadch context.
         // This is INVALID
-        _pickId = Gu.Context.Renderer.Picker.GenPickId();
+        _pickId = Gu.Context.Picker.GenPickId();
       }
     }
 
@@ -398,22 +398,22 @@ namespace Loft
 
       IterateComponentsSafe((cmp) =>
       {
-        if (Gu.Context.Renderer.Picker.PickedObjectFrame != null)
+        if (Gu.Context.Picker.PickedObjectFrame != null)
         {
           return LambdaBool.Break;
         }
         cmp.OnPick();
-        if (Gu.Context.Renderer.Picker.PickedObjectFrame != null)
+        if (Gu.Context.Picker.PickedObjectFrame != null)
         {
           //The component (gui) picked something that it owns. Set the worldobject to this.
-          Gu.Context.Renderer.Picker.PickedObjectFrame = this;
+          Gu.Context.Picker.PickedObjectFrame = this;
           return LambdaBool.Break;
         }
         return LambdaBool.Continue;
       });
       IterateChildrenSafe((child) =>
       {
-        if (Gu.Context.Renderer.Picker.PickedObjectFrame == null)
+        if (Gu.Context.Picker.PickedObjectFrame == null)
         {
           child.Pick();
         }

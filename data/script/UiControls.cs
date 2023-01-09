@@ -8,8 +8,56 @@ namespace Loft
   using OpenTK.Windowing.GraphicsLibraryFramework;
   using UiAction = System.Action<UiEvent>;
 
+  //this is going away.
+  public enum UiStyleName
+  {
+    Inline,
+    BaseControl,
+    Label,
+    DebugInfo,
+    Panel,
+    Button,
+    Toolbar,
+    StatusBar,
+    ContextMenu,
+    EditGuiRoot,
+    VerticalBar,
+    MenuItem,
+    HBar,
+    ToolbarButton,
+  }
+  public interface IUIScript
+  {
+    public string GetName();
+    public void OnCreate(IGui2d g);
+    public void OnUpdate(RenderView rv);
+  }
+  //******************************************************************************************
+  public static class UiResources
+  {
+    //Resources needed to build Megatex
+    public static FileLoc Icon_Light_AppbarClose = new FileLoc("light/appbar.close.png", EmbeddedFolder.Icon);
+    public static FileLoc Icon_Dark_AppbarClose = new FileLoc("dark/appbar.close.png", EmbeddedFolder.Icon);
+    public static FileLoc Icon_Dark_AppbarCrop = new FileLoc("dark/appbar.crop.png", EmbeddedFolder.Icon);
+    public static List<FileLoc> GetResources()
+    {
+      return new List<FileLoc>()
+      {
+        FontFace.Parisienne
+        //,FontFace.PressStart2P
+        //,FontFace.EmilysCandy
+        //,FontFace.Entypo
+        , FontFace.Calibri
+        , Icon_Light_AppbarClose
+        , Icon_Dark_AppbarClose
+        , Icon_Dark_AppbarCrop
+      };
+    }
+  }
+  //******************************************************************************************
   public class UIControls : IUiControls
   {
+    //interface class for the application -> UI
     private IUIScript? _script = null;
     private Gui2dManager? _manager = null;
 
@@ -32,7 +80,7 @@ namespace Loft
       {
         _manager = new Gui2dManager();
       }
-      var g = _manager.GetOrCreateGui2d(Script.GetName(), Script.GetResources(), rv);
+      var g = _manager.GetOrCreateGui2d(Script.GetName(), UiResources.GetResources(), rv);
       Script.OnCreate(g);
       return g;
     }
@@ -42,9 +90,12 @@ namespace Loft
     }
     public IUiWindow CreateWindow(string title, vec2 pos, vec2 size)
     {
+      //**THIS IS A PROBLEM Any creation code is not accounting for a script reload, and would hold on to stale objects.
+      //we need opaque types OR
+      //We would have to have a callback update the creation code for any Loft.dll side UI creation
       return new UiWindow(title, pos, size);
     }
-  }
+  }//cls
   public class UiControl : UiElement
   {
     public static vec4 v_defaultUp = new vec4(.88, .88, .89, 1);
@@ -66,8 +117,8 @@ namespace Loft
       this.Style.FontSize = 22;
       this.Style.LineHeight = 1.0f;
       this.Style.PositionMode = UiPositionMode.Static;
-      this.Style.SizeModeHeight = UiSizeMode.Shrink;
-      this.Style.SizeModeWidth = UiSizeMode.Shrink;
+      this.Style.SizeModeHeight = UiSizeMode.Content;
+      this.Style.SizeModeWidth = UiSizeMode.Content;
       this.Style.DisplayMode = UiDisplayMode.Inline;
       this.Style.OverflowMode = UiOverflowMode.Content;
       this.Style.FloatMode = UiFloatMode.None;
@@ -116,6 +167,7 @@ namespace Loft
     {
       this.Style.Texture = new UiTexture(loc);
       this.Style.SizePercent = 100;
+      this.PickEnabled = false;
     }
   }
   public class UiButton : UiControl
@@ -145,10 +197,13 @@ namespace Loft
       }
     }
     private UiImage? _image = null;
-    public UiButton(string name = "") : base(name)
+    public UiButton(string name = "", bool styleEvents = true) : base(name)
     {
       SetControlStyle();
-      RegisterStyleEvents();
+      if (styleEvents)
+      {
+        RegisterStyleEvents();
+      }
     }
     public new UiControl Click(UiAction f)
     {
@@ -273,7 +328,7 @@ namespace Loft
         _shortcut = new UiText(text, "MenuShortcut");
         _shortcut.Style.PositionMode = UiPositionMode.Static;
         _shortcut.Style.SizeModeWidth = UiSizeMode.AutoContent; //** This should be a content auto
-        _shortcut.Style.SizeModeHeight = UiSizeMode.Shrink;
+        _shortcut.Style.SizeModeHeight = UiSizeMode.Content;
         _shortcut.Style.DisplayMode = UiDisplayMode.NoWrap;
         _shortcut.Style.ContentAlignX = UiAlignment.Right;
         _shortcut.Style.MBP = 0;
@@ -291,7 +346,7 @@ namespace Loft
       this.Style.BorderRight = 1;
       this.Style.BorderColor = vec4.rgba_ub(190, 190, 190);
       this.Style.SizeModeWidth = UiSizeMode.AutoContent;
-      this.Style.SizeModeHeight = UiSizeMode.Shrink;
+      this.Style.SizeModeHeight = UiSizeMode.Content;
       this.Style.PositionMode = UiPositionMode.Static;
       this.Style.MaxWidth = 600;
       this.Style.MinWidth = 0;
@@ -303,7 +358,7 @@ namespace Loft
       _label = new UiText(text);
       _label.Style.PositionMode = UiPositionMode.Static;
       _label.Style.SizeModeWidth = UiSizeMode.AutoContent;
-      _label.Style.SizeModeHeight = UiSizeMode.Shrink;
+      _label.Style.SizeModeHeight = UiSizeMode.Content;
       _label.Style.DisplayMode = UiDisplayMode.NoWrap;
       _label.Style.ContentAlignX = UiAlignment.Left;
       _label.Style.MinWidth = 100;
@@ -420,11 +475,12 @@ namespace Loft
     public UiText(string text, string name = "") : base(name)
     {
       this.Style.RenderMode = UiRenderMode.None;
+      this.Style.TextWrap = UiWrapMode.Word;
       this.Style.FontSize = 16;
       this.Text = text;
       this.Style.FontColor = (OffColor.DimGray * 0.65f).setW(1);
-      this.Style.SizeModeWidth = UiSizeMode.Shrink;
-      this.Style.SizeModeHeight = UiSizeMode.Shrink;
+      this.Style.SizeModeWidth = UiSizeMode.Content;
+      this.Style.SizeModeHeight = UiSizeMode.Content;
       if (Translator.TextFlow == LanguageTextFlow.Left)
       {
         this.Style.LayoutDirection = UiLayoutDirection.RightToLeft;
@@ -566,7 +622,7 @@ namespace Loft
         _cursor.Style.Margin = 0;
         _cursor.Style.Padding = 0;
         _cursor.Style.Border = 0;
-        _cursor.Style.PositionMode = UiPositionMode.Relative;
+        _cursor.Style.PositionMode = UiPositionMode.Fixed;
         AddChild(_cursor);
 
         _cursorBlink = new System.Timers.Timer();
@@ -632,7 +688,7 @@ namespace Loft
       //toast at the top corner
       this.Style.PositionMode = UiPositionMode.Static;
       this.Style.RenderMode = UiRenderMode.Color;
-      this.Style.SizeMode = UiSizeMode.Shrink;
+      this.Style.SizeMode = UiSizeMode.Content;
       this.Text = text;
       this.Style.Padding = 20;
       this.Style.PadLeft = this.Style.PadRight = 60;
@@ -712,7 +768,7 @@ namespace Loft
       this.Style.MinHeight = 20;
       this.Style.MaxWidth = Gui2d.MaxSize;
       this.Style.SizeModeWidth = UiSizeMode.Percent;
-      this.Style.SizeModeHeight = UiSizeMode.Shrink;
+      this.Style.SizeModeHeight = UiSizeMode.Content;
       this.Style.MaxHeight = 200;
       this.Style.Margin = 0;
       this.Style.Padding = 0;
@@ -767,18 +823,17 @@ namespace Loft
       this.Style.BorderBot = 1;
       this.Style.BorderTop = 1;
       this.Style.Color = vec4.rgba_ub(245, 245, 245, 255);
-      this.Style.PositionMode = UiPositionMode.Absolute;
+      this.Style.PositionMode = UiPositionMode.Fixed;
       this.Style.FloatMode = UiFloatMode.Floating;
       this.Style.MaxWidth = 500;
       this.Style.MinWidth = 10;
-      this.Style.SizeModeWidth = UiSizeMode.Shrink;
+      this.Style.SizeModeWidth = UiSizeMode.Content;
       //   this.Style.    //OverflowMode = UiOverflowMode.Show;
-      this.Style.SizeModeHeight = UiSizeMode.Shrink;
+      this.Style.SizeModeHeight = UiSizeMode.Content;
       this.Style.MultiplyColor = new vec4(1, 1);
       //context menu should have no pad or margin and wont need events
     }
   }//cls
-
   public class UiPanel : UiElement
   {
     public UiPanel()
@@ -792,7 +847,6 @@ namespace Loft
       this.Style.FontSize = 16;
     }
   }
-
   public class UiSlider : UiControl
   {
     //scroll
@@ -965,65 +1019,65 @@ namespace Loft
       if (_dir == UiOrientation.Horizontal)
       {
         Style.SizeModeWidth = _expandMode;
-        Style.SizeModeHeight = UiSizeMode.Shrink;
+        Style.SizeModeHeight = UiSizeMode.Content;
         Style.MinHeight = _thickness;
 
         _trackRow.Style.SizeModeWidth = _expandMode;
-        _trackRow.Style.SizeModeHeight = UiSizeMode.Shrink;
+        _trackRow.Style.SizeModeHeight = UiSizeMode.Content;
         _trackRow.Style.MinHeight = _thickness;
         _trackRow.Style.MinWidth = _minSize;
 
         if (_labelDisplayMode == LabelDisplayMode.Outside)
         {
           _labelRow.Style.SizeModeWidth = _expandMode;
-          _labelRow.Style.SizeModeHeight = UiSizeMode.Shrink;
+          _labelRow.Style.SizeModeHeight = UiSizeMode.Content;
           _labelRow.Style.MinWidth = _minSize;
           _labelRow.Style.MinHeight = 0;
           _lblMin.Style.ContentAlignX = UiAlignment.Left;
           _lblMax.Style.ContentAlignX = UiAlignment.Right;
           _lblVal.Style.ContentAlignX = UiAlignment.Center;
-          _lblMin.Style.SizeMode = UiSizeMode.Shrink;
-          _lblMax.Style.SizeMode = UiSizeMode.Shrink;
-          _lblVal.Style.SizeMode = UiSizeMode.Shrink;
+          _lblMin.Style.SizeMode = UiSizeMode.Content;
+          _lblMax.Style.SizeMode = UiSizeMode.Content;
+          _lblVal.Style.SizeMode = UiSizeMode.Content;
         }
         else if (_labelDisplayMode == LabelDisplayMode.Inside)
         {
           _lblVal.Style.ContentAlignX = UiAlignment.Center;
-          _lblVal.Style.PositionModeX = UiPositionMode.Relative;
-          _lblVal.Style.PositionModeY = UiPositionMode.Relative;
+          _lblVal.Style.PositionModeX = UiPositionMode.Fixed;
+          _lblVal.Style.PositionModeY = UiPositionMode.Fixed;
           _lblVal.Style.PercentWidth = 100;
           _lblVal.Style.PercentHeight = 100;
         }
       }
       else if (_dir == UiOrientation.Vertical)
       {
-        Style.SizeModeWidth = UiSizeMode.Shrink;
+        Style.SizeModeWidth = UiSizeMode.Content;
         Style.SizeModeHeight = _expandMode;
         Style.MinWidth = _thickness;
 
-        _trackRow.Style.SizeModeWidth = UiSizeMode.Shrink;
+        _trackRow.Style.SizeModeWidth = UiSizeMode.Content;
         _trackRow.Style.SizeModeHeight = _expandMode;
         _trackRow.Style.MinHeight = _minSize;
         _trackRow.Style.MinWidth = _thickness;
 
         if (_labelDisplayMode == LabelDisplayMode.Outside)
         {
-          _labelRow.Style.SizeModeWidth = UiSizeMode.Shrink;
+          _labelRow.Style.SizeModeWidth = UiSizeMode.Content;
           _labelRow.Style.SizeModeHeight = _expandMode;
           _labelRow.Style.MinWidth = 0;
           _labelRow.Style.MinHeight = _minSize;
           _lblMin.Style.ContentAlignX = UiAlignment.Left;
           _lblMax.Style.ContentAlignX = UiAlignment.Right;
           _lblVal.Style.ContentAlignX = UiAlignment.Center;
-          _lblMin.Style.SizeMode = UiSizeMode.Shrink;
-          _lblMax.Style.SizeMode = UiSizeMode.Shrink;
-          _lblVal.Style.SizeMode = UiSizeMode.Shrink;
+          _lblMin.Style.SizeMode = UiSizeMode.Content;
+          _lblMax.Style.SizeMode = UiSizeMode.Content;
+          _lblVal.Style.SizeMode = UiSizeMode.Content;
         }
         else if (_labelDisplayMode == LabelDisplayMode.Inside)
         {
           _lblVal.Style.ContentAlignY = UiAlignment.Center;
-          _lblVal.Style.PositionModeX = UiPositionMode.Relative;
-          _lblVal.Style.PositionModeY = UiPositionMode.Relative;
+          _lblVal.Style.PositionModeX = UiPositionMode.Fixed;
+          _lblVal.Style.PositionModeY = UiPositionMode.Fixed;
           _lblVal.Style.PercentWidth = 100;
           _lblVal.Style.PercentHeight = 100;
         }
@@ -1065,7 +1119,7 @@ namespace Loft
         _thumb.Style.FixedWidth = _thumbsize;
         _thumb.Style.MaxHeight = Gui2d.MaxSize;
         _thumb.Style.MinHeight = 0;
-        _thumb.Style.PositionModeX = UiPositionMode.Relative;
+        _thumb.Style.PositionModeX = UiPositionMode.Fixed;
         _thumb.Style.PositionModeY = UiPositionMode.Static;
 
       }
@@ -1077,7 +1131,7 @@ namespace Loft
         _thumb.Style.MaxWidth = Gui2d.MaxSize;
         _thumb.Style.MinWidth = 0;
         _thumb.Style.PositionModeX = UiPositionMode.Static;
-        _thumb.Style.PositionModeY = UiPositionMode.Relative;
+        _thumb.Style.PositionModeY = UiPositionMode.Fixed;
       }
     }
     private void SetThumbToValue(double value)
@@ -1182,7 +1236,6 @@ namespace Loft
       }
     }
   }//cls
-
   public class UiScrollRegion : UiElement
   {
     private UiElement _content;
@@ -1206,44 +1259,45 @@ namespace Loft
       this.Style.RenderMode = UiRenderMode.Color;
       this.Style.LayoutDirection = UiLayoutDirection.LeftToRight;
       this.Style.LayoutOrientation = UiOrientation.Vertical;
+      this.Style.SizeMode = UiSizeMode.AutoContent;
       this.Style.Margin = 0;
       this.Style.Padding = 0;
-
-      _content = new UiElement("ScrollRegionContent");
-      _content.Style.PositionMode = UiPositionMode.Static;
-      _content.Style.SizeMode = UiSizeMode.Auto;
-      _content.Style.Margin = 0;
-      _content.Style.Padding = 0;
-      _content.Style.Border = 0;
-      _content.Style.TextWrap = UiWrapMode.Word;
-      _content.Style.Color = OffColor.LightYellow;
+      this.Style.MinWidth = this.Style.MinHeight = 0;
+      this.Style.MaxWidth = this.Style.MaxHeight = Gui2d.MaxSize;
 
       _vscroll = new UiSlider(0, 1, 0, UiSlider.LabelDisplayMode.None, UiOrientation.Vertical, (e, v) =>
       {
         Scroll(UiOrientation.Vertical, (float)v);
       });
-      _vscroll.Style.PositionMode = UiPositionMode.Static;
-      _vscroll.Style.SizeModeHeight = UiSizeMode.Auto;// PercentHeight = 100;
+      _vscroll.Style.SizeModeHeight = UiSizeMode.Auto;
       _vscroll.Thickness = 15;
+      _vscroll.Style.DisplayMode = UiDisplayMode.NoWrap;
+
+      _content = new UiElement("ScrollRegionContent");
+      _content.Style.SizeModeWidth = UiSizeMode.Auto;
+      _content.Style.SizeModeHeight = UiSizeMode.Auto;
+      _content.Style.Margin = 0;
+      _content.Style.Padding = 0;
+      _content.Style.Border = 0;
+      _content.Style.DisplayMode = UiDisplayMode.NoWrap;
+      _content.Style.Color = OffColor.LightYellow;
+
+      var row = new UiElement("ScrollRegionExpandRow");
+      row.Style.PercentWidth = 100;
+      row.Style.SizeModeHeight = UiSizeMode.Auto;
+      row.Style.AutoMode = UiAutoMode.Content;
+      row.AddChild(_vscroll);
+      row.AddChild(_content);
+
+      this.AddChild(row);
 
       _hscroll = new UiSlider(0, 1, 0, UiSlider.LabelDisplayMode.None, UiOrientation.Horizontal, (e, v) =>
       {
         Scroll(UiOrientation.Horizontal, (float)v);
       });
-      _hscroll.Style.PositionMode = UiPositionMode.Static;
       _hscroll.Style.PercentWidth = 100;
       _hscroll.Thickness = 15;
 
-      var row = new UiElement("ScrollRegionExpandRow");
-      row.Style.PositionMode = UiPositionMode.Static;
-      row.Style.PercentWidth = 100;
-      row.Style.SizeModeHeight = UiSizeMode.Auto;
-      row.Style.Color = OffColor.LawnGreen;
-      row.AddChild(_vscroll);
-      row.AddChild(_content);
-
-
-      this.AddChild(row);
       this.AddChild(_hscroll);
 
       SizeThumb(UiOrientation.Horizontal);
@@ -1311,18 +1365,19 @@ namespace Loft
       SizeThumb(dir);
     }
   }//cls
-
   public class UiAutoRow : UiElement
   {
+    //An equally distributed row of left, center, right elements.
     public class UiAutoCol : UiElement
     {
       public UiElement Element { get { return _element; } set { SetElement(ref _element, value); } }
       private UiElement? _element = null;
 
-      public UiAutoCol(UiElement e, UiAlignment align)
+      public UiAutoCol(UiAlignment align)
       {
         this.Style._props.ContentAlignX = align;
-        Element = e;
+        this.Style._props.SizeModeWidth = UiSizeMode.AutoContent;
+        this.Style._props.DisplayMode = UiDisplayMode.NoWrap;
       }
       private void SetElement(ref UiElement? cur, UiElement? next)
       {
@@ -1338,17 +1393,24 @@ namespace Loft
       }
     }
 
-    public UiElement Left { get { return _left == null ? null : _left.Element; } set { SetCol(ref _left, value, UiAlignment.Left); } }
-    public UiElement Center { get { return _center == null ? null : _center.Element; } set { SetCol(ref _center, value, UiAlignment.Center); } }
-    public UiElement Right { get { return _right == null ? null : _right.Element; } set { SetCol(ref _right, value, UiAlignment.Right); } }
+    public UiAutoCol LeftCol { get { return _left; } }
+    public UiAutoCol CenterCol { get { return _center; } }
+    public UiAutoCol RightCol { get { return _right; } }
+
+    public UiElement Left { get { return _left.Element; } set { _left.Element = value; } }
+    public UiElement Center { get { return _center.Element; } set { _center.Element = value; } }
+    public UiElement Right { get { return _right.Element; } set { _right.Element = value; } }
 
     public UiAutoCol? _left = null;
     public UiAutoCol? _center = null;
     public UiAutoCol? _right = null;
 
-    //An equally distributed row of left, center, right elements.
     public UiAutoRow(string name = "") : base(name)
     {
+      Init();
+      this.Style.PercentWidth = 100;
+      this.Style.SizeModeHeight = UiSizeMode.Content;
+      this.Style.DisplayMode = UiDisplayMode.Block;
     }
     public UiAutoRow(UiElement center, string name = "") : this(name)
     {
@@ -1365,22 +1427,14 @@ namespace Loft
       Center = center;
       Right = right;
     }
-    private void SetCol(ref UiAutoCol col, UiElement value, UiAlignment align)
+    private void Init()
     {
-      if (col != null && value == null)
-      {
-        RemoveChild(col);
-        col = null;
-      }
-      else if (col == null && value != null)
-      {
-        col = new UiAutoCol(value, align);
-        AddChild(col);
-      }
-      else if (col != null && value != null)
-      {
-        col.Element = value;
-      }
+      _left = new UiAutoCol(UiAlignment.Left);
+      _center = new UiAutoCol(UiAlignment.Center);
+      _right = new UiAutoCol(UiAlignment.Right);
+      AddChild(_left);
+      AddChild(_center);
+      AddChild(_right);
     }
   }//cls
   public class UiWindow : UiControl, IUiWindow
@@ -1410,15 +1464,16 @@ namespace Loft
       _initialPos = pos;
       _initialWH = wh;
 
-      this.Style.PositionMode = UiPositionMode.Absolute;
+      this.Style.FloatMode = UiFloatMode.Floating; //sort domain
+      this.Style.PositionMode = UiPositionMode.Fixed;
+      this.Style.Margin = 0;
+      this.Style.Padding = 0;
       this.Style.Border = 2;
       this.Style.BorderColor = OffColor.DimGray;
       this.Style.BorderRadius = 8;
       this.Style.LayoutOrientation = UiOrientation.Horizontal;
-      this.Style.Margin = 0;
-      this.Style.Padding = 0;
       this.Style.Color = OffColor.LightGray;
-      this.Style.FontSize = 16;
+      this.Style.FontSize = 17;
       this.Style.FontFace = FontFace.Calibri;
 
       SetDefaultPosition();
@@ -1428,7 +1483,7 @@ namespace Loft
       closebt.Style.FixedWidth = closebt.Style.FixedHeight = 20;
       closebt.Style.DisplayMode = UiDisplayMode.Inline;
       closebt.Style.Color = OffColor.WhiteSmoke;
-      closebt.Image = new UiImage(EditGuiScript.Icon_Dark_AppbarClose);
+      closebt.Image = new UiImage(UiResources.Icon_Dark_AppbarClose);
       closebt.Style.Border = 1;
       closebt.Style.BorderColor = OffColor.DimGray;
       closebt.Style.BorderRadius = 3;
@@ -1445,10 +1500,6 @@ namespace Loft
       });
 
       _titleBar = new UiAutoRow("win_title_bar");
-      _titleBar.Style.PercentWidth = 100;
-      _titleBar.Style.SizeModeHeight = UiSizeMode.Shrink;
-      _titleBar.Style.MinHeight = 20;
-      _titleBar.Style.MaxHeight = 80;
       _titleBar.Style.Padding = 5;
       _titleBar.Style.BorderBot = 1;
       _titleBar.Style.BorderColorBot = this.Style.BorderColor;
@@ -1466,25 +1517,26 @@ namespace Loft
       _titleBar.Left = new UiElement();
 
       _region = new UiScrollRegion("WindowContent");
-      //_region.Style.Color = OffColor.WhiteSmoke;
-      _region.Style.Color = OffColor.LightPink;
-      _region.Style.SizeMode = UiSizeMode.Auto;
-      _region.Style.MinWidth = _region.Style.MinHeight = 0;
-      _region.Style.MaxWidth = _region.Style.MaxHeight = Gui2d.MaxSize;
+      _region.Style.SizeModeWidth = UiSizeMode.Auto;
+      _region.Style.SizeModeHeight = UiSizeMode.Auto;
+      _region.Style.OverflowMode = UiOverflowMode.Content;
+      _region.Style.DisplayMode = UiDisplayMode.Block;
 
       _statusBar = new UiAutoRow("win_status_bar");
-      _statusBar.Style.PercentWidth = 100;
-      _statusBar.Style.SizeModeHeight = UiSizeMode.Shrink;
       _statusBar.Style.Padding = 3;
       _statusBar.Style.PadLeft = 16;
-      _statusBar.Style.PadTop = 8;
+      _statusBar.Style.PadTop = 2;
+      _statusBar.Style.PadRight = 0;
+      _statusBar.Style.PadBot = 0;
       _statusBar.Style.FontColor = OffColor.Gray;
       _statusBar.Style.BorderBotRightRadius = this.Style.BorderBotRightRadius;
       _statusBar.Style.BorderBotLeftRadius = this.Style.BorderBotLeftRadius;
+      _statusBar.LeftCol.Style.ContentAlignY = UiAlignment.Center;
 
-      var sizeThumb = new UiButton("win_size_thumb");
+      var sizeThumb = new UiButton("win_size_thumb", false);
       sizeThumb.Style.FixedWidth = sizeThumb.Style.FixedHeight = 20;
       sizeThumb.Style.ContentAlignX = UiAlignment.Right;
+      sizeThumb.Style.Color = _statusBar.Style.Color;
       sizeThumb.AddEvent(UiEventId.LmbDrag, (e) =>
       {
         var delta = e.State.DragDelta.Value;
@@ -1494,7 +1546,11 @@ namespace Loft
           this.Style.FixedWidth = 100;
         }
         this.Style.FixedHeight += delta.y;
-        var minh = _titleBar._block._b2MarginQuad._height + this.Style.BorderTop + this.Style.BorderBot + this.Style.PadTop + this.Style.PadBot;
+        var minh = this.Style.BorderTop + this.Style.BorderBot + this.Style.PadTop + this.Style.PadBot;
+        if (_titleBar.Visible == true)
+        {
+          minh += _titleBar._block._b2MarginQuad._height;
+        }
         if (_statusBar.Visible == true)
         {
           minh += _statusBar._block._b2MarginQuad._height;
@@ -1504,15 +1560,47 @@ namespace Loft
           this.Style.FixedHeight = minh;
         }
       });
-      sizeThumb.Image = new UiImage(EditGuiScript.Icon_Dark_AppbarCrop);
+      sizeThumb.Image = new UiImage(UiResources.Icon_Dark_AppbarCrop);
+      //**TODO: clip radius.
+      sizeThumb.Image.Style.BorderBotRightRadius = this.Style.BorderBotRightRadius;
 
       _statusBar.Left = new UiText("info");
       _statusBar.Left.Style.FontSize = 12;
+      _statusBar.Left.Style.FontColor = OffColor.MediumGray;
       _statusBar.Left.Style.BorderBotRightRadius = this.Style.BorderBotRightRadius;
+      _statusBar.Left.Style.ContentAlignX = _statusBar.LeftCol.Style.ContentAlignX = UiAlignment.Left;
+      _statusBar.Left.Style.ContentAlignY = _statusBar.LeftCol.Style.ContentAlignY = UiAlignment.Center;
+      _statusBar.LeftCol.Style.SizeModeHeight = UiSizeMode.Auto;
+
       _statusBar.Center = new UiElement();
+
       _statusBar.Right = sizeThumb;
       _statusBar.Right.Style.BorderBotLeftRadius = this.Style.BorderBotLeftRadius;
 
+      //TESTING
+      //TESTING
+      //TESTING
+      //TESTING
+      //TESTING
+      //TESTING
+      //TESTING
+      //TESTING
+      //vTESTING
+      //  _titleBar.Style.FixedHeight = 30;
+      //  _statusBar.Style.FixedHeight = 30;
+      //TESTING
+      //TESTING
+      //TESTING
+      //TESTING
+      //TESTING
+      //TESTING
+      //TESTING
+      //TESTING
+      //TESTING
+      //TESTING
+      //TESTING
+      //TESTING
+      //TESTING
       AddChild(_titleBar);
       AddChild(_region);
       AddChild(_statusBar);

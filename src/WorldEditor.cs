@@ -900,7 +900,7 @@ namespace Loft
         _wasClick = true;
         //ray
         List<WorldObject> objs = new List<WorldObject>();
-        var ob = Gu.Context.Renderer.Picker.PickedObjectFrame as WorldObject;
+        var ob = Gu.Context.Picker.PickedObjectFrame as WorldObject;
         if (ob != null)
         {
           objs.Add(ob);
@@ -1213,7 +1213,7 @@ namespace Loft
     Debug_ToggleDebugInfo, Debug_ToggleVSync, Debug_DrawBoundBoxes, Debug_DrawNormalsTangents, Debug_SaveFBOs,
     Debug_DrawObjectBasis, Debug_ShowWireFrame_Legacy, Debug_Toggle_Wireframe_Overlay,
     Debug_Toggle_RenderMode,
-    Debug_UI_Toggle_DisableBorders, Debug_UI_Toggle_DisableMargins, Debug_UI_Toggle_DisablePadding,
+    Debug_UI_Toggle_DisableBorders, Debug_UI_Toggle_DisableMargins, Debug_UI_Toggle_DisablePadding, Debug_UI_Toggle_DisableAutos,
 
     UI_Scale,
 
@@ -1271,6 +1271,8 @@ namespace Loft
         new KeyCombo(Global, WorldEditEvent.Debug_UI_Toggle_DisableBorders, KeyMod.Ctrl, Keys.F9, ButtonState.Press),
         new KeyCombo(Global, WorldEditEvent.Debug_UI_Toggle_DisableMargins, KeyMod.Ctrl, Keys.F10, ButtonState.Press),
         new KeyCombo(Global, WorldEditEvent.Debug_UI_Toggle_DisablePadding, KeyMod.Ctrl, Keys.F11, ButtonState.Press),
+        new KeyCombo(Global, WorldEditEvent.Debug_UI_Toggle_DisableAutos, KeyMod.Ctrl, Keys.F12, ButtonState.Press),
+        
         new KeyCombo(Global, WorldEditEvent.Camera_Toggle_Perspective, KeyMod.None, Keys.D5, ButtonState.Press),
 
         new KeyCombo(IsEditMode, WorldEditEvent.Edit_ToggleView1, KeyMod.None, Keys.D1, ButtonState.Press),
@@ -1330,7 +1332,7 @@ namespace Loft
     {
       //this is very inefficient. Really, we should send an event from the PCKeyboard with a pressed key.
 
-      var picked_ob = Gu.Context.Renderer.Picker.PickedObjectFrameLast;
+      var picked_ob = Gu.Context.Picker.PickedObjectFrameLast;
 
       if (_first == null)
       {
@@ -1709,6 +1711,13 @@ namespace Loft
             g.Globals.DisablePadding = !g.Globals.DisablePadding;
           }
         }
+        else if (code == WorldEditEvent.Debug_UI_Toggle_DisableAutos)
+        {
+          if (Gu.TryGetSelectedViewGui(out var g))
+          {
+            g.Globals.DisableAutos = !g.Globals.DisableAutos;
+          }
+        }        
         else if (code == WorldEditEvent.Debug_UI_Toggle_DisableBorders)
         {
           if (Gu.TryGetSelectedViewGui(out var g))
@@ -2078,7 +2087,7 @@ namespace Loft
     private bool GetPickedObject(out WorldObject? ob)
     {
       ob = null;
-      var ob_picked = Gu.Context.Renderer.Picker.PickedObjectFrame;
+      var ob_picked = Gu.Context.Picker.PickedObjectFrame;
       if (ob_picked != null && ob_picked is WorldObject)
       {
         ob = ob_picked as WorldObject;

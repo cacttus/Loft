@@ -46,7 +46,7 @@ namespace Loft
     //render    
     [DataMember(IsRequired = true)] public bool Debug_EnableCompatibilityProfile = false;
     [DataMember(IsRequired = true)] public bool EnableShaderCaching = true; //cache shader binaries on disk.
-    [DataMember(IsRequired = true)] public bool Debug_PickIDs = true;
+    [DataMember(IsRequired = true)] public uint Debug_PickIDIncrement = 100; //set to 100 to see pick ids
     [DataMember(IsRequired = true)] public bool Renderer_UseAlias = true;//-1;//320;//-1=Disable, 640, 320
     [DataMember(IsRequired = true)] public int AliasScreenWidthPixels = 430;//-1;//320;//-1=Disable, 640, 320
     [DataMember(IsRequired = true)] public bool EnableMSAA = false;
@@ -79,7 +79,6 @@ namespace Loft
     [DataMember(IsRequired = true)] public bool Script_Optimize = false;//may cause slow compile
     [DataMember(IsRequired = true)] public bool Script_Debug = true;//Generate PDB 
     [DataMember(IsRequired = true)] public bool Script_ParallelBuild = true;
-    [DataMember(IsRequired = true)] public FileLoc BaseGuiScript = new FileLoc("BaseGuiScript.cs", EmbeddedFolder.Script); //= new FileLoc("BaseGuiScript.cs", PathRoot.Src);
     [DataMember(IsRequired = true)] public FileLoc EditGuiScript = new FileLoc("EditGuiScript.cs", EmbeddedFolder.Script); //= new FileLoc("EditGuiScript.cs", PathRoot.Src);
     [DataMember(IsRequired = true)] public FileLoc TestGuiScript = new FileLoc("TestGuiScript.cs", EmbeddedFolder.Script); //= new FileLoc("TestGuiScript.cs", PathRoot.Src);
     [DataMember(IsRequired = true)] public FileLoc UIControls_Script = new FileLoc("UiControls.cs", EmbeddedFolder.Script); //= new FileLoc("UiControls.cs"   , PathRoot.Src);

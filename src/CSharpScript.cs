@@ -10,9 +10,11 @@ namespace Loft
   {
     private List<RenderView> _views = new List<RenderView>();
     public IUiControls Script { get { return (_scriptObject as IUiControls); } }
+    private Action<IUiControls>? _onChanged = null;
 
-    public UIScript(List<FileLoc> loc) : base(loc, typeof(IUiControls))
+    public UIScript(List<FileLoc> loc, Action<IUiControls> on_changed) : base(loc, typeof(IUiControls))
     {
+      _onChanged = on_changed;
     }
     public void LinkView(RenderView rv)
     {
@@ -21,6 +23,14 @@ namespace Loft
     }
     protected override void ScriptChanged()
     {
+      _onChanged?.Invoke(Script);
+      foreach (var rv in _views)
+      {
+        rv.Gui = null;
+      }
+
+      GC.Collect();
+
       foreach (var rv in _views)
       {
         UpdateUIForView(rv);
@@ -29,15 +39,6 @@ namespace Loft
     private void UpdateUIForView(RenderView rv)
     {
       //TODO: we need to update this again when failed compile actually succeeds
-
-      if (rv.Gui != null)
-      {
-        rv.Gui = null;
-        //*** Possibly needed here. 
-        GC.Collect();
-        //***
-      }
-
       if (Script != null)
       {
         rv.Gui = Script.CreateForView(rv);
@@ -102,7 +103,7 @@ namespace Loft
 
     #endregion
     #region Members
-    
+
     private static int _compileCount = 0;
     private static Dictionary<FileLoc, CSharpScript> _loadedScripts = new Dictionary<FileLoc, CSharpScript>(new FileLoc.EqualityComparer());
 
