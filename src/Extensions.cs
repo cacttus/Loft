@@ -4,12 +4,42 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+using System.Diagnostics;
 
 namespace Loft
 {
   //Extension methods - google what this is if you don't know
   public static class OtherExtensions
   {
+    // public static Task<bool> WaitForExitAsyncTimeout(this Process process, TimeSpan timeout)
+    // {
+    //   //https://stackoverflow.com/questions/611094/async-process-start-and-wait-for-it-to-finish
+    //   var processWaitObject = new ManualResetEvent(false);
+    //   processWaitObject.SafeWaitHandle = new Microsoft.Win32.SafeHandles.SafeWaitHandle(process.Handle, false);
+
+    //   var tcs = new TaskCompletionSource<bool>();
+    //   var start = Gu.Milliseconds();
+
+    //   RegisteredWaitHandle registeredProcessWaitHandle = null;
+
+    //   registeredProcessWaitHandle = ThreadPool.RegisterWaitForSingleObject(processWaitObject,
+    //     (state, timedOut) =>
+    //     {
+    //       if (!timedOut)
+    //       {
+    //         registeredProcessWaitHandle.Unregister(null);
+    //       }
+
+    //       processWaitObject.Dispose();
+    //       tcs.SetResult(!timedOut);
+    //     },
+    //     null,
+    //     timeout,
+    //     true
+    //   );
+
+    //   return tcs.Task;
+    // }
     public static List<int> AllIndexesOf(this string str, string value)
     {
       if (String.IsNullOrEmpty(value))
@@ -462,7 +492,12 @@ namespace Loft
 
       return SerializeTools.Deserialize<T>(buf);
     }
-  }
+
+
+
+
+
+  }//cls
 
 
 

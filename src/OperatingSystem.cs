@@ -4,6 +4,8 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+using System.Reflection;
+using System.Diagnostics;
 
 namespace Loft
 {
@@ -155,5 +157,45 @@ namespace Loft
 //  return "No 4.5 or later version detected";
 //}
 
-  }
-}
+  }//cls
+  public class SystemInfo_Fast
+  {
+    //faster.. This class can call "query" every so many frames as these methods tend to be on the slow side
+    public static long _memUsedBytes = 0;
+    public static long _vmemUsedBytes = 0;
+    public static string _asmVersion = "";
+    public static long _start = 0;
+
+    public static void Query(long millis)
+    {
+      long cms = Gu.Milliseconds();
+      if (cms - _start > millis)
+      {
+        _start = cms;
+
+        _memUsedBytes = System.Diagnostics.Process.GetCurrentProcess().PrivateMemorySize64;
+        _vmemUsedBytes = System.Diagnostics.Process.GetCurrentProcess().VirtualMemorySize64;
+
+        if (string.IsNullOrEmpty(_asmVersion))
+        {
+          //Note: this is kind of slow and takes significant frame slice
+          System.Reflection.Assembly assembly = System.Reflection.Assembly.GetExecutingAssembly();
+          System.Diagnostics.FileVersionInfo fileVersionInfo = System.Diagnostics.FileVersionInfo.GetVersionInfo(assembly.Location);
+          _asmVersion = fileVersionInfo.ProductVersion;
+        }
+      }
+    }
+
+    public static string AssemblyVersion { get { return _asmVersion; } }
+    public static long MemUsedBytes { get { return _memUsedBytes; } }
+    public static long VMemUsedBytes { get { return _vmemUsedBytes; } }
+
+    public static float BToMB(long b)
+    {
+      var b_to_mb = 1024 * 1024;
+      var bc = b / b_to_mb;
+      var bm = b % b_to_mb;
+      return (float)(bc + (float)bm / (float)b_to_mb);
+    }
+  }//cls
+}//ns

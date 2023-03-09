@@ -42,6 +42,7 @@ namespace Loft
     [DataMember(IsRequired = true)] public bool Font_Lang_RU = true;
     [DataMember(IsRequired = true)] public bool Font_Lang_ZH = true;
     [DataMember(IsRequired = true)] public bool Debug_Font_SaveImage = true; //saves raw generated font images
+    [DataMember(IsRequired = true)] public bool Debug_RainbowMegatexture = true; //init megatex to rainbow color, can cause some invalid color info
 
     //render    
     [DataMember(IsRequired = true)] public bool Debug_EnableCompatibilityProfile = false;
@@ -71,20 +72,20 @@ namespace Loft
     [DataMember(IsRequired = true)] public int MaxUndoHistoryItems = 256;
     [DataMember(IsRequired = true)] public bool ReleaseAllButtonsWhenWindowLosesFocus = true;
     [DataMember(IsRequired = true)] public int MaxUIEvents = 500;
-    [DataMember(IsRequired = true)] public string ScriptDLLBaseName = "Scripts";
+    [DataMember(IsRequired = true)] public string ScriptDLLBaseName = "Script"; //this will generate **.dll and **.pdb
     [DataMember(IsRequired = true)] public bool Debug_ShowFailedShaderSourceInVSCOode = true;
 
     //Scripts
-    [DataMember(IsRequired = true)] public string CSCPath = "";//leave blank for default
+    [DataMember(IsRequired = true)] public string Script_CSCPath = "";//leave blank for default
     [DataMember(IsRequired = true)] public bool Script_Optimize = false;//may cause slow compile
     [DataMember(IsRequired = true)] public bool Script_Debug = true;//Generate PDB 
     [DataMember(IsRequired = true)] public bool Script_ParallelBuild = true;
+    [DataMember(IsRequired = true)] public bool Script_ShowWarnings = false;
     [DataMember(IsRequired = true)] public FileLoc EditGuiScript = new FileLoc("EditGuiScript.cs", EmbeddedFolder.Script); //= new FileLoc("EditGuiScript.cs", PathRoot.Src);
     [DataMember(IsRequired = true)] public FileLoc TestGuiScript = new FileLoc("TestGuiScript.cs", EmbeddedFolder.Script); //= new FileLoc("TestGuiScript.cs", PathRoot.Src);
     [DataMember(IsRequired = true)] public FileLoc UIControls_Script = new FileLoc("UiControls.cs", EmbeddedFolder.Script); //= new FileLoc("UiControls.cs"   , PathRoot.Src);
     [DataMember(IsRequired = true)] public FileLoc Gui2d_Script = new FileLoc("Gui2d.cs", EmbeddedFolder.Script); //= new FileLoc("Gui2d.cs"        , PathRoot.Src);
     [DataMember(IsRequired = true)] public FileLoc TestWorldScript = new FileLoc("MyWorldScript.cs", EmbeddedFolder.Script); //= new FileLoc("MyWorldScript.cs", PathRoot.Src);
-    [DataMember(IsRequired = true)] public bool Debug_RainbowMegatexture = true;
 
     //Shader
     [DataMember(IsRequired = true)] public int ShaderCV_MaxLights = 32;

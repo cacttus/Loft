@@ -15,20 +15,14 @@ namespace Loft
 
   public class Gpu
   {
-    private Dictionary<WindowContext, List<Action<WindowContext>>> RenderThreadActions = new Dictionary<WindowContext, List<Action<WindowContext>>>();
-
-    //Limits
     public int MaxTextureSize { get; private set; } = 0;
     public int MaxFragmentTextureImageUnits { get; private set; } = 0;
     public int MaxVertexTextureImageUnits { get; private set; } = 0;
     public int[] MaxWorkGroupDims { get; private set; } = new int[3] { 0, 0, 0 };
-
     public int RenderThreadID { get; private set; } = -1;
+    public GPUVendor Vendor { get; private set; } = GPUVendor.Undefined;
+    public string VendorString { get; private set; } = "";
 
-    public GPUVendor Vendor = GPUVendor.Undefined;
-    public string VendorString = "";
-
-    //control GPU state with minimal enable switching
     private bool _cullFaceLast = false;
     private CullFaceMode _cullFaceModeLast = CullFaceMode.Back;
     private FrontFaceDirection _frontFaceDirectionLast = FrontFaceDirection.Ccw;
@@ -38,11 +32,19 @@ namespace Loft
     private bool _depthMaskLast = true;
     private BlendEquationMode _blendFuncLast = BlendEquationMode.FuncAdd;
     private BlendingFactor _blendFactorLast = BlendingFactor.OneMinusSrcAlpha;
+    //private Dictionary<WindowContext, List<Action<WindowContext>>> _renderThreadActions = new Dictionary<WindowContext, List<Action<WindowContext>>>();
+    //private Dictionary<WindowContext, List<EngineTask>> _renderThreadActions = new Dictionary<WindowContext, List<EngineTask>>();
 
-    public Gpu()
+    private List<Action> _renderThreadActions = new List<Action>();
+    private List<EngineTask> _renderThreadEngineTasks = new List<EngineTask>();
+
+    private WindowContext _context;
+
+    public Gpu(WindowContext context)
     {
       //Initializes gpu info
       RenderThreadID = Thread.CurrentThread.ManagedThreadId;
+      _context = context;
 
       ComputeGPULimitsOpenGL();
 
@@ -154,7 +156,6 @@ namespace Loft
     }
     private void ComputeGPULimitsOpenGL()
     {
-
       int[] maxTextureSize = new int[2];
       GL.GetInteger(GetPName.MaxTextureSize, maxTextureSize);
       Gpu.CheckGpuErrorsRt();
@@ -194,43 +195,24 @@ namespace Loft
         return (T)Marshal.PtrToStructure((IntPtr)ptr, typeof(T));
       }
     }
-    public void Post_To_RenderThread(WindowContext wc, Action<WindowContext> a)
+    public void Post_To_RenderThread(Action a)
     {
-      //This is super important for disposing Render (opengl) stuff.
-      //Posts this operation to a render thread to cleanup OpenGL stuff.
-      //This is also for any async call that requires render thread synchronization.
-      //These get executed after literally all rendering (right now)
-      lock (RenderThreadActions)
+      //Post a lambda to the render thread, typically to cleanup OpenGL.
+      lock (_renderThreadActions)
       {
-        //Register an action to delete GPU memory on the main thread.
-        //This is for C# finalizers (called on the GC thread)
-        List<Action<WindowContext>> actions = null;
-        if (!RenderThreadActions.TryGetValue(wc, out actions))
-        {
-          RenderThreadActions.Add(wc, new List<Action<WindowContext>> { a });
-        }
-        else
-        {
-          actions.Add(a);
-        }
+        _renderThreadActions.Add(a);
       }
     }
-    public void ExecuteCallbacks_RenderThread(WindowContext wc)
+    public void ExecuteCallbacks_RenderThread()
     {
-      List<Action<WindowContext>> actions_cpy = null;
-      lock (RenderThreadActions)
-      {
-        RenderThreadActions.TryGetValue(wc, out actions_cpy);
-        RenderThreadActions.Remove(wc);
-      }
-      if (actions_cpy != null)
+      lock(_renderThreadActions)
       {
         //Call this at the end of render thread (or beginning)
-        foreach (var action in actions_cpy)
+        foreach (var action in _renderThreadActions)
         {
-          action(wc);
+          action();
         }
-        actions_cpy.Clear();
+        _renderThreadActions.Clear();
       }
     }
     private static GPULog GPULog = new GPULog();
@@ -2137,12 +2119,12 @@ namespace Loft
       _region.Release(this);
     }
   }//cls
-  
+
   public class GpuByteBuffer : OpenGLResource
   {
     //Allows for any kind of data - not just "items"
     //GpuByteBuffer, GpuRawBuffer
-    
+
     public BufferTarget BufferTarget { get { return _bufferTarget; } private set { _bufferTarget = value; } }
     private BufferTarget _bufferTarget = BufferTarget.ShaderStorageBuffer;
     private BufferRangeTarget? _rangeTarget = null;//For buffer block objects 

@@ -2545,6 +2545,7 @@ namespace Loft
     [DataMember] public Int32 y;
     [DataMember] public Int32 z;
     [DataMember] public Int32 w;
+    public static ivec4 Zero { get { return new ivec4(0, 0, 0, 0); } }
     public ivec4(Int32 dx, Int32 dy, Int32 dz, Int32 dw)
     {
       x = dx; y = dy; z = dz; w = dw;

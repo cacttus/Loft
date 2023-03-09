@@ -21,6 +21,7 @@ namespace Loft
           new ivec2(Gu.EngineConfig.WindowInitW, Gu.EngineConfig.WindowInitH),
           new vec2(Gu.EngineConfig.WindowInitScaleW, Gu.EngineConfig.WindowInitScaleH)
           );
+        Gu.InitScripts();
         Gu.Run();
       }
       catch (Exception ex)
@@ -36,7 +37,8 @@ namespace Loft
         }
         System.Environment.Exit(0);
       }
-      finally{
+      finally
+      {
         Gu.Trap();
       }
     }

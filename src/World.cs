@@ -1392,7 +1392,9 @@ namespace Loft
       if (_worldInfo.WorldScriptLoc != null)
       {
         _worldScript = new WorldScript(_worldInfo.WorldScriptLoc);
-        if (_worldScript.Compile())
+        var ts = _worldScript.Compile();
+        ts.Wait();
+        if (ts.Success)
         {
           if (_worldScript != null)
           {

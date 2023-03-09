@@ -21,7 +21,7 @@ namespace Loft
       _views.Add(rv);
       UpdateUIForView(rv);
     }
-    protected override void ScriptChanged()
+    protected override void OnCompile()
     {
       _onChanged?.Invoke(Script);
       foreach (var rv in _views)
@@ -48,12 +48,10 @@ namespace Loft
   }
   public class WorldScript : CSharpScript, IWorldScript
   {
-    //Thunk class for runtime interface
-
     public WorldScript(FileLoc loc) : base(new List<FileLoc>() { loc }, typeof(IWorldScript))
     {
     }
-    protected override void ScriptChanged() { }
+    protected override void OnCompile() { }
     public void OnLoad(World w)
     {
       if (_scriptObject != null)
@@ -96,49 +94,30 @@ namespace Loft
     //      We have 2 dll's one for embedded scripts and one for external scripts. 
     //      This pretty much works. Would requires some tinkering with dll references as we'll need a lot more of them.
 
-    #region Public:Members
+    #region Members
 
     public static int TotalLoadedScriptAssemblyBytes { get; private set; } = 0;
     public ScriptStatus ScriptStatus { get { return _scriptStatus; } protected set { _scriptStatus = value; } }
-
-    #endregion
-    #region Members
+    public string Name { get; private set; }
+    protected Type? _scriptObjectType = null;
+    protected object? _scriptObject = null;
+    protected Type? _scriptObjectInterfaceType = null;
 
     private static int _compileCount = 0;
     private static Dictionary<FileLoc, CSharpScript> _loadedScripts = new Dictionary<FileLoc, CSharpScript>(new FileLoc.EqualityComparer());
-
     private ScriptStatus _scriptStatus = ScriptStatus.None;
     private string _outputPath = "";
-    protected Type? _scriptObjectType = null;
-    protected object? _scriptObject = null;
     private System.Reflection.Assembly? _loadedAssembly = null;
     private List<FileLoc> _files;
     private FileWatcher? _watcher = null;
-    protected Type? _scriptObjectInterfaceType = null;
     private bool _initialized = false;
 
     #endregion
     #region Public:Methods
 
-    protected virtual void ScriptChanged() { }
-
-    public static object? Call(string scriptname, object? param)
-    {
-      //Shortcut to call a "function script"
-      return Call(new FileLoc(Gu.WorkspaceDataPath, scriptname, FileStorage.Disk), param);
-    }
-    public static object? Call(FileLoc scriptname, object? param)
-    {
-      if (!_loadedScripts.TryGetValue(scriptname, out var ss))
-      {
-        ss = new CSharpScript(new List<FileLoc>() { scriptname }, typeof(IFunctionScript));
-        _loadedScripts.Add(scriptname, ss);
-      }
-      return ss.Call(null);
-    }
-
     public CSharpScript(List<FileLoc> locs, Type interface_type)
     {
+      Name = this.GetType().Name;
       _scriptObjectInterfaceType = interface_type;
 
       _files = _files.ConstructIfNeeded();
@@ -146,23 +125,9 @@ namespace Loft
 
       _watcher = new FileWatcher(_files, (f) =>
       {
-        Compile();
-        return this._scriptStatus == ScriptStatus.CompileSuccess;
+        Compile().Wait();
+        return _scriptStatus == ScriptStatus.CompileSuccess;
       });
-    }
-    private string GetScriptPath(FileLoc f)
-    {
-      string fn = "";
-      if (f.FileStorage == FileStorage.Disk)
-      {
-        fn = f.QualifiedPath;
-      }
-      else if (f.FileStorage == FileStorage.Embedded)
-      {
-        fn = f.WorkspacePath;
-        ScriptWarn($"Embedded scripts can't be sent to the compiler (for now), using workspace path ({f.WorkspacePath})");
-      }
-      return fn;
     }
     public string ScriptDLLName
     {
@@ -174,21 +139,23 @@ namespace Loft
         return dl;
       }
     }
-    public bool Compile()
+    public EngineTask Compile()
     {
       //Root compile method, reset everything and try compiling.
       _scriptStatus = ScriptStatus.None;
-
       _outputPath = System.IO.Path.Combine(Gu.ExePath, ScriptDLLName);
-
       _compileCount++;
 
-      Gu.Log.Info(
+      ScriptInfo(DebugUtils.HeaderString($"SCRIPT {this.Name}"));
+
+      ScriptInfo(
         $"Loft Script Compiler" + ", " +
         $".NET Version: {Environment.Version}"
       );
 
       ScriptInfo($"Loading..");
+
+      _initialized = true;
 
       try
       {
@@ -211,28 +178,28 @@ namespace Loft
 
         if (_scriptStatus != ScriptStatus.Error)
         {
-          DoCompile(files);
+          return CompileInternal(files);
         }
       }
       catch (Exception ex)
       {
         ScriptError(Gu.GetAllException(ex));
         _scriptStatus = ScriptStatus.Error;
+        PrintErrors();
       }
 
-      PrintErrors();
-
-      _initialized = true;
-
-      return _scriptStatus == ScriptStatus.CompileSuccess;
+      return EngineTask.Fail;
     }
-    private void DoCompile(List<string> files)
+
+    #endregion
+    #region Private/Protected: Methods
+
+    protected virtual void OnCompile() { }
+
+    private EngineTask CompileInternal(List<string> files)
     {
       _scriptStatus = ScriptStatus.Compiling;
-      ScriptInfo(
-        $"Compiling {this.GetFilename()}" + ", " +
-        $"Compile Count: {_compileCount}"
-      );
+      ScriptInfo($"Compiling ({_compileCount}): {this.GetFilename()}");
 
       var compiler = FindCSC();
       var quot = "\"";
@@ -241,49 +208,53 @@ namespace Loft
       ScriptDebug($"Executing: {cmdstr}");
       ScriptInfo(String.Join($"{Environment.NewLine}", GetArgs(files, quot)), true, ConsoleColor.Green);
 
-      if (Gu.LaunchProgram(compiler, String.Join(" ", GetArgs(files, "")), out var output))
+      ExternalProgram ep = new ExternalProgram(compiler, String.Join(" ", GetArgs(files, "")));
+      var etask = EngineTask.Start((et) =>
       {
-        PrintCompilerOutput(output);
-        LoadAssembly();
-      }
-      else
+        return ep.Launch();
+      })
+      .SyncThen((et) =>
       {
-        _scriptStatus = ScriptStatus.Error;
-      }
-    }
-    public object? Call(object? param)
-    {
-      object? ret = null;
-      if (_scriptObject != null)
-      {
-        var obo = (_scriptObject as IFunctionScript);
-        if (obo != null)
+        if (et.Success)
         {
-          try
-          {
-            ret = obo.DoThing(param);
-          }
-          catch (Exception ex)
-          {
-            Gu.Log.Error(ex);
-          }
+          PrintCompilerOutput(ep.Output);
+          LoadAssembly();
         }
-      }
-      return ret;
+        else
+        {
+          _scriptStatus = ScriptStatus.Error;
+        }
+
+        PrintErrors();
+
+        return _scriptStatus == ScriptStatus.CompileSuccess;
+      });
+
+      return etask;
     }
-
-    #endregion
-    #region Private/Protected: Methods
-
+    private string GetScriptPath(FileLoc f)
+    {
+      string fn = "";
+      if (f.FileStorage == FileStorage.Disk)
+      {
+        fn = f.QualifiedPath;
+      }
+      else if (f.FileStorage == FileStorage.Embedded)
+      {
+        fn = f.WorkspacePath;
+        ScriptWarn($"Embedded scripts can't be sent to the compiler (for now), using workspace path ({f.WorkspacePath})");
+      }
+      return fn;
+    }
     private string FindCSC()
     {
       string compiler = "";
       //"C:/Program Files/Mono/Lib/Mono4.5/csc.exe";
       //var ver = System.Runtime.InteropServices.RuntimeEnvironment.GetSystemVersion();
 
-      if (StringUtil.IsNotEmpty(Gu.EngineConfig.CSCPath))
+      if (StringUtil.IsNotEmpty(Gu.EngineConfig.Script_CSCPath))
       {
-        compiler = Gu.EngineConfig.CSCPath;
+        compiler = Gu.EngineConfig.Script_CSCPath;
       }
       else if (OperatingSystem.Platform == Platform.Windows)
       {
@@ -436,7 +407,6 @@ namespace Loft
       }
 
       return args;
-
     }
     private void LoadAssembly()
     {
@@ -452,10 +422,11 @@ namespace Loft
           ScriptInfo($"Total Runtime Size: {StringUtil.FormatPrec((double)TotalLoadedScriptAssemblyBytes / (double)1000000, 2)}MB");
 
           var asm = System.Reflection.Assembly.Load(asmbytes);
+
           if (LoadTypeAndCreateInstance(asm))
           {
             ScriptInfo($"{ScriptDLLName}: Assembly Loaded, (Total LSR={TotalLoadedScriptAssemblyBytes}).");
-            ScriptChanged();
+            OnCompile();
             _scriptStatus = ScriptStatus.CompileSuccess;
           }
           else
@@ -524,33 +495,35 @@ namespace Loft
       foreach (var f in _files)
       {
         fn += app + f.FileName;
-        app = ",";
+        app = ", ";
       }
       return fn;
     }
 
-    private string GlobalTab = "  ";//tab all script message 
-    private string GetLogStr(string ewi, string msg, bool headless = false)
-    {
-      var header = headless ? "" : $"{GlobalTab}[{GetFilename()}][{ewi}]: ";
-      return $"{header}{msg}".Replace(Environment.NewLine, $"{Environment.NewLine}{GlobalTab}");
-    }
+
     private void ScriptError(string msg, bool headless = false)
     {
       //print a local script info without extra header stuff
-      Gu.Log.Error(GetLogStr("E", msg, headless), true);
+      Gu.Log.Error(GetLogStr("Error: ", msg, headless), true);
     }
     private void ScriptWarn(string msg, bool headless = false)
     {
-      Gu.Log.Warn(GetLogStr("W", msg, headless), true);
+      Gu.Log.Warn(GetLogStr("Warning: ", msg, headless), true);
     }
     private void ScriptDebug(string msg, bool headless = false)
     {
-      Gu.Log.Debug(GetLogStr("D", msg, headless), true);
+      Gu.Log.Debug(GetLogStr("Debug: ", msg, headless), true);
     }
     private void ScriptInfo(string msg, bool headless = false, ConsoleColor? color = null)
     {
-      Gu.Log.Info(GetLogStr("I", msg, headless), true, color);
+      Gu.Log.Info(GetLogStr("", msg, headless), true, color);
+    }
+    private string GetLogStr(string ewi, string msg, bool headless = false)
+    {
+      string _global_log_tab = "  ";
+
+      var header = headless ? "" : $"{_global_log_tab}{ewi}";
+      return $"{_global_log_tab}{header}{msg}".Replace(Environment.NewLine, $"{Environment.NewLine}{_global_log_tab}");
     }
     private void PrintErrors()
     {
@@ -580,12 +553,16 @@ namespace Loft
     {
       //make the output readable
       Gu.Assert(output != null);
-      ScriptInfo("-------------------------------------------------------------------------------");
+      ScriptInfo(DebugUtils.HeaderString($"COMPILE OUTPUT {this.Name}", false, '*'));
       ScriptInfo("");
+      if (!Gu.EngineConfig.Script_ShowWarnings)
+      {
+        ScriptInfo("(Script warnings disabled)");
+        ScriptInfo("");
+      }
       ScriptInfo("Output:");
 
       //skip warnings
-      bool logwarn = true;
       bool hide_8601 = true; // Possible null reference assignment.
       bool hide_8602 = true; // Dereference of a possibly null reference.
       bool hide_8603 = true; // Possible null reference return.
@@ -596,53 +573,58 @@ namespace Loft
 
       string tabbing = "     ";
 
-      bool warnings = false;
+      bool has_warnings = false;
 
       foreach (var line in output)
       {
-        var str = $"{tabbing}{line}";
+        var tab = $"{tabbing}{line}";
 
-        if (logwarn && line.Contains("warn"))
+        if (Gu.EngineConfig.Script_ShowWarnings)
         {
-          if (
-            (hide_8601 && line.Contains("CS8601:")) ||
-            (hide_8602 && line.Contains("CS8602:")) ||
-            (hide_8603 && line.Contains("CS8603:")) ||
-            (hide_8604 && line.Contains("CS8604:")) ||
-            (hide_8625 && line.Contains("CS8625:")) ||
-            (hide_8629 && line.Contains("CS8629:")) ||
-            (hide_0414 && line.Contains("CS0414:"))
-          )
+          if (line.Contains("warn"))
           {
-          }
-          else
-          {
-            warnings = true;
-            ScriptWarn(str, true);
+            if (
+              (hide_8601 && line.Contains("CS8601:")) ||
+              (hide_8602 && line.Contains("CS8602:")) ||
+              (hide_8603 && line.Contains("CS8603:")) ||
+              (hide_8604 && line.Contains("CS8604:")) ||
+              (hide_8625 && line.Contains("CS8625:")) ||
+              (hide_8629 && line.Contains("CS8629:")) ||
+              (hide_0414 && line.Contains("CS0414:"))
+            )
+            {
+            }
+            else
+            {
+              has_warnings = true;
+              ScriptWarn(tab, true);
+            }
           }
         }
         if (line.Contains("error"))
         {
           _scriptStatus = ScriptStatus.Error;
-          ScriptError(str, true);
+          ScriptError(tab, true);
         }
       }
-
       ScriptInfo("");
-      ScriptInfo("-------------------------------------------------------------------------------");
+
 
       if (_scriptStatus == ScriptStatus.Error)
       {
-        ScriptError("Compiled with errors.", true);
+        ScriptError($"{tabbing}Compiled with errors.", true);
       }
-      else if (warnings)
+      else if (has_warnings)
       {
-        ScriptWarn("Compiled with warnings.", true);
+        ScriptWarn($"{tabbing}Compiled with warnings.", true);
       }
       else
       {
-        ScriptInfo("Compile success.", true);
+        ScriptInfo($"{tabbing}Compile success.", true);
       }
+
+      ScriptInfo("");
+      ScriptInfo(DebugUtils.HeaderString($"SCRIPT {this.Name}", true));
 
 
     }

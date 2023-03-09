@@ -517,9 +517,9 @@ namespace Loft
       foreach (var ob_set in mesh_instances)
       {
         var mesh_view = ob_set.Key;
-        
+
         Gu.Prof($"Draw {mat.Name},{mesh_view.Name}");
-        
+
         ob_set.Value.CompileGpuData();
         mesh_view.MeshData.UpdateInstanceData(ob_set.Value.GpuInstanceData);
         cs.BindInstanceUniforms(mesh_view.MeshData);
@@ -918,8 +918,6 @@ namespace Loft
     }
     private void AppendShaderDebugSource(StringBuilder sb, FileLoc fn, ShaderSrc src)
     {
-      string blip = "--------------------------------------------------------------------------------------";
-
       //dont put any text at the top of the source!!! the line number is the error line!!
       var lines = src._src.Split('\n');
       for (int iLine = 0; iLine < lines.Length; iLine++)
@@ -932,9 +930,7 @@ namespace Loft
         sb.Append(line);
         sb.Append(Environment.NewLine);
       }
-      sb.AppendLine(blip);
-      sb.AppendLine($"--{fn.FileName} DEBUG SOURCE--");
-      sb.AppendLine(blip);
+      sb.AppendLine(DebugUtils.HeaderString($"{fn.FileName} SOURCE"));
     }
     private void PreprocessSourceFiles(WindowContext ct, Dictionary<FileLoc, ShaderSrc> srcs)
     {
@@ -1458,17 +1454,19 @@ namespace Loft
                       //   sleep2 = "sleep 2000 &";//{sleep2}  UGHGHGHGHG
                       // }
 
+                      Gu.DebugBreak();//TODO: fix this
+
                       //So i'm doing this to make it easier in vscode I guess ..
                       //if (Gu.LaunchProgram($"code", $"--goto \"{tmpfile}:{match}:0\" {nw_aw}")) //file:line:char
-                      if (Gu.LaunchProgram($"code", $"-g \"{tmpfile}:{match}:0\" {nw_aw}")) //file:line:char
-                      {
-                        //TODO: Hot Reload + Edit
-                        //with -w  vscode will wait to close
-                        // we could also edit+ RE-compile the file if we wanted and do that kind of thing. 
-                        //We would need the pre-preprocess line. that is for later..
-                        //we will probably use something like this for the scripts though .. so it's worth noting to work for both
-                        Gu.Log.Info(line);
-                      }
+                      // if (Gu.LaunchProgram($"code", $"-g \"{tmpfile}:{match}:0\" {nw_aw}")) //file:line:char
+                      // {
+                      //   //TODO: Hot Reload + Edit
+                      //   //with -w  vscode will wait to close
+                      //   // we could also edit+ RE-compile the file if we wanted and do that kind of thing. 
+                      //   //We would need the pre-preprocess line. that is for later..
+                      //   //we will probably use something like this for the scripts though .. so it's worth noting to work for both
+                      //   Gu.Log.Info(line);
+                      // }
 
                       Gu.DebugBreak();
                       return;
@@ -2276,7 +2274,7 @@ namespace Loft
       Gu.Assert(_inputFiles != null && _inputFiles.Count > 0);
       //We lazy initialize the header compiler for the shader when we need to use it. 
       //This simply loads the shader source, it doesn't proces vars or create shaders. This is done when we begin rendering.
-      Gu.Log.Info("-------------------------------------");
+      Gu.Log.Info(DebugUtils.HeaderString($"SHADER {Name}"));
       Gu.Log.Info($"{Name}: ..Loading shader source: {string.Join(",", _inputFiles)} ");
       List<string> errors = new List<string>();
       bool hasErrors = false;

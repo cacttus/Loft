@@ -32,7 +32,7 @@ namespace Loft
     }
     public void Init()
     {
-      Gpu = new Gpu();
+      Gpu = new Gpu(this);
       Picker = new Picker();
       Renderer = new Renderer();
       Renderer.init(GameWindow.Width, GameWindow.Height, null);

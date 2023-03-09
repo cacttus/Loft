@@ -24,7 +24,6 @@ namespace Loft
         {
           _hoverinfo.Text = "<none>";
         }
-        _hoverinfo.Text += Gu.Context.Picker.SelectedPixelIdLast;
       }
     }
     public void OnCreate(IGui2d gg)
@@ -34,7 +33,7 @@ namespace Loft
       //****************************************
 
       // FPS_LABEL(g);  
-       HOVER_INFO(g);
+      HOVER_INFO(g);
 
       //****************************************
 
@@ -44,12 +43,21 @@ namespace Loft
       // e.Style.Color = OffColor.Gray;
       // g.AddChild(e);
 
-      TEST_WINDOW(g);
+      // UiScrollRegion sr = new UiScrollRegion();
+      // sr.Style.FixedWidth = 500;
+      // sr.Style.FixedHeight = 500;
+      // sr.Content.AddChild(new UiElement());
+      // sr.Content.LastChild().Style.FixedWidth = 100;
+      // sr.Content.LastChild().Style.FixedHeight = 100;
+      // sr.Content.LastChild().Style.Color = OffColor.PaleVioletRed;
+      // g.AddChild(sr);
 
-       TEST_AUTOS_H(g);
-      TEST_AUTOS_V(g);
-      TEST_AUTO_SIB(g);
-         TEST_AUTO_NEST(g);
+
+       TEST_WINDOW(g);
+      //  TEST_AUTOS_H(g);
+      // TEST_AUTOS_V(g);
+      // TEST_AUTO_SIB(g);
+      //    TEST_AUTO_NEST(g);
 
       //TEST_MENU_ITEM(g);
       //TEST_TOOLBAR_BUTTON(g);
@@ -64,16 +72,19 @@ namespace Loft
     }
     private static void TEST_WINDOW(Gui2d g)
     {
-      var w = new UiWindow("THIS IS A WINDOW", new vec2(50, 50), new vec2(100, 100), UiWindow.UiWindowStyle.Sizable);
+      var w = new UiWindow("THIS IS A WINDOW", new vec2(50, 50), new vec2(300, 300), UiWindow.UiWindowStyle.Sizable);
+      w.Region.AlwaysShowScrollbars=false;
 
-      var e = new UiElement("TestGreenBox");
-      e.Style.FixedHeight = e.Style.FixedWidth = 100;
-      e.Style.Color = OffColor.LawnGreen;
-      w.Content.AddChild(e);
-      var e2 = new UiElement("TestRedBox");
-      e2.Style.FixedHeight = e2.Style.FixedWidth = 100;
-      e2.Style.Color = OffColor.MediumVioletRed;
-      w.Content.AddChild(e2);
+      w.Content.Text = Ipsum.GetIpsum(2);
+
+    //  var e = new UiElement("TestGreenBox");
+    //  e.Style.FixedHeight = e.Style.FixedWidth = 100;
+    //  e.Style.Color = OffColor.LawnGreen;
+    //  w.Content.AddChild(e);
+    //  var e2 = new UiElement("TestRedBox");
+    //  e2.Style.FixedHeight = e2.Style.FixedWidth = 100;
+    //  e2.Style.Color = OffColor.MediumVioletRed;
+    //  w.Content.AddChild(e2);
 
       //new UiText(Ipsum.GetIpsum(2))
 

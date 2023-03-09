@@ -3557,3 +3557,88 @@ if model name exists
       //     this._block._b2LayoutQuad.L_Width(UiOrientation.Vertical, w);
       //   }
       // }
+
+
+
+
+    // var nextTask = new Task(async () =>
+    // {
+    //   act(this);
+    // });
+    // _task.ContinueWith(
+    //   (t, o) =>
+    //   {
+    //     //   // 
+    //     _context.Gpu.Post_To_RenderThread(e =>
+    //     {
+    //       act(this);
+    //     });
+    //     //_next.Wait(timeout_ms, t);
+    //   },
+    //   null);
+    // //execute async
+    // var et = new EngineTask(act, false, _context, _dbg_chainId++);
+    // if (_next == null)
+    // {
+    //   _next = et;
+    // }
+    // else
+    // {
+    //   _last._next = et;
+    // }
+    // _last = et;    
+    // public void Wait(int timeout_ms = -1, Task? prev_task = null)
+    // {
+    //   //executea
+    //   //EngineTask.Start(x=>{}).Then(x=>{}).Wait(200);
+    //   Gu.Assert(_action != null);
+
+    //   // ThreadPool.QueueUserWorkItem(stateinfo =>
+    //   // {
+    //   // });
+    //   // Gu.Context.Gpu.Post_To_RenderThread(Gu.Context, e =>
+    //   // {
+    //   // });
+
+    //   if (_renderthread)
+    //   {
+    //     // Gu.Assert(_context != null && _context.Gpu != null);
+    //     _context.Gpu.Post_To_RenderThread( e =>
+    //     {
+    //       _action(this);
+    //     });
+    //   }
+    //   else
+    //   {
+    //     //var start = Gu.Milliseconds();
+    //     if (prev_task == null)
+    //     {
+    //       prev_task = new Task(async () =>
+    //       {
+    //         _action(this);
+    //       });
+    //       prev_task.Start();
+    //     }
+    //     else
+    //     {
+    //       _action(this);
+    //     }
+
+    //     if (_next != null)
+    //     {
+    //       prev_task.ContinueWith(
+    //         (t, o) =>
+    //         {
+    //           _next.Wait(timeout_ms, t);
+    //         },
+    //         null);
+    //     }
+
+    //     if (prev_task.Wait(timeout_ms) == false)
+    //     {
+    //       Gu.Log.Error("Engine task failed.");
+    //       Gu.DebugBreak();
+    //     }
+    //   }
+    // }
+    

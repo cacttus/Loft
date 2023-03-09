@@ -21,7 +21,7 @@ namespace Loft
       var that = this;
       if (Thread.CurrentThread.ManagedThreadId != Context?.Gpu.RenderThreadID)
       {
-        Context?.Gpu.Post_To_RenderThread(Context, (WindowContext wc) =>
+        Context?.Gpu.Post_To_RenderThread(() =>
         {
           that.Dispose_OpenGL_RenderThread();
         });

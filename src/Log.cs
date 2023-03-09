@@ -53,17 +53,17 @@ namespace Loft
       var msg = s + " " + Gu.GetAllException(ex);
       Warn(msg, headless);
     }
-    public void Error(string msg, string ex, string afterStackTrace = "", bool headless = false)
+    public void Error(string msg, System.Exception? ex, string afterStackTrace, bool headless)
     {
       //headless = print just colored message without stack trace or info
       var except = "";
       if (!headless)
       {
-        except += Environment.NewLine + GetBeautifulStackTrace(true, true, true);
-      }
-      if (StringUtil.IsNotEmpty(ex))
-      {
-        except += Environment.NewLine + ex;
+        if (ex != null)
+        {
+          except += Environment.NewLine + GetSimpleStackTrace(ex.StackTrace, true, true, true);
+          except += Environment.NewLine + Gu.GetAllException(ex);
+        }
       }
 
       var s = $"{msg}{except}{afterStackTrace}";
@@ -72,89 +72,27 @@ namespace Loft
     }
     public void Error(string msg, bool headless = false)
     {
-      Error(msg, "", "", headless);
+      Error(msg, null, "", headless);
     }
     public void Error(Exception ex, bool headless = false)
     {
-      string e_all = Gu.GetAllException(ex);
-      Error("", e_all, "", headless);
+      Error("", ex, "", headless);
     }
-    public void Error(string pred, Exception ex, bool headless = false)
+    public void Error(string info, Exception ex, bool headless = false)
     {
-      string e_all = Gu.GetAllException(ex);
-      Error(pred, e_all, "", headless);
+      Error(info, ex, "", headless);
     }
-
-    private string GetBeautifulStackTrace(bool removeParams, bool removeLineText, bool gridify)
+    private string GetSimpleStackTrace(string? stackTrace, bool removeParams, bool removeLineText, bool gridify)
     {
-      var stackTrace = Environment.StackTrace;
-
       //remove params from st
       if (removeParams)
       {
-        stackTrace = System.Text.RegularExpressions.Regex.Replace(stackTrace, @"\(.*\) in ", " "); //stackTrace.Replace(":line ",":");
+        stackTrace = System.Text.RegularExpressions.Regex.Replace(stackTrace, @"\(.*\)", ""); //stackTrace.Replace(":line ",":");
       }
       if (removeLineText)
       {
         //So it makes it easier to click on the file:line in vscode if it's file:line
         stackTrace = stackTrace.Replace(":line ", ":");
-      }
-      if (gridify)
-      {
-        //Make it in a grid. This might be annoying to some people but i like it
-        var ss = stackTrace.Split("\n").ToList(); ;
-
-        //Remove top two
-        ss.RemoveRange(0, 2);
-
-        int midspace = 2;
-        char spacingChar = ' ';
-        int gridformat = 0;//0 = Align left, 1 = Block align
-
-        int maxsp = 0;
-        for (int i = 0; i < ss.Count; i++)
-        {
-          ss[i] = System.Text.RegularExpressions.Regex.Replace(ss[i], @"^\s+at\s+", ""); //stackTrace.Replace(":line ",":");
-
-          int val = 1;
-          if (gridformat == 0)
-          {
-            val = ss[i].IndexOf(" ");
-          }
-          else if (gridformat == 1)
-          {
-            val = ss[i].Length;
-          }
-
-          maxsp = Math.Max(maxsp, val);
-        }
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < ss.Count; i++)
-        {
-          var line = ss[i];
-          var firstsp = line.IndexOf(" ");
-          if (firstsp >= 0)
-          {
-            var spaces = 0;
-            if (gridformat == 0)
-            {
-              spaces = maxsp - firstsp + midspace;
-            }
-            else if (gridformat == 1)
-            {
-              spaces = maxsp - line.Length + midspace;
-            }
-            var s1 = line.Substring(0, firstsp);
-            var sp = new string(spacingChar, spaces);
-            var s2 = line.Substring(firstsp + 1, line.Length - firstsp - 1);
-            sb.Append(s1 + sp + s2 + Environment.NewLine);
-          }
-          else
-          {
-            sb.Append(line);
-          }
-        }
-        stackTrace = sb.ToString();
       }
 
       return stackTrace;

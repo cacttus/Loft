@@ -475,9 +475,8 @@ namespace Loft
       var msa = Gu.Milliseconds();
 
       _log = new ClassLog(this.Name, Gu.EngineConfig.Debug_Log_GLTF_Details, true);
-      _log.AppendLine("\n---------------------------------------------------------------------------------");
-      _log.AppendLine("---------------------------------------------------------------------------------");
-      _log.AppendLine($"Loading '{this._file.FileName}'");
+      _log.AppendLine("");
+      _log.AppendLine(DebugUtils.HeaderString($"MODEL {_file.FileName}"));
 
       if (_file.Extension == ".glb")
       {

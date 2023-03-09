@@ -66,7 +66,7 @@ namespace Loft
     #region Public: Members
 
     public static FileLoc Generated = new FileLoc("<generated>", FileStorage.Generated);
-    
+
     public FileStorage FileStorage { get; set; } = FileStorage.Disk;
     public string RawPath { get; set; } = "";
     public EmbeddedFolder EmbeddedFolder { get; set; } = EmbeddedFolder.Root;
@@ -585,12 +585,18 @@ namespace Loft
   }
   public class StringUtil
   {
+    public static string Repeat(char ch, int count)
+    {
+      string a = string.Concat(Enumerable.Repeat(ch, count));
+      return a;
+    }
     public static string Indent(string st, int count)
     {
       return string.Concat(Enumerable.Repeat(st, count));
     }
     public static string CutOut(ref string instr, int id0, int id1)
     {
+      //cuts @instr from id0 to id1. returns the cut data.
       Gu.Assert(id0 <= id1);
       if (id0 == id1)
       {
@@ -825,7 +831,6 @@ namespace Loft
 
       return ret;
     }
-
     public static string Seconds_ToString_HMSU(double seconds, bool ms = false)
     {
       //seconds to string
@@ -888,6 +893,48 @@ namespace Loft
       }
 
       return ret.Trim();
+    }
+    public static int GetTok(string text, int start_index, ref string tok, int max_token_length = 99999999)
+    {
+      //Returns a basic whitespace delimited token starting at start_index
+      //up to max_length. If max_length is -1, then there is no max length.
+      //return >0 number of chars read into tok
+      //return 0 end of string
+      //return -1 index out of bounds.
+      tok = "";
+      int idx = start_index;
+      if (text.Length == 0)
+      {
+        return 0;
+      }
+      if (idx == text.Length)
+      {
+        return 0;
+      }
+      if (idx < 0 || idx > text.Length)
+      {
+        return -1;
+      }
+      for (; idx < text.Length; idx++)
+      {
+        if (max_token_length >= 0 && idx >= max_token_length)
+        {
+          break;
+        }
+        if (Char.IsWhiteSpace(text[idx]))
+        {
+          break;
+        }
+      }
+      if (idx >= text.Length)
+      {
+        tok = text.Substring(start_index);
+        return tok.Length;
+      }
+ 
+      Gu.Assert(idx < text.Length);
+      tok = text.Substring(start_index, idx - start_index);
+      return tok.Length;
     }
   }
   public interface IMutableState
@@ -2328,13 +2375,13 @@ namespace Loft
       }
     }
   }
-  public class SortDescAllowDupes_UInt: IComparer<uint>
+  public class SortDescAllowDupes_UInt : IComparer<uint>
   {
     public int Compare(uint a, uint b)
     {
       return a < b ? -1 : 1;
     }
-  }  
+  }
   public class SortDescAllowDupes_Float : IComparer<float>
   {
     public int Compare(float a, float b)
@@ -2349,6 +2396,21 @@ namespace Loft
       return a < b ? -1 : 1;
     }
   }
+  public class DebugUtils
+  {
+    public static string HeaderString(string title = "", bool end = false, char ch = '-')
+    {
+      string a = StringUtil.Repeat(ch, 36);
+      if (end)
+      {
+        return $"{a}{ch}{StringUtil.Repeat(ch, title.Length)}{ch}{a}";
+      }
+      else
+      {
+        return $"{a} {title} {a}";
 
+      }
+    }
+  }
 
 }//ns

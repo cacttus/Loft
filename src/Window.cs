@@ -81,6 +81,8 @@ namespace Loft
       VSync = VSyncMode.Off;
 
       Gu.CreateContext($"{Name}-ctx-{Gu.Contexts.Count}", this, sharedCtx);
+
+      //EngineTask.Test();
     }
     protected RenderView CreateRenderView(RenderViewMode mode, vec2 xy_pct, vec2 wh_pct)
     {
@@ -95,7 +97,7 @@ namespace Loft
 
       if (mode == RenderViewMode.UIOnly || mode == RenderViewMode.UIAndWorld)
       {
-          Gu.CreateUIForView(v);
+        Gu.CreateUIForView(v);
       }
 
       return v;
@@ -143,7 +145,7 @@ namespace Loft
       Gu.Context.Renderer.EndRenderToWindow();
       Gu.Context.Picker.UpdatePickedPixel();
       Gu.Context.GameWindow.Context.SwapBuffers();
-      Gu.Context.Gpu.ExecuteCallbacks_RenderThread(Gu.Context);
+      Gu.Context.Gpu.ExecuteCallbacks_RenderThread();
     }
 
     #endregion
@@ -349,7 +351,7 @@ namespace Loft
     #endregion
     #region Public: Methods
 
-    public MainWindow(ivec2 pos, ivec2 size, vec2 scale) : base("mainwindow", "Welcome!", true, pos, size, scale, WindowBorder.Resizable, true)
+    public MainWindow(ivec2 pos, ivec2 size, vec2 scale) : base("mainwindow", "", true, pos, size, scale, WindowBorder.Resizable, true)
     {
       Title += ": OpenGL Version: " + GL.GetString(StringName.Version);
     }
