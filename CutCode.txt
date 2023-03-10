@@ -3642,3 +3642,114 @@ if model name exists
     //   }
     // }
     
+
+
+    private bool CheckHyphenate(UiBlock ele, int eidx, float line_w, float e_width, float space)
+    {
+      //returns true if the word is going to be hyphenated and standard line breaking will be ignored
+      //_static._hyphen_flag || 
+      if (_style._props.Hyphens != UiTextHyphens.Auto)
+      {
+        return false;
+      }
+      if (_font._hyphen == null)
+      {
+        Gu.Log.Error("[Gui2d] No hyphen symbol was defined.");
+        Gu.DebugBreak();
+        return false;
+      }
+
+      var ori = UiOrientation.Horizontal;//Note; for texts that read vertically this is incorrect
+      UiGlyph? eg = ele as UiGlyph;
+      int min_pre_chars = 2;
+      var hyp_wd = _font._hyphen._block._b2LayoutQuad.L_Width(ori);
+
+      if (eg.WordCharID == 0 && ele.DisplayMode == UiDisplayMode.Word)
+      {
+        //check lead char for hyphenation
+        var w = line_w + hyp_wd;
+        var pn = eg._next;
+        var pl = pn;
+        int prechars = 0;
+
+        while (pn != null)
+        {
+          w += pn._block._b2LayoutQuad.L_Width(ori);
+          if (w > space)
+          {
+            break;
+          }
+          if (prechars >= min_pre_chars)
+          {
+            _static._hyphen_flag = true;
+            return true;
+          }
+          pn = pn._next;
+          prechars++;
+        }
+        return false;
+      }
+      else if (_static._hyphen_flag && eg.WordCharID > 0)
+      {
+        float next_w = 0;
+        if (eg._next != null)
+        {
+          // next_w = eg._next._block._b2LayoutQuad.L_Width(ori);
+        }
+        if (line_w + e_width + hyp_wd > space)
+        {
+          var h1 = _font._hyphen.Clone();
+          h1._displayMode = UiDisplayMode.NoWrap;
+          var cid = eidx;
+          _font._glyphs.Insert(cid + 1, h1);
+          if (_font._hyphens == null)
+          {
+            _font._hyphens = new List<int>();
+          }
+          _font._hyphens.Add(cid + 1);
+          _static._hyphen_flag = false;
+          return true;
+        }
+      }
+
+      return false;
+    }
+    private void UpdateHyphens(bool updateGlyphs)
+    {
+      //we MUST add hyphens to the glyphs array, otherwise it would be very difficult and mess everythiung up.
+      //remove generated content from previous update
+      if (_font._hyphens != null)
+      {
+        if (updateGlyphs)
+        {
+          _font._hyphens = null;
+        }
+        else
+        {
+          for (var hx = _font._hyphens.Count - 1; hx >= 0; hx--)
+          {
+            _font._glyphs.RemoveAt(_font._hyphens[hx]);
+          }
+          _font._hyphens = null;
+        }
+      }
+    }
+
+        private void MakeSpecialChars(UiFontInfo fontInfo, UiFontLayoutData dat)
+    {
+      //Removing hyphenation
+      //note STB font uses utf-8 code points
+      //https://www.compart.com/en/unicode/U+2010
+      //utf16 0x2010; U+2010; utf-8 0xE2 0x80 0x90; html &#8208; &#x2010; &dash;
+      //NOTE: '-' = 45 = 0x2D is 'minus' which is not equal to hyphen
+      // dat._ch = 0x2D;
+      // fontInfo._hyphen = CreateGlyph(dat);
+      // //dat._ch=0x80; fontInfo._hyphen2 = CreateGlyph(dat);  
+      // //dat._ch=0x90; fontInfo._hyphen3 = CreateGlyph(dat);  
+      // //https://unicodeplus.com/U+00AD
+      // dat._ch = 0xAD;//U+00AD (SHY) &#x00AD;
+      // fontInfo._soft_hyphen = CreateGlyph(dat);
+      // fontInfo._hyphen._displayMode =
+      // fontInfo._soft_hyphen._displayMode = UiDisplayMode.Block;
+      // dat._ch = 0;//reset dat.
+    }

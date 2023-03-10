@@ -39,243 +39,19 @@ namespace Loft
       return e;
     }
   }
-  public static class FontFace
-  {
-    public static FileLoc Default { get { return FontFace.RobotoMono; } }
-    public static FileLoc RobotoMono = new FileLoc("RobotoMono-Regular.ttf", EmbeddedFolder.Font, "RobotoMono");
-    public static FileLoc Parisienne = new FileLoc("Parisienne-Regular.ttf", EmbeddedFolder.Font, "Parisienne");
-    public static FileLoc PressStart2P = new FileLoc("PressStart2P-Regular.ttf", EmbeddedFolder.Font, "PressStart2P");
-    public static FileLoc Calibri = new FileLoc("calibri.ttf", EmbeddedFolder.Font, "Calibri");
-    public static FileLoc EmilysCandy = new FileLoc("EmilysCandy-Regular.ttf", EmbeddedFolder.Font, "EmilysCandy");
-  }
-  public enum UiDisplayMode // display mode for static elements
-  {
-    Inline, //stays on line until end of line and wraps
-    Block, //always wraps
-    Word, //sticks with neighboring word elements (word wrap)
-    NoWrap //never wraps
-  }
-  public enum UiPositionMode
-  {
-    Static, // computed position
-    Fixed, // relative to parent content origin
-    //Removed absolute position due to sorting issues
-  }
-  public enum UiAlignment
-  {
-    Left,
-    Center,
-    Right,
-    Justified,
-  }
-  public enum UiSizeMode
-  {
-    Fixed, // Fixed width/height
-    Content, //Shrink to size of contents
-    Percent, //Expand to parent's maximum inherited width/height% (not MaxWidth, but the maximum clip width)
-    Auto, // Auto 
-          // 1 Fits remaining space based on AutoMode. 
-          // 2 Multiple Autos take up equal space (limited by MaxWH)
-          // 3 Can have zero width
-          // 4 WILL WRAP or PUSH CONTENT if min > 0 or display==block
-          // 6 Respects min/max property
-    AutoContent, //same as Auto but will not shrink below content
-  }
-  /*
-  UiAutoMode Static, Content -- parent attribute, determines the space allowed for autos to expand.
-UiSizeMode Auto, AutoContent -- child attribute
-
-  */
-  public enum UiAutoMode
-  {
-    Line,//Expand autos up to the width of the computed static area
-    Content,//Expand autos up to the parent's content area.
-  }
-  public enum UiRenderMode
-  {
-    None, //Note: DisplayMode = none, CSS.
-    Color, // Flat color (Texture = default pixel)
-    Textured, // Use custom Texture
-  }
-  public enum UiBuildOrder
-  {
-    Horizontal, //Shrink to size of child contents, taking Max Width/Height into account
-    Vertical, //Expand to parent
-  }
-  public enum UiOverflowMode
-  {
-    Show, //default - shows all elements outside of content 
-    Content, //hide everyting within the clip region, including elements overlapping parent padding
-    Border, // allow elements to go over the border if they overflow.
-    Padding // allow elements to go over the padding.
-  };
-  public enum UiImageTiling
-  {
-    Expand,//expand to fit quad
-    Tile, //tile the image
-    Computed, //tiling is computed
-    Proportion //height is proportional to width
-  }
-  public enum UiFontStyle
-  {
-    Normal,
-    Bold,
-    Italic
-  }
-  public enum UiFloatMode
-  {
-    None, // flows within page/container, position is ignored (text)
-    Floating, //Floats above parent. Element does not affect container region, or static elements. BUT affects clip region (for context menu).
-  }
-  public enum UiOrientation
-  {
-    //https://www.w3.org/TR/CSS2/visuren.html#propdef-direction
-    Horizontal,
-    Vertical,
-  }
-  public enum UiWrapMode
-  {
-    None,
-    Char, //wrap at chars / elements (default)
-    Word, //word wrap, see TextHyphens to hyphenate chars
-    Line, //only wrap newlines (\n)
-  }
-  public enum UiLayoutDirection
-  {
-    LeftToRight, //roman (top to bot in vertical layout)
-    RightToLeft, //arabic (bot to top in vertical layout)
-  }
-  public enum UiVStatMode
-  {
-    //this may not be necessary
-    Line, //make new line for VAuto
-    ParentContent, //Stretch across parent content
-  }
-  public enum UiTextHyphens
-  {
-    //Hyphenation rules when wrapping text
-    None,
-    Manual, // respects suggestions only. for example if you just copy-pasted text with - hyphens already in it, but you don't want the system to hyphenate.
-    Auto, // auto hyphens, and also respects suggestion chars
-    // hyphen suggestion chars. 
-    // U+2010 '-' (hyphen) 
-    // U+00AD (invisible hyphen)
-  }
-  public enum UiEventId
-  {
-    Undefined,
-
-    LmbPress,
-    LmbHold,
-    LmbRelease,
-    LmbUp,
-    LmbDrag,
-    RmbPress,
-    RmbHold,
-    RmbRelease,
-    RmbUp,
-
-    Mouse_Enter,
-    Mouse_Move,
-    Mouse_Leave,
-    Mouse_Scroll,
-
-    Lost_Focus,
-    Got_Focus,
-  };
-  public enum UiMouseState
-  {
-    //This differs from ButtonState in the fact
-    None,  // not hovering
-    Enter, // hover start
-    Hover, // hovering
-    Move,  // hover + moved
-    Leave, // hover end
-    Press, // hover + click
-    Hold,  // hover + hold
-    Up   // hover + release
-  }
-  public enum UiPropName
-  {
-    Top
-    , Left
-    , MinWidth
-    , MinHeight
-    , MaxWidth
-    , MaxHeight
-    , FixedWidth
-    , FixedHeight
-    , PercentWidth
-    , PercentHeight
-    , PadTop
-    , PadRight
-    , PadBot
-    , PadLeft
-    , MarginTop
-    , MarginRight
-    , MarginBot
-    , MarginLeft
-    , BorderTop
-    , BorderRight
-    , BorderBot
-    , BorderLeft
-    , BorderTopLeftRadius
-    , BorderTopRightRadius
-    , BorderBotRightRadius
-    , BorderBotLeftRadius
-    , Color
-    , MultiplyColor
-    , BorderColorTop
-    , BorderColorRight
-    , BorderColorBot
-    , BorderColorLeft
-    , FontFace
-    , FontSize
-    , FontStyle
-    , FontColor
-    , LineHeight
-    , Tracking
-    , Texture
-    , ImageTilingX
-    , ImageTilingY
-    , ImageScaleX
-    , ImageScaleY
-    , DisplayMode
-    , PositionModeY
-    , PositionModeX
-    , OverflowMode
-    , SizeModeWidth
-    , SizeModeHeight
-    , FloatMode
-    , RenderMode
-    , ContentAlignX
-    , ContentAlignY
-    , Opacity
-    , LayoutOrientation
-    , LayoutDirection
-    , TextWrap
-    , FontWeight
-    , AutoModeWidth
-    , AutoModeHeight
-    , VStatMode
-    , Hyphens
-
-    //****
-    , MaxUiProps
-  }
 
   #endregion
   #region Base / Helpers
 
-  public class UiTexture
+  public class UiTexture : IUiTexture
   {
     public UiTexture() { }
     public UiTexture(FileLoc path) { _path = path; Modified = true; }
     public MtTex? Image { get { return _texture; } set { _texture = value; } }
     public FileLoc? Loc { get { return _path; } set { _path = value; Modified = true; } }
+    public bool Modified { get; set; }
     private FileLoc? _path = null;
     private MtTex? _texture = null;
-    public bool Modified { get; set; }
   }
   public class UiLayoutGlobals : IUiLayoutGlobals
   {
@@ -402,6 +178,9 @@ UiSizeMode Auto, AutoContent -- child attribute
     public float Right { get { return _left + _width; } }
     public float Bottom { get { return _top + _height; } }
 
+    public UiQuad() { }
+    public UiQuad(float l, float t, float w, float h) { _left = l; _top = t; _width = w; _height = h; }
+
     public void ShrinkBy(UiSize4 border, vec2 scale)
     {
       _left += border._left * scale.x;
@@ -409,14 +188,17 @@ UiSizeMode Auto, AutoContent -- child attribute
       _width -= (border._left * scale.x + border._right * scale.x);
       _height -= (border._top * scale.y + border._bot * scale.y);
     }
-
-    public void Zero() { _top = 0; _left = 0; _width = 0; _height = 0; }
-
+    public void Zero()
+    {
+      _top = 0;
+      _left = 0;
+      _width = 0;
+      _height = 0;
+    }
     public bool ContainsPointBLI(vec2 v)
     {
       return _left <= v.x && (_left + _width) > v.x && _top <= v.y && (_top + _height) > v.y;
     }
-
     public void Scale(vec2 scale)
     {
       _left *= scale.x;
@@ -424,8 +206,6 @@ UiSizeMode Auto, AutoContent -- child attribute
       _width *= scale.x;
       _height *= scale.y;
     }
-    public UiQuad() { }
-    public UiQuad(float l, float t, float w, float h) { _left = l; _top = t; _width = w; _height = h; }
     public bool Equals(UiQuad q)
     {
       return (q._left == this._left &&
@@ -627,7 +407,7 @@ UiSizeMode Auto, AutoContent -- child attribute
     public vec4 BorderColorRight = new vec4(0, 0, 0, 1);
     public vec4 BorderColorBot = new vec4(0, 0, 0, 1);
     public vec4 BorderColorLeft = new vec4(0, 0, 0, 1);
-    public FileLoc FontFace = Loft.FontFace.Calibri;
+    public FileLoc FontFace = Loft.UiFontFace.Calibri;
     public float FontSize = 12;
     public UiFontStyle FontStyle = UiFontStyle.Normal;
     public vec4 FontColor = new vec4(0, 0, 0, 1);
@@ -656,7 +436,7 @@ UiSizeMode Auto, AutoContent -- child attribute
     public UiOrientation LayoutOrientation = UiOrientation.Horizontal;
     public UiLayoutDirection LayoutDirection = UiLayoutDirection.LeftToRight;
     public UiVStatMode VStatMode = UiVStatMode.Line;
-    public UiTextHyphens Hyphens = UiTextHyphens.Auto;
+    public UiTextHyphens Hyphens = UiTextHyphens.Manual;
 
     //Most of this generic field junk can go away and we can manually just return the variables. My hands were huring here so..ugh
     private static UiProps _defaults = new UiProps();//defaults are just set on the field initializer.
@@ -850,7 +630,6 @@ UiSizeMode Auto, AutoContent -- child attribute
 
       _startValue = (prop as T?).Value;
       _endValue = endValue;
-
     }
     public bool Update(double dt)
     {
@@ -900,7 +679,7 @@ UiSizeMode Auto, AutoContent -- child attribute
     }
 
   }
-  public class UiStyle
+  public class UiStyle : IUiStyle
   {
     #region Props
 
@@ -915,7 +694,6 @@ UiSizeMode Auto, AutoContent -- child attribute
         Margin = Border = Padding = value;
       }
     }
-
     public float? Margin
     {
       get { return (float?)_props.Get(UiPropName.MarginTop); }
@@ -1012,7 +790,7 @@ UiSizeMode Auto, AutoContent -- child attribute
     public UiImageTiling? ImageTilingY { get { return (UiImageTiling?)GetClassProp(UiPropName.ImageTilingY); } set { SetProp(UiPropName.ImageTilingY, (UiImageTiling?)value); } }
     public float? ImageScaleX { get { return (float?)GetClassProp(UiPropName.ImageScaleX); } set { SetProp(UiPropName.ImageScaleX, (float?)value); } }
     public float? ImageScaleY { get { return (float?)GetClassProp(UiPropName.ImageScaleY); } set { SetProp(UiPropName.ImageScaleY, (float?)value); } }
-    public UiTexture Texture { get { return (UiTexture)GetClassProp(UiPropName.Texture); } set { SetProp(UiPropName.Texture, (UiTexture)value); } }
+    public IUiTexture Texture { get { return (IUiTexture)GetClassProp(UiPropName.Texture); } set { SetProp(UiPropName.Texture, (IUiTexture)value); } }
     public UiFloatMode? FloatMode { get { return (UiFloatMode?)GetClassProp(UiPropName.FloatMode); } set { SetProp(UiPropName.FloatMode, (UiFloatMode?)value); } }
     public UiRenderMode? RenderMode { get { return (UiRenderMode?)GetClassProp(UiPropName.RenderMode); } set { SetProp(UiPropName.RenderMode, (UiRenderMode?)value); } }
     public UiAlignment? ContentAlignX { get { return (UiAlignment?)GetClassProp(UiPropName.ContentAlignX); } set { SetProp(UiPropName.ContentAlignX, (UiAlignment?)value); } }
@@ -1501,15 +1279,15 @@ UiSizeMode Auto, AutoContent -- child attribute
     public float _lineHeight = -1;
     public MtFontChar? _cachedGlyph = null;
     public int _code;
-    //#if DEBUG
-    public string _dbg_word = "";
-    //#endif
     public float _advance = 0; // advance width
     public float _top_off = 0; // top (ceneterline for static layint is center of line but origin is top left)
     public float _left_off = 0; // top (ceneterline for static layint is center of line but origin is top left)
-
+    public float _justify_sp = 0; // top (ceneterline for static layint is center of line but origin is top left)
     public UiGlyph? _next = null;
     public UiGlyph? _prev = null;
+
+    //**DEBUG ONLY
+    public string _dbg_word = "";
 
     public UiGlyph()
     {
@@ -1532,15 +1310,29 @@ UiSizeMode Auto, AutoContent -- child attribute
     }
     public UiGlyph Clone()
     {
-      return (UiGlyph)this.MemberwiseClone();
+      UiGlyph gg = new UiGlyph();
+      gg._block = this._block.Clone();
+      gg._displayMode = this._displayMode;
+      gg._wordWidth = this._wordWidth;
+      gg._wordHeight = this._wordHeight;
+      gg._word_id = 0;
+      gg._word_char_id = 0;
+      gg._glyphcolor = this._glyphcolor;
+      gg._lineHeight = this._lineHeight;
+      gg._cachedGlyph = this._cachedGlyph;
+      gg._code = this._code;
+      gg._advance = this._advance;
+      gg._top_off = this._top_off;
+      gg._left_off = this._left_off;
+      gg._next = null;
+      gg._prev = null;
+      return gg;
     }
   }
-
   public class UiFontLayoutData
   {
     public UiFontLayoutData()
     {
-
     }
     public float _fontHeight = 0;
     public float _lineHeight;
@@ -1565,6 +1357,7 @@ UiSizeMode Auto, AutoContent -- child attribute
 
     public MtFontPatch? _patch;
     public MtFontLoader? _loader;
+    public UiTextHyphens _hyphens;
   }
   public class UiGlyphCache
   {
@@ -1572,7 +1365,8 @@ UiSizeMode Auto, AutoContent -- child attribute
     public UiGlyphCache() { }
     public bool _round = true;//round the position of text
 
-    public void CreateGlyphs(UiFontInfo fontInfo, MtFontLoader loader, MtFontPatch patch, string textt, FileLoc face, float fontHeight, UiWrapMode wrap, float lineheight, float tracking)
+    public void CreateGlyphs(UiFontInfo fontInfo, MtFontLoader loader, MtFontPatch patch, string in_text, FileLoc face,
+    float fontHeight, UiWrapMode wrap, float lineheight, float tracking, UiTextHyphens hyphens)
     {
       //create glyphs
       //TODO: we were caching GetFont before. See if this slows things down.
@@ -1580,7 +1374,7 @@ UiSizeMode Auto, AutoContent -- child attribute
       Gu.Assert(patch != null);
 
       UiFontLayoutData dat = new UiFontLayoutData();
-      dat._text = textt;
+      dat._text = in_text;
       dat._loader = loader;
       dat._patch = patch;
       dat._fontHeight = fontHeight;
@@ -1589,10 +1383,9 @@ UiSizeMode Auto, AutoContent -- child attribute
       dat._emscale = patch.ScaleForPixelHeight;
       dat._lineHeight = loader.LineHeight * patch.ScaleForPixelHeight * lineheight;
       dat._tracking = tracking;
+      dat._hyphens = hyphens;
 
       fontInfo._glyphs = new List<UiGlyph>();
-
-      MakeSpecialChars(fontInfo, dat);
 
       for (dat._ci = 0; dat._ci < dat._text.Length; dat._ci++)
       {
@@ -1609,25 +1402,6 @@ UiSizeMode Auto, AutoContent -- child attribute
         }
       }
 
-    }
-    private void MakeSpecialChars(UiFontInfo fontInfo, UiFontLayoutData dat)
-    {
-      //note STB font uses utf-8 code points
-      //https://www.compart.com/en/unicode/U+2010
-      //utf16 0x2010; U+2010; utf-8 0xE2 0x80 0x90; html &#8208; &#x2010; &dash;
-      //NOTE: '-' = 45 = 0x2D is 'minus' which is not equal to hyphen
-      dat._ch = 0xE2;
-      fontInfo._hyphen = CreateGlyph(dat);
-      //dat._ch=0x80; fontInfo._hyphen2 = CreateGlyph(dat);  
-      //dat._ch=0x90; fontInfo._hyphen3 = CreateGlyph(dat);  
-      //https://unicodeplus.com/U+00AD
-      dat._ch = 0xAD;//U+00AD (SHY) &#x00AD;
-      fontInfo._soft_hyphen = CreateGlyph(dat);
-
-      fontInfo._hyphen._displayMode =
-      fontInfo._soft_hyphen._displayMode = UiDisplayMode.Block;
-
-      dat._ch = 0;//reset dat.
     }
     private UiGlyph CreateGlyph(UiFontLayoutData dat)
     {
@@ -1700,6 +1474,11 @@ UiSizeMode Auto, AutoContent -- child attribute
       {
         gc._displayMode = UiDisplayMode.NoWrap;
       }
+      else if (dat._hyphens == UiTextHyphens.Manual && (dat._ch == 0x8208))
+      {
+        //There are several unicode hyphens but this one seems to be the most used in HTML
+        gc._displayMode = UiDisplayMode.Block;
+      }
       else if (dat._textWrap == UiWrapMode.Char)
       {
         gc._displayMode = UiDisplayMode.Inline;
@@ -1756,6 +1535,7 @@ UiSizeMode Auto, AutoContent -- child attribute
           }
         }
       }
+
 
       if (dat._wordstart != null)
       {
@@ -2080,6 +1860,25 @@ UiSizeMode Auto, AutoContent -- child attribute
     public UiLayoutLine? _line = null; //ref to line if static
     public UiBlock? _previous = null; //ref to previous if static
     public uint _rootPickId = 0;
+
+    public UiBlockInfo Clone()
+    {
+      var bi = new UiBlockInfo();
+      bi._b2ContentQuad = this._b2ContentQuad.Clone();
+      bi._b2LayoutQuad = this._b2LayoutQuad.Clone();
+      bi._b2LayoutQuadLast = this._b2LayoutQuadLast.Clone();
+      bi._b2ClipQuad = this._b2ClipQuad.Clone();
+      bi._b2MarginQuad = this._b2MarginQuad.Clone();
+      bi._b2BorderQuad = this._b2BorderQuad.Clone();
+      bi._b2BorderQuadLast = this._b2BorderQuadLast.Clone();
+      bi._b2ContentClip = this._b2ContentClip.Clone();
+      bi._index = new UiInt2();
+      bi._container = null;
+      bi._line = null;
+      bi._previous = null;
+      bi._rootPickId = 0;
+      return bi;
+    }
   }
   public class UiContainerInfo
   {
@@ -2112,11 +1911,10 @@ UiSizeMode Auto, AutoContent -- child attribute
   {
     public string _strText = "";
     public List<UiGlyph>? _glyphs = null;
-    public UiGlyph? _hyphen = null;
-    public UiGlyph? _soft_hyphen = null;
     public MtFontLoader? _cachedFont = null;
     public bool _textChanged = false;
     public bool _bNeverDoneText = true;
+    public int _baseGlyphCount = 0; // glyphs before generated stuff
   }
   public class UiLayoutLine //uilayoutline , uiline
   {
@@ -2128,6 +1926,7 @@ UiSizeMode Auto, AutoContent -- child attribute
     public UiAutoInfo? _autoInfo = null; //horizontal autos
     public UiLayoutLine? _previous = null;//previous line
     public int _index = -1;
+    public int _wordCount = 0;
     public UiLayoutLine(int index)
     {
       _index = index;
@@ -2179,7 +1978,7 @@ UiSizeMode Auto, AutoContent -- child attribute
         }
       }
     }
-    public UiStyle Style { get { return _style; } }
+    public IUiStyle Style { get { return _style; } }
     public bool Visible { get { return _visible; } set { _visible = value; } }// ** May be on style .. 
     public Dictionary<UiEventId, List<UiAction>> Events { get { return _events; } set { _events = value; } }
     public UiQuad ContentQuad { get { return _block._b2ContentQuad; } }
@@ -2187,7 +1986,7 @@ UiSizeMode Auto, AutoContent -- child attribute
     public UiQuad MarginQuad { get { return _block._b2MarginQuad; } }
     public UiElement? Parent { get { return _parent; } }
     public bool TopMost { get { return _topMost; } set { _topMost = value; } }
-    public override UiDisplayMode DisplayMode { get { return Style._props.DisplayMode; } }
+    public override UiDisplayMode DisplayMode { get { return _style._props.DisplayMode; } }
     public int Sort { get { return _sort; } set { _sort = value; } }
     public bool PickEnabled { get { return _pickEnabled; } set { _pickEnabled = value; UpdatePickID(); } }
     public int ChildCount { get { return _children == null ? 0 : _children.Count; } }
@@ -2233,7 +2032,7 @@ UiSizeMode Auto, AutoContent -- child attribute
 
     public override float L_Left(UiOrientation o)
     {
-      return (o == UiOrientation.Horizontal) ? Style._props.Left : Style._props.Top;
+      return (o == UiOrientation.Horizontal) ? _style._props.Left : _style._props.Top;
     }
     public override float L_Top(UiOrientation o)
     {
@@ -2347,10 +2146,10 @@ UiSizeMode Auto, AutoContent -- child attribute
       }
       return new UiSize4()
       {
-        _top = (dd.DisableMargins ? 0 : Style._props.MarginTop) + (dd.DisableBorders ? 0 : Style._props.BorderTop) + (dd.DisablePadding ? 0 : Style._props.PadTop),
-        _right = (dd.DisableMargins ? 0 : Style._props.MarginRight) + (dd.DisableBorders ? 0 : Style._props.BorderRight) + (dd.DisablePadding ? 0 : Style._props.PadRight),
-        _bot = (dd.DisableMargins ? 0 : Style._props.MarginBot) + (dd.DisableBorders ? 0 : Style._props.BorderBot) + (dd.DisablePadding ? 0 : Style._props.PadBot),
-        _left = (dd.DisableMargins ? 0 : Style._props.MarginLeft) + (dd.DisableBorders ? 0 : Style._props.BorderLeft) + (dd.DisablePadding ? 0 : Style._props.PadLeft)
+        _top = (dd.DisableMargins ? 0 : _style._props.MarginTop) + (dd.DisableBorders ? 0 : _style._props.BorderTop) + (dd.DisablePadding ? 0 : _style._props.PadTop),
+        _right = (dd.DisableMargins ? 0 : _style._props.MarginRight) + (dd.DisableBorders ? 0 : _style._props.BorderRight) + (dd.DisablePadding ? 0 : _style._props.PadRight),
+        _bot = (dd.DisableMargins ? 0 : _style._props.MarginBot) + (dd.DisableBorders ? 0 : _style._props.BorderBot) + (dd.DisablePadding ? 0 : _style._props.PadBot),
+        _left = (dd.DisableMargins ? 0 : _style._props.MarginLeft) + (dd.DisableBorders ? 0 : _style._props.BorderLeft) + (dd.DisablePadding ? 0 : _style._props.PadLeft)
       };
     }
     public UiSize4 GetMarginAndBorder(UiLayoutGlobals dd)
@@ -2360,10 +2159,10 @@ UiSizeMode Auto, AutoContent -- child attribute
         return new UiSize4();
       }
       return new UiSize4(
-        (dd.DisableMargins ? 0 : Style._props.MarginTop) + (dd.DisableBorders ? 0 : Style._props.BorderTop),
-        (dd.DisableMargins ? 0 : Style._props.MarginRight) + (dd.DisableBorders ? 0 : Style._props.BorderRight),
-        (dd.DisableMargins ? 0 : Style._props.MarginBot) + (dd.DisableBorders ? 0 : Style._props.BorderBot),
-        (dd.DisableMargins ? 0 : Style._props.MarginLeft) + (dd.DisableBorders ? 0 : Style._props.BorderLeft)
+        (dd.DisableMargins ? 0 : _style._props.MarginTop) + (dd.DisableBorders ? 0 : _style._props.BorderTop),
+        (dd.DisableMargins ? 0 : _style._props.MarginRight) + (dd.DisableBorders ? 0 : _style._props.BorderRight),
+        (dd.DisableMargins ? 0 : _style._props.MarginBot) + (dd.DisableBorders ? 0 : _style._props.BorderBot),
+        (dd.DisableMargins ? 0 : _style._props.MarginLeft) + (dd.DisableBorders ? 0 : _style._props.BorderLeft)
       );
     }
     public UiSize4 GetMargin(UiLayoutGlobals dd)
@@ -2373,10 +2172,10 @@ UiSizeMode Auto, AutoContent -- child attribute
         return new UiSize4();
       }
       return new UiSize4(
-        Style._props.MarginTop,
-        Style._props.MarginRight,
-        Style._props.MarginBot,
-        Style._props.MarginLeft
+        _style._props.MarginTop,
+        _style._props.MarginRight,
+        _style._props.MarginBot,
+        _style._props.MarginLeft
       );
     }
     public UiSize4 GetPadding(UiLayoutGlobals dd)
@@ -2386,10 +2185,10 @@ UiSizeMode Auto, AutoContent -- child attribute
         return new UiSize4();
       }
       return new UiSize4(
-        Style._props.PadTop,
-        Style._props.PadRight,
-        Style._props.PadBot,
-        Style._props.PadLeft
+        _style._props.PadTop,
+        _style._props.PadRight,
+        _style._props.PadBot,
+        _style._props.PadLeft
       );
     }
     public UiSize4 GetBorder(UiLayoutGlobals? dd)
@@ -2399,10 +2198,10 @@ UiSizeMode Auto, AutoContent -- child attribute
         return new UiSize4();
       }
       return new UiSize4(
-        Style._props.BorderTop,
-        Style._props.BorderRight,
-        Style._props.BorderBot,
-        Style._props.BorderLeft
+        _style._props.BorderTop,
+        _style._props.BorderRight,
+        _style._props.BorderBot,
+        _style._props.BorderLeft
       );
     }
     public UiSize4 GetBorderRadius(UiLayoutGlobals dd)
@@ -2412,10 +2211,10 @@ UiSizeMode Auto, AutoContent -- child attribute
         return new UiSize4();
       }
       return new UiSize4(
-        Style._props.BorderTopLeftRadius,
-        Style._props.BorderTopRightRadius,
-        Style._props.BorderBotRightRadius,
-        Style._props.BorderBotLeftRadius
+        _style._props.BorderTopLeftRadius,
+        _style._props.BorderTopRightRadius,
+        _style._props.BorderBotRightRadius,
+        _style._props.BorderBotLeftRadius
       );
     }
     public UiElement? LastChild()
@@ -2587,7 +2386,7 @@ UiSizeMode Auto, AutoContent -- child attribute
     }
     public void AddStyle(string name)
     {
-      this.Style.InheritFrom(name);
+      this._style.InheritFrom(name);
     }
 
     #endregion
@@ -2660,27 +2459,32 @@ UiSizeMode Auto, AutoContent -- child attribute
     {
       globals.Gui.NameTrap(this);
 
-      bool styleChanged = Style.Modified || parentstylechanged;//TODO: rework styles to not do this
+      bool styleChanged = _style.Modified || parentstylechanged;//TODO: rework styles to not do this
 
-      Style.CompileStyleTree(globals.StyleSheet, globals.Framestamp, parent, parentstylechanged);
+      _style.CompileStyleTree(globals.StyleSheet, globals.Framestamp, parent, parentstylechanged);
 
-      UpdateGlyphs(globals, styleChanged);
+      ComputeLayoutInfo(parentMaxWH, globals);
 
-      if (Style._props.RenderMode == UiRenderMode.Textured)
+      bool updateGlyphs = MustUpdateGlyphs(globals, styleChanged);
+      if (updateGlyphs)
+      {
+        UpdateGlyphs(globals);
+      }
+
+      if (_style._props.RenderMode == UiRenderMode.Textured)
       {
         UpdateTexture(globals.MegaTex);
       }
 
-      ComputeLayoutInfo(parentMaxWH, globals);
-
       if (_children != null && _children.Count > 0)
       {
         int lineidx = 0;
-        foreach (var ele in _children)
+        for (int eidx = 0; eidx < _children.Count; eidx++)
         {
+          var ele = _children[eidx];
           if (ele.Visible)
           {
-            ele.PerformLayout_SizeElements(_block._container._contentMaxWH, this.Style, globals, styleChanged);
+            ele.PerformLayout_SizeElements(_block._container._contentMaxWH, this._style, globals, styleChanged);
             LayoutElement(ele, lineidx);
           }
         }
@@ -2688,13 +2492,16 @@ UiSizeMode Auto, AutoContent -- child attribute
 
       if (_font != null && _font._glyphs != null && _font._glyphs.Count > 0)
       {
-        foreach (var gc in _font._glyphs)
+        for (int eidx = 0; eidx < _font._glyphs.Count; eidx++)
         {
+          var gc = _font._glyphs[eidx];
           LayoutBlock(gc, true, null);
         }
       }
 
       FinalizeLayout();
+
+      JustifyText();
 
       SizeElement();
     }
@@ -2714,7 +2521,6 @@ UiSizeMode Auto, AutoContent -- child attribute
 
       SetPickRoot(rootPickId, ref pickable);
 
-
       //compute & render children
       if (_children != null && _children.Count > 0)
       {
@@ -2731,6 +2537,37 @@ UiSizeMode Auto, AutoContent -- child attribute
       }
 
       _contentChanged = false;
+    }
+    private void JustifyText()
+    {
+      if (_style._props.ContentAlignX == UiAlignment.Justify)
+      {
+        if (this._static != null && this._static._glyphlines != null)
+        {
+          for (int li = 0; li < _static._glyphlines.Count - 1; li++)
+          {
+            var line = _static._glyphlines[li];
+            var cw = this._container._contentWH._width - line._quad._width;
+            if (cw > 0)
+            {
+              float ct = 0;
+              var sp = cw / (float)Math.Max(line._wordCount, 0);
+              foreach (var wc in line._eles)
+              {
+                if (wc is UiGlyph && (wc as UiGlyph).WordCharID == 0)
+                {
+                  if (ct > 0)
+                  {
+                    (wc as UiGlyph)._justify_sp = sp;
+                  }
+                  ct += 1;
+                }
+              }
+            }
+
+          }
+        }
+      }
     }
     private void CollectEvents(UiLayoutGlobals globals)
     {
@@ -2776,7 +2613,7 @@ UiSizeMode Auto, AutoContent -- child attribute
           {
             ComputeQuads(glyph, this, UiPositionMode.Static, UiPositionMode.Static, globals.Scale, UiOverflowMode.Show, globals, null);
 
-            vec4 color = Style._props.FontColor;
+            vec4 color = _style._props.FontColor;
             if (glyph.GlyphColor != null)
             {
               color = glyph.GlyphColor.Value;
@@ -2794,7 +2631,7 @@ UiSizeMode Auto, AutoContent -- child attribute
       }
 
       // Element verts
-      if (this.Style._props.FloatMode == UiFloatMode.Floating)
+      if (this._style._props.FloatMode == UiFloatMode.Floating)
       {
         AddElementVerts(_block._b2BorderQuad, _block._rootPickId, globals);
       }
@@ -2828,11 +2665,11 @@ UiSizeMode Auto, AutoContent -- child attribute
       _container._margin = GetMargin(dd);
 
       //if relative or absolute ignore  margins
-      if (this.Style._props.PositionModeX != UiPositionMode.Static)
+      if (this._style._props.PositionModeX != UiPositionMode.Static)
       {
         _container._margin._left = _container._margin._right = 0;
       }
-      if (this.Style._props.PositionModeY != UiPositionMode.Static)
+      if (this._style._props.PositionModeY != UiPositionMode.Static)
       {
         _container._margin._top = _container._margin._bot = 0;
       }
@@ -2847,26 +2684,26 @@ UiSizeMode Auto, AutoContent -- child attribute
         _container._margin._left + _container._border._left + _container._padding._left
       );
 
-      if (Style._props.SizeModeWidth == UiSizeMode.Fixed)
+      if (_style._props.SizeModeWidth == UiSizeMode.Fixed)
       {
-        _container._minWH._width = Style._props.FixedWidth;
-        _container._maxWH._width = Style._props.FixedWidth;
+        _container._minWH._width = _style._props.FixedWidth;
+        _container._maxWH._width = _style._props.FixedWidth;
       }
       else
       {
-        _container._minWH._width = Style._props.MinWidth;
-        _container._maxWH._width = Style._props.MaxWidth;
+        _container._minWH._width = _style._props.MinWidth;
+        _container._maxWH._width = _style._props.MaxWidth;
       }
 
-      if (Style._props.SizeModeHeight == UiSizeMode.Fixed)
+      if (_style._props.SizeModeHeight == UiSizeMode.Fixed)
       {
-        _container._minWH._height = Style._props.FixedHeight;
-        _container._maxWH._height = Style._props.FixedHeight;
+        _container._minWH._height = _style._props.FixedHeight;
+        _container._maxWH._height = _style._props.FixedHeight;
       }
       else
       {
-        _container._minWH._height = Style._props.MinHeight;
-        _container._maxWH._height = Style._props.MaxHeight;
+        _container._minWH._height = _style._props.MinHeight;
+        _container._maxWH._height = _style._props.MaxHeight;
       }
 
       ComputeMaxWH(parentMaxWH);
@@ -2889,10 +2726,10 @@ UiSizeMode Auto, AutoContent -- child attribute
     private void LayoutElement(UiElement ele, int lineidx)
     {
       //Compute the size of the element and any relative element/lines.
-      var ori = Style._props.LayoutOrientation;
-      var perp = UiUtils.Perp(Style._props.LayoutOrientation);
-      var ele_hmode = ele.Style._props.L_PositionMode(ori);
-      var ele_vmode = ele.Style._props.L_PositionMode(perp);
+      var ori = _style._props.LayoutOrientation;
+      var perp = UiUtils.Perp(_style._props.LayoutOrientation);
+      var ele_hmode = ele._style._props.L_PositionMode(ori);
+      var ele_vmode = ele._style._props.L_PositionMode(perp);
 
       if (ele_hmode == UiPositionMode.Static)
       {
@@ -2912,11 +2749,11 @@ UiSizeMode Auto, AutoContent -- child attribute
           // Several things we can do: add to first line, but would require new line if none,
           // add to specific line via an ID parameter
           //  or just a default line that is the height of the content. * 
-          LayoutBlock(ele, true, Style._props.VStatMode);
+          LayoutBlock(ele, true, _style._props.VStatMode);
         }
         CollectVAuto(ele, perp);
       }
-      if (ele.Style._props.FloatMode != UiFloatMode.Floating)
+      if (ele._style._props.FloatMode != UiFloatMode.Floating)
       {
         ExpandByPositionalElement(ele, UiOrientation.Horizontal);
         ExpandByPositionalElement(ele, UiOrientation.Vertical);
@@ -2945,7 +2782,7 @@ UiSizeMode Auto, AutoContent -- child attribute
     private float GetAutoMaxExpansion(UiElement ele, UiOrientation ori)
     {
       var e_max = ele._container._maxWH.L_Width(ori);
-      if (ele.Style._props.L_AutoMode(ori) == UiAutoMode.Content)
+      if (ele._style._props.L_AutoMode(ori) == UiAutoMode.Content)
       {
         //remove content from maxwh 
         e_max = Math.Max(e_max - ele._container._contentWH.L_Width(ori), 0);
@@ -2954,7 +2791,7 @@ UiSizeMode Auto, AutoContent -- child attribute
     }
     private static bool IsAuto(UiElement ele, UiOrientation ori)
     {
-      return ele.Style._props.L_SizeMode(ori) == UiSizeMode.Auto || ele.Style._props.L_SizeMode(ori) == UiSizeMode.AutoContent;
+      return ele._style._props.L_SizeMode(ori) == UiSizeMode.Auto || ele._style._props.L_SizeMode(ori) == UiSizeMode.AutoContent;
     }
     private void FinalizeLayout()
     {
@@ -2973,7 +2810,7 @@ UiSizeMode Auto, AutoContent -- child attribute
         FinishDefaultLine();
 
         //max of glyph/element
-        var ori = Style._props.LayoutOrientation;
+        var ori = _style._props.LayoutOrientation;
         _static._staticWH.L_Width(ori, Math.Max(_static._glyphWH.L_Width(ori), _static._elementWH.L_Width(ori)));
         _static._staticWH.L_Height(ori, Math.Max(_static._glyphWH.L_Height(ori), _static._elementWH.L_Height(ori)));
         _container._contentWH.L_Width(ori, Math.Max(_container._contentWH.L_Width(ori), _static._staticWH.L_Width(ori)));
@@ -2986,7 +2823,7 @@ UiSizeMode Auto, AutoContent -- child attribute
       //Expand w/h of parent container, update autos
       UpdateAutoLines(line);
 
-      var ori = Style._props.LayoutOrientation;
+      var ori = _style._props.LayoutOrientation;
 
       //Expand pre-auto static wh
       if (is_glyphs)
@@ -3006,7 +2843,7 @@ UiSizeMode Auto, AutoContent -- child attribute
       if (_static._contentLine != null && _static._contentLine._eles != null && _static._contentLine._eles.Count > 0)
       {
         //set default (vstat) line to static content 
-        var perp = UiUtils.Perp(Style._props.LayoutOrientation);
+        var perp = UiUtils.Perp(_style._props.LayoutOrientation);
         _static._contentLine._quad.L_Width(perp, _static._staticWH.L_Width(perp));
         UpdateAutoLines(_static._contentLine);
       }
@@ -3016,7 +2853,7 @@ UiSizeMode Auto, AutoContent -- child attribute
       //Update the auto information 
       if (line._autoInfo != null)
       {
-        var ori = Style._props.LayoutOrientation;
+        var ori = _style._props.LayoutOrientation;
         if (line._autoInfo._hautos != null && line._autoInfo._hautos.Count > 0)
         {
           _static._autoLinesH = _static._autoLinesH.ConstructIfNeeded();
@@ -3040,11 +2877,11 @@ UiSizeMode Auto, AutoContent -- child attribute
     private void SizeElement(UiOrientation ori)
     {
       //compute minimum width/height of element, using, content + MBP
-      var mode = Style._props.L_SizeMode(ori);
+      var mode = _style._props.L_SizeMode(ori);
 
       if (mode == UiSizeMode.Fixed)
       {
-        _block._b2LayoutQuad.L_Width(ori, Style._props.L_FixedWidth(ori));
+        _block._b2LayoutQuad.L_Width(ori, _style._props.L_FixedWidth(ori));
       }
       else if (mode == UiSizeMode.Content)
       {
@@ -3054,7 +2891,7 @@ UiSizeMode Auto, AutoContent -- child attribute
       else if (mode == UiSizeMode.Percent)
       {
         //% of parent content area, expand after parent layout
-        var w = _parent._container._contentMaxWH.L_Width(ori) * Style._props.L_PercentWidth(ori) * 0.01f;
+        var w = _parent._container._contentMaxWH.L_Width(ori) * _style._props.L_PercentWidth(ori) * 0.01f;
         _block._b2LayoutQuad.L_Width(ori, w);
       }
       else if (mode == UiSizeMode.Auto)
@@ -3091,7 +2928,7 @@ UiSizeMode Auto, AutoContent -- child attribute
     private void LayoutBlock(UiBlock ele, bool glyphs, UiVStatMode? vstatmode)
     {
       //layout elements
-      var ori = Style._props.LayoutOrientation;
+      var ori = _style._props.LayoutOrientation;
       if (_static == null)
       {
         _static = new UiStaticInfo();
@@ -3123,6 +2960,11 @@ UiSizeMode Auto, AutoContent -- child attribute
       _static._last = ele;
 
       line._eles.Add(ele);
+
+      if (ele is UiGlyph && (ele as UiGlyph).WordCharID == 0)
+      {
+        line._wordCount++;
+      }
 
     }
     private UiLayoutLine GetLayoutLine(UiOrientation ori, UiBlock ele, UiVStatMode? vstatmode, bool is_glyphs, float e_width, float glyph_advance)
@@ -3177,10 +3019,6 @@ UiSizeMode Auto, AutoContent -- child attribute
           var space = _container._contentMaxWH.L_Width(ori);
           var line_w = line._quad.L_Width(ori);
 
-          // if (is_glyphs && CheckHyphenate(ele, line_w, e_width, space))
-          // {
-          // }
-          // else 
           if (CheckLineBreak(ele, ele.L_WordWidth(ori), line_w, space, e_width + glyph_advance))
           {
             line = NextLine(lines, line, is_glyphs);
@@ -3226,7 +3064,7 @@ UiSizeMode Auto, AutoContent -- child attribute
       _static._last = null;
       return line;
     }
-    private bool CheckLineBreak(UiBlock ele, float word_size, float l_width, float space, float e_size)
+    private bool CheckLineBreak(UiBlock ele, float word_size, float line_w, float space, float e_width)
     {
       bool bLineBreak = false;
 
@@ -3236,85 +3074,19 @@ UiSizeMode Auto, AutoContent -- child attribute
       }
       else if (ele.DisplayMode == UiDisplayMode.Inline)
       {
-        bLineBreak = (e_size + l_width > space);
+        bLineBreak = (e_width + line_w > space);
       }
       else if (ele.DisplayMode == UiDisplayMode.Word)
       {
-        bLineBreak = (e_size + l_width > space);
+        bLineBreak = (word_size + line_w > space);
       }
 
       return bLineBreak;
     }
-    private bool CheckHyphenate(UiBlock ele, float line_w, float e_width, float space)
-    {
-      //returns true if the word is going to be hyphenated and standard line breaking will be ignored
-      //_static._hyphen_flag || 
-      if (ele.DisplayMode == UiDisplayMode.Word && _style._props.Hyphens == UiTextHyphens.Auto)
-      {
-        if (_font._hyphen == null)
-        {
-          Gu.Log.Error("[Gui2d] No hyphen symbol was defined.");
-          Gu.DebugBreak();
-          return false;
-        }
-
-        var ori = UiOrientation.Horizontal;//Note; for texts that read vertically this is incorrect
-        UiGlyph? eg = ele as UiGlyph;
-        int min_pre_chars = 2;
-        var hyp_wd = _font._hyphen._block._b2LayoutQuad.L_Width(ori);
-
-        if (eg.WordCharID == 0)
-        {
-          //check lead char for hyphenation
-          var w = line_w + hyp_wd;
-          var pn = eg._next;
-          var pl = pn;
-          int prechars = 0;
-
-          while (pn != null)
-          {
-            w += pn._block._b2LayoutQuad.L_Width(ori);
-            if (w > space)
-            {
-              break;
-            }
-            if (prechars >= min_pre_chars)
-            {
-              //yes we can hyphenate.
-            // _static._hyphen_flag = true;
-              return true;
-            }
-            pn = pn._next;
-            prechars++;
-          }
-          return false;
-        }
-        else if (eg.WordCharID > 0)
-        {
-          if (line_w + e_width + hyp_wd > space)
-          {
-            // if (_static._generated == null)
-            // {
-            //   _static._generated = new List<UiBlock>();
-            // }
-            // var h1 = _font._hyphen.Clone();
-            // var h2 = _font._hyphen.Clone();
-            // h1._displayMode = UiDisplayMode.Block;
-            // h2._displayMode = UiDisplayMode.NoWrap;
-            // _static._generated.Add(h1);
-            // _static._generated.Add(h2);
-            // _static._hyphen_flag = false;
-            return true;
-          }
-        }
-      }
-
-      return false;
-    }
     private void ExpandByPositionalElement(UiElement ele, UiOrientation ori)
     {
       //Static elements expand content when laid out
-      var mode = ele.Style._props.L_PositionMode(ori);
+      var mode = ele._style._props.L_PositionMode(ori);
       if (mode == UiPositionMode.Fixed)
       {
         _container._contentWH.L_Width(ori,
@@ -3351,8 +3123,8 @@ UiSizeMode Auto, AutoContent -- child attribute
         2 compute equal_w & total_w
         3 iterate in order adding back to total_width if max < equal_w
       */
-      var ori = Style._props.LayoutOrientation;
-      var amode = Style._props.L_AutoMode(ori);
+      var ori = _style._props.LayoutOrientation;
+      var amode = _style._props.L_AutoMode(ori);
 
       float total_space = 0;
       if (amode == UiAutoMode.Content)
@@ -3373,7 +3145,7 @@ UiSizeMode Auto, AutoContent -- child attribute
       var autocount = (float)line._autoInfo._hautos.Count;
       if (line._autoInfo._hautos.Count > 1)
       {
-        line._autoInfo._hautos.Sort((x, y) => x.Style._props.L_MaxWidth(ori) - y.Style._props.L_MaxWidth(ori) > 0 ? 1 : -1);
+        line._autoInfo._hautos.Sort((x, y) => x._style._props.L_MaxWidth(ori) - y._style._props.L_MaxWidth(ori) > 0 ? 1 : -1);
       }
       if (line._autoInfo._hautos.Count == 2 && line._autoInfo._hautos[1].Text == "H Auto")
       {
@@ -3410,8 +3182,8 @@ UiSizeMode Auto, AutoContent -- child attribute
     }
     private void ExpandAutosV()
     {
-      var ori = UiUtils.Perp(Style._props.LayoutOrientation);
-      var amode = Style._props.L_AutoMode(ori);
+      var ori = UiUtils.Perp(_style._props.LayoutOrientation);
+      var amode = _style._props.L_AutoMode(ori);
       if (amode == UiAutoMode.Line)
       {
         foreach (var line in this._static._autoLinesV)
@@ -3549,7 +3321,7 @@ UiSizeMode Auto, AutoContent -- child attribute
         {
           block._block._b2ContentClip = block._block._b2MarginQuad.Clone();
         }
-        else if (ele.Style._props.FloatMode == UiFloatMode.Floating)
+        else if (ele._style._props.FloatMode == UiFloatMode.Floating)
         {
           //floating elements can go beyond parent
           block._block._b2ContentClip = block._block._b2ClipQuad.Clone();
@@ -3593,13 +3365,18 @@ UiSizeMode Auto, AutoContent -- child attribute
         float left = ComputeStaticOrigin(ori, block, parent, scale);
 
         //add static offset
-        if (parent.Style._props.LayoutDirection == UiLayoutDirection.LeftToRight || parent.Style._props.LayoutOrientation != ori)
+        if (parent._style._props.LayoutDirection == UiLayoutDirection.LeftToRight || parent._style._props.LayoutOrientation != ori)
         {
           left += block.L_Left(ori);
         }
         else
         {
           left -= block.L_Left(ori);
+        }
+
+        if (ori == parent._style._props.LayoutOrientation && block is UiGlyph)
+        {
+          left += (block as UiGlyph)._justify_sp;
         }
 
         block._block._b2MarginQuad.L_Left(ori, left);
@@ -3610,8 +3387,8 @@ UiSizeMode Auto, AutoContent -- child attribute
     {
       //compute final position of static block
       float left = 0;
-      var align = parent.Style._props.L_ContentAlign(ori);
-      var layout_dir = parent.Style._props.LayoutDirection;
+      var align = parent._style._props.L_ContentAlign(ori);
+      var layout_dir = parent._style._props.LayoutDirection;
       var line = block._block._line;
       var line_width = line._quad.L_Width(ori);
       var previous = block._block._previous;
@@ -3620,14 +3397,14 @@ UiSizeMode Auto, AutoContent -- child attribute
 
       //Set line offset
       float line_left = 0;
-      if (ori != parent.Style._props.LayoutOrientation && line._previous != null)
+      if (ori != parent._style._props.LayoutOrientation && line._previous != null)
       {
         //set multiple times, but it's not a huge issue.
         line_left = line._previous._quad.L_Left(ori) + line._previous._quad.L_Width(ori);
         line._quad.L_Left(ori, line_left);
       }
 
-      if (ori == parent.Style._props.LayoutOrientation)
+      if (ori == parent._style._props.LayoutOrientation)
       {
         //Horizontal
         if (previous != null)
@@ -3637,13 +3414,13 @@ UiSizeMode Auto, AutoContent -- child attribute
           if (layout_dir == UiLayoutDirection.LeftToRight)
           {
             var prev_w = previous._block._b2MarginQuad.L_Width(ori) / scale;
-            var prev_adv = GetAdvanceForDirection(previous, ori == parent.Style._props.LayoutOrientation);
+            var prev_adv = GetAdvanceForDirection(previous, ori == parent._style._props.LayoutOrientation);
             left = prev_x + prev_w + prev_adv;//Note: advance is not the same as TTF advance, advance+prev_width = next position
           }
           else
           {
             var block_w = block._block._b2LayoutQuad.L_Width(ori);
-            var prev_adv = GetAdvanceForDirection(previous, ori == parent.Style._props.LayoutOrientation);
+            var prev_adv = GetAdvanceForDirection(previous, ori == parent._style._props.LayoutOrientation);
             //L e f t -> t f e L  := e -> prev = L
             //this is not exactly correct rigth now but it is not necessary
             left = prev_x - prev_adv - block_w;
@@ -3654,7 +3431,7 @@ UiSizeMode Auto, AutoContent -- child attribute
           //compute starting position
           if (layout_dir == UiLayoutDirection.LeftToRight)
           {
-            if (align == UiAlignment.Left)
+            if (align == UiAlignment.Left || align == UiAlignment.Justify)
             {
               left = parent_x;
             }
@@ -3669,10 +3446,10 @@ UiSizeMode Auto, AutoContent -- child attribute
           }
           else //righttoleft
           {
-            float block_adv = GetAdvanceForDirection(block, ori == parent.Style._props.LayoutOrientation);
+            float block_adv = GetAdvanceForDirection(block, ori == parent._style._props.LayoutOrientation);
             var block_w = block._block._b2LayoutQuad.L_Width(ori);
             var block_off = block.L_Left(ori);
-            if (align == UiAlignment.Left)
+            if (align == UiAlignment.Left || align == UiAlignment.Justify)
             {
               left = parent_x + line_width - block_w - block_off;
             }
@@ -3697,7 +3474,7 @@ UiSizeMode Auto, AutoContent -- child attribute
         //TODO: line left is going away
         var line_origin = parent_x + line_left;
 
-        if (align == UiAlignment.Left)
+        if (align == UiAlignment.Left || align == UiAlignment.Justify)
         {
           left = line_origin;
         }
@@ -3738,12 +3515,61 @@ UiSizeMode Auto, AutoContent -- child attribute
       }
       return false;
     }
-    private void UpdateGlyphs(UiLayoutGlobals dd, bool styleChanged)
+    private void UpdateGlyphs(UiLayoutGlobals dd)
     {
-      //get glyphs
-      if (_font != null)
+      Gu.Assert(_style._props.FontFace != null);
+
+      //TODO: check if we can remove this mutex, and put the text directly the loader data.
+      string copied_text = "";
+      lock (_font._strText)
       {
-        bool dotext = false;
+        copied_text = _font._strText;
+      }
+      if (String.IsNullOrEmpty(copied_text))
+      {
+        _font._glyphs = null;
+        return;
+      }
+
+      var loader = GetFontLoader(dd.MegaTex, _style._props.FontFace);
+      if (loader == null)
+      {
+        Gu.Log.ErrorCycle("Loader, or, Default loader could not be found for " + _style._props.FontFace.QualifiedPath + " font possibly loaded with error.", 120);
+        return;
+      }
+      var patch = loader.SelectFontPatch(Gu.Translator.LanguageCode, _style._props.FontSize);
+      if (patch == null)
+      {
+        Gu.Log.ErrorCycle("Null font patch.", 120);
+        Gu.DebugBreak();
+        return;
+      }
+
+      dd.GlyphCache.CreateGlyphs(
+        _font,
+        loader, patch, copied_text,
+        _style._props.FontFace,
+        _style._props.FontSize,
+        _style._props.TextWrap,
+        _style._props.LineHeight,
+        _style._props.Tracking,
+        _style._props.Hyphens
+
+      );
+
+      _font._textChanged = false;
+      _font._bNeverDoneText = false;
+      _font._baseGlyphCount = _font._glyphs.Count;
+    }
+    private bool MustUpdateGlyphs(UiLayoutGlobals dd, bool styleChanged)
+    {
+      bool dotext = false;
+      if (_font == null)
+      {
+        dotext = false;
+      }
+      else
+      {
         if (dd.ForceText)
         {
           dotext = true;
@@ -3760,51 +3586,23 @@ UiSizeMode Auto, AutoContent -- child attribute
           }
         }
 
-        if (dotext)
+        if (dd.ForceText)
         {
-          Gu.Assert(Style._props.FontFace != null);
-
-          //TODO: check if we can remove this mutex, and put the text directly the loader data.
-          string copied_text = "";
-          lock (_font._strText)
+          dotext = true;
+        }
+        else if (_font._textChanged || styleChanged)
+        {
+          if (_font._bNeverDoneText)
           {
-            copied_text = _font._strText;
+            dotext = true;
           }
-          if (String.IsNullOrEmpty(copied_text))
+          else if (dd.Framestamp % 5 == 0)
           {
-            _font._glyphs = null;
-            return;
+            dotext = true;
           }
-
-          var loader = GetFontLoader(dd.MegaTex, Style._props.FontFace);
-          if (loader == null)
-          {
-            Gu.Log.ErrorCycle("Loader, or, Default loader could not be found for " + Style._props.FontFace.QualifiedPath + " font possibly loaded with error.", 120);
-            return;
-          }
-          var patch = loader.SelectFontPatch(Gu.Translator.LanguageCode, Style._props.FontSize);
-          if (patch == null)
-          {
-            Gu.Log.ErrorCycle("Null font patch.", 120);
-            Gu.DebugBreak();
-            return;
-          }
-
-          dd.GlyphCache.CreateGlyphs(
-            _font,
-            loader, patch, copied_text,
-            Style._props.FontFace,
-            Style._props.FontSize,
-            Style._props.TextWrap,
-            Style._props.LineHeight,
-            Style._props.Tracking
-          );
-
-          _font._textChanged = false;
-          _font._bNeverDoneText = false;
-
         }
       }
+      return dotext;
     }
     private MtFontLoader? GetFontLoader(MegaTex mt, FileLoc face)
     {
@@ -3820,7 +3618,7 @@ UiSizeMode Auto, AutoContent -- child attribute
       if (loader == null)
       {
         Gu.Log.ErrorCycle("Font loader could not be found for " + face.QualifiedPath + " font possibly loaded with error", 120);
-        loader = mt.GetFont(FontFace.Default);
+        loader = mt.GetFont(UiFontFace.Default);
       }
 
       return loader;
@@ -3841,7 +3639,7 @@ UiSizeMode Auto, AutoContent -- child attribute
       {
         DebugVert(_block._b2BorderQuad, clip, this._debugcolor, globals, rootPickId);
       }
-      if (Style._props.RenderMode != UiRenderMode.None)
+      if (_style._props.RenderMode != UiRenderMode.None)
       {
         var bd = _container._border;// GetBorder(dd);
         var radius = this.GetBorderRadius(globals);
@@ -3853,23 +3651,23 @@ UiSizeMode Auto, AutoContent -- child attribute
         vc._border = _container._border.ToVec4();
         vc._font_weight = new vec4(1, 0, 0, 0);
         vc._border_color = new uvec4(
-          vec4ToUint(Style._props.BorderColorTop * Style._props.Opacity),
-          vec4ToUint(Style._props.BorderColorRight * Style._props.Opacity),
-          vec4ToUint(Style._props.BorderColorBot * Style._props.Opacity),
-          vec4ToUint(Style._props.BorderColorLeft * Style._props.Opacity)
+          vec4ToUint(_style._props.BorderColorTop * _style._props.Opacity),
+          vec4ToUint(_style._props.BorderColorRight * _style._props.Opacity),
+          vec4ToUint(_style._props.BorderColorBot * _style._props.Opacity),
+          vec4ToUint(_style._props.BorderColorLeft * _style._props.Opacity)
         );
 
         SetVertexRasterArea(ref vc, in _block._b2BorderQuad, in clip, globals);
 
         MtTex tex = null;
-        if (Style._props.RenderMode == UiRenderMode.Color)
+        if (_style._props.RenderMode == UiRenderMode.Color)
         {
           tex = globals.DefaultPixel;
         }
-        else if (Style._props.Texture != null)
+        else if (_style._props.Texture != null)
         {
-          Gu.Assert(Style._props.Texture.Modified == false);
-          tex = Style._props.Texture.Image;
+          Gu.Assert(_style._props.Texture.Modified == false);
+          tex = _style._props.Texture.Image;
         }
         else
         {
@@ -3878,10 +3676,10 @@ UiSizeMode Auto, AutoContent -- child attribute
           Gu.DebugBreak();
         }
 
-        ComputeVertexTexcoord(ref vc, tex, Style._props.ImageTilingX, Style._props.ImageTilingY, adjust);
+        ComputeVertexTexcoord(ref vc, tex, _style._props.ImageTilingX, _style._props.ImageTilingY, adjust);
 
-        vec4 cmul = Style._props.Color * Style._props.MultiplyColor;
-        vec4 color = new vec4(cmul.xyz, cmul.w * Style._props.Opacity).Clamp(0.0f, 1.0f);
+        vec4 cmul = _style._props.Color * _style._props.MultiplyColor;
+        vec4 color = new vec4(cmul.xyz, cmul.w * _style._props.Opacity).Clamp(0.0f, 1.0f);
         vc._pick_color = new uvec2(rootPickId, vec4ToUint(color));
         globals.Verts.Add(vc);
 
@@ -3903,9 +3701,9 @@ UiSizeMode Auto, AutoContent -- child attribute
       vc._rbr_rbl = new vec4(0, 0, 0, 0);
       vc._border = new vec4(0, 0, 0, 0);
       vc._border_color = new uvec4(0, 0, 0, 0);
-      vc._font_weight = new vec4(this.Style._props.FontWeight, 0, 0, 0);
+      vc._font_weight = new vec4(this._style._props.FontWeight, 0, 0, 0);
       ComputeVertexGlyphTCoord(ref vc, glyph._cachedGlyph, adjust);
-      vc._pick_color = new uvec2(pickId, vec4ToUint(color * Style._props.Opacity));
+      vc._pick_color = new uvec2(pickId, vec4ToUint(color * _style._props.Opacity));
       globals.Verts.Add(vc);
     }
     private void DebugVert(UiQuad quad, UiQuad clip, vec4 c, UiLayoutGlobals dd, uint pick)
@@ -3924,7 +3722,7 @@ UiSizeMode Auto, AutoContent -- child attribute
     private void ComputeVertexTexcoord(ref v_v4v4v4v2u2v4v4 vc, MtTex pTex, UiImageTiling xtile, UiImageTiling ytile, float adjust)
     {
       Gu.Assert(pTex != null);
-      ComputeTCoord(ref vc, pTex.uv0, pTex.uv1, pTex.GetWidth(), pTex.GetHeight(), pTex.GetSizeRatio(), xtile, ytile, Style._props.ImageScaleX, Style._props.ImageScaleY, adjust);
+      ComputeTCoord(ref vc, pTex.uv0, pTex.uv1, pTex.GetWidth(), pTex.GetHeight(), pTex.GetSizeRatio(), xtile, ytile, _style._props.ImageScaleX, _style._props.ImageScaleY, adjust);
     }
     private void ComputeVertexGlyphTCoord(ref v_v4v4v4v2u2v4v4 vc, MtFontChar? glyph, float adjust)
     {
@@ -4043,7 +3841,7 @@ UiSizeMode Auto, AutoContent -- child attribute
     private void UpdateTexture(MegaTex mt)
     {
       //set the correct MtTex if user changed texture id
-      var utex = Style._props.Texture;
+      var utex = _style._props.Texture;
       if (utex != null && utex.Modified)
       {
         utex.Modified = false;
@@ -4063,14 +3861,14 @@ UiSizeMode Auto, AutoContent -- child attribute
           {
             //display pink solid
             utex.Loc.LogNotFound();
-            Style.RenderMode = UiRenderMode.Color;
-            Style.Color = OffColor.Magenta;
+            _style.RenderMode = UiRenderMode.Color;
+            _style.Color = OffColor.Magenta;
             Gu.DebugBreak();
           }
         }
         else
         {
-          Style.RenderMode = UiRenderMode.Color;
+          _style.RenderMode = UiRenderMode.Color;
         }
       }
     }
@@ -4351,7 +4149,7 @@ UiSizeMode Auto, AutoContent -- child attribute
           _layoutGlobals.dbg_DidNotChange = 0;
           _layoutGlobals.dbg_FullyClipped = 0;
 
-          var rootsiz = new UiSize2(Style._props.FixedWidth, Style._props.FixedHeight);
+          var rootsiz = new UiSize2(_style._props.FixedWidth, _style._props.FixedHeight);
           PerformLayout_SizeElements(rootsiz, null, _layoutGlobals, false);
           PerformLayout_PositionElements(_layoutGlobals, null, _iPickId, ref pickable, 1);
           _layoutGlobals.ForceText = false;
@@ -4484,10 +4282,10 @@ UiSizeMode Auto, AutoContent -- child attribute
     }
     private Gui2dShared GetOrCreateGui2dShared(string name, List<FileLoc> resources)
     {
-      if (!resources.Contains(FontFace.RobotoMono))
+      if (!resources.Contains(UiFontFace.RobotoMono))
       {
         //Must add default font or else we can't render glyphs.
-        resources.Add(FontFace.RobotoMono);
+        resources.Add(UiFontFace.RobotoMono);
       }
 
       //if resources change we need a different mega texture so that is why we hash the resources

@@ -43,11 +43,11 @@ namespace Loft
     {
       return new List<FileLoc>()
       {
-        FontFace.Parisienne
+        UiFontFace.Parisienne
         //,FontFace.PressStart2P
         //,FontFace.EmilysCandy
         //,FontFace.Entypo
-        , FontFace.Calibri
+        , UiFontFace.Calibri
         , Icon_Light_AppbarClose
         , Icon_Dark_AppbarClose
         , Icon_Dark_AppbarCrop
@@ -440,7 +440,7 @@ namespace Loft
             }
             else
             {
-              _contextMenu.Style.Top = 0 - _contextMenu.Style._props.BorderTop;
+              _contextMenu.Style.Top = 0 - _contextMenu.Style.BorderTop;
               _contextMenu.Style.Left = Parent.BorderQuad._width;
             }
             _contextMenu.Show();
@@ -526,7 +526,7 @@ namespace Loft
       this.Style.BorderColorBot = vec4.rgba_ub(110, 110, 110);
       this.Style.FontSize = 24;
       this.Style.FontColor = OffColor.Charcoal;
-      this.Style.FontFace = FontFace.Calibri;
+      this.Style.FontFace = UiFontFace.Calibri;
     }
     public UiMenuItem AddItem(UiMenuItem item)
     {
@@ -696,7 +696,7 @@ namespace Loft
         _cursor = new UiElement("Cursor");
         _cursor.Style.Color = OffColor.DarkSlateGray;
         _cursor.Style.FixedWidth = 3;
-        _cursor.Style.FixedHeight = this.Style._props.FontSize;
+        _cursor.Style.FixedHeight = this.Style.FontSize;
         _cursor.Style.Margin = 0;
         _cursor.Style.Padding = 0;
         _cursor.Style.Border = 0;
@@ -789,7 +789,7 @@ namespace Loft
     {
 
       this.Text = text;
-      double d = this.Style._props.Opacity;
+      double d = this._style._props.Opacity;
       this.Animate(UiPropName.Opacity, 1, 90);
     }
   }
@@ -821,7 +821,6 @@ namespace Loft
   }
   public class UiSlider : UiControl
   {
-    //scroll
     public const int c_iMinThumbSize = 10;
 
     public enum LabelDisplayMode
@@ -839,7 +838,6 @@ namespace Loft
     public float ThumbSize { get { return _thumbsize; } set { _thumbsize = value; UpdateValuesChanged(); } }
     public float ScrollSize { get { return _scrollSize; } set { _scrollSize = value; } }
     public UiSizeMode ExpandMode { get { return _expandMode; } set { _expandMode = value; UpdateStyle(); } }
-    private UiOrientation _dir { get { return this.Style.LayoutOrientation.Value; } }
 
     private float _scrollSize = 10;
     private double _value = 0;
@@ -859,6 +857,7 @@ namespace Loft
     private float _thumbsize = 10;
     private int _minSize = c_iMinThumbSize;
     private UiSizeMode _expandMode = UiSizeMode.Auto;
+    private UiOrientation _dir { get { return this.Style.LayoutOrientation.Value; } }
 
     public UiSlider(double leftval, double rightval, double defaultval, LabelDisplayMode labeldisply, UiOrientation direction, Action<UiElement, double> onValueChange, string name = "") : base(name)
     {
@@ -1245,7 +1244,7 @@ namespace Loft
       _content.Style.Margin = 0;
       _content.Style.Padding = 0;
       _content.Style.Border = 0;
-      _content.Style.ContentAlignX = UiAlignment.Left;
+      _content.Style.ContentAlignX = UiAlignment.Justify;
       _content.Style.OverflowMode = UiOverflowMode.Content;
       this.AddChild(_content);
 
@@ -1264,7 +1263,6 @@ namespace Loft
       }, "ScrollRegionHScroll");
       _hscroll.Style.DisplayMode = UiDisplayMode.Block;
       _hscroll.Style.SizeModeWidth = UiSizeMode.Auto;
-      //_hscroll.Style.AutoMode = UiAutoMode.Line;
       _hscroll.Thickness = sb_size;
       this.AddChild(_hscroll);
 
@@ -1350,9 +1348,9 @@ namespace Loft
 
       public UiAutoCol(UiAlignment align)
       {
-        this.Style._props.ContentAlignX = align;
-        this.Style._props.SizeModeWidth = UiSizeMode.AutoContent;
-        this.Style._props.DisplayMode = UiDisplayMode.NoWrap;
+        this.Style.ContentAlignX = align;
+        this.Style.SizeModeWidth = UiSizeMode.AutoContent;
+        this.Style.DisplayMode = UiDisplayMode.NoWrap;
       }
       private void SetElement(ref UiElement? cur, UiElement? next)
       {
@@ -1453,7 +1451,7 @@ namespace Loft
       this.Style.BorderRadius = 8;
       this.Style.LayoutOrientation = UiOrientation.Horizontal;
       this.Style.FontSize = 17;
-      this.Style.FontFace = FontFace.Calibri;
+      this.Style.FontFace = UiFontFace.Calibri;
       this.Style.FontColor = OffColor.Black;
       this.Style.Color = WINDOW_COLOR;
 

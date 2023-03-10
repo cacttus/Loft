@@ -76,6 +76,7 @@ namespace Loft
       w.Region.AlwaysShowScrollbars=false;
 
       w.Content.Text = Ipsum.GetIpsum(2);
+      //w.Content.
 
     //  var e = new UiElement("TestGreenBox");
     //  e.Style.FixedHeight = e.Style.FixedWidth = 100;
@@ -221,7 +222,7 @@ namespace Loft
       lab.Style.OverflowMode = UiOverflowMode.Content;
       lab.Style.BorderRadius = 12;
       lab.Style.FontWeight = 1.1f;
-      lab.Style.FontFace = FontFace.Parisienne;
+      lab.Style.FontFace = UiFontFace.Parisienne;
       //lab.Style.FontFace = FontFace.Parisienne;
       lab.Style.FontColor = OffColor.Charcoal;
       lab.Style.ContentAlignX = UiAlignment.Left;
